@@ -358,6 +358,101 @@ export function AiPane() {
 }
 
 /* ────────────────────────────── EMAIL ────────────────────────────── */
+// v3.45.0 — plain-English reference of every email AYN sends on its own,
+// with no admin action needed. The broadcast tool below this is the only
+// email an admin writes by hand; everything in this list fires
+// automatically from real product events (signup, payment, a proposal
+// being sent, etc). Static content: these are fixed templates, not data
+// from the database, so there is nothing to fetch here.
+const SYSTEM_EMAILS: { subject: string; who: string; when: string; says: string }[] = [
+  {
+    subject: 'Confirm your AYN account',
+    who: 'A new job seeker or employer',
+    when: 'The moment they sign up',
+    says: 'Asks them to click a link to verify their email before they can use AYN. Expires in 24 hours.',
+  },
+  {
+    subject: 'Reset your password',
+    who: 'Anyone who clicked "Forgot password"',
+    when: 'Right after they ask for a reset',
+    says: 'A link to set a new password. Expires in 1 hour, and only works once.',
+  },
+  {
+    subject: 'Confirm your new email',
+    who: 'Someone changing the email on their account',
+    when: 'The moment they request the change',
+    says: 'Confirms the new address before the switch takes effect. Protects against someone else changing your email by mistake.',
+  },
+  {
+    subject: 'Your AYN payment receipt',
+    who: 'A job seeker on a paid plan',
+    when: 'The instant a payment or renewal goes through',
+    says: 'Which plan, how much was charged, and how many credits were just added.',
+  },
+  {
+    subject: 'New job proposal from [Company]',
+    who: 'A job seeker',
+    when: 'The moment an employer sends them a proposal',
+    says: 'Who is interested and for what role, with a link back to AYN to read the full message.',
+  },
+  {
+    subject: 'New assessment from [Company]',
+    who: 'A job seeker',
+    when: 'The moment an employer sends them a short skills assessment',
+    says: 'Which company, what role, and roughly how many minutes it takes.',
+  },
+  {
+    subject: 'A candidate accepted your proposal',
+    who: 'The employer (everyone on their team)',
+    when: 'The moment a job seeker accepts a proposal',
+    says: 'Lets them know they can now see the candidate’s contact details in AYN. No name or contact info in the email itself, by design.',
+  },
+  {
+    subject: 'A candidate declined your proposal',
+    who: 'The employer (everyone on their team)',
+    when: 'The moment a job seeker turns down a proposal',
+    says: 'Just the outcome, so they are not left wondering. No reason is shared because none is collected.',
+  },
+  {
+    subject: 'An assessment was completed',
+    who: 'The employer (everyone on their team)',
+    when: 'The moment a job seeker finishes an assessment',
+    says: 'Lets them know results are ready to review in AYN. No score or answers in the email itself, by design.',
+  },
+];
+
+function SystemEmailsReference() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card className="border border-border/60 bg-card">
+      <CardContent className="p-5 space-y-3">
+        <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between text-left">
+          <div>
+            <p className="text-base font-medium">Emails AYN sends on its own</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Nothing below this needs an admin to do anything. These fire automatically when something happens in the product.
+              The tool further down this page is different: that one is for writing a message yourself.
+            </p>
+          </div>
+          <span className="text-sm text-muted-foreground shrink-0 ml-3">{open ? 'Hide' : 'Show'}</span>
+        </button>
+        {open && (
+          <div className="divide-y divide-border/60 pt-2">
+            {SYSTEM_EMAILS.map(e => (
+              <div key={e.subject} className="py-3 space-y-1">
+                <p className="text-sm font-medium">{e.subject}</p>
+                <p className="text-xs text-muted-foreground"><span className="text-foreground">Goes to:</span> {e.who}</p>
+                <p className="text-xs text-muted-foreground"><span className="text-foreground">Sent:</span> {e.when}</p>
+                <p className="text-xs text-muted-foreground"><span className="text-foreground">Says:</span> {e.says}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function EmailPane() {
   const query = useAdminEmailAudience();
   const [audience, setAudience] = useState<'all' | 'seekers' | 'employers' | 'discoverable'>('all');
@@ -410,8 +505,11 @@ export function EmailPane() {
         <Stat label="Discoverable" value={all.filter(u => u.discoverable).length} accent />
       </div>
 
+      <SystemEmailsReference />
+
       <Card className="border border-border/60 bg-card">
         <CardContent className="p-5 space-y-4">
+          <p className="text-sm font-medium -mb-1">Write your own message</p>
           <div className="flex flex-wrap gap-2">
             {(['all', 'seekers', 'employers', 'discoverable'] as const).map(a => (
               <button key={a} onClick={() => setAudience(a)}

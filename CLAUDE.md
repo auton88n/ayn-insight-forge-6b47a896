@@ -4,7 +4,13 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: v3.44.0, four new notification emails: credit/subscription receipts, proposal received, assessment received, and employer notified of a candidate response.
+Last verified: v3.45.0, a plain-English reference list of every automatic system email, added to the admin System → Email pane.
+
+ADMIN EMAIL PANE NOW EXPLAINS ITSELF. Asked directly, after the v3.44.0 notification emails shipped, to make the admin panel explain things in plain English rather than requiring the founder to ask what something means or read code — and specifically to show, in the Email pane, what AYN actually sends on its own. `SystemPanes.tsx`'s `EmailPane` previously showed only the broadcast composer (write a message, pick an audience, send), with no visibility into the nine automatic emails covered under v3.44.0 and v3.43.0. Added a collapsible `SystemEmailsReference` card above the composer, static content (fixed templates, nothing to fetch), one entry per email: subject line, who it goes to, when it fires, and a one-line plain-English description of what it says, deliberately avoiding words like "webhook," "hook," or "RPC." The composer below it is now labeled "Write your own message" so the two are visually distinct rather than looking like one tool. Verified live: signed into the real admin panel with a throwaway admin account, opened System → Email, expanded the new card, confirmed all nine entries render correctly with no console errors, collapsed and re-expanded it, then cleaned up the test account and restored the PIN hash exactly as done throughout this session.
+
+Details in docs/map/platform.md.
+
+Preceded by v3.44.0, four new notification emails: credit/subscription receipts, proposal received, assessment received, and employer notified of a candidate response.
 
 FOUR NEW NOTIFICATION EMAILS, WHERE THERE WERE PREVIOUSLY ZERO. Asked directly: what happens by email when someone buys credits, or a job seeker gets a proposal or assessment, or an employer's candidate responds? Answer, confirmed by reading every relevant handler: nothing did. `stripe-webhook`'s `invoice.paid` only called `credit_grant`, `employer_reveal_request`/`employer_assessment_send` only wrote rows, `reveal_decide`/`assessment_submit` only updated rows — no email, no notifications table, no bell, nothing besides a badge count the person has to go look at. Built all four:
 
