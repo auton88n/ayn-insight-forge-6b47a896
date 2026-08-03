@@ -98,6 +98,13 @@ export default function ResumeHub() {
     sessionStorage.setItem("ayn_focus_job", jobId);
   }, []);
 
+  // v3.39.0 — a bare signOut() cleared the session but never navigated
+  // anywhere, so this whole gated view stayed on screen looking untouched.
+  const handleSignOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+  }, [navigate]);
+
   if (loading) {
     return (
       <div className="resume-hub-theme flex items-center justify-center" style={{ minHeight: "100vh" }}>
@@ -170,7 +177,7 @@ export default function ResumeHub() {
                   <CreditCard className="w-4 h-4 mr-2" /> Plan and credits
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => supabase.auth.signOut()}>
+                <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="w-4 h-4 mr-2" /> Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>

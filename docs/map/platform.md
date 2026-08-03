@@ -179,6 +179,8 @@ server.js: express static host for dist/ with SPA fallback and cache headers (/a
 
 ## Employer mode (v2.9.0-B)
 
+Sign out (v3.39.0 fix, see docs/map/resume-hub.md "Sign out" for the full writeup): `EmployerHub.tsx`'s two Sign out buttons (desktop sidebar, mobile bottom nav) called a bare `supabase.auth.signOut()` with no await and no navigation, same bug and same fix as Resume Hub's — both now share one `handleSignOut` per file that awaits the sign-out then calls `navigate("/")`.
+
 `src/components/dashboard/EmployerChatPanel.tsx` is a full-surface overlay opened from a "Hiring mode" button in the top right of the dashboard shell. It is entirely separate from the seeker chat pipeline: it does not go through `useAYN` / `ayn-ai-proxy`. All calls hit `src/lib/employer.ts`, which is a thin session-JWT wrapper around `supabase/functions/resume-hub` employer actions.
 
 Flow inside the panel:

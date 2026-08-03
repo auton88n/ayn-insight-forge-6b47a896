@@ -14,6 +14,9 @@ src/pages/ResumeHub.tsx with six tabs in src/components/resume-hub/ (Resumes rem
 
 Old nav for reference: Overview / Profile / Resumes / Saved jobs / Extension. TrackerTab was deleted in v3.0.1, OverviewTab in v3.3.0, CanadianProfileForm.tsx in v3.2.0, BuilderTab.tsx in v3.4.0.
 
+## Sign out (v3.39.0 fix)
+The account-menu "Sign out" item calls `handleSignOut`, an `async () => { await supabase.auth.signOut(); navigate("/"); }` defined near the top of `ResumeHub.tsx`. Before v3.39.0 it was a bare `supabase.auth.signOut()` with no await and no navigation, so the session cleared underneath but the page never reacted — `ResumeHub.tsx` is a top-level route (`src/App.tsx`), not nested inside `Index.tsx`'s `AuthedShell`, so `AuthedShell`'s own `onAuthStateChange` listener was never in the tree to catch it. `EmployerHub.tsx` had the identical bug at two buttons (desktop sidebar, mobile bottom nav) with the same fix, `handleSignOut` defined once and reused at both call sites. `EmployerPending.tsx` and the delete-account flow in `PrivacySettings.tsx` already did this correctly and were the reference pattern.
+
 
 ## One profile, one resume (v3.4.0)
 

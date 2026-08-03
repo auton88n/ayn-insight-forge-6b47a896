@@ -90,6 +90,13 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
 
 
+  // v3.39.0 — a bare signOut() cleared the session but never navigated
+  // anywhere, so this whole gated view stayed on screen looking untouched.
+  const handleSignOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+  }, [navigate]);
+
   const [searching, setSearching] = useState(false);
   // v3.24.0 — maintenance switches, set from the admin panel.
   const searchFeature = useFeature("candidate_search");
@@ -372,7 +379,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 <span className="text-[11px] font-medium leading-none">Plan</span>
               </button>
               <button
-                onClick={() => supabase.auth.signOut()}
+                onClick={handleSignOut}
                 aria-label="Sign out"
                 className="w-full rounded-xl py-2.5 flex flex-col items-center gap-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
@@ -531,7 +538,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               <span className="text-[10px] font-medium">Plan</span>
             </button>
             <button
-              onClick={() => supabase.auth.signOut()}
+              onClick={handleSignOut}
               className="flex-1 py-2.5 grid place-items-center gap-0.5 text-muted-foreground"
             >
               <LogOut className="w-[18px] h-[18px]" />
