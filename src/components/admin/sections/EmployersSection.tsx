@@ -79,10 +79,10 @@ export default function EmployersSection() {
           {active.length === 0 ? <EmptyRow>No employers yet.</EmptyRow> : active.map(e => (
             <div key={e.user_id} className="rounded-xl border border-border/60 p-4 flex items-start justify-between gap-4 flex-wrap">
               <div className="min-w-0">
-                <p className="font-semibold flex items-center gap-2">
+                <div className="font-semibold flex items-center gap-2">
                   {e.company_name || 'Unnamed company'}
                   <Badge variant="secondary" className="text-[10px] uppercase">{e.status}</Badge>
-                </p>
+                </div>
                 <p className="text-xs text-muted-foreground mt-1">{e.requester_email} · approved {when(e.approved_at)}</p>
                 <p className="text-xs text-muted-foreground mt-2">
                   {e.plan_name || e.plan_key} · proposals {e.proposals_used ?? 0}/{e.proposals_limit ?? '∞'} · assessments {e.assessments_used ?? 0}/{e.assessments_limit ?? '∞'} · searches {e.searches_used ?? 0}/{e.searches_limit ?? '∞'}

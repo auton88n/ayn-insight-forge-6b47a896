@@ -4,6 +4,12 @@ const ALLOWED_ORIGINS = [
   'https://ayn-insight-forge.lovable.app',
   'http://localhost:5173',
   'http://localhost:8080',
+  // v3.41.0 — this project's actual dev server runs on :3000 (vite.config.ts),
+  // not :5173 or :8080, so admin-auth-pin (the only function using this
+  // allowlist) always CORS-failed from local dev, unlike resume-hub's
+  // wide-open CORS. Added rather than replacing the other two in case
+  // another environment still uses them.
+  'http://localhost:3000',
 ];
 
 function isAllowedOrigin(origin: string): boolean {
