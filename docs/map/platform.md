@@ -1,3 +1,7 @@
+# v3.51.0 footer Company column
+
+Both footers' "Company" column had drifted into `NAV_LINKS`: Home, How it works, Pricing, About, Help Center, Contact, a mix of primary nav and company pages with no Legal entry, while Legal sat in its own separate column (Privacy Policy, `/legal` hub, Cookie choices). Asked directly to group About Us, Help Center, Legal and Contact Us under a real "Company" heading. `src/components/shared/siteLinks.ts`'s `NAV_LINKS` is now just the three primary-nav items (Home, How it works, Pricing); a new `COMPANY_LINKS` array holds About Us, Help Center, Legal, Contact Us. Both `LandingSections.tsx`'s `.lp-footer` and the shared `Footer.tsx` render "Navigate" (`NAV_LINKS`) and "Company" (`COMPANY_LINKS`) as two columns; Privacy Policy and Cookie choices moved into the bottom bar beside the copyright line rather than keeping a now-mostly-empty Legal column. New `.lp-footer-bottom-links` CSS rule for the landing footer's bottom row. `Header.tsx`, the site's actual top nav bar, was left untouched — this was scoped to the footer only. Verified live on `/` and `/pricing`.
+
 # v3.50.0 marketing pages, About, Help Center, Contact
 
 Three public pages, written to the founder's exact copy, matching the landing page look (paper white, ember accent, Outfit style headings).

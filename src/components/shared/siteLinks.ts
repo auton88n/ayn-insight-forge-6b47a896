@@ -25,7 +25,12 @@ export const NAV_LINKS: SiteLink[] = [
   { to: '/', label: 'Home' },
   { to: '/#how', label: 'How it works' },
   { to: '/pricing', label: 'Pricing' },
-  { to: '/about', label: 'About' },
+];
+
+/** The footer's "Company" column: about the business, not the product. */
+export const COMPANY_LINKS: SiteLink[] = [
+  { to: '/about', label: 'About Us' },
   { to: '/help', label: 'Help Center' },
-  { to: '/contact', label: 'Contact' },
+  { to: '/legal', label: 'Legal' },
+  { to: '/contact', label: 'Contact Us' },
 ];

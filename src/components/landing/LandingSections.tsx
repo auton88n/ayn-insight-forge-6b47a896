@@ -9,7 +9,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { openCookiePreferences } from '@/components/shared/CookieConsent';
-import { COPYRIGHT_LINE, COMPANY_TAGLINE, NAV_LINKS } from '@/components/shared/siteLinks';
+import { COPYRIGHT_LINE, COMPANY_TAGLINE, NAV_LINKS, COMPANY_LINKS } from '@/components/shared/siteLinks';
 import aynLogo from '@/assets/ayn-logo.png';
 import {
   ArrowRight, FileText, Target, ShieldCheck, MessagesSquare, Radar,
@@ -583,7 +583,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
 
             <div className="lp-footer-cols">
               <div className="lp-footer-col">
-                <h4>Company</h4>
+                <h4>Navigate</h4>
                 <ul>
                   {NAV_LINKS.map(l => (
                     <li key={l.to}><Link to={l.to}>{l.label}</Link></li>
@@ -591,13 +591,11 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                 </ul>
               </div>
               <div className="lp-footer-col">
-                <h4>Legal</h4>
+                <h4>Company</h4>
                 <ul>
-                  <li><Link to="/privacy">Privacy Policy</Link></li>
-                  <li><Link to="/legal">Legal</Link></li>
-                  <li>
-                    <button type="button" onClick={openCookiePreferences}>Cookie choices</button>
-                  </li>
+                  {COMPANY_LINKS.map(l => (
+                    <li key={l.to}><Link to={l.to}>{l.label}</Link></li>
+                  ))}
                 </ul>
               </div>
             </div>
@@ -605,6 +603,10 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
 
           <div className="lp-footer-bottom">
             <span>{COPYRIGHT_LINE}</span>
+            <div className="lp-footer-bottom-links">
+              <Link to="/privacy">Privacy Policy</Link>
+              <button type="button" onClick={openCookiePreferences}>Cookie choices</button>
+            </div>
           </div>
         </div>
       </footer>
