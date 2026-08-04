@@ -4,7 +4,9 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: v3.49.0, the footer's Legal column cut from eight documents down to three items.
+Last verified: v3.50.0, three public marketing pages: /about, /help (replacing the deleted Support page and its removed AI assistant claim, with /support redirecting to it) and a rewritten /contact with no form and no leftover French. Client side search on the Help Center, footer links via siteLinks.ts, sitemap and server.js route list updated. Built as a separate, parallel stream of work (pushed straight to the repo outside this session) that landed after the two entries below; renumbered from v3.48.0 to v3.50.0 on merge to keep one coherent version chain, no content changed. Details in docs/map/platform.md.
+
+Preceded by v3.49.0, the footer's Legal column cut from eight documents down to three items.
 
 LEGAL FOOTER COLUMN SIMPLIFIED. Follow up to v3.48.0, on seeing it live: the new Legal column still listed all seven `LEGAL_LINKS` documents (Terms, Privacy, Cookies, Security, Subprocessors, DPA, SLA) plus Cookie choices, an eighth item, still a wall of links, just a narrower one. Asked directly whether all of them needed to show, then to point them at the legal hub instead. `src/pages/LegalIndex.tsx` already existed as a working `/legal` page listing every document with its title, description, version and effective date, but nothing linked to it. Both footers (`LandingSections.tsx`'s own `.lp-footer`, and the shared `src/components/shared/Footer.tsx` used on `/pricing`, `/contact`, `/do-not-sell`, `/resume-match` and every legal page) now show exactly three Legal items: Privacy Policy (kept as its own direct link, the one document people actually look for), Legal (a single link to the `/legal` hub, which covers the other six), and Cookie choices (kept separate since it opens the consent preferences dialog, not a document). The `LEGAL_LINKS` import was dropped from both files now that nothing reads it directly here; `LEGAL_LINKS` itself and `LegalIndex.tsx` are untouched, since the hub page still needs the full list. Verified live at both footers: `/` and `/pricing` both show the three-item column, clicking Legal lands on the working hub page, `tsc --noEmit` clean.
 
@@ -223,7 +225,7 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx). Solo founder: Gha
 
 ## Routes (src/App.tsx)
 
-/ (landing, or role based routing when signed in), /resume-hub, /resume-match, /handoff, /extension/approve, /employer/pending, /settings, /pricing, /billing, /support, /contact, /world-intelligence, /sign/:token, /nda/:token (legacy signing pages, still live), /terms, /privacy, /legal, /cookies, /security, /subprocessors, /dpa, /sla, /copyright, /reset-password, /subscription-success|canceled, /approval-result, /manage-bae76e99d97e188b (admin app; /admin redirects to 404 on purpose). /dashboard and /dashboard/* redirect to /.
+/ (landing, or role based routing when signed in), /resume-hub, /resume-match, /handoff, /extension/approve, /employer/pending, /settings, /pricing, /billing, /help (with /support redirecting to it), /about, /contact, /world-intelligence, /sign/:token, /nda/:token (legacy signing pages, still live), /terms, /privacy, /legal, /cookies, /security, /subprocessors, /dpa, /sla, /copyright, /reset-password, /subscription-success|canceled, /approval-result, /manage-bae76e99d97e188b (admin app; /admin redirects to 404 on purpose). /dashboard and /dashboard/* redirect to /.
 
 ## Edge functions — CORRECTION, this section was wrong (v3.27.0 said eight, there are 39)
 

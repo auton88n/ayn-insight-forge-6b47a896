@@ -67,7 +67,8 @@ const Handoff = lazy(() => import("./pages/Handoff"));
 // const AutomationApply = lazy(() => import("./pages/services/AutomationApply"));
 // const Ticketing = lazy(() => import("./pages/services/Ticketing"));
 // const TicketingApply = lazy(() => import("./pages/services/TicketingApply"));
-const Support = lazy(() => import("./pages/Support"));
+const Help = lazy(() => import("./pages/Help"));
+const About = lazy(() => import("./pages/About"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const Billing = lazy(() => import("./pages/Billing"));
 const SubscriptionSuccess = lazy(() => import("./pages/SubscriptionSuccess"));
@@ -131,7 +132,9 @@ const AnimatedRoutes = () => {
       <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/handoff" element={<Suspense fallback={<PageLoader />}><Handoff /></Suspense>} />
       <Route path="/employer/pending" element={<Suspense fallback={<PageLoader />}><EmployerPending /></Suspense>} />
-      <Route path="/support" element={<Support />} />
+      <Route path="/help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
+      <Route path="/support" element={<Navigate to="/help" replace />} />
+      <Route path="/about" element={<Suspense fallback={<PageLoader />}><About /></Suspense>} />
       <Route path="/approval-result" element={<ApprovalResult />} />
       <Route path="/subscription-success" element={<SubscriptionSuccess />} />
       <Route path="/subscription-canceled" element={<SubscriptionCanceled />} />

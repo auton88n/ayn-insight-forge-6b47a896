@@ -67,7 +67,7 @@ export default function CompanyProfile({
     setForm(prev => {
       const merged = { ...prev };
       (Object.keys(org) as (keyof Org)[]).forEach(key => {
-        if (prev[key] === lastOrgRef.current[key]) merged[key] = org[key];
+        if (prev[key] === lastOrgRef.current[key]) (merged as Record<string, unknown>)[key as string] = org[key];
       });
       return merged;
     });

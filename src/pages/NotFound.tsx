@@ -39,7 +39,7 @@ const NotFound = () => {
 
         <p className="mt-8 text-sm text-muted-foreground">
           Landed here from a link of ours? Tell us at{" "}
-          <Link to="/support" className="underline underline-offset-4 hover:text-foreground">
+          <Link to="/help" className="underline underline-offset-4 hover:text-foreground">
             support
           </Link>{" "}
           and we will fix it.
