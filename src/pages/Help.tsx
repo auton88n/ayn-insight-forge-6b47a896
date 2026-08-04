@@ -167,7 +167,7 @@ const Help = () => {
             <section className="mt-10">
               <h2 className="text-2xl font-semibold tracking-tight mb-5">Send us a message</h2>
               <div className="rounded-2xl border border-border bg-card p-6">
-                <TicketForm />
+                <TicketForm onSuccess={() => undefined} />
               </div>
             </section>
           )}
