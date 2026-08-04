@@ -4,7 +4,13 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: v3.47.0, three more admin gaps closed: an activity log, real email delivery visibility, and a plan editor — and a genuine bug found and fixed live while building the second one.
+Last verified: v3.48.0, the landing page footer rebuilt from a bare wrapped list of legal links into a real footer.
+
+LANDING FOOTER REBUILT. Reported directly: the footer was just seven legal links wrapping across the page in one flat row with no branding, easy to mistake for a broken layout. `LandingSections.tsx`'s `<footer className="lp-footer">` previously rendered `LEGAL_LINKS` (7 items) plus a Cookie choices button plus hardcoded Contact/Pricing links all in one `flex-wrap` row next to the copyright line — no logo, no grouping, and Contact/Pricing were duplicated ad hoc instead of reusing the `NAV_LINKS` already defined in `siteLinks.ts` for exactly this. Rebuilt to match the shared `src/components/shared/Footer.tsx` component's structure (brand block with logo, tagline and social icons, plus grouped link columns) but styled with this page's own `.lp-*` CSS system instead of Tailwind, since `LandingSections.tsx` is the one surface that doesn't use the shared component. New CSS in `src/index.css` (`.lp-footer-top`, `.lp-footer-brand`, `.lp-footer-cols`, `.lp-footer-col`, `.lp-footer-bottom`) replaces the old two-rule `.lp-footer-row`/`.lp-footer a`. Layout: AYN wordmark, tagline, and the same three social icons `Footer.tsx` already had (email, Discord, X) on the left; "Company" (`NAV_LINKS`: Home, How it works, Pricing, Contact) and "Legal" (`LEGAL_LINKS` plus Cookie choices) as two headed columns on the right, ember-colored uppercase column headings matching the page's existing `.lp-eyebrow` accent pattern; a divider, then the copyright line alone at the bottom. Verified live at desktop and mobile widths (375px): columns stack to full width on mobile with no overlap, link hover states go ember, no console errors, `tsc --noEmit` clean.
+
+Details in docs/map/platform.md.
+
+Preceded by v3.47.0, three more admin gaps closed: an activity log, real email delivery visibility, and a plan editor — and a genuine bug found and fixed live while building the second one.
 
 ACTIVITY LOG, EMAIL DELIVERY VISIBILITY, AND A PLAN EDITOR. Continuation of the same "what am I missing as admin" list from v3.46.0; the founder asked for the next three.
 
