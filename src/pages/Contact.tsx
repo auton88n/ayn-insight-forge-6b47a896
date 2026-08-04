@@ -3,6 +3,7 @@ import { SEO, createBreadcrumbSchema } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { SectionHeading } from '@/components/shared/SectionHeading';
+import TicketForm from '@/components/support/TicketForm';
 
 const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
 
@@ -16,7 +17,7 @@ const Contact = () => {
     <>
       <SEO
         title="Contact AYN"
-        description="How to reach AYN. One inbox, read by the team."
+        description="How to reach AYN. Send a message and a real person reads it."
         canonical="/contact"
         jsonLd={jsonLd}
       />
@@ -27,28 +28,20 @@ const Contact = () => {
           <span className="inline-block h-1 w-14 rounded-full mb-6" style={{ background: EMBER }} aria-hidden="true" />
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Contact us</h1>
           <p className="mt-3 text-lg text-muted-foreground">
-            One inbox, read by the team. No ticket queue, no bot.
+            Send a message and a real person reads it. No bot.
           </p>
 
           <section className="mt-12">
-            <SectionHeading>Email</SectionHeading>
-            <div className="rounded-2xl border border-border bg-card p-6">
-              <a
-                href="mailto:support@aynn.io"
-                className="text-lg font-semibold underline underline-offset-4"
-                style={{ color: '#e85d3a' }}
-              >
-                support@aynn.io
-              </a>
-              <p className="mt-3 text-muted-foreground leading-relaxed">
-                Everything goes here: support, billing, privacy and data requests, copyright
-                reports, employer access, press, and anything else.
-              </p>
-              <p className="mt-3 text-muted-foreground leading-relaxed">
-                We aim to reply within a few business days. Paid plans get faster aims, listed in
-                the <Link to="/help" className="underline underline-offset-4">Help Center</Link>.
-              </p>
+            <SectionHeading>Send us a message</SectionHeading>
+            <div className="rounded-2xl border border-border bg-card p-2">
+              <TicketForm onSuccess={() => undefined} />
             </div>
+            <p className="mt-4 text-muted-foreground leading-relaxed">
+              Covers support, billing, privacy and data requests, copyright reports, employer
+              access, press, and anything else. We aim to reply within a few business days. Paid
+              plans get faster aims, listed in the{' '}
+              <Link to="/help" className="underline underline-offset-4">Help Center</Link>.
+            </p>
           </section>
 
           <section className="mt-12">
@@ -102,24 +95,10 @@ const Contact = () => {
           </section>
 
           <section className="mt-12">
-            <SectionHeading>Postal</SectionHeading>
-            <address className="not-italic text-muted-foreground leading-relaxed">
-              AYN AI<br />
-              145 Cresthaven Drive<br />
-              Nova Scotia B3M 2E4<br />
-              Canada
-            </address>
-            <p className="mt-3 text-muted-foreground leading-relaxed">
-              Registered with the Nova Scotia Registry of Joint Stock Companies. Postal mail is much
-              slower than email.
-            </p>
-          </section>
-
-          <section className="mt-12">
             <SectionHeading>What we do not have</SectionHeading>
             <p className="text-muted-foreground leading-relaxed">
-              No phone line, no live chat, no sales team yet. Email is the channel that gets a real
-              answer.
+              No phone line, no live chat, no sales team yet. The form above is the channel that
+              gets a real answer.
             </p>
           </section>
         </main>

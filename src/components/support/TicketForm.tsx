@@ -29,7 +29,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.subject.trim() || !formData.message.trim()) {
+    if (!formData.subject.trim() || !formData.message.trim() || !formData.email.trim()) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -40,8 +40,16 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
       // Get current user if logged in
       const { data: { user } } = await supabase.auth.getUser();
 
+      // Generated here rather than read back from the insert: a guest's own
+      // new ticket isn't visible under any SELECT policy (there is no
+      // session tying an anonymous row to the person who made it), so
+      // .select() after insert fails RLS even though the insert itself is
+      // allowed. Supplying our own id sidesteps needing it read back at all.
+      const ticketId = crypto.randomUUID();
+
       // Create ticket
       const ticketData: Record<string, unknown> = {
+        id: ticketId,
         subject: formData.subject,
         category: formData.category as 'general' | 'billing' | 'technical' | 'feature_request' | 'bug_report',
         priority: formData.priority as 'low' | 'medium' | 'high' | 'urgent',
@@ -58,11 +66,9 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
         ticketData.guest_name = formData.name;
       }
 
-      const { data: ticket, error: ticketError } = await supabase
+      const { error: ticketError } = await supabase
         .from('support_tickets')
-        .insert(ticketData as never)
-        .select()
-        .single();
+        .insert(ticketData as never);
 
       if (ticketError) throw ticketError;
 
@@ -70,7 +76,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
       const { error: messageError } = await supabase
         .from('ticket_messages')
         .insert({
-          ticket_id: ticket.id,
+          ticket_id: ticketId,
           sender_type: 'user',
           sender_id: user?.id || null,
           message: formData.message,
@@ -82,7 +88,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
       try {
         await supabase.functions.invoke('send-ticket-notification', {
           body: {
-            ticketId: ticket.id,
+            ticketId,
             subject: formData.subject,
             message: formData.message,
             category: formData.category,
@@ -99,7 +105,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
       }
 
       setIsSuccess(true);
-      toast.success('Support ticket created successfully!');
+      toast.success('Message sent.');
 
       // Reset form after delay
       setTimeout(() => {
@@ -140,7 +146,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
         >
           <CheckCircle className="h-8 w-8 text-green-500" />
         </motion.div>
-        <h3 className="font-semibold text-lg mb-2">Ticket Created!</h3>
+        <h3 className="font-semibold text-lg mb-2">Message sent</h3>
         <p className="text-sm text-muted-foreground text-center">
           We'll get back to you as soon as possible.
         </p>
@@ -163,7 +169,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="ticket-email">Email Address</Label>
+          <Label htmlFor="ticket-email">Email Address *</Label>
           <Input
             id="ticket-email"
             name="ticket-email"
@@ -171,6 +177,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             placeholder="john@example.com"
+            required
           />
         </div>
 
@@ -244,11 +251,11 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
           disabled={isSubmitting}
         >
           {isSubmitting ? (
-            <>Submitting...</>
+            <>Sending...</>
           ) : (
             <>
               <Send className="h-4 w-4" />
-              Submit Ticket
+              Send message
             </>
           )}
         </Button>

@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { SEO, createBreadcrumbSchema, createFAQSchema } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { Input } from '@/components/ui/input';
-import { supabase } from '@/integrations/supabase/client';
-import TicketForm from '@/components/support/TicketForm';
+import { Button } from '@/components/ui/button';
 import { SectionHeading } from '@/components/shared/SectionHeading';
 
 const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
@@ -68,11 +67,6 @@ const SECTIONS: Section[] = [
 
 const Help = () => {
   const [query, setQuery] = useState('');
-  const [signedIn, setSignedIn] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSignedIn(!!session));
-  }, []);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -138,7 +132,7 @@ const Help = () => {
 
             {results.length === 0 && (
               <p className="text-muted-foreground">
-                Nothing matched that. Email support@aynn.io and a real person will read it.
+                Nothing matched that. <Link to="/contact" className="underline underline-offset-4">Contact us</Link> and a real person will read it.
               </p>
             )}
           </div>
@@ -146,36 +140,19 @@ const Help = () => {
           <section className="mt-14">
             <SectionHeading className="mb-5">Still stuck</SectionHeading>
             <div className="rounded-2xl border border-border bg-card p-6">
-              <p className="font-semibold">
-                Email{' '}
-                <a href="mailto:support@aynn.io" className="underline underline-offset-4" style={{ color: '#e85d3a' }}>
-                  support@aynn.io
-                </a>
-                .
-              </p>
-              <p className="mt-1.5 text-muted-foreground leading-relaxed">
-                A real person reads it. Include what you were doing and what happened, and a
-                screenshot if you have one.
+              <p className="text-muted-foreground leading-relaxed">
+                A real person reads every message. Include what you were doing and what happened,
+                and a screenshot if you have one.
               </p>
               <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
                 Response aims: free plan best effort, Starter 3 business days, Growth 2, Scale 1.
                 These are aims and not commitments.
               </p>
+              <Button asChild className="mt-4 rounded-full">
+                <Link to="/contact">Contact us</Link>
+              </Button>
             </div>
           </section>
-
-          {signedIn && (
-            <section className="mt-10">
-              <SectionHeading className="mb-5">Send us a message</SectionHeading>
-              <div className="rounded-2xl border border-border bg-card p-6">
-                <TicketForm onSuccess={() => undefined} />
-              </div>
-            </section>
-          )}
-
-          <p className="mt-12 text-sm text-muted-foreground">
-            Prefer to write? See <Link to="/contact" className="underline underline-offset-4">Contact us</Link>.
-          </p>
         </main>
 
         <Footer />
