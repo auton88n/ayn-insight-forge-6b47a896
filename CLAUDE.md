@@ -213,7 +213,7 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx). Solo founder: Gha
 
 ## Routes (src/App.tsx)
 
-/ (landing, or role based routing when signed in), /resume-hub, /resume-match, /handoff, /extension/approve, /employer/pending, /settings, /pricing, /billing, /support, /contact, /world-intelligence, /sign/:token, /nda/:token (legacy signing pages, still live), /terms, /privacy, /legal, /cookies, /security, /subprocessors, /dpa, /sla, /copyright, /reset-password, /subscription-success|canceled, /approval-result, /manage-bae76e99d97e188b (admin app; /admin redirects to 404 on purpose). /dashboard and /dashboard/* redirect to /.
+/ (landing, or role based routing when signed in), /resume-hub, /resume-match, /handoff, /extension/approve, /employer/pending, /settings, /pricing, /billing, /help (with /support redirecting to it), /about, /contact, /world-intelligence, /sign/:token, /nda/:token (legacy signing pages, still live), /terms, /privacy, /legal, /cookies, /security, /subprocessors, /dpa, /sla, /copyright, /reset-password, /subscription-success|canceled, /approval-result, /manage-bae76e99d97e188b (admin app; /admin redirects to 404 on purpose). /dashboard and /dashboard/* redirect to /.
 
 ## Edge functions — CORRECTION, this section was wrong (v3.27.0 said eight, there are 39)
 
