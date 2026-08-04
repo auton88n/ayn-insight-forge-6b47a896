@@ -3,7 +3,7 @@ import { Mail } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import aynLogo from '@/assets/ayn-logo.png';
 import { openCookiePreferences } from '@/components/shared/CookieConsent';
-import { COMPANY_TAGLINE, COPYRIGHT_LINE, LEGAL_LINKS, NAV_LINKS } from '@/components/shared/siteLinks';
+import { COMPANY_TAGLINE, COPYRIGHT_LINE, NAV_LINKS } from '@/components/shared/siteLinks';
 
 
 const DiscordIcon = () => (
@@ -65,11 +65,12 @@ export const Footer = () => {
               Legal
             </h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              {LEGAL_LINKS.map(l => (
-                <li key={l.to}>
-                  <Link to={l.to} className="hover:text-foreground transition-colors">{l.label}</Link>
-                </li>
-              ))}
+              <li>
+                <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+              </li>
+              <li>
+                <Link to="/legal" className="hover:text-foreground transition-colors">Legal</Link>
+              </li>
               <li>
                 <button
                   type="button"

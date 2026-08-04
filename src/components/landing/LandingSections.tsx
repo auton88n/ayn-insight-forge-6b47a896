@@ -9,7 +9,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { openCookiePreferences } from '@/components/shared/CookieConsent';
-import { COPYRIGHT_LINE, COMPANY_TAGLINE, LEGAL_LINKS, NAV_LINKS } from '@/components/shared/siteLinks';
+import { COPYRIGHT_LINE, COMPANY_TAGLINE, NAV_LINKS } from '@/components/shared/siteLinks';
 import aynLogo from '@/assets/ayn-logo.png';
 import {
   ArrowRight, FileText, Target, ShieldCheck, MessagesSquare, Radar,
@@ -593,9 +593,8 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
               <div className="lp-footer-col">
                 <h4>Legal</h4>
                 <ul>
-                  {LEGAL_LINKS.map(l => (
-                    <li key={l.to}><Link to={l.to}>{l.label}</Link></li>
-                  ))}
+                  <li><Link to="/privacy">Privacy Policy</Link></li>
+                  <li><Link to="/legal">Legal</Link></li>
                   <li>
                     <button type="button" onClick={openCookiePreferences}>Cookie choices</button>
                   </li>
