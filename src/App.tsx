@@ -57,7 +57,6 @@ const EmployerPending = lazy(() => import("./pages/EmployerPending"));
 // const InfluencerSitesApply = lazy(() => import("./pages/services/InfluencerSitesApply"));
 // const SolutionsPage = lazy(() => import("./pages/Solutions"));
 const ContactPage = lazy(() => import("./pages/Contact"));
-const ResumeMatch = lazy(() => import("./pages/ResumeMatch"));
 const ResumeHub = lazy(() => import("./pages/ResumeHub"));
 const Handoff = lazy(() => import("./pages/Handoff"));
 // const AIAgents = lazy(() => import("./pages/services/AIAgents"));
@@ -125,7 +124,6 @@ const AnimatedRoutes = () => {
 
 
       <Route path="/contact" element={<Suspense fallback={<PageLoader />}><ContactPage /></Suspense>} />
-      <Route path="/resume-match" element={<Suspense fallback={<PageLoader />}><ResumeMatch /></Suspense>} />
       <Route path="/resume-hub" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/handoff" element={<Suspense fallback={<PageLoader />}><Handoff /></Suspense>} />

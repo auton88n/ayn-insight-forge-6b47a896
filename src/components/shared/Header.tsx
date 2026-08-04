@@ -12,7 +12,6 @@ const navLinks = [
 { path: '/#how', en: 'How it works' },
 { path: '/#features', en: 'Features' },
 { path: '/#employers', en: 'For employers' },
-{ path: '/resume-match', en: 'Resume Match' },
 { path: '/pricing', en: 'Pricing' },
 { path: '/contact', en: 'Contact' }];
 
