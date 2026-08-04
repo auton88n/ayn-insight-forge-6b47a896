@@ -4,7 +4,9 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: v3.47.0, three more admin gaps closed: an activity log, real email delivery visibility, and a plan editor — and a genuine bug found and fixed live while building the second one.
+Last verified: v3.48.0, three public marketing pages: /about, /help (replacing the deleted Support page and its removed AI assistant claim, with /support redirecting to it) and a rewritten /contact with no form and no leftover French. Client side search on the Help Center, footer links via siteLinks.ts, sitemap and server.js route list updated. Details in docs/map/platform.md.
+
+Preceded by v3.47.0, three more admin gaps closed: an activity log, real email delivery visibility, and a plan editor — and a genuine bug found and fixed live while building the second one.
 
 ACTIVITY LOG, EMAIL DELIVERY VISIBILITY, AND A PLAN EDITOR. Continuation of the same "what am I missing as admin" list from v3.46.0; the founder asked for the next three.
 
