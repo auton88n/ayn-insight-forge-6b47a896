@@ -25,7 +25,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Send, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
-  Brain, Search as SearchIcon, Mail, ClipboardCheck, ArrowLeft, CreditCard,
+  Brain, Search as SearchIcon, Mail, ClipboardCheck, ArrowLeft, CreditCard, Settings,
 } from "lucide-react";
 
 import IntakeWizard from "@/components/employer/IntakeWizard";
@@ -379,6 +379,14 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 <span className="text-[11px] font-medium leading-none">Plan</span>
               </button>
               <button
+                onClick={() => navigate("/settings")}
+                aria-label="Settings"
+                className="w-full rounded-xl py-2.5 flex flex-col items-center gap-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <Settings className="w-[18px] h-[18px]" />
+                <span className="text-[11px] font-medium leading-none">Settings</span>
+              </button>
+              <button
                 onClick={handleSignOut}
                 aria-label="Sign out"
                 className="w-full rounded-xl py-2.5 flex flex-col items-center gap-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -536,6 +544,13 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             >
               <CreditCard className="w-[18px] h-[18px]" />
               <span className="text-[10px] font-medium">Plan</span>
+            </button>
+            <button
+              onClick={() => navigate("/settings")}
+              className="flex-1 py-2.5 grid place-items-center gap-0.5 text-muted-foreground"
+            >
+              <Settings className="w-[18px] h-[18px]" />
+              <span className="text-[10px] font-medium">Settings</span>
             </button>
             <button
               onClick={handleSignOut}

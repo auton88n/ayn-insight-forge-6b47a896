@@ -28,7 +28,6 @@ function PreloadRoutes() {
     const preload = () => {
       // Warm chunks for the routes users actually click between, so
       // navigations don't flash the Suspense PageLoader.
-      import('./pages/WorldIntelligence');
       import('./pages/Settings');
       import('./pages/Pricing');
     };
@@ -80,7 +79,6 @@ const DoNotSell = lazy(() => import("./pages/DoNotSell"));
 const LegalIndex = lazy(() => import("./pages/LegalIndex"));
 const LegalDoc = lazy(() => import("./components/legal/LegalPage"));
 import { CookieConsent } from "@/components/shared/CookieConsent";
-const WorldIntelligence = lazy(() => import("./pages/WorldIntelligence"));
 const ClientSign = lazy(() => import("./pages/ClientSign"));
 const NDASign = lazy(() => import("./pages/NDASign"));
 const ExtensionApprove = lazy(() => import("./pages/ExtensionApprove"));
@@ -149,7 +147,6 @@ const AnimatedRoutes = () => {
       <Route path="/sla" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="sla" /></Suspense>} />
       <Route path="/copyright" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="copyright" /></Suspense>} />
 
-      <Route path="/world-intelligence" element={<Suspense fallback={<PageLoader />}><WorldIntelligence /></Suspense>} />
       <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><ClientSign /></Suspense>} />
       <Route path="/nda/:token" element={<Suspense fallback={<PageLoader />}><NDASign /></Suspense>} />
       <Route path="/extension/approve" element={<Suspense fallback={<PageLoader />}><ExtensionApprove /></Suspense>} />

@@ -85,6 +85,7 @@ export const Footer = () => {
             >
               Cookie choices
             </button>
+            <Link to="/do-not-sell" className="hover:text-foreground transition-colors">Do Not Sell or Share My Info</Link>
           </div>
         </div>
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Home, User, Briefcase, Users, Puzzle, Download, Mail, LogOut, ClipboardCheck, CreditCard } from "lucide-react";
+import { Home, User, Briefcase, Users, Puzzle, Download, Mail, LogOut, ClipboardCheck, CreditCard, Settings } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -175,6 +175,9 @@ export default function ResumeHub() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/billing")}>
                   <CreditCard className="w-4 h-4 mr-2" /> Plan and credits
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/settings")}>
+                  <Settings className="w-4 h-4 mr-2" /> Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut}>

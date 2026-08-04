@@ -27,7 +27,7 @@ app.use(express.static(DIST, {
 // indexes every junk path as a live page.
 const ROUTES = [
   '/', '/pricing', '/resume-match', '/resume-hub', '/contact', '/support', '/help', '/about',
-  '/world-intelligence', '/terms', '/privacy', '/settings', '/billing',
+  '/terms', '/privacy', '/settings', '/billing',
   '/handoff', '/extension/approve', '/employer/pending', '/reset-password',
   '/approval-result', '/subscription-success', '/subscription-canceled',
   '/dashboard', '/admin',

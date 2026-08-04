@@ -1,6 +1,7 @@
 // v3.32.0 — the index of every legal document.
 import { Link } from 'react-router-dom';
 import { SEO } from '@/components/shared/SEO';
+import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { LEGAL_DOCS, rawMarkdown, parseDocMeta } from '@/lib/legalDocs';
 import { ChevronRight } from 'lucide-react';
@@ -12,7 +13,8 @@ export default function LegalIndex() {
         title="Legal | AYN"
         description="Every AYN legal document in one place: terms, privacy, cookies, security, subprocessors, data processing addendum, service level agreement and copyright."
       />
-      <main className="flex-1 w-full px-6 py-12 sm:py-16">
+      <Header />
+      <main className="flex-1 w-full px-6 pt-32 pb-12 sm:pb-16">
         <div className="legal-measure">
           <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">Legal</h1>
           <p className="mt-3 text-sm text-muted-foreground">

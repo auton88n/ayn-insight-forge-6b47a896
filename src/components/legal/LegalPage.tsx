@@ -10,6 +10,7 @@ import { Link, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { SEO } from '@/components/shared/SEO';
+import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { Link2, Printer, ArrowLeft } from 'lucide-react';
 import {
@@ -68,7 +69,8 @@ export default function LegalPage({ slug }: Props) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <SEO title={`${title} | AYN`} description={doc?.description || 'AYN legal documents.'} />
-        <main className="flex-1 legal-measure px-6 py-16">
+        <div className="legal-noprint"><Header /></div>
+        <main className="flex-1 legal-measure px-6 pt-32 pb-16">
           <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
           <p className="mt-4 text-sm text-muted-foreground">
             This document is being finalised and will appear here shortly. In the meantime,
@@ -112,7 +114,9 @@ export default function LegalPage({ slug }: Props) {
         description={doc?.description || `${title} for AYN.`}
       />
 
-      <main className="flex-1 w-full px-6 py-12 sm:py-16">
+      <div className="legal-noprint"><Header /></div>
+
+      <main className="flex-1 w-full px-6 pt-32 pb-12 sm:pb-16">
         <div className="legal-measure">
           <div className="legal-noprint">
             <Link to="/legal" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
