@@ -3,6 +3,7 @@ import { SEO, createBreadcrumbSchema } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { Button } from '@/components/ui/button';
+import { SectionHeading } from '@/components/shared/SectionHeading';
 
 const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
 
@@ -44,7 +45,7 @@ const About = () => {
 
           <div className="space-y-12">
             <section>
-              <h2 className="text-2xl font-semibold tracking-tight mb-3">The hook</h2>
+              <SectionHeading className="mb-3">The problem</SectionHeading>
               <p className="text-muted-foreground leading-relaxed">
                 Applying for a job stopped being about whether you can do it, and became about
                 whether you can out-send everyone else applying for the same one. AYN exists to put
@@ -53,7 +54,7 @@ const About = () => {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold tracking-tight mb-3">How we got here</h2>
+              <SectionHeading className="mb-3">How we got here</SectionHeading>
               <p className="text-muted-foreground leading-relaxed">
                 AI made it effortless to apply to everything, so everyone did, and hiring drowned in
                 noise built by other AI tools. Real people with real experience got buried under
@@ -67,7 +68,7 @@ const About = () => {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold tracking-tight mb-3">What it does</h2>
+              <SectionHeading className="mb-3">What it does</SectionHeading>
               <p className="text-muted-foreground leading-relaxed">
                 Describe the role once. AYN finds the people worth talking to, with the evidence
                 behind each match and what they are missing, instead of six hundred resumes and a

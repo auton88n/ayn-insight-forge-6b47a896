@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { SEO, createBreadcrumbSchema } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
+import { SectionHeading } from '@/components/shared/SectionHeading';
 
 const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
 
@@ -30,7 +31,7 @@ const Contact = () => {
           </p>
 
           <section className="mt-12">
-            <h2 className="text-2xl font-semibold tracking-tight mb-4">Email</h2>
+            <SectionHeading>Email</SectionHeading>
             <div className="rounded-2xl border border-border bg-card p-6">
               <a
                 href="mailto:support@aynn.io"
@@ -51,7 +52,7 @@ const Contact = () => {
           </section>
 
           <section className="mt-12">
-            <h2 className="text-2xl font-semibold tracking-tight mb-4">Before you write</h2>
+            <SectionHeading>Before you write</SectionHeading>
             <p className="text-muted-foreground leading-relaxed">
               Checking the <Link to="/help" className="underline underline-offset-4">Help Center</Link>{' '}
               first will usually be faster than waiting for a reply.
@@ -63,7 +64,7 @@ const Contact = () => {
           </section>
 
           <section className="mt-12">
-            <h2 className="text-2xl font-semibold tracking-tight mb-4">Specific requests</h2>
+            <SectionHeading>Specific requests</SectionHeading>
             <div className="space-y-4">
               <div className="rounded-2xl border border-border bg-card p-5">
                 <p className="text-muted-foreground leading-relaxed">
@@ -101,7 +102,7 @@ const Contact = () => {
           </section>
 
           <section className="mt-12">
-            <h2 className="text-2xl font-semibold tracking-tight mb-4">Postal</h2>
+            <SectionHeading>Postal</SectionHeading>
             <address className="not-italic text-muted-foreground leading-relaxed">
               AYN AI<br />
               145 Cresthaven Drive<br />
@@ -115,7 +116,7 @@ const Contact = () => {
           </section>
 
           <section className="mt-12">
-            <h2 className="text-2xl font-semibold tracking-tight mb-4">What we do not have</h2>
+            <SectionHeading>What we do not have</SectionHeading>
             <p className="text-muted-foreground leading-relaxed">
               No phone line, no live chat, no sales team yet. Email is the channel that gets a real
               answer.

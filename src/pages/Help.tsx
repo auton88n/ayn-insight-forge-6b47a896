@@ -7,6 +7,7 @@ import { Footer } from '@/components/shared/Footer';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import TicketForm from '@/components/support/TicketForm';
+import { SectionHeading } from '@/components/shared/SectionHeading';
 
 const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
 
@@ -123,7 +124,7 @@ const Help = () => {
           <div className="mt-12 space-y-12">
             {results.map(section => (
               <section key={section.title}>
-                <h2 className="text-2xl font-semibold tracking-tight mb-5">{section.title}</h2>
+                <SectionHeading className="mb-5">{section.title}</SectionHeading>
                 <div className="space-y-4">
                   {section.entries.map(e => (
                     <div key={e.q} className="rounded-2xl border border-border bg-card p-5">
@@ -143,7 +144,7 @@ const Help = () => {
           </div>
 
           <section className="mt-14">
-            <h2 className="text-2xl font-semibold tracking-tight mb-5">Still stuck</h2>
+            <SectionHeading className="mb-5">Still stuck</SectionHeading>
             <div className="rounded-2xl border border-border bg-card p-6">
               <p className="font-semibold">
                 Email{' '}
@@ -165,7 +166,7 @@ const Help = () => {
 
           {signedIn && (
             <section className="mt-10">
-              <h2 className="text-2xl font-semibold tracking-tight mb-5">Send us a message</h2>
+              <SectionHeading className="mb-5">Send us a message</SectionHeading>
               <div className="rounded-2xl border border-border bg-card p-6">
                 <TicketForm onSuccess={() => undefined} />
               </div>
