@@ -59,7 +59,7 @@ export default function DoNotSell() {
           <p>
             Email <a className="text-foreground underline underline-offset-2" href="mailto:privacy@aynn.io">privacy@aynn.io</a>{' '}
             from the address on your account, or open a request through{' '}
-            <Link className="text-foreground underline underline-offset-2" to="/support">support</Link>.
+            <Link className="text-foreground underline underline-offset-2" to="/help">Help Center</Link>.
             Tell us which right you are exercising. We verify the request against your account
             email and answer within 45 days. An authorised agent may act for you with written
             permission we can verify.
