@@ -3,6 +3,7 @@ import { SEO, createBreadcrumbSchema } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { Button } from '@/components/ui/button';
+import { SectionHeading } from '@/components/shared/SectionHeading';
 
 const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
 
@@ -44,13 +45,24 @@ const About = () => {
 
           <div className="space-y-5">
             <p className="text-muted-foreground leading-relaxed">
-              We believe applying for a job should be about whether you can do it, not about
-              whether you can out-send everyone else applying for the same one. AI made it
-              effortless to apply to everything, so everyone did, and hiring drowned in noise.
-              Real people with real experience got buried under volume they could not compete
-              with. AYN exists to put that back the right way round.
+              AI made it effortless to apply everywhere, so everyone did. Hiring drowned in noise,
+              and a hiring manager who used to read forty applications started opening six hundred
+              and reading none of them properly. Somewhere in that pile was the one person who
+              could actually do the job. Nobody had time to find them.
             </p>
             <p className="text-muted-foreground leading-relaxed">
+              We built AYN because that person should not have to out-send a machine to be seen.
+            </p>
+
+            <div className="pt-3">
+              <SectionHeading className="mb-3">Mission and vision</SectionHeading>
+              <p className="text-muted-foreground leading-relaxed">
+                Replace volume with evidence. Build a hiring market where being seen depends on
+                what you have done, not on how many places you applied.
+              </p>
+            </div>
+
+            <p className="text-muted-foreground leading-relaxed pt-3">
               For job seekers, AYN reads a job posting, shows how you line up against it, and
               writes a resume and cover letter from your real experience for that specific role.
               For employers, describe a role once and AYN finds the people worth talking to, with
