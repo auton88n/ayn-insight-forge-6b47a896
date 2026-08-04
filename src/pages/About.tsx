@@ -3,7 +3,6 @@ import { SEO, createBreadcrumbSchema } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { Button } from '@/components/ui/button';
-import { SectionHeading } from '@/components/shared/SectionHeading';
 
 const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
 
@@ -43,46 +42,25 @@ const About = () => {
             </p>
           </section>
 
-          <div className="space-y-12">
-            <section>
-              <SectionHeading className="mb-3">The problem</SectionHeading>
-              <p className="text-muted-foreground leading-relaxed">
-                Applying for a job stopped being about whether you can do it, and became about
-                whether you can out-send everyone else applying for the same one. AYN exists to put
-                that back the right way round.
-              </p>
-            </section>
-
-            <section>
-              <SectionHeading className="mb-3">How we got here</SectionHeading>
-              <p className="text-muted-foreground leading-relaxed">
-                AI made it effortless to apply to everything, so everyone did, and hiring drowned in
-                noise built by other AI tools. Real people with real experience got buried under
-                volume they could not compete with.
-              </p>
-              <p className="text-muted-foreground leading-relaxed mt-4">
-                We built AYN to cut through that. Not another way to apply faster. A way to be seen
-                for what you have actually done, and a way for employers to find the people worth
-                talking to underneath the noise.
-              </p>
-            </section>
-
-            <section>
-              <SectionHeading className="mb-3">What it does</SectionHeading>
-              <p className="text-muted-foreground leading-relaxed">
-                Describe the role once. AYN finds the people worth talking to, with the evidence
-                behind each match and what they are missing, instead of six hundred resumes and a
-                guess.
-              </p>
-              <p className="text-muted-foreground leading-relaxed mt-4">
-                You can hunt too. Open a posting and AYN reads it, shows how you line up, and writes
-                a resume and cover letter from your real experience for that job.
-              </p>
-              <p className="text-muted-foreground leading-relaxed mt-4">
-                Or be hunted back. Switch discoverability on and employers see your background, not
-                your name, email, or phone, until you accept an offer.
-              </p>
-            </section>
+          <div className="space-y-5">
+            <p className="text-muted-foreground leading-relaxed">
+              We believe applying for a job should be about whether you can do it, not about
+              whether you can out-send everyone else applying for the same one. AI made it
+              effortless to apply to everything, so everyone did, and hiring drowned in noise.
+              Real people with real experience got buried under volume they could not compete
+              with. AYN exists to put that back the right way round.
+            </p>
+            <p className="text-muted-foreground leading-relaxed">
+              For job seekers, AYN reads a job posting, shows how you line up against it, and
+              writes a resume and cover letter from your real experience for that specific role.
+              For employers, describe a role once and AYN finds the people worth talking to, with
+              the evidence behind each match and what they are missing, instead of six hundred
+              resumes and a guess.
+            </p>
+            <p className="text-muted-foreground leading-relaxed">
+              Switch discoverability on and employers see your background, not your name, email,
+              or phone, until you accept an offer.
+            </p>
           </div>
 
           <div className="mt-14">

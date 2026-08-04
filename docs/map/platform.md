@@ -1,3 +1,7 @@
+# v3.54.0 About page rewritten from pitch structure to plain mission statement
+
+Reported directly: the three `SectionHeading` labels on `/about` ("The problem", "How we got here", "What it does", from v3.50.0/v3.52.0) read as a pitch-deck narrative, not an actual about-the-company page. Asked what content should replace it; kept the mission/what-AYN-believes framing, dropped the three-act structure. `About.tsx`'s labeled sections are now three unlabeled flowing paragraphs (same facts: why AYN exists, what it does for seekers and employers, the discoverability privacy note) directly under the existing hero card. Hero card and CTA unchanged; `SectionHeading` itself untouched, still used on `/help` and `/contact`.
+
 # v3.53.0 Contact page is a real form, plus a guest RLS bug found underneath it
 
 Asked directly to drop the postal address from `/contact`, replace the plain "email us" block with an actual form, and point every other page that told someone to contact AYN at that same form. `Contact.tsx`'s "Postal" section is deleted; "Email" is replaced with the existing `TicketForm` component (previously only ever used signed-in, inside `Help.tsx`). `Help.tsx`'s raw `mailto:` links now point to `/contact`, and its own signed-in-only embedded copy of the form was deleted as redundant (with the now-unused `signedIn` state). `TermsModal.tsx` still has a bare `support@aynn.io` but is confirmed dead code, left alone. Legal document markdown and the registered address inside it are a separate legal-notice channel, not touched.
