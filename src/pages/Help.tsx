@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Search, ChevronDown } from 'lucide-react';
 import { SEO, createBreadcrumbSchema, createFAQSchema } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
@@ -67,6 +67,7 @@ const SECTIONS: Section[] = [
 
 const Help = () => {
   const [query, setQuery] = useState('');
+  const hasQuery = query.trim().length > 0;
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -101,7 +102,8 @@ const Help = () => {
           <span className="inline-block h-1 w-14 rounded-full mb-6" style={{ background: EMBER }} aria-hidden="true" />
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Help Center</h1>
           <p className="mt-3 text-lg text-muted-foreground">
-            Most questions are answered below. Anything else goes to a real person on the team.
+            Search for an answer, or open a question below. Anything else goes to a real person on
+            the team.
           </p>
 
           <div className="relative mt-8">
@@ -119,12 +121,19 @@ const Help = () => {
             {results.map(section => (
               <section key={section.title}>
                 <SectionHeading className="mb-5">{section.title}</SectionHeading>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {section.entries.map(e => (
-                    <div key={e.q} className="rounded-2xl border border-border bg-card p-5">
-                      <p className="font-semibold">{e.q}</p>
-                      <p className="mt-1.5 text-muted-foreground leading-relaxed">{e.a}</p>
-                    </div>
+                    <details
+                      key={e.q}
+                      open={hasQuery || undefined}
+                      className="group rounded-2xl border border-border bg-card p-5"
+                    >
+                      <summary className="flex items-center justify-between gap-4 cursor-pointer list-none font-semibold marker:content-none">
+                        {e.q}
+                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+                      </summary>
+                      <p className="mt-2.5 text-muted-foreground leading-relaxed">{e.a}</p>
+                    </details>
                   ))}
                 </div>
               </section>
