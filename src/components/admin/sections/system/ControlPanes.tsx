@@ -2,6 +2,7 @@
 // feature kill switches, and credit adjustments with a read only user snapshot.
 // Every pane calls a real admin-only RPC. Nothing here is decorative.
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
