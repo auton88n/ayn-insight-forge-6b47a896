@@ -5446,6 +5446,10 @@ export type Database = {
         Returns: Json
       }
       admin_restore_account: { Args: { p_user_id: string }; Returns: Json }
+      admin_set_admin_role: {
+        Args: { p_grant: boolean; p_reason: string; p_user_id: string }
+        Returns: Json
+      }
       admin_set_feature_flag: {
         Args: { p_enabled: boolean; p_key: string }
         Returns: Json
@@ -5482,6 +5486,18 @@ export type Database = {
       admin_unblock_user: {
         Args: { p_endpoint?: string; p_user_id: string }
         Returns: undefined
+      }
+      admin_update_plan: {
+        Args: {
+          p_active: boolean
+          p_assessments_limit: number
+          p_credits: number
+          p_key: string
+          p_name: string
+          p_proposals_limit: number
+          p_searches_limit: number
+        }
+        Returns: Json
       }
       admin_update_ticket: {
         Args: { p_data: Json; p_id: string }
@@ -5665,6 +5681,8 @@ export type Database = {
         Returns: Json
       }
       get_admin_accounts: { Args: { p_search?: string }; Returns: Json }
+      get_admin_activity_log: { Args: { p_limit?: number }; Returns: Json }
+      get_admin_admins: { Args: never; Returns: Json }
       get_admin_ai_cost_stats: { Args: never; Returns: Json }
       get_admin_ai_usage: { Args: never; Returns: Json }
       get_admin_candidates: { Args: never; Returns: Json }
@@ -5673,6 +5691,7 @@ export type Database = {
         Returns: Json
       }
       get_admin_email_audience: { Args: never; Returns: Json }
+      get_admin_email_log: { Args: { p_limit?: number }; Returns: Json }
       get_admin_employers: { Args: never; Returns: Json }
       get_admin_error_monitoring: { Args: { p_limit?: number }; Returns: Json }
       get_admin_feature_flags: { Args: never; Returns: Json }
@@ -5680,6 +5699,7 @@ export type Database = {
       get_admin_moderation: { Args: { p_limit?: number }; Returns: Json }
       get_admin_money: { Args: never; Returns: Json }
       get_admin_overview: { Args: never; Returns: Json }
+      get_admin_plans: { Args: never; Returns: Json }
       get_admin_rate_limit_stats: { Args: never; Returns: Json }
       get_admin_support_tickets: {
         Args: { p_limit?: number; p_offset?: number }
@@ -5893,6 +5913,23 @@ export type Database = {
       mark_email_opened:
         | { Args: { order_id: string }; Returns: undefined }
         | { Args: { p_tracking_id: string }; Returns: undefined }
+      match_candidates_by_embedding: {
+        Args: {
+          p_embedding: string
+          p_ids: string[]
+          p_limit?: number
+          p_model: string
+        }
+        Returns: {
+          headline: string
+          location: string
+          profile_text: string
+          seniority: string
+          similarity: number
+          user_id: string
+          years_experience: number
+        }[]
+      }
       record_device_fingerprint: {
         Args: {
           _device_info: Json

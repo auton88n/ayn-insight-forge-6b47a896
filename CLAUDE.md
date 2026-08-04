@@ -4,7 +4,9 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: v3.47.0, three more admin gaps closed: an activity log, real email delivery visibility, and a plan editor — and a genuine bug found and fixed live while building the second one.
+Last verified: v3.48.0, three public marketing pages: /about, /help (replacing the deleted Support page and its removed AI assistant claim, with /support redirecting to it) and a rewritten /contact with no form and no leftover French. Client side search on the Help Center, footer links via siteLinks.ts, sitemap and server.js route list updated. Details in docs/map/platform.md.
+
+Preceded by v3.47.0, three more admin gaps closed: an activity log, real email delivery visibility, and a plan editor — and a genuine bug found and fixed live while building the second one.
 
 ACTIVITY LOG, EMAIL DELIVERY VISIBILITY, AND A PLAN EDITOR. Continuation of the same "what am I missing as admin" list from v3.46.0; the founder asked for the next three.
 
@@ -213,7 +215,7 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx). Solo founder: Gha
 
 ## Routes (src/App.tsx)
 
-/ (landing, or role based routing when signed in), /resume-hub, /resume-match, /handoff, /extension/approve, /employer/pending, /settings, /pricing, /billing, /support, /contact, /world-intelligence, /sign/:token, /nda/:token (legacy signing pages, still live), /terms, /privacy, /legal, /cookies, /security, /subprocessors, /dpa, /sla, /copyright, /reset-password, /subscription-success|canceled, /approval-result, /manage-bae76e99d97e188b (admin app; /admin redirects to 404 on purpose). /dashboard and /dashboard/* redirect to /.
+/ (landing, or role based routing when signed in), /resume-hub, /resume-match, /handoff, /extension/approve, /employer/pending, /settings, /pricing, /billing, /help (with /support redirecting to it), /about, /contact, /world-intelligence, /sign/:token, /nda/:token (legacy signing pages, still live), /terms, /privacy, /legal, /cookies, /security, /subprocessors, /dpa, /sla, /copyright, /reset-password, /subscription-success|canceled, /approval-result, /manage-bae76e99d97e188b (admin app; /admin redirects to 404 on purpose). /dashboard and /dashboard/* redirect to /.
 
 ## Edge functions — CORRECTION, this section was wrong (v3.27.0 said eight, there are 39)
 

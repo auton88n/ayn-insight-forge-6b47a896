@@ -1,3 +1,17 @@
+# v3.48.0 marketing pages, About, Help Center, Contact
+
+Three public pages, written to the founder's exact copy, matching the landing page look (paper white, ember accent, Outfit style headings).
+
+/about, src/pages/About.tsx. A short company overview block set apart from the body ("Hiring runs on volume. We think it should run on evidence.", built by a team in Canada), then The hook, How we got here, What it does, and a Start free call to action. Title tag About AYN.
+
+/help, src/pages/Help.tsx. Replaces the deleted src/pages/Support.tsx, which claimed "Chat with our AI assistant"; that chat was removed in v3.8.0 and the claim is now gone with it, along with the retired trilingual translations block. Five sections (Getting started, Credits and billing, Being found by employers, Your data, For employers) plus Still stuck, filtered client side by a single search box, no backend, with FAQPage plus BreadcrumbList JSON-LD generated from the same array the page renders so the two cannot drift. The existing ticket system stays available: TicketForm renders under "Send us a message" for a signed in visitor only. Response times are stated as aims, matching /sla.
+
+/contact, src/pages/Contact.tsx rewritten from scratch. The old page's project agency copy ("Tell us about your project and we'll help transform your vision into reality") and its French and Arabic strings are deleted, together with the contact form and its contact_messages insert. The page is now one inbox, support@aynn.io, with Before you write, Specific requests (privacy, copyright, security, employer access), Postal, and What we do not have.
+
+Wiring. /support is a redirect to /help in src/App.tsx, and both /help and /about are added to server.js's known route list and to public/sitemap.xml, with the old /support sitemap entry removed. About, Help Center and Contact are in NAV_LINKS in src/components/shared/siteLinks.ts so the footer cannot drift. The two in app links that pointed at /support (NotFound.tsx and DoNotSell.tsx) now point at /help.
+
+Verified live against the dev server with Playwright: /support redirects to /help (final URL /help, h1 "Help Center"), /about, /help and /contact all render with the right title tags (About AYN, Help Center, Contact AYN), the Help search filters sections as you type, and there were no console errors on any of the four loads.
+
 # AYN AI platform map (everything besides the extension and Resume Hub)
 
 ## Public copy (v3.29.1 corrections)

@@ -25,5 +25,7 @@ export const NAV_LINKS: SiteLink[] = [
   { to: '/', label: 'Home' },
   { to: '/#how', label: 'How it works' },
   { to: '/pricing', label: 'Pricing' },
+  { to: '/about', label: 'About' },
+  { to: '/help', label: 'Help Center' },
   { to: '/contact', label: 'Contact' },
 ];
