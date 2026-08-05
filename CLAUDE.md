@@ -4,7 +4,9 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: v3.60.0, the /pricing headline changed from "Pay for the writing, nothing else" to "Less time formatting. More time applying." Exact copy supplied directly. `src/pages/Pricing.tsx`'s H1, nothing else on the page touched.
+Last verified: v3.61.0, /contact trimmed for wordiness. Reported directly: too much text. `Contact.tsx` cut from five sections to two — dropped the separate "Before you write" section (folded its one useful line into the form's trailing paragraph) and "What we do not have" (not essential, cut outright) — and every "Specific requests" card shortened from two to three sentences down to one, keeping every fact (30-day privacy response window, self-service export/delete from Settings, the Copyright Policy link, the security good-faith-reporting line, employer access routed through the employer page). Verified live: page renders correctly, `tsc --noEmit` clean.
+
+Preceded by v3.60.0, the /pricing headline changed from "Pay for the writing, nothing else" to "Less time formatting. More time applying." Exact copy supplied directly. `src/pages/Pricing.tsx`'s H1, nothing else on the page touched.
 
 Preceded by v3.59.0, the header nav's three hash links ("How it works", "Features", "For employers") were structurally broken for most visitors, fixed at the root cause.
 
