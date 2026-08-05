@@ -65,7 +65,7 @@ export const resumeHubApi = {
     ),
   /** Paid (15 credits): the actual rewrite. */
   rewrite: (resume: ResumeContent, jdText?: string) =>
-    call<{ resume: ResumeContent; ats_score: number; suggestions: string[]; credits: { spent: number; balance: number } }>(
+    call<{ resume: ResumeContent; ats_score: number; verdict: string; suggestions: string[]; credits: { spent: number; balance: number } }>(
       "resume-hub", { action: "rewrite", resume, jdText },
     ),
   match: (resume: ResumeContent, jdText: string) =>

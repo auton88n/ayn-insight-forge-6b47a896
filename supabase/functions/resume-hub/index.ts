@@ -359,6 +359,8 @@ async function callAI(opts: {
   user: string | Array<unknown>;
   toolName?: string;
   toolSchema?: Record<string, unknown>;
+  /** Lower = more consistent/repeatable output. Omit to use the model's own default. */
+  temperature?: number;
 }): Promise<{ text: string; structured?: unknown }> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
@@ -380,6 +382,7 @@ async function callAI(opts: {
         { role: "system", content: opts.system },
         { role: "user", content: opts.user },
       ],
+      ...(opts.temperature != null ? { temperature: opts.temperature } : {}),
     };
     if (opts.toolName && opts.toolSchema) {
       body.tools = [{
@@ -499,6 +502,55 @@ const RESUME_SCHEMA = {
   },
   required: ["basics", "work", "skills"],
 };
+
+// A fixed point rubric, not a vibe. Without this, two runs on the exact same
+// resume produced meaningfully different scores (reported directly: 75 then
+// 65 on a re-run with no real change in quality) because the model was
+// asked to "score 0-100" with no arithmetic to anchor it to. Every deduction
+// below is a concrete, checkable fact about the resume, so the score is
+// something the model computes the same way each time rather than feels
+// out fresh. Shared by resume_diagnose and rewrite so a diagnosis and an
+// optimize's own reported score are never answering two different
+// questions.
+const ATS_RUBRIC = `Score out of 100, starting at 100 and subtracting only for what is actually true of this resume:
+- No summary or profile section: -10
+- No dedicated skills section: -10
+- Dates not written consistently as "Month YYYY" throughout: -5
+- Each work bullet that neither contains a number/percentage/scale NOR leads with a specific action verb: -5 each, capped at -40 total for this category
+- Summary reads generic enough to apply to any candidate (buzzwords, no specifics from this actual background): -10
+- Fewer than 2 roles listed, or bullets so thin they show no real scope: -10
+Floor the result at 0. Do not deduct for anything not listed here. State the score as the literal result of this subtraction, not an impression.`;
+
+// Scoring lives in exactly one place, called by both resume_diagnose and
+// rewrite. Before this, rewrite generated new resume content AND graded its
+// own writing in the same completion — two stochastic jobs at once, so a
+// re-run could bounce the score around even at low temperature (measured:
+// 90 then 70 on identical input). A dedicated low-temperature call that only
+// ever reads a fixed, already-written resume and applies the rubric is the
+// same shape of call resume_diagnose already makes, which measured far more
+// consistent in isolation. This also guarantees a diagnosis and an
+// optimize's reported score always mean the exact same thing, since they
+// are now, literally, the same function call.
+async function scoreResumeContent(resume: unknown): Promise<{ ats_score: number; verdict: string; issues: string[] }> {
+  const r = await callAI({
+    temperature: 0.1,
+    system: `You assess resume writing quality, not visual layout. ${ATS_RUBRIC}
+verdict is derived directly from ats_score: "Strong" 85+, "Good" 70+, "Fair" 50+, else "Poor". issues: one line per point actually deducted above, but write each as a plain sentence a person would say out loud, not the rubric's own wording — name the actual weak bullet or missing thing, e.g. "The bullet 'Responsible for various marketing tasks' has no number and no strong verb" rather than quoting the rubric category.`,
+    user: JSON.stringify({ resume }).slice(0, 30000),
+    toolName: "emit_diagnosis",
+    toolSchema: {
+      type: "object",
+      properties: {
+        ats_score: { type: "integer" },
+        verdict: { type: "string", enum: ["Poor", "Fair", "Good", "Strong"] },
+        issues: { type: "array", items: { type: "string" } },
+      },
+      required: ["ats_score", "verdict", "issues"],
+    },
+  });
+  const s = r.structured as { ats_score?: number; verdict?: string; issues?: string[] } | undefined;
+  return { ats_score: s?.ats_score ?? 0, verdict: s?.verdict ?? "Poor", issues: s?.issues ?? [] };
+}
 
 async function sha256Hex(s: string) {
   const b = new TextEncoder().encode(s);
@@ -2204,30 +2256,16 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
       { const off = await featureGate(adminDiag, "tailoring"); if (off) return off; }
       const { resume, resumeId } = payload as { resume: unknown; resumeId?: string };
       if (!resume) return json({ error: "resume required" }, 400);
-      const r = await callAI({
-        system: `You assess resume writing quality, not visual layout. Score 0-100 on: whether bullets are quantified (numbers, percentages, scale), whether they lead with a strong action verb, whether a summary and skills section exist, whether dates are consistent (Month YYYY), and whether the content reads as generic versus specific. Return ats_score (0-100), verdict (one of "Poor","Fair","Good","Strong" — Strong 85+, Good 70+, Fair 50+, else Poor), and issues: 3 to 6 short, specific, concrete problems in this exact resume (not generic advice — name the actual weak bullet or missing thing).`,
-        user: JSON.stringify({ resume }).slice(0, 30000),
-        toolName: "emit_diagnosis",
-        toolSchema: {
-          type: "object",
-          properties: {
-            ats_score: { type: "integer" },
-            verdict: { type: "string", enum: ["Poor", "Fair", "Good", "Strong"] },
-            issues: { type: "array", items: { type: "string" } },
-          },
-          required: ["ats_score", "verdict", "issues"],
-        },
-      });
-      const structured = r.structured as { ats_score?: number; verdict?: string; issues?: string[] } | undefined;
+      const structured = await scoreResumeContent(resume);
       // Cache onto the resume row (if this is the primary one) so the
       // tailoring flow can show the same score without paying for another
       // AI call every time a job is opened.
-      if (resumeId && structured) {
+      if (resumeId) {
         await adminDiag.from("resumes")
           .update({ ats_score: structured.ats_score ?? null, ats_issues: structured.issues ?? [] })
           .eq("id", resumeId).eq("user_id", user.id);
       }
-      return json(structured ?? {});
+      return json(structured);
     }
 
     // ---------------- rewrite (the paid resume optimizer) ----------------
@@ -2237,8 +2275,15 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
       const creditGate = await assertCredits(adminRewrite, user.id, COST_OPTIMIZE, "resume optimization");
       if (creditGate) return creditGate;
       const { resume, jdText } = payload as { resume: unknown; jdText?: string };
+      // Generation only — this call's one job is writing, not grading its
+      // own writing. Temperature is allowed to run a bit higher than the
+      // scoring call because natural, human-sounding phrasing genuinely
+      // needs some variation; the score is computed afterward by a separate,
+      // low-temperature, single-purpose call (scoreResumeContent) so the
+      // two stochastic jobs never contaminate each other's number.
       const r = await callAI({
         model: QUALITY_MODEL,
+        temperature: 0.3,
         system: `You rewrite a resume to be stronger and more ATS-friendly, without inventing anything, and it must read like a real person wrote it. RULES:
 1. NEVER invent or imply experience, employers, titles, dates, or numbers that are not already in the resume.
 2. Rewrite every bullet to lead with a strong, specific action verb and, where the underlying fact supports it, surface the result with a real number already implied by the content — do not fabricate a metric that is not there. One bullet, one idea, one line where possible — this has to fit on one page.
@@ -2248,22 +2293,30 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
 6. skills must be ATOMIC: one skill name per array entry (e.g. "React", "Stakeholder management"), never a category label with a colon and a comma-separated list crammed into one entry. Group related skills by ORDER in the array, not by writing a label into the string.
 7. If a job description is provided, weave in its keywords only where the person's real experience already supports them.
 8. No em dashes, no en dashes. Ranges use the word "to".
-Return the complete improved resume in the same schema, an ats_score 0-100 for the NEW version, and suggestions: an array of short strings describing what you changed and why.`,
+Return the complete improved resume in the same schema, plus suggestions: an array of short strings describing what you changed and why.`,
         user: JSON.stringify({ resume, jdText: jdText ?? "" }).slice(0, 40000),
         toolName: "emit_rewrite",
         toolSchema: {
           type: "object",
           properties: {
             resume: RESUME_SCHEMA,
-            ats_score: { type: "integer" },
             suggestions: { type: "array", items: { type: "string" } },
           },
-          required: ["resume", "ats_score", "suggestions"],
+          required: ["resume", "suggestions"],
         },
       });
+      const rewritten = r.structured as { resume?: unknown; suggestions?: string[] } | undefined;
+      if (!rewritten?.resume) return json({ error: "Failed to rewrite resume" }, 500);
+      const scored = await scoreResumeContent(rewritten.resume);
       const chargeRewrite = await creditSpend(adminRewrite, user.id, COST_OPTIMIZE, "resume_optimize");
       if (!chargeRewrite.ok) return insufficientCredits(chargeRewrite.balance, COST_OPTIMIZE, "resume optimization");
-      return json({ ...(r.structured as object), credits: { spent: COST_OPTIMIZE, balance: chargeRewrite.balance } });
+      return json({
+        resume: rewritten.resume,
+        suggestions: rewritten.suggestions ?? [],
+        ats_score: scored.ats_score,
+        verdict: scored.verdict,
+        credits: { spent: COST_OPTIMIZE, balance: chargeRewrite.balance },
+      });
     }
 
     // ---------------- match ----------------
