@@ -3924,6 +3924,7 @@ export type Database = {
       }
       resumes: {
         Row: {
+          ats_issues: Json | null
           ats_score: number | null
           content: Json
           created_at: string
@@ -3935,6 +3936,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ats_issues?: Json | null
           ats_score?: number | null
           content?: Json
           created_at?: string
@@ -3946,6 +3948,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ats_issues?: Json | null
           ats_score?: number | null
           content?: Json
           created_at?: string
@@ -5950,6 +5953,10 @@ export type Database = {
       self_list_sessions: { Args: never; Returns: Json }
       self_pause_account: { Args: never; Returns: Json }
       self_revoke_session: { Args: { p_session_id: string }; Returns: Json }
+      ticket_belongs_to_caller: {
+        Args: { p_ticket_id: string }
+        Returns: boolean
+      }
       trigger_emergency_alert: {
         Args: {
           _alert_level: string

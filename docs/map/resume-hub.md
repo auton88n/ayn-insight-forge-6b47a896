@@ -35,6 +35,16 @@ TAILORED OUTPUTS (JobsTab): the newest `resume_versions` row with `created_for_j
 
 Document building moved into the web app at src/lib/resumeDocs.ts (jsPDF + docx, real selectable text, same contract as extension/resumeFormat.js): resumeToText, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase.
 
+## Resume diagnosis and optimizer (v3.64.0)
+
+Two backend actions, both operating on the ACTIVE resume's structured content (`ResumeContent`), never the original uploaded file — by the time a resume is in this schema, `resumeDocs.ts` already guarantees single-column, real-text, ATS-friendly output regardless of what the source file looked like, so nothing here diagnoses visual layout, only writing quality.
+
+`resume_diagnose` (free, `resumeHubApi.diagnose`): `DEFAULT_MODEL`, returns `{ats_score, verdict, issues}` — 3 to 6 specific, concrete problems naming the actual weak bullet or missing section, not generic advice. Pass `resumeId` to cache the result onto `resumes.ats_score`/`resumes.ats_issues` (the former existed unused since before this feature, the latter added by this migration: `20260805120000_add_resume_ats_issues.sql`). `ProfileTab.tsx` calls this automatically, silently, right after every upload, and offers a manual "Check my resume" button for anyone who uploaded before this shipped.
+
+`rewrite` (paid, 15 credits, `COST_OPTIMIZE`, `resumeHubApi.rewrite`): was already built and returning `{resume, ats_score, suggestions}` but had zero callers anywhere in `src/` and no credit gate at all. Now gated like `tailor`/`cover_letter` (`assertCredits`/`creditSpend`, `QUALITY_MODEL`), with a stricter prompt: never invent a metric that is not already implied by the resume's own content, consistent "Month YYYY" dates, no em/en dashes. `ProfileTab.tsx`'s `optimizeResume()` calls it, then performs the exact same `is_primary` swap as a fresh upload (old rows to `false`, new row inserted as the primary with the new `ats_score`) — paying for this is the acceptance, there is no separate preview-then-accept step, matching how `tailor` already works. Shows a "what changed" list from `suggestions` afterward and lets the person download the new resume immediately.
+
+`JobsTab.tsx` reads the cached `ats_score` and shows an amber warning below the tailor/cover-letter buttons when it is under 70 ("tailoring still works, but a weak base resume means a weaker one for every job"), linking back to Profile via a new `onOpenProfile` prop threaded through from `ResumeHub.tsx`. Tailoring itself is unaffected either way — the warning is informational, not a gate.
+
 ## Home next actions (v3.3.0)
 
 OverviewTab was a counts dashboard (resume count, saved job count, primary resume ATS badge, a static getting-started list). It told the user nothing to do, so it was deleted. HomeTab renders at most four cards, each only when its condition holds, from one loader: src/lib/hubSnapshot.ts -> loadHubSnapshot(userId).

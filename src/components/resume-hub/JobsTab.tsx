@@ -22,17 +22,17 @@ import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
 
-interface Props { userId: string; onOpenJob: (id: string) => void }
+interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile: () => void }
 
 interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string }
 interface TailoredRow { id: string; created_at: string; content: ResumeContent }
 interface CoverRow { id: string; created_at: string; body: string }
 
-export default function JobsTab({ userId }: Props) {
+export default function JobsTab({ userId, onOpenProfile }: Props) {
   const { toast } = useToast();
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [selected, setSelected] = useState<JobRow | null>(null);
-  const [primaryResume, setPrimaryResume] = useState<{ id: string; content: ResumeContent } | null>(null);
+  const [primaryResume, setPrimaryResume] = useState<{ id: string; content: ResumeContent; ats_score: number | null } | null>(null);
   const [matchData, setMatchData] = useState<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string } | null>(null);
   const [tailored, setTailored] = useState<TailoredRow | null>(null);
   const tailoring = useFeature("tailoring");
@@ -48,8 +48,8 @@ export default function JobsTab({ userId }: Props) {
   };
   useEffect(() => {
     load();
-    supabase.from("resumes").select("id, content").eq("user_id", userId).eq("is_primary", true).maybeSingle()
-      .then(({ data }) => data && setPrimaryResume({ id: data.id, content: data.content as ResumeContent }));
+    supabase.from("resumes").select("id, content, ats_score").eq("user_id", userId).eq("is_primary", true).maybeSingle()
+      .then(({ data }) => data && setPrimaryResume({ id: data.id, content: data.content as ResumeContent, ats_score: data.ats_score }));
   /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [userId]);
 
   /** Documents generated for this job, newest first. */
@@ -248,6 +248,15 @@ export default function JobsTab({ userId }: Props) {
               </div>
               {!primaryResume && (
                 <p className="text-xs text-amber-500 mt-3">Add your resume in Profile to enable AI actions.</p>
+              )}
+              {primaryResume && primaryResume.ats_score != null && primaryResume.ats_score < 70 && (
+                <p className="text-xs text-amber-500 mt-3">
+                  Your resume scores {primaryResume.ats_score}/100 for ATS readiness — tailoring still works,
+                  but a weak base resume means a weaker one for every job.{" "}
+                  <button type="button" className="underline hover:text-foreground" onClick={onOpenProfile}>
+                    Improve it in Profile
+                  </button>
+                </p>
               )}
             </Card>
 

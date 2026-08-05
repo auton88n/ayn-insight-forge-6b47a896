@@ -58,8 +58,16 @@ export const resumeHubApi = {
 
   parseFile: (fileBase64: string, mimeType: string) =>
     call<{ resume: ResumeContent; plainText: string }>("resume-hub", { action: "parse_file", fileBase64, mimeType }),
+  /** Free: content-quality read only, no rewrite. Pass resumeId to cache the score onto that row. */
+  diagnose: (resume: ResumeContent, resumeId?: string) =>
+    call<{ ats_score: number; verdict: "Poor" | "Fair" | "Good" | "Strong"; issues: string[] }>(
+      "resume-hub", { action: "resume_diagnose", resume, resumeId },
+    ),
+  /** Paid (15 credits): the actual rewrite. */
   rewrite: (resume: ResumeContent, jdText?: string) =>
-    call<{ resume: ResumeContent; ats_score: number; suggestions: string[] }>("resume-hub", { action: "rewrite", resume, jdText }),
+    call<{ resume: ResumeContent; ats_score: number; suggestions: string[]; credits: { spent: number; balance: number } }>(
+      "resume-hub", { action: "rewrite", resume, jdText },
+    ),
   match: (resume: ResumeContent, jdText: string) =>
     call<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string }>("resume-hub", { action: "match", resume, jdText }),
   tailor: (resume: ResumeContent, jdText: string) =>

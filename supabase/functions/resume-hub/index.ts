@@ -2191,12 +2191,62 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
       return json({ resume, plainText });
     }
 
-    // ---------------- rewrite ----------------
+    // ---------------- resume_diagnose ----------------
+    // Free. A fast, cheap-model read of the resume's CONTENT quality — vague
+    // bullets, missing numbers, thin sections, weak framing. Deliberately not
+    // about visual layout (columns, tables, fonts): by the time a resume is
+    // in this schema, every download AYN produces already goes through one
+    // clean single-column PDF/DOCX builder (resumeDocs.ts), so the
+    // file-formatting half of "ATS-friendly" is already solved by
+    // construction. What's left to diagnose is the writing itself.
+    if (action === "resume_diagnose") {
+      const adminDiag = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminDiag, "tailoring"); if (off) return off; }
+      const { resume, resumeId } = payload as { resume: unknown; resumeId?: string };
+      if (!resume) return json({ error: "resume required" }, 400);
+      const r = await callAI({
+        system: `You assess resume writing quality, not visual layout. Score 0-100 on: whether bullets are quantified (numbers, percentages, scale), whether they lead with a strong action verb, whether a summary and skills section exist, whether dates are consistent (Month YYYY), and whether the content reads as generic versus specific. Return ats_score (0-100), verdict (one of "Poor","Fair","Good","Strong" — Strong 85+, Good 70+, Fair 50+, else Poor), and issues: 3 to 6 short, specific, concrete problems in this exact resume (not generic advice — name the actual weak bullet or missing thing).`,
+        user: JSON.stringify({ resume }).slice(0, 30000),
+        toolName: "emit_diagnosis",
+        toolSchema: {
+          type: "object",
+          properties: {
+            ats_score: { type: "integer" },
+            verdict: { type: "string", enum: ["Poor", "Fair", "Good", "Strong"] },
+            issues: { type: "array", items: { type: "string" } },
+          },
+          required: ["ats_score", "verdict", "issues"],
+        },
+      });
+      const structured = r.structured as { ats_score?: number; verdict?: string; issues?: string[] } | undefined;
+      // Cache onto the resume row (if this is the primary one) so the
+      // tailoring flow can show the same score without paying for another
+      // AI call every time a job is opened.
+      if (resumeId && structured) {
+        await adminDiag.from("resumes")
+          .update({ ats_score: structured.ats_score ?? null, ats_issues: structured.issues ?? [] })
+          .eq("id", resumeId).eq("user_id", user.id);
+      }
+      return json(structured ?? {});
+    }
+
+    // ---------------- rewrite (the paid resume optimizer) ----------------
     if (action === "rewrite") {
+      const adminRewrite = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminRewrite, "tailoring"); if (off) return off; }
+      const creditGate = await assertCredits(adminRewrite, user.id, COST_OPTIMIZE, "resume optimization");
+      if (creditGate) return creditGate;
       const { resume, jdText } = payload as { resume: unknown; jdText?: string };
       const r = await callAI({
         model: QUALITY_MODEL,
-        system: "You improve resume bullets to be impact-focused, quantified, and ATS-friendly. Preserve facts; rewrite for clarity and strength. If a job description is provided, weave in relevant keywords without lying. Return a complete improved resume in the same schema, plus an ats_score 0-100, plus an array of suggestions (short strings).",
+        system: `You rewrite a resume to be stronger and more ATS-friendly, without inventing anything. RULES:
+1. NEVER invent or imply experience, employers, titles, dates, or numbers that are not already in the resume.
+2. Rewrite every bullet to lead with a strong action verb and, where the underlying fact supports it, surface the result with a real number already implied by the content — do not fabricate a metric that is not there.
+3. Keep every company name, job title, and date exactly as given; write dates consistently as "Month YYYY".
+4. Tighten vague or generic lines into specific ones using only what is already true.
+5. If a job description is provided, weave in its keywords only where the person's real experience already supports them.
+6. No em dashes, no en dashes.
+Return the complete improved resume in the same schema, an ats_score 0-100 for the NEW version, and suggestions: an array of short strings describing what you changed and why.`,
         user: JSON.stringify({ resume, jdText: jdText ?? "" }).slice(0, 40000),
         toolName: "emit_rewrite",
         toolSchema: {
@@ -2209,7 +2259,9 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
           required: ["resume", "ats_score", "suggestions"],
         },
       });
-      return json(r.structured);
+      const chargeRewrite = await creditSpend(adminRewrite, user.id, COST_OPTIMIZE, "resume_optimize");
+      if (!chargeRewrite.ok) return insufficientCredits(chargeRewrite.balance, COST_OPTIMIZE, "resume optimization");
+      return json({ ...(r.structured as object), credits: { spent: COST_OPTIMIZE, balance: chargeRewrite.balance } });
     }
 
     // ---------------- match ----------------
@@ -4031,6 +4083,7 @@ const TAILOR_TTL = 7 * 24 * 60 * 60 * 1000;
 // ══════════════════════════════════════════════════════════════
 const COST_TAILOR = 2;
 const COST_COVER = 1;
+const COST_OPTIMIZE = 15;
 const EMPLOYER_SEARCH_SOFT_CAP = 200;
 
 type Anyish = SupabaseClient<any, any, any>;

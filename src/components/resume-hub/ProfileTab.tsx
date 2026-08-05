@@ -28,11 +28,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Plus, X, FileUp, ArrowRight, Download, RefreshCw, Trash2,
-  ChevronDown, Check, Undo2, Sparkles,
+  ChevronDown, Check, Undo2, Sparkles, AlertTriangle, ShieldCheck,
 } from "lucide-react";
 import { notifyProfileUpdated } from "@/lib/extension";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
-import { type ResumeContent } from "@/lib/resumeHub";
+import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { reindexTalentPool } from "@/lib/talentPoolSync";
 import { resumeToText, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import { computeReadiness } from "@/lib/profileGaps";
@@ -149,11 +149,14 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [uploading, setUploading] = useState(false);
-  const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string; created_at: string } | null>(null);
+  const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string; created_at: string; ats_score: number | null; ats_issues: string[] | null } | null>(null);
   const [olderResumes, setOlderResumes] = useState<{ id: string; title: string; created_at: string; content: ResumeContent }[]>([]);
   const [showOlder, setShowOlder] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [resumeContent, setResumeContent] = useState<ResumeContent | null>(null);
+  const [checkingResume, setCheckingResume] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizeChanges, setOptimizeChanges] = useState<string[] | null>(null);
   const [accountEmail, setAccountEmail] = useState("");
   const [openSkill, setOpenSkill] = useState<number | null>(null);
   const [levelPromptDone, setLevelPromptDone] = useState(
@@ -164,14 +167,14 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
   // full load() would re-fetch career from the DB before the freshly parsed
   // resume's skills/experience/education (merged into local state, not yet
   // persisted) ever reached the server, silently reverting them. ───────────
-  type ResumeRow = { id: string; title: string; content: unknown; created_at: string; is_primary: boolean };
+  type ResumeRow = { id: string; title: string; content: unknown; created_at: string; is_primary: boolean; ats_score: number | null; ats_issues: string[] | null };
   const loadResumes = useCallback(async () => {
-    const { data: resumeRows } = await supabase.from("resumes").select("id, title, content, created_at, is_primary")
+    const { data: resumeRows } = await supabase.from("resumes").select("id, title, content, created_at, is_primary, ats_score, ats_issues")
       .eq("user_id", userId).order("created_at", { ascending: false });
     const rows = ((resumeRows ?? []) as ResumeRow[]);
     const active = rows.find(r => r.is_primary) ?? rows[0] ?? null;
     if (active) {
-      setPrimaryResume({ id: active.id, title: active.title, created_at: active.created_at });
+      setPrimaryResume({ id: active.id, title: active.title, created_at: active.created_at, ats_score: active.ats_score, ats_issues: active.ats_issues });
       setResumeContent((active.content as ResumeContent) ?? null);
     } else {
       setPrimaryResume(null);
@@ -333,24 +336,76 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
     try {
       await supabase.from("resumes").update({ is_primary: false }).eq("user_id", userId);
       const autoTitle = resume.basics?.name ? `${resume.basics.name} Resume` : "Uploaded Resume";
-      const { error } = await supabase.from("resumes").insert({
+      const { data: inserted, error } = await supabase.from("resumes").insert({
         user_id: userId, title: autoTitle, content: resume as never, is_primary: true,
-      });
+      }).select("id").single();
       if (error) throw error;
       setResumeContent(resume);
       setCareer(prev => mapResumeToCareer(resume, prev));
       reindexTalentPool("resume_upload");
       setReplaceOpen(false);
+      setOptimizeChanges(null);
       // v3.41.0 — refresh only the resumes list (title/id for the new row),
       // not the full load(), which would re-fetch career from the DB before
       // the merge above is ever persisted and silently revert it.
       await loadResumes();
       queueSave();
       toast({ title: "Resume saved", description: "AYN filled in what it could read. Check your skills and achievements below." });
+      // Free, silent — so a score is already sitting there next time this
+      // person opens the tab, no extra click needed for a fresh upload.
+      if (inserted?.id) {
+        resumeHubApi.diagnose(resume, inserted.id)
+          .then(d => setPrimaryResume(p => p ? { ...p, ats_score: d.ats_score, ats_issues: d.issues } : p))
+          .catch(() => { /* best effort — the manual "Check my resume" button still works */ });
+      }
     } catch (e) {
       toast({ title: "Upload failed", description: (e as Error).message, variant: "destructive" });
     } finally {
       setUploading(false);
+    }
+  };
+
+  const checkResume = async () => {
+    if (!resumeContent || !primaryResume) return;
+    setCheckingResume(true);
+    try {
+      const d = await resumeHubApi.diagnose(resumeContent, primaryResume.id);
+      setPrimaryResume(p => p ? { ...p, ats_score: d.ats_score, ats_issues: d.issues } : p);
+    } catch (e) {
+      toast({ title: "Couldn't check your resume", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setCheckingResume(false);
+    }
+  };
+
+  // ── Optimize (15 credits): rewrite, then automatically replace the resume
+  // in AYN with the improved version — same is_primary swap as an upload. ──
+  const optimizeResume = async () => {
+    if (!resumeContent || !primaryResume) return;
+    setOptimizing(true);
+    setOptimizeChanges(null);
+    try {
+      const r = await resumeHubApi.rewrite(resumeContent);
+      await supabase.from("resumes").update({ is_primary: false }).eq("user_id", userId);
+      const title = r.resume.basics?.name ? `${r.resume.basics.name} Resume (Optimized)` : "Optimized Resume";
+      const { error } = await supabase.from("resumes").insert({
+        user_id: userId, title, content: r.resume as never, is_primary: true,
+        ats_score: r.ats_score, ats_issues: null,
+      });
+      if (error) throw error;
+      setResumeContent(r.resume);
+      setCareer(prev => mapResumeToCareer(r.resume, prev));
+      setOptimizeChanges(r.suggestions);
+      reindexTalentPool("resume_optimize");
+      await loadResumes();
+      toast({
+        title: "Resume optimized",
+        description: `Your new resume replaced the old one. ${r.credits.balance} credits left.`,
+      });
+    } catch (e) {
+      toast({ title: "Optimize failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setOptimizing(false);
     }
   };
 
@@ -481,6 +536,74 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
             Upload a PDF, DOCX, or TXT. AYN reads it once and fills in everything below, so you only
             correct what it got wrong.
           </p>
+        )}
+
+        {primaryResume && !replaceOpen && (
+          <div className="mt-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+            {primaryResume.ats_score == null ? (
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-xs text-muted-foreground">
+                  See how your resume reads: quantified bullets, strong verbs, no thin sections.
+                </p>
+                <Button variant="outline" size="sm" onClick={checkResume} disabled={checkingResume}>
+                  {checkingResume
+                    ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Checking…</>
+                    : <><ShieldCheck className="w-3.5 h-3.5 mr-1.5" /> Check my resume — free</>}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    {primaryResume.ats_score >= 70
+                      ? <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
+                      : <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />}
+                    <p className="text-sm font-medium">
+                      {primaryResume.ats_score}/100 — {
+                        primaryResume.ats_score >= 85 ? "Strong" : primaryResume.ats_score >= 70 ? "Good"
+                          : primaryResume.ats_score >= 50 ? "Fair" : "Poor"
+                      }
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={checkResume} disabled={checkingResume}>
+                      {checkingResume ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    </Button>
+                    <Button size="sm" onClick={optimizeResume} disabled={optimizing}>
+                      {optimizing
+                        ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Rewriting…</>
+                        : <><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Optimize my resume — 15 credits</>}
+                    </Button>
+                  </div>
+                </div>
+                {(primaryResume.ats_issues?.length ?? 0) > 0 && (
+                  <ul className="space-y-1 pl-1">
+                    {(primaryResume.ats_issues ?? []).map((issue, i) => (
+                      <li key={i} className="text-xs text-muted-foreground flex gap-1.5">
+                        <span className="text-amber-500 shrink-0">•</span> {issue}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Optimizing rewrites your resume for clarity and impact and replaces the one above —
+                  nothing is invented, and you can download the result right after.
+                </p>
+              </div>
+            )}
+            {optimizeChanges && optimizeChanges.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-border/60">
+                <p className="text-[11px] font-medium text-foreground mb-1.5">What changed</p>
+                <ul className="space-y-1 pl-1">
+                  {optimizeChanges.map((c, i) => (
+                    <li key={i} className="text-xs text-muted-foreground flex gap-1.5">
+                      <Check className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" /> {c}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         )}
 
         {uploading && (
