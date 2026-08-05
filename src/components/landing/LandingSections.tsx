@@ -7,7 +7,7 @@
  * Every mockup on this page is a rendition of a screen that exists.
  */
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { openCookiePreferences } from '@/components/shared/CookieConsent';
 import { COPYRIGHT_LINE, COMPANY_TAGLINE, NAV_LINKS, COMPANY_LINKS } from '@/components/shared/siteLinks';
 import aynLogo from '@/assets/ayn-logo.png';
@@ -242,6 +242,7 @@ const HERO: Record<Audience, {
 
 export const LandingSections = memo(({ onStartFree }: Props) => {
   const root = useRef<HTMLDivElement>(null);
+  const location = useLocation();
   const [audience, setAudience] = useState<Audience>(() => {
     if (typeof window === 'undefined') return 'job_seeker';
     return localStorage.getItem('ayn_landing_audience') === 'employer' ? 'employer' : 'job_seeker';
@@ -283,19 +284,40 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
     });
   }, []);
 
+  // Same as pickAudience but without the scroll-to-top: used when a hash
+  // link is driving the switch, since the effect below scrolls to the
+  // actual target section once it has mounted, not the top of the page.
+  const setAudienceForHash = useCallback((next: Audience) => {
+    setAudience((cur) => {
+      if (cur === next) return cur;
+      try { localStorage.setItem('ayn_landing_audience', next); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
   /**
-   * The header nav links to #features and #employers. Those ids only exist in
-   * one mode, so a click on the other side flips the page first.
+   * The header nav links to #proof, #features and #employers. All three only
+   * exist in one audience mode (#proof and #features are seeker-only,
+   * #employers is employer-only), so arriving at one — a fresh load, a
+   * same-page click, or a router navigation from another page, none of
+   * which fire a native hashchange event — flips the page to match first.
    */
   useEffect(() => {
-    const onHash = () => {
-      const id = window.location.hash.replace('#', '');
-      if (id === 'employers') pickAudience('employer');
-      if (id === 'features') pickAudience('job_seeker');
-    };
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, [pickAudience]);
+    const id = location.hash.replace('#', '');
+    if (id === 'employers') setAudienceForHash('employer');
+    else if (id === 'features' || id === 'proof') setAudienceForHash('job_seeker');
+  }, [location.hash, setAudienceForHash]);
+
+  // Scrolls to the hash target once it exists. Runs after every audience
+  // change too, since #features/#employers only mount on the matching side.
+  useEffect(() => {
+    const id = location.hash.replace('#', '');
+    if (!id) return;
+    const t = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    }, 60);
+    return () => window.clearTimeout(t);
+  }, [location.hash, audience]);
 
   const hero = HERO[audience];
   const strip = STRIP[audience];

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Menu, LogOut, User } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -7,9 +7,15 @@ import { supabase } from '@/integrations/supabase/client';
 import aynLogo from '@/assets/ayn-logo.png';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
+// Hash links point at LandingSections' own anchors. Scrolling to the target
+// (and, for #features/#employers, flipping the page's audience toggle first
+// so the right one is even mounted) is LandingSections' job, driven off
+// useLocation().hash — not this component's, since Header renders on every
+// page and a plain <Link to="/#x"> already navigates there correctly on its
+// own, cross-page or same-page, with no manual scroll/timeout logic needed.
 const navLinks = [
 { path: '/', en: 'Home' },
-{ path: '/#how', en: 'How it works' },
+{ path: '/#proof', en: 'How it works' },
 { path: '/#features', en: 'Features' },
 { path: '/#employers', en: 'For employers' },
 { path: '/pricing', en: 'Pricing' },
@@ -19,7 +25,6 @@ const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
 
 export const Header = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -41,22 +46,7 @@ export const Header = () => {
     setUser(null);
   };
 
-  const handleNavClick = useCallback((e: React.MouseEvent, path: string) => {
-    setSheetOpen(false);
-    if (path.includes('#')) {
-      e.preventDefault();
-      const hash = path.split('#')[1];
-      if (location.pathname !== '/') {
-        navigate('/');
-        setTimeout(() => {
-          document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-      } else {
-        window.location.hash = hash;
-        document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth' });
-      }
-    }
-  }, [location.pathname, navigate]);
+  const closeSheet = useCallback(() => setSheetOpen(false), []);
 
   const isActive = (path: string) => {
     if (path.includes('#')) return false;
@@ -121,7 +111,7 @@ export const Header = () => {
               <Link
                 key={link.path}
                 to={link.path}
-                onClick={(e) => handleNavClick(e, link.path)}
+                onClick={closeSheet}
                 style={{
                   fontFamily: headFont,
                   fontSize: 14,
@@ -229,7 +219,7 @@ export const Header = () => {
                         <Link
                           key={link.path}
                           to={link.path}
-                          onClick={(e) => handleNavClick(e, link.path)}
+                          onClick={closeSheet}
                           style={{
                             fontFamily: headFont,
                             fontSize: 17,
