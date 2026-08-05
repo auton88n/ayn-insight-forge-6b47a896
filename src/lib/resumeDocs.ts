@@ -1,16 +1,16 @@
 /**
- * resumeDocs.ts — v3.4.0 "one profile, one resume"
+ * resumeDocs.ts — v3.4.0 "one profile, one resume", rebuilt v3.65.0 for a
+ * real one-page layout with the name and every job/school title actually
+ * bold, not just guessed at from all-caps plain text.
  *
- * The web Hub now owns document download, because tailored resumes and cover
- * letters live on the job they were generated for instead of in a resume
- * library. Same output contract as extension/resumeFormat.js: real text in the
- * file, never a rasterized screenshot.
+ * Same output contract as extension/resumeFormat.js: real selectable text in
+ * the file, never a rasterized screenshot.
  */
 import { jsPDF } from "jspdf";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 import type { ResumeContent } from "@/lib/resumeHub";
 
-/** Flatten a structured resume into the plain text both builders render. */
+/** Flatten a structured resume into plain text — used by the diff viewer, not the downloads below. */
 export function resumeToText(c: ResumeContent): string {
   const b = c.basics ?? {};
   const lines: string[] = [];
@@ -39,35 +39,137 @@ export function resumeToText(c: ResumeContent): string {
   return lines.join("\n").trim();
 }
 
-const MARGIN = 54; // 0.75 inch at 72 dpi
-const LINE = 14;
+// ── Structured layout, shared by the PDF and DOCX builders ─────────────────
+//
+// A resume is a short, fixed list of block types (name, contact line,
+// summary, section header, a job/school title, a bullet, a plain line), each
+// with its own bold/size treatment. Building from this instead of a
+// flattened text string is what lets both formats bold the name and every
+// job title correctly, instead of the old approach of guessing "is this
+// line shouting in all caps" on a string that has already lost the
+// structure.
+type BlockKind = "name" | "contact" | "summary" | "header" | "title" | "bullet" | "plain";
+interface DocBlock { kind: BlockKind; text: string; gapBefore?: number }
 
-export function buildTextPdfBlob(text: string): Blob {
-  const doc = new jsPDF({ unit: "pt", format: "letter" });
-  const width = doc.internal.pageSize.getWidth() - MARGIN * 2;
-  const height = doc.internal.pageSize.getHeight();
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10.5);
-  let y = MARGIN;
-  text.split(/\r?\n/).forEach(raw => {
-    const heading = /^[A-Z][A-Z \/&]{2,}$/.test(raw.trim());
-    doc.setFont("helvetica", heading ? "bold" : "normal");
-    const wrapped: string[] = raw.trim() ? doc.splitTextToSize(raw, width) : [""];
-    wrapped.forEach(w => {
-      if (y > height - MARGIN) { doc.addPage(); y = MARGIN; }
-      doc.text(w, MARGIN, y);
-      y += LINE;
+function buildResumeBlocks(c: ResumeContent): DocBlock[] {
+  const blocks: DocBlock[] = [];
+  const b = c.basics ?? {};
+  if (b.name) blocks.push({ kind: "name", text: b.name });
+  const contact = [b.title, b.email, b.phone, b.location].filter(Boolean).join(" | ");
+  if (contact) blocks.push({ kind: "contact", text: contact });
+  if (b.summary) blocks.push({ kind: "summary", text: b.summary, gapBefore: 8 });
+
+  if ((c.work ?? []).length) {
+    blocks.push({ kind: "header", text: "EXPERIENCE", gapBefore: 12 });
+    (c.work ?? []).forEach((w, i) => {
+      const when = [w.start, w.end || "Present"].filter(Boolean).join(" to ");
+      blocks.push({
+        kind: "title",
+        text: [w.title, w.company].filter(Boolean).join(", ") + (when ? ` (${when})` : ""),
+        gapBefore: i === 0 ? 4 : 8,
+      });
+      (w.bullets ?? []).filter(Boolean).forEach(x => blocks.push({ kind: "bullet", text: x }));
     });
-  });
+  }
+
+  if ((c.education ?? []).length) {
+    blocks.push({ kind: "header", text: "EDUCATION", gapBefore: 12 });
+    (c.education ?? []).forEach((e, i) => {
+      blocks.push({
+        kind: "title",
+        text: [e.degree, e.field, e.school].filter(Boolean).join(", "),
+        gapBefore: i === 0 ? 4 : 4,
+      });
+    });
+  }
+
+  if ((c.skills ?? []).length) {
+    blocks.push({ kind: "header", text: "SKILLS", gapBefore: 12 });
+    blocks.push({ kind: "plain", text: (c.skills ?? []).join(", "), gapBefore: 4 });
+  }
+
+  return blocks;
+}
+
+const STYLE: Record<BlockKind, { bold: boolean; sizeDelta: number; indent: number }> = {
+  name: { bold: true, sizeDelta: 4, indent: 0 },
+  contact: { bold: false, sizeDelta: 0, indent: 0 },
+  summary: { bold: false, sizeDelta: 0, indent: 0 },
+  header: { bold: true, sizeDelta: 0.5, indent: 0 },
+  title: { bold: true, sizeDelta: 0, indent: 0 },
+  bullet: { bold: false, sizeDelta: 0, indent: 12 },
+  plain: { bold: false, sizeDelta: 0, indent: 0 },
+};
+
+const PAGE_W = 612, PAGE_H = 792; // US letter, points
+const MARGIN = 54; // 0.75 inch
+const CONTENT_W = PAGE_W - MARGIN * 2;
+const CONTENT_H = PAGE_H - MARGIN * 2;
+const LINE_RATIO = 1.28;
+// Shrink to fit one page: try each size in turn, smallest still-readable
+// size wins if nothing bigger fits. A genuinely very long resume (10+ roles)
+// falls through to the safety net in layoutPdf, which starts a second page
+// rather than silently clipping content.
+const CANDIDATE_SIZES = [10.5, 10, 9.5, 9, 8.5, 8];
+
+/** Lays out every block at the given size. draw=false only measures (no page-break safety net, so the returned height reflects true overflow). */
+function layoutPdf(doc: jsPDF, blocks: DocBlock[], baseSize: number, draw: boolean): number {
+  let y = MARGIN;
+  for (const block of blocks) {
+    const style = STYLE[block.kind];
+    const size = baseSize + style.sizeDelta;
+    doc.setFont("helvetica", style.bold ? "bold" : "normal");
+    doc.setFontSize(size);
+    const lineH = size * LINE_RATIO;
+    y += block.gapBefore ?? 0;
+    const prefix = block.kind === "bullet" ? "• " : "";
+    const width = CONTENT_W - style.indent;
+    const wrapped: string[] = block.text.trim() ? doc.splitTextToSize(prefix + block.text, width) : [""];
+    for (const line of wrapped) {
+      if (draw && y > PAGE_H - MARGIN) { doc.addPage(); y = MARGIN; }
+      if (draw) doc.text(line, MARGIN + style.indent, y);
+      y += lineH;
+    }
+  }
+  return y - MARGIN;
+}
+
+function pickFontSize(doc: jsPDF, blocks: DocBlock[]): number {
+  for (const size of CANDIDATE_SIZES) {
+    if (layoutPdf(doc, blocks, size, false) <= CONTENT_H) return size;
+  }
+  return CANDIDATE_SIZES[CANDIDATE_SIZES.length - 1];
+}
+
+export function buildResumePdfBlob(c: ResumeContent): Blob {
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const blocks = buildResumeBlocks(c);
+  const size = pickFontSize(doc, blocks);
+  layoutPdf(doc, blocks, size, true);
   return doc.output("blob");
 }
 
-export async function buildTextDocxBlob(text: string): Promise<Blob> {
-  const paragraphs = text.split(/\r?\n/).map(raw => {
-    const heading = /^[A-Z][A-Z \/&]{2,}$/.test(raw.trim());
+export async function buildResumeDocxBlob(c: ResumeContent): Promise<Blob> {
+  const blocks = buildResumeBlocks(c);
+  // jsPDF is used here purely as a text-measuring ruler (Helvetica metrics
+  // are close enough to Calibri for this) so the DOCX picks the same size
+  // the PDF settled on. Word does its own pagination — this cannot guarantee
+  // one page the way the PDF builder does, but starting from an already
+  // shrunk, already-fits-in-one-PDF-page size gets it there in practice.
+  const size = pickFontSize(new jsPDF({ unit: "pt", format: "letter" }), blocks);
+
+  const paragraphs = blocks.map(block => {
+    const style = STYLE[block.kind];
+    const prefix = block.kind === "bullet" ? "• " : "";
     return new Paragraph({
-      spacing: { after: 60 },
-      children: [new TextRun({ text: raw, bold: heading, font: "Calibri", size: 21 })],
+      spacing: { before: (block.gapBefore ?? 0) * 20, after: 60 },
+      indent: style.indent ? { left: style.indent * 20 } : undefined,
+      children: [new TextRun({
+        text: prefix + block.text,
+        bold: style.bold,
+        font: "Calibri",
+        size: Math.round((size + style.sizeDelta) * 2),
+      })],
     });
   });
   const doc = new Document({ sections: [{ children: paragraphs }] });

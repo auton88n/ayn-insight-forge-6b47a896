@@ -34,7 +34,7 @@ import { notifyProfileUpdated } from "@/lib/extension";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { reindexTalentPool } from "@/lib/talentPoolSync";
-import { resumeToText, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
+import { buildResumePdfBlob, buildResumeDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import { computeReadiness } from "@/lib/profileGaps";
 
 // ── Types (mirror the edge-function canonical shape) ─────────────────────────
@@ -411,10 +411,9 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
 
   const downloadResume = async (content: ResumeContent, name: string, kind: "pdf" | "docx") => {
     try {
-      const text = resumeToText(content);
       const base = fileBase(name || "Resume");
-      if (kind === "pdf") downloadBlob(buildTextPdfBlob(text), `${base}.pdf`);
-      else downloadBlob(await buildTextDocxBlob(text), `${base}.docx`);
+      if (kind === "pdf") downloadBlob(buildResumePdfBlob(content), `${base}.pdf`);
+      else downloadBlob(await buildResumeDocxBlob(content), `${base}.docx`);
     } catch (e) {
       toast({ title: "Download failed", description: (e as Error).message, variant: "destructive" });
     }

@@ -33,7 +33,7 @@ MIGRATION AFFORDANCE: accounts created before v3.4.0 can hold several rows. Prof
 
 TAILORED OUTPUTS (JobsTab): the newest `resume_versions` row with `created_for_job_id = job.id` and the newest `cover_letters` row with `job_id = job.id` render as "Documents for this job" with the generated date and PDF / Word downloads. Regenerating deletes the previous copy for that job and inserts the new one, so there is at most one of each per job. Cache behaviour in the edge function is unchanged. ResumeDiffViewer survives as "See what changed" on the tailored resume, comparing it against the active source resume.
 
-Document building moved into the web app at src/lib/resumeDocs.ts (jsPDF + docx, real selectable text, same contract as extension/resumeFormat.js): resumeToText, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase.
+Document building moved into the web app at src/lib/resumeDocs.ts (jsPDF + docx, real selectable text, same contract as extension/resumeFormat.js): resumeToText (plain text, feeds ResumeDiffViewer only), buildResumePdfBlob, buildResumeDocxBlob (build directly from structured `ResumeContent`, replaced the old text-flattening `buildTextPdfBlob`/`buildTextDocxBlob` in v3.65.0 — see below), downloadBlob, fileBase.
 
 ## Resume diagnosis and optimizer (v3.64.0)
 
@@ -44,6 +44,10 @@ Two backend actions, both operating on the ACTIVE resume's structured content (`
 `rewrite` (paid, 15 credits, `COST_OPTIMIZE`, `resumeHubApi.rewrite`): was already built and returning `{resume, ats_score, suggestions}` but had zero callers anywhere in `src/` and no credit gate at all. Now gated like `tailor`/`cover_letter` (`assertCredits`/`creditSpend`, `QUALITY_MODEL`), with a stricter prompt: never invent a metric that is not already implied by the resume's own content, consistent "Month YYYY" dates, no em/en dashes. `ProfileTab.tsx`'s `optimizeResume()` calls it, then performs the exact same `is_primary` swap as a fresh upload (old rows to `false`, new row inserted as the primary with the new `ats_score`) — paying for this is the acceptance, there is no separate preview-then-accept step, matching how `tailor` already works. Shows a "what changed" list from `suggestions` afterward and lets the person download the new resume immediately.
 
 `JobsTab.tsx` reads the cached `ats_score` and shows an amber warning below the tailor/cover-letter buttons when it is under 70 ("tailoring still works, but a weak base resume means a weaker one for every job"), linking back to Profile via a new `onOpenProfile` prop threaded through from `ResumeHub.tsx`. Tailoring itself is unaffected either way — the warning is informational, not a gate.
+
+### v3.65.0 fix: the actual output was two pages, unbolded, and read like AI wrote it
+
+Reported directly against the founder's own downloaded PDF after using the feature. `resumeDocs.ts`'s PDF/DOCX builders are rebuilt from `ResumeContent` directly rather than a flattened text string (see the Document building line above). Two independent problems, both real: (1) the PDF had no shrink-to-fit logic, so a normal 4-job resume silently spilled onto a second page with one line of skills on it; (2) bolding was guessed from ALL-CAPS text-matching, which only ever caught section headers, never the name or a job title. Also tightened the `rewrite` prompt: banned specific resume-cliché phrases, required atomic `skills` entries (one skill per array item — the model had been writing category-prefixed comma lists into a single entry, e.g. "Technical Stack: React, TypeScript, Supabase...", which is what rendered as a dense wall of text). Verified by rebuilding the PDF from the founder's actual resume content and inspecting the raw PDF bytes: `/Count 1`, `/F2` (Helvetica-Bold) selected before the name and every title line.
 
 ## Home next actions (v3.3.0)
 

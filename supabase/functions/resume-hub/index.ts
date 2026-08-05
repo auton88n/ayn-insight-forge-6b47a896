@@ -2239,13 +2239,15 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
       const { resume, jdText } = payload as { resume: unknown; jdText?: string };
       const r = await callAI({
         model: QUALITY_MODEL,
-        system: `You rewrite a resume to be stronger and more ATS-friendly, without inventing anything. RULES:
+        system: `You rewrite a resume to be stronger and more ATS-friendly, without inventing anything, and it must read like a real person wrote it. RULES:
 1. NEVER invent or imply experience, employers, titles, dates, or numbers that are not already in the resume.
-2. Rewrite every bullet to lead with a strong action verb and, where the underlying fact supports it, surface the result with a real number already implied by the content — do not fabricate a metric that is not there.
+2. Rewrite every bullet to lead with a strong, specific action verb and, where the underlying fact supports it, surface the result with a real number already implied by the content — do not fabricate a metric that is not there. One bullet, one idea, one line where possible — this has to fit on one page.
 3. Keep every company name, job title, and date exactly as given; write dates consistently as "Month YYYY".
 4. Tighten vague or generic lines into specific ones using only what is already true.
-5. If a job description is provided, weave in its keywords only where the person's real experience already supports them.
-6. No em dashes, no en dashes.
+5. WRITE LIKE A PERSON, NOT A TEMPLATE. Ban these entirely: "proven ability to", "results-driven", "dynamic professional", "leveraging", "spearheaded transformational initiatives", "passionate about", any summary sentence that could be copy-pasted onto a stranger's resume unchanged. Prefer plain, direct, specific sentences over dense corporate phrasing. Vary sentence length and structure like a human writer would, not a repeating pattern.
+6. skills must be ATOMIC: one skill name per array entry (e.g. "React", "Stakeholder management"), never a category label with a colon and a comma-separated list crammed into one entry. Group related skills by ORDER in the array, not by writing a label into the string.
+7. If a job description is provided, weave in its keywords only where the person's real experience already supports them.
+8. No em dashes, no en dashes. Ranges use the word "to".
 Return the complete improved resume in the same schema, an ats_score 0-100 for the NEW version, and suggestions: an array of short strings describing what you changed and why.`,
         user: JSON.stringify({ resume, jdText: jdText ?? "" }).slice(0, 40000),
         toolName: "emit_rewrite",

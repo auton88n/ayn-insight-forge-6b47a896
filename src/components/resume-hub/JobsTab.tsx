@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Wand2, Download } from "lucide-react";
 import { handoffUrl } from "@/lib/extension";
-import { resumeToText, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
+import { resumeToText, buildResumePdfBlob, buildResumeDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import ResumeDiffViewer from "./ResumeDiffViewer";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
@@ -127,10 +127,10 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
     } finally { setBusy(false); }
   };
 
-  const downloadDoc = async (text: string, base: string, kind: "pdf" | "docx") => {
+  const downloadDoc = async (content: ResumeContent, base: string, kind: "pdf" | "docx") => {
     try {
-      if (kind === "pdf") downloadBlob(buildTextPdfBlob(text), `${base}.pdf`);
-      else downloadBlob(await buildTextDocxBlob(text), `${base}.docx`);
+      if (kind === "pdf") downloadBlob(buildResumePdfBlob(content), `${base}.pdf`);
+      else downloadBlob(await buildResumeDocxBlob(content), `${base}.docx`);
     } catch (e) {
       toast({ title: "Download failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     }
@@ -302,10 +302,10 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" onClick={() => downloadDoc(resumeToText(tailored.content), fileBase(selected.company, selected.title, "Resume"), "pdf")}>
+                        <Button size="sm" variant="outline" onClick={() => downloadDoc(tailored.content, fileBase(selected.company, selected.title, "Resume"), "pdf")}>
                           <Download className="w-4 h-4 mr-1.5" />PDF
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => downloadDoc(resumeToText(tailored.content), fileBase(selected.company, selected.title, "Resume"), "docx")}>
+                        <Button size="sm" variant="outline" onClick={() => downloadDoc(tailored.content, fileBase(selected.company, selected.title, "Resume"), "docx")}>
                           <Download className="w-4 h-4 mr-1.5" />Word
                         </Button>
                         {primaryResume && (
