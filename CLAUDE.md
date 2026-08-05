@@ -4,7 +4,9 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: v3.59.0, the header nav's three hash links ("How it works", "Features", "For employers") were structurally broken for most visitors, fixed at the root cause.
+Last verified: v3.60.0, the /pricing headline changed from "Pay for the writing, nothing else" to "Less time formatting. More time applying." Exact copy supplied directly. `src/pages/Pricing.tsx`'s H1, nothing else on the page touched.
+
+Preceded by v3.59.0, the header nav's three hash links ("How it works", "Features", "For employers") were structurally broken for most visitors, fixed at the root cause.
 
 HEADER NAV AUDIT: THREE OF SIX LINKS WERE BROKEN FOR MOST VISITORS. Asked directly to check whether the header menu works and is in good sequence. The sequence itself (Home, How it works, Features, For employers, Pricing, Contact) was fine; the links were not. `LandingSections.tsx` renders the landing page in exactly one audience at a time (`{seeker && <section id="features">}` / `{!seeker && <section id="employers">}`, same split on `#proof`), a deliberate v3.17.0 design so a job seeker never scrolls into employer copy. The header's `handleNavClick` never accounted for this: `/#how` pointed at an id that has never existed anywhere in the codebase (confirmed by grep, always a silent no-op); `/#features` and `/#employers` only worked when the page already happened to be in the matching audience, which is not the default for either one on a fresh visit. Compounding it, the cross-page branch called `navigate('/')` with no hash at all, dropping the target entirely, and the same-page branch set `window.location.hash` directly and immediately called `scrollIntoView` in the same tick, racing React's own re-render before the target section could even mount.
 
