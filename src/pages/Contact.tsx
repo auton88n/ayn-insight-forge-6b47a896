@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { SEO, createBreadcrumbSchema } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
@@ -13,6 +14,14 @@ const Contact = () => {
     { name: 'Contact', url: 'https://aynn.io/contact' },
   ]);
 
+  // On <body> too, not just the wrapper div below, so Radix's portaled
+  // Select dropdown and the sonner toast (both render outside this
+  // component's own DOM subtree) still pick up the ember re-tint.
+  useEffect(() => {
+    document.body.classList.add('contact-surface');
+    return () => document.body.classList.remove('contact-surface');
+  }, []);
+
   return (
     <>
       <SEO
@@ -21,7 +30,7 @@ const Contact = () => {
         canonical="/contact"
         jsonLd={jsonLd}
       />
-      <div className="min-h-screen bg-background">
+      <div className="contact-surface min-h-screen bg-background">
         <Header />
 
         <main className="container mx-auto max-w-3xl px-6 pt-32 pb-24">

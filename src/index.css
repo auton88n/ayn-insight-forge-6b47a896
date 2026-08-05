@@ -2049,6 +2049,29 @@ button, a, input, textarea, select {
   color: hsl(var(--primary));
 }
 
+/* ============================================================
+   v3.63.0 — the Contact form used the same un-tokened black
+   Button (see v3.12.0 above), so "Send message" and every input's
+   focus ring were plain black instead of AYN ember. Same fix,
+   same reason: re-point --primary/--ring inside the scope so the
+   shadcn Button and every Input/Select/Textarea ring picks it up
+   with no per-component overrides, using the site's actual ember
+   (--lp-ember) rather than the employer surface's brighter orange.
+   ============================================================ */
+.contact-surface {
+  --primary: 13 79% 57%;             /* #e85d3a */
+  --primary-foreground: 0 0% 100%;
+  --ring: 13 79% 57%;
+}
+.contact-surface button.bg-foreground {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+.contact-surface button.bg-foreground:hover {
+  background-color: hsl(13 79% 50%);
+  color: hsl(var(--primary-foreground));
+}
+
 
 /* Step transitions, restrained and reduced-motion aware. */
 .employer-step-in { animation: employer-step-in 220ms cubic-bezier(.19,1,.22,1) both; }
