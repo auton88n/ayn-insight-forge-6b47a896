@@ -42,40 +42,6 @@ const Contact = () => {
               it's often quicker.
             </p>
           </section>
-
-          <section className="mt-12">
-            <SectionHeading>Specific requests</SectionHeading>
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-border bg-card p-5">
-                <p className="text-muted-foreground leading-relaxed">
-                  <span className="font-semibold text-foreground">Privacy or data.</span> Put
-                  "Privacy" in the subject. We respond within thirty days, usually sooner. You can
-                  also export or delete your data yourself from Settings.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border bg-card p-5">
-                <p className="text-muted-foreground leading-relaxed">
-                  <span className="font-semibold text-foreground">Copyright reports.</span> Put
-                  "Copyright Notice" in the subject. See our{' '}
-                  <Link to="/copyright" className="underline underline-offset-4">Copyright Policy</Link>{' '}
-                  for what to include.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border bg-card p-5">
-                <p className="text-muted-foreground leading-relaxed">
-                  <span className="font-semibold text-foreground">Security.</span> Found a
-                  vulnerability? Put "Security" in the subject. Good-faith reports won't be
-                  pursued.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border bg-card p-5">
-                <p className="text-muted-foreground leading-relaxed">
-                  <span className="font-semibold text-foreground">Employer access.</span> Request
-                  it from the employer page, not by email.
-                </p>
-              </div>
-            </div>
-          </section>
         </main>
 
         <Footer />
