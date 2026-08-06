@@ -16,7 +16,7 @@ async function call<T>(name: string, args?: Record<string, unknown>): Promise<T>
   return data as T;
 }
 
-/** What deletion removes and what it keeps. Shown before anyone confirms. */
+/** What deletion removes. Shown before anyone confirms. */
 export const DELETION_REMOVED = [
   'Your resume and every tailored version of it',
   'Your career profile, skills, work history and education',
@@ -25,12 +25,6 @@ export const DELETION_REMOVED = [
   'Your discovery listing, so employers can no longer find you',
   'Your settings, preferences and support tickets',
   'Every file you uploaded',
-];
-
-export const DELETION_KEPT = [
-  'Payment and credit records, which we must keep for accounting and tax',
-  'Proposals and assessments an employer already received, with your name, email and profile replaced by an anonymous reference, because that is their own hiring record',
-  'Security and error logs, with your account no longer attached to them',
 ];
 
 export type SelfDeleteResult = { ok: boolean; erased: boolean; candidate_ref: string; files_removed: number };

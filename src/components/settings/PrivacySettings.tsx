@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, AlertTriangle, Download, PauseCircle } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import {
-  DELETION_KEPT, DELETION_REMOVED, clearLocalTraces, downloadJson,
+  DELETION_REMOVED, clearLocalTraces, downloadJson,
   selfDeleteAccount, selfExportAccount, selfPauseAccount,
 } from '@/lib/account';
 
@@ -144,12 +144,6 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
                     <p className="font-medium text-destructive">What is removed</p>
                     <ul className="mt-2 space-y-1 text-muted-foreground list-disc pl-5">
                       {DELETION_REMOVED.map(item => <li key={item}>{item}</li>)}
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="font-medium">What is kept, and why</p>
-                    <ul className="mt-2 space-y-1 text-muted-foreground list-disc pl-5">
-                      {DELETION_KEPT.map(item => <li key={item}>{item}</li>)}
                     </ul>
                   </div>
 
