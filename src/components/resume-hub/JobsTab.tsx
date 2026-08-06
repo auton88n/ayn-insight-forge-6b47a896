@@ -79,7 +79,7 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
     if (!selected || !primaryResume || !selected.jd_text) return;
     setBusy(true);
     try {
-      const m = await resumeHubApi.match(primaryResume.content, selected.jd_text);
+      const m = await resumeHubApi.match(selected.jd_text);
       setMatchData(m);
       await supabase.from("job_matches").insert({
         user_id: userId, job_id: selected.id, resume_id: primaryResume.id,
@@ -96,7 +96,7 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
     if (!selected || !primaryResume || !selected.jd_text) return;
     setBusy(true);
     try {
-      const { resume } = await resumeHubApi.tailor(primaryResume.content, selected.jd_text);
+      const { resume } = await resumeHubApi.tailor(selected.jd_text);
       // Regenerating replaces the stored copy for this job.
       await supabase.from("resume_versions").delete().eq("user_id", userId).eq("created_for_job_id", selected.id);
       const { error } = await supabase.from("resume_versions").insert({
@@ -116,7 +116,7 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
     if (!selected || !primaryResume || !selected.jd_text) return;
     setBusy(true);
     try {
-      const { body } = await resumeHubApi.coverLetter(primaryResume.content, selected.jd_text, { company: selected.company });
+      const { body } = await resumeHubApi.coverLetter(selected.jd_text, { company: selected.company });
       await supabase.from("cover_letters").delete().eq("user_id", userId).eq("job_id", selected.id);
       await supabase.from("cover_letters").insert({ user_id: userId, job_id: selected.id, resume_id: primaryResume.id, body });
       await loadDocs(selected.id);

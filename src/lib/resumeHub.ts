@@ -68,13 +68,18 @@ export const resumeHubApi = {
     call<{ resume: ResumeContent; ats_score: number; verdict: string; suggestions: string[]; credits: { spent: number; balance: number } }>(
       "resume-hub", { action: "rewrite", resume, jdText },
     ),
-  match: (resume: ResumeContent, jdText: string) =>
-    call<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string }>("resume-hub", { action: "match", resume, jdText }),
-  tailor: (resume: ResumeContent, jdText: string) =>
-    call<{ resume: ResumeContent }>("resume-hub", { action: "tailor", resume, jdText }),
+  // v3.72.0 — these three no longer take a resume blob from the client.
+  // The backend resolves the caller's own primary resume plus their full
+  // canonical profile server side (the same way the extension already did),
+  // so the client can't send stale or partial content and there's nothing
+  // to keep in sync on this side.
+  match: (jdText: string) =>
+    call<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string }>("resume-hub", { action: "match", jdText }),
+  tailor: (jdText: string) =>
+    call<{ resume: ResumeContent }>("resume-hub", { action: "tailor", jdText }),
 
-  coverLetter: (resume: ResumeContent, jdText: string, opts?: { tone?: string; company?: string }) =>
-    call<{ body: string }>("resume-hub", { action: "cover_letter", resume, jdText, ...opts }),
+  coverLetter: (jdText: string, opts?: { tone?: string; company?: string }) =>
+    call<{ body: string }>("resume-hub", { action: "cover_letter", jdText, ...opts }),
 
 
   ingestJob: (payload: { source_url?: string; html?: string; text?: string; company?: string; title?: string; location?: string; jd_text?: string; source?: string }) =>

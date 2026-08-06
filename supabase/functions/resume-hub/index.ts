@@ -1721,6 +1721,12 @@ Deno.serve(async (req) => {
         try {
           const r = await callAI({
             model: DEFAULT_MODEL,
+            // v3.72.0 — no temperature meant two scoring calls on the same JD
+            // and profile (e.g. right after a cache expiry) could disagree,
+            // the same class of bug already fixed once for the resume
+            // optimizer's own score. Low temperature since this is already
+            // grounded on a deterministic gap analysis, not free judgment.
+            temperature: 0.1,
             system: `You are a senior recruiter. Score the candidate against the FULL job description below.
 
 Return ONLY this JSON (no code fences):
@@ -2323,12 +2329,64 @@ Return the complete improved resume in the same schema, plus suggestions: an arr
     }
 
     // ---------------- match ----------------
+    // v3.72.0 — this used to be a bare prompt handed the client's raw resume
+    // JSON: no canonical profile (skills with levels, certifications, work
+    // auth, known_for — everything Profile actually collects), no
+    // deterministic gap analysis, no honesty rule, no temperature control,
+    // no cache. The extension's ext_job_score has always had all five. Same
+    // response shape as before (score 0-100 / breakdown / missing_keywords /
+    // summary) so JobsTab.tsx needed no changes — only what grounds the
+    // number changed.
     if (action === "match") {
-      const { resume, jdText } = payload as { resume: unknown; jdText: string };
+      const adminMatch = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminMatch, "tailoring"); if (off) return off; }
+      const matchStarted = Date.now();
+      const { jdText } = payload as { jdText: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
+
+      const [identity, canonical] = await Promise.all([
+        loadIdentity(adminMatch, user.id, {}).catch(() => null),
+        loadCanonical(adminMatch, user.id),
+      ]);
+      const bundle = buildSections(identity, canonical);
+      if (!bundle.text || bundle.chars < 60) return json({ error: "No resume content available to score" }, 400);
+      const gap = computeGap(jdText, bundle);
+      const canonText = canonicalDigest(canonical);
+
+      const userSkillIndex = new Map<string, string>();
+      if (canonical) {
+        for (const s of canonical.skills) { const k = s.name.toLowerCase().trim(); if (k) userSkillIndex.set(k, s.name); }
+        for (const t of (canonical.derived.top_skills || [])) { const k = String(t).toLowerCase().trim(); if (k && !userSkillIndex.has(k)) userSkillIndex.set(k, String(t)); }
+      }
+
+      const jdHash = (await sha256b(jdText)).slice(0, 24);
+      const sectionHash = (await sha256b(bundle.text + canonText)).slice(0, 16);
+      const cacheKey = `webmatch:${user.id}:${sectionHash}:${jdHash}`;
+      const cached = await cacheGet<Record<string, unknown>>(adminMatch, cacheKey);
+      if (cached) {
+        logAiCall(adminMatch, {
+          user_id: user.id, purpose: "job_score_web", cache_hit: true, duration_ms: Date.now() - matchStarted,
+          source_map: identity?.sourceMap() || null, gap_matched: gap.matched.length, gap_missing: gap.missing.length,
+        });
+        return json({ ...cached, cached: true });
+      }
+
       const r = await callAI({
-        system: "Score how well a resume matches a job description. Return score 0-100, breakdown { skills_match, experience_match, education_match } each 0-100, and missing_keywords (array of strings).",
-        user: JSON.stringify({ resume, jdText }).slice(0, 30000),
+        temperature: 0.1,
+        system: `You are a senior recruiter. Score how well this candidate matches the job description, grounded ONLY in the sections and the deterministic gap analysis below — the gap analysis already computed what is present and missing, do not re-derive it from scratch.
+
+Return score 0-100, breakdown { skills_match, experience_match, education_match } each 0-100, missing_keywords (drawn from the gap analysis's "REQUIRED BUT NOT EVIDENCED" and "NICE TO HAVE" lists, in the JD's own wording), and summary (2-3 plain sentences, no clichés, no em dashes, no en dashes).
+
+HONESTY RULE (HARD): only describe a skill as matched if it appears in CANONICAL_SKILLS or the APPLICANT SECTIONS below. Never credit a skill the candidate has not evidenced. If unsure, treat it as missing.`,
+        user: `CANONICAL_SKILLS: ${Array.from(userSkillIndex.values()).slice(0, 60).join(", ")}
+CANONICAL_PROFILE_SUMMARY:
+${canonText}
+
+APPLICANT SECTIONS:
+${bundle.text}
+
+JOB DESCRIPTION:
+${jdText.slice(0, 20000)}${renderGapBlock(gap)}`,
         toolName: "emit_match",
         toolSchema: {
           type: "object",
@@ -2349,60 +2407,181 @@ Return the complete improved resume in the same schema, plus suggestions: an arr
           required: ["score", "breakdown", "missing_keywords", "summary"],
         },
       });
+
+      cacheSet(adminMatch, cacheKey, user.id, "job_score_web", r.structured as Record<string, unknown>, 24 * 60 * 60 * 1000);
+      logAiCall(adminMatch, {
+        user_id: user.id, purpose: "job_score_web", model: DEFAULT_MODEL, duration_ms: Date.now() - matchStarted,
+        cache_hit: false, source_map: identity?.sourceMap() || null,
+        gap_matched: gap.matched.length, gap_missing: gap.missing.length,
+        meta: { jd_chars: jdText.length, section_chars: bundle.chars },
+      });
       return json(r.structured);
     }
 
+    // v3.72.0 — same rebuild as `match` above. This used to take the
+    // client's raw resume JSON as its only source of truth: no canonical
+    // profile (so skill levels, certifications, known_for, work history
+    // achievements added in Profile were invisible to it), no deterministic
+    // gap analysis to ground what to surface, no figure-preservation check,
+    // no cache. handleSmartTailor (the extension's tailor) has always had
+    // all four — it just outputs flat ATS text instead of a structured
+    // resume, which this action genuinely still needs (JobsTab stores the
+    // result as a resume_versions row and resumeDocs.ts builds a PDF/DOCX
+    // straight from that structure), so the output schema stays RESUME_SCHEMA.
     // ---------------- tailor ----------------
     if (action === "tailor") {
       const adminTailor = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminTailor, "tailoring"); if (off) return off; }
-      // v3.36.0 — this hub-lane action generated real AI output for free while
-      // the extension's handleSmartTailor charged COST_TAILOR for the same
-      // thing. Gate before spending AI cost, charge only after it succeeds.
+      const tailorStarted = Date.now();
+      const { jdText } = payload as { jdText: string };
+      if (!jdText) return json({ error: "jdText required" }, 400);
+
+      const [identity, canonical] = await Promise.all([
+        loadIdentity(adminTailor, user.id, {}).catch(() => null),
+        loadCanonical(adminTailor, user.id),
+      ]);
+      const bundle = buildSections(identity, canonical);
+      if (!bundle.text || bundle.chars < 60) return json({ error: "No resume content available to tailor" }, 400);
+      const gap = computeGap(jdText, bundle);
+
+      const jdHash = (await sha256b(jdText)).slice(0, 24);
+      const sectionHash = (await sha256b(bundle.text)).slice(0, 16);
+      const cacheKey = `webtailor:${user.id}:${sectionHash}:${jdHash}`;
+      const cached = await cacheGet<{ resume: unknown }>(adminTailor, cacheKey);
+      if (cached) {
+        logAiCall(adminTailor, {
+          user_id: user.id, purpose: "tailor_web", cache_hit: true, duration_ms: Date.now() - tailorStarted,
+          source_map: identity?.sourceMap() || null, gap_matched: gap.matched.length, gap_missing: gap.missing.length,
+        });
+        return json({ ...cached, credits: { spent: 0, balance: null } });
+      }
+
+      // Gate only after a possible cache hit, so a repeat tailor of the same
+      // resume against the same JD never costs a second charge.
       const creditGate = await assertCredits(adminTailor, user.id, COST_TAILOR, "tailored resume");
       if (creditGate) return creditGate;
-      const { resume, jdText } = payload as { resume: unknown; jdText: string };
-      if (!jdText) return json({ error: "jdText required" }, 400);
-      const r = await callAI({
-        model: QUALITY_MODEL,
-        system: `You are an expert Canadian resume writer. Tailor the resume to the job description using these strict rules:
+
+      const applicantBlock = identity ? identityContactBlock(identity) : "";
+      const applicantSection = applicantBlock
+        ? `\n\nAPPLICANT HEADER (use these exact contact details, never invent alternatives):\n${applicantBlock}`
+        : "";
+      const droppedNote = bundle.dropped.length
+        ? `\n\nNOTE: these sections were omitted to fit the budget and must not be referenced: ${bundle.dropped.join(", ")}.`
+        : "";
+      const system = `You are an expert Canadian resume writer. Tailor the candidate's resume to the job description using their full profile below, WITHOUT inventing anything.
 
 RULES — YOU MUST FOLLOW EVERY ONE:
-1. NEVER invent, add, or imply experience, skills, tools, or achievements the resume does not already contain.
+1. NEVER invent, add, or imply experience, skills, tools, certifications, or achievements not already present in APPLICANT SECTIONS.
 2. ONLY reword existing bullets to naturally include job keywords where the underlying experience already supports it.
-3. Keep every fact, number, company name, date, and result exactly as-is.
-4. You may reorder skills sections to put the most relevant skills first.
-5. You may adjust the summary to echo 2-3 key phrases from the job description — only using experience already in the resume.
+3. Keep every fact, number, percentage, company name, date, and result exactly as-is.
+4. You may reorder skills to put the most relevant first, among skills the candidate actually has.
+5. You may adjust the summary to echo 2-3 key phrases from the job description — only using experience already in APPLICANT SECTIONS.
 6. Do NOT change job titles, company names, or dates.
-7. No em dashes. No en dashes. Write dates as "2023 to Present".
-8. Return the tailored resume in the same schema as the input.`,
-        user: JSON.stringify({ resume, jdText }).slice(0, 40000),
-        toolName: "emit_resume",
-        toolSchema: RESUME_SCHEMA,
-      });
+7. Address the GAP ANALYSIS's "REQUIRED BUT NOT EVIDENCED" items wherever real related experience exists in APPLICANT SECTIONS; stay silent where it does not. Do not add a new claim just to fix a gap.
+8. No em dashes. No en dashes. Write dates as "2023 to Present".
+9. Return the tailored resume in the RESUME_SCHEMA shape.`;
+      const userMsg = `APPLICANT SECTIONS (the only source of truth about this person):
+${bundle.text}${applicantSection}${droppedNote}
+
+JOB DESCRIPTION:
+${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
+
+      let r = await callAI({ model: QUALITY_MODEL, temperature: 0.2, system, user: userMsg, toolName: "emit_resume", toolSchema: RESUME_SCHEMA });
+
+      // FIGURE PRESERVATION — verified in code, not just asked for, same as
+      // the extension's tailor. Stringifying the structured output is enough
+      // to check every number/percentage/date survived somewhere in it.
+      let missingFigures = droppedFigures(bundle.text, JSON.stringify(r.structured));
+      if (missingFigures.length) {
+        const retry = await callAI({
+          model: QUALITY_MODEL, temperature: 0.2, system,
+          user: `${userMsg}\n\nPREVIOUS ATTEMPT DROPPED OR ALTERED THESE FIGURES: ${missingFigures.slice(0, 30).join(", ")}\nProduce the tailored resume again with every one of those figures present, unchanged, in the bullet it belongs to.`,
+          toolName: "emit_resume", toolSchema: RESUME_SCHEMA,
+        });
+        const stillMissing = droppedFigures(bundle.text, JSON.stringify(retry.structured));
+        if (stillMissing.length < missingFigures.length) { r = retry; missingFigures = stillMissing; }
+      }
+
       const chargeTailor = await creditSpend(adminTailor, user.id, COST_TAILOR, "tailored_resume");
       if (!chargeTailor.ok) return insufficientCredits(chargeTailor.balance, COST_TAILOR, "tailored resume");
-      return json({ resume: r.structured, credits: { spent: COST_TAILOR, balance: chargeTailor.balance } });
+
+      const result = { resume: r.structured };
+      cacheSet(adminTailor, cacheKey, user.id, "tailor_web", result, TAILOR_TTL);
+      logAiCall(adminTailor, {
+        user_id: user.id, purpose: "tailor_web", model: QUALITY_MODEL, duration_ms: Date.now() - tailorStarted,
+        cache_hit: false, source_map: identity?.sourceMap() || null,
+        gap_matched: gap.matched.length, gap_missing: gap.missing.length,
+        meta: { jd_chars: jdText.length, section_chars: bundle.chars, figures_ok: missingFigures.length === 0 },
+      });
+      return json({ ...result, credits: { spent: COST_TAILOR, balance: chargeTailor.balance } });
     }
-
-
-
 
     // ---------------- cover_letter ----------------
     if (action === "cover_letter") {
       const adminCover = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminCover, "tailoring"); if (off) return off; }
-      // v3.36.0 — same credit-bypass fix as tailor, above.
+      const coverStarted = Date.now();
+      const { jdText, tone, company } = payload as { jdText: string; tone?: string; company?: string };
+      if (!jdText) return json({ error: "jdText required" }, 400);
+
+      const [identity, canonical, companyCtx] = await Promise.all([
+        loadIdentity(adminCover, user.id, {}).catch(() => null),
+        loadCanonical(adminCover, user.id),
+        fetchCompanyContext(adminCover, company || "").catch(() => ({ text: "", source: "" })),
+      ]);
+      const bundle = buildSections(identity, canonical);
+      if (!bundle.text || bundle.chars < 60) return json({ error: "No resume content available" }, 400);
+      const gap = computeGap(jdText, bundle);
+
+      const jdHash = (await sha256b(jdText)).slice(0, 24);
+      const sectionHash = (await sha256b(bundle.text)).slice(0, 16);
+      const cacheKey = `webcover:${user.id}:${sectionHash}:${jdHash}:${await sha256b(tone || "")}`;
+      const cached = await cacheGet<{ body: string }>(adminCover, cacheKey);
+      if (cached) {
+        logAiCall(adminCover, {
+          user_id: user.id, purpose: "cover_letter_web", cache_hit: true, duration_ms: Date.now() - coverStarted,
+          source_map: identity?.sourceMap() || null,
+        });
+        return json({ ...cached, credits: { spent: 0, balance: null } });
+      }
+
       const creditGate = await assertCredits(adminCover, user.id, COST_COVER, "cover letter");
       if (creditGate) return creditGate;
-      const { resume, jdText, tone, company } = payload as { resume: unknown; jdText: string; tone?: string; company?: string };
-      const r = await callAI({
-        system: `Write a concise, specific cover letter (under 280 words). Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}. No clichés ("I am excited to", "leverage", "passionate"). Pull concrete achievements from the resume. Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
-        user: JSON.stringify({ resume, jdText }).slice(0, 30000),
-      });
+
+      const applicantBlock = identity ? identityContactBlock(identity) : "";
+      const applicantSection = applicantBlock
+        ? `\n\nAPPLICANT (use these exact contact details in the header and signature, never invent alternatives):\n${applicantBlock}`
+        : "";
+      const companySection = companyCtx.text
+        ? `\n\nCOMPANY CONTEXT (from ${companyCtx.source}, the employer's own public page):\n${companyCtx.text}`
+        : "";
+      const system = `Write a concise, specific cover letter (under 280 words). Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}.
+
+STRUCTURE (4 short paragraphs, body text only — no address block, no date, no "Dear ..." salutation placeholders, no bracketed fields of any kind):
+1) Opening: who you are, the specific role, and one specific thing about this employer drawn from COMPANY CONTEXT if present; otherwise open with the role and the candidate's most relevant strength.
+2) Proof: one concrete achievement from the sections that maps to a stated requirement, with the real number if the sections have one.
+3) Skill bridge: two or three specific tools or skills the job asks for that the sections genuinely support.
+4) Close: a clear ask for a conversation, then sign off with the applicant's real name only.
+
+RULES:
+- Use ONLY facts from APPLICANT SECTIONS, the APPLICANT block, and COMPANY CONTEXT. Never invent companies, metrics, dates, names, emails, or phone numbers.
+- Never alter a number, percentage, currency figure, headcount, timeframe, date, or job title from what appears in the sections.
+- Do not claim any requirement listed as "REQUIRED BUT NOT EVIDENCED" in the gap analysis below unless real related experience is in the sections.
+- Never write a placeholder in brackets like "[Hiring Manager name]" — if you do not know a detail, leave it out entirely.
+- No clichés ("I am excited to", "leverage", "passionate", "in today's fast-paced"). Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`;
+      const userMsg = `APPLICANT SECTIONS:\n${bundle.text}${applicantSection}${companySection}\n\nJOB DESCRIPTION:\n${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
+
+      const r = await callAI({ system, user: userMsg });
       const chargeCover = await creditSpend(adminCover, user.id, COST_COVER, "cover_letter");
       if (!chargeCover.ok) return insufficientCredits(chargeCover.balance, COST_COVER, "cover letter");
-      return json({ body: r.text, credits: { spent: COST_COVER, balance: chargeCover.balance } });
+
+      const result = { body: r.text };
+      cacheSet(adminCover, cacheKey, user.id, "cover_letter_web", result, TAILOR_TTL);
+      logAiCall(adminCover, {
+        user_id: user.id, purpose: "cover_letter_web", duration_ms: Date.now() - coverStarted, cache_hit: false,
+        source_map: identity?.sourceMap() || null, meta: { jd_chars: jdText.length, section_chars: bundle.chars },
+      });
+      return json({ ...result, credits: { spent: COST_COVER, balance: chargeCover.balance } });
     }
 
     // ── NEW ACTIONS (JWT auth) ──
