@@ -36,13 +36,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { notifyProfileUpdated } from "@/lib/extension";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
-import TalentPoolCard from "@/components/resume-hub/TalentPoolCard";
 import { resumeHubApi, type ResumeContent, type TalentPoolStatus } from "@/lib/resumeHub";
 import { reindexTalentPool, setPoolOptInCache } from "@/lib/talentPoolSync";
 import { buildResumePdfBlob, buildResumeDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
-import { computeReadiness, computeGroupGaps } from "@/lib/profileGaps";
+import { computeReadiness } from "@/lib/profileGaps";
 
-/** v3.5.1 — bump whenever the consent wording changes. Kept in sync with TalentPoolCard.tsx. */
+/** v3.5.1 — bump whenever the consent wording changes. */
 const DISCOVERY_CONSENT_VERSION = "v3.5.1-full-profile";
 
 // ── Types (mirror the edge-function canonical shape) ─────────────────────────
@@ -495,6 +494,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const updateSkill = (i: number, next: Skill) => { updateAt(setCareer, "skills", i, next); queueSave(); };
   const updateExp = (i: number, next: Exp) => { updateAt(setCareer, "experiences", i, next); queueSave(); };
   const updateEdu = (i: number, next: Edu) => { updateAt(setCareer, "education", i, next); queueSave(); };
+  const updateCert = (i: number, next: Cert) => { updateAt(setCareer, "certifications", i, next); queueSave(); };
 
   const skillsWithLevel = career.skills.filter(s => !!s.level).length;
   const rolesWithAchievements = career.experiences.filter(e => (e.bullets ?? []).filter(Boolean).length > 0).length;
@@ -516,10 +516,6 @@ export default function ProfileTab({ userId }: { userId: string }) {
     knownForCount: (career.derived.known_for ?? []).length,
   };
   const readiness = computeReadiness(gapInput);
-  // Feeds TalentPoolCard's "How findable you are" breakdown, moved into
-  // Profile alongside the toggle in v3.69.0 — same inputs, so Profile and
-  // the findability list can never disagree.
-  const groupGaps = computeGroupGaps(gapInput);
 
   const needsLevelPrompt =
     !levelPromptDone && career.skills.length > 0 && skillsWithLevel === 0;
@@ -612,11 +608,6 @@ export default function ProfileTab({ userId }: { userId: string }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* What employers see once the toggle above is on: preview, skills by
-          provenance, freshness, findability. Detail-only — no header, no
-          switch, no restriction message, all of that is the card above. */}
-      {poolOptedIn && <TalentPoolCard groupGaps={groupGaps} />}
 
       {/* ── 1. Your resume ───────────────────────────────────────────────── */}
       <Group id="resume" title="Your resume" line="Everything AYN writes starts from this.">
@@ -989,6 +980,27 @@ export default function ProfileTab({ userId }: { userId: string }) {
               <PlainField label="End year" value={e.end || ""} onChange={v => updateEdu(i, { ...e, end: v })} onBlur={queueSave} />
               <div className="sm:col-span-2 flex justify-end">
                 <Button variant="ghost" size="sm" onClick={() => { removeAt(setCareer, "education", i); queueSave(); }}>Remove</Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Certificates */}
+        <div className="space-y-2 pt-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Certificates ({career.certifications.length})</p>
+            <Button variant="ghost" size="sm" onClick={() => setCareer(p => ({ ...p, certifications: [...p.certifications, { name: "" }] }))}>
+              <Plus className="w-4 h-4 mr-1" /> Add certificate
+            </Button>
+          </div>
+          {career.certifications.length === 0 && <p className="text-xs text-muted-foreground">No certificates yet.</p>}
+          {career.certifications.map((c, i) => (
+            <div key={i} className="grid grid-cols-1 sm:grid-cols-3 gap-3 border rounded-lg p-3">
+              <PlainField label="Certificate" value={c.name} onChange={v => updateCert(i, { ...c, name: v })} onBlur={queueSave} placeholder="AWS Certified Solutions Architect" />
+              <PlainField label="Issuer" value={c.issuer || ""} onChange={v => updateCert(i, { ...c, issuer: v })} onBlur={queueSave} placeholder="Amazon Web Services" />
+              <PlainField label="Year" value={c.year || ""} onChange={v => updateCert(i, { ...c, year: v })} onBlur={queueSave} />
+              <div className="sm:col-span-3 flex justify-end">
+                <Button variant="ghost" size="sm" onClick={() => { removeAt(setCareer, "certifications", i); queueSave(); }}>Remove</Button>
               </div>
             </div>
           ))}

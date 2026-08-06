@@ -11,8 +11,9 @@
  *   - errors are swallowed
  *   - skipped entirely when the user is not opted into the pool
  *   - concurrent calls coalesce into one request
- *   - on success it dispatches AYN_POOL_REINDEXED so a mounted TalentPoolCard
- *     refreshes its freshness line and the user sees it update
+ *   - on success it dispatches AYN_POOL_REINDEXED for any mounted listener
+ *     that wants to refresh (no current listener since TalentPoolCard was
+ *     removed in v3.70.0; kept as the extension point, harmless if unused)
  */
 import { resumeHubApi } from "@/lib/resumeHub";
 
