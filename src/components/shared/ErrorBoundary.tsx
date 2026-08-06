@@ -1,7 +1,8 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Brain, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
+
+const AYN_MARK = '/ayn-mark.svg';
 
 interface Props {
   children: ReactNode;
@@ -83,43 +84,39 @@ export class ErrorBoundary extends Component<Props, State> {
         message.includes('Component is not a function');
 
       return (
-        <Card className="ayn-ember-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-3 text-foreground">
-              <div className="p-2 rounded-full ayn-ember-badge">
-                <Brain className="w-5 h-5" />
-              </div>
-              Oops! AYN hit a snag
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Something unexpected happened, but don't worry - we've got this. Let's get you back on track.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {isDev && this.state.error && (
-                <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded font-mono">
-                  {this.state.error.message}
-                </div>
-              )}
-              <Button 
-                onClick={() => {
-                  if (isAutoReloadError) {
-                    window.location.reload();
-                    return;
-                  }
-                  this.setState({ hasError: false, error: undefined });
-                }}
-                variant="default"
-                size="sm"
-                className="gap-2 ayn-ember-btn"
-              >
-                <RefreshCw className="w-4 h-4" />
-                {isAutoReloadError ? 'Reload Page' : "Let's Try Again"}
-              </Button>
+        <div className="min-h-screen flex items-center justify-center bg-background px-6">
+          <div className="ayn-ember-card max-w-md w-full rounded-2xl p-8 text-center space-y-4">
+            <div className="mx-auto h-14 w-14 rounded-full ayn-ember-badge flex items-center justify-center">
+              <img src={AYN_MARK} alt="" aria-hidden className="w-7 h-7" draggable={false} />
             </div>
-          </CardContent>
-        </Card>
+            <div className="space-y-1.5">
+              <h1 className="text-xl font-bold tracking-tight text-foreground">Oops! AYN hit a snag</h1>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Something unexpected happened, but don't worry — we've got this. Let's get you back on track.
+              </p>
+            </div>
+            {isDev && this.state.error && (
+              <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded font-mono text-left">
+                {this.state.error.message}
+              </div>
+            )}
+            <Button
+              onClick={() => {
+                if (isAutoReloadError) {
+                  window.location.reload();
+                  return;
+                }
+                this.setState({ hasError: false, error: undefined });
+              }}
+              variant="default"
+              size="sm"
+              className="gap-2 ayn-ember-btn"
+            >
+              <RefreshCw className="w-4 h-4" />
+              {isAutoReloadError ? 'Reload Page' : "Let's Try Again"}
+            </Button>
+          </div>
+        </div>
       );
     }
 
