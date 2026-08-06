@@ -1,18 +1,18 @@
 # Resume Hub map (web app + resume-hub backend)
 
 ## Surface
-src/pages/ResumeHub.tsx with six tabs in src/components/resume-hub/ (Resumes removed in v3.4.0, Proposals added in v3.6.0):
+src/pages/ResumeHub.tsx with six tabs in src/components/resume-hub/ (Resumes removed in v3.4.0, Proposals added in v3.6.0, Get discovered removed in v3.69.0):
 
 | key | label | hint | component |
 |---|---|---|---|
 | home | Home | Start here | HomeTab (next actions, replaced OverviewTab) |
-| profile | Profile | You, your resume, your goals | ProfileTab (resume group + four field groups) |
+| profile | Profile | You, your resume, your goals | ProfileTab (resume group + four field groups + discoverability, see below) |
 | jobs | Jobs | Score and tailor | JobsTab (saved jobs, score, tailor, cover letter, generated documents, handoff) |
 | proposals | Proposals | Roles employers want you for | ProposalsTab (pending proposal cards, accept or decline, collapsed history) |
-| discovery | Get discovered | Let employers find you | DiscoveryTab (TalentPoolCard, detail-only since v3.66.0 — see below) |
+| assessments | Assessments | Questions about your own work | AssessmentsTab |
 | extension | Browser extension | Score jobs as you browse | ExtensionTab (zip download, version check, device tokens) |
 
-Old nav for reference: Overview / Profile / Resumes / Saved jobs / Extension. TrackerTab was deleted in v3.0.1, OverviewTab in v3.3.0, CanadianProfileForm.tsx in v3.2.0, BuilderTab.tsx in v3.4.0.
+Old nav for reference: Overview / Profile / Resumes / Saved jobs / Extension. TrackerTab was deleted in v3.0.1, OverviewTab in v3.3.0, CanadianProfileForm.tsx in v3.2.0, BuilderTab.tsx in v3.4.0, DiscoveryTab.tsx in v3.69.0.
 
 ## Sign out (v3.39.0 fix)
 The account-menu "Sign out" item calls `handleSignOut`, an `async () => { await supabase.auth.signOut(); navigate("/"); }` defined near the top of `ResumeHub.tsx`. Before v3.39.0 it was a bare `supabase.auth.signOut()` with no await and no navigation, so the session cleared underneath but the page never reacted — `ResumeHub.tsx` is a top-level route (`src/App.tsx`), not nested inside `Index.tsx`'s `AuthedShell`, so `AuthedShell`'s own `onAuthStateChange` listener was never in the tree to catch it. `EmployerHub.tsx` had the identical bug at two buttons (desktop sidebar, mobile bottom nav) with the same fix, `handleSignOut` defined once and reused at both call sites. `EmployerPending.tsx` and the delete-account flow in `PrivacySettings.tsx` already did this correctly and were the reference pattern.
@@ -63,14 +63,14 @@ OverviewTab was a counts dashboard (resume count, saved job count, primary resum
 
 | Card | Condition | Button |
 |---|---|---|
-| "<n> employers want an intro" (always sorts first) | pending reveal_list requests > 0 | Get discovered |
-| "Add your resume" | resumes count = 0 | Profile (v3.4.0, was Resumes) |
-| "Complete your profile" (names the incomplete groups) | any groupGaps entry incomplete | Profile |
-| "<n> saved jobs not scored yet" | jobs without a job_matches row | Jobs |
+| "<n> new job proposals" (always sorts first) | pending reveal_list requests > 0 | Read proposals (v3.6.0, was Get discovered before Proposals had its own tab) |
+| "Add your resume" | resumes count = 0 | Go to Profile (v3.4.0, was Resumes) |
+| "Complete your profile" (names the incomplete groups) | any groupGaps entry incomplete | Go to Profile |
+| "<n> saved jobs not scored yet" | jobs without a job_matches row | Go to Jobs |
 
 When all four are clear: one line, "You are set up. Open a job posting and AYN will score it.", plus the active resume name and whether the talent pool is on. No streaks, no completion percentage, no invented engagement metrics.
 
-Gap logic moved out of ProfileTab into src/lib/profileGaps.ts -> computeGroupGaps(), so Home, Get discovered, and Profile cannot disagree.
+Gap logic moved out of ProfileTab into src/lib/profileGaps.ts -> computeGroupGaps(), so Home and Profile cannot disagree (also fed to TalentPoolCard's findability list inside Profile since v3.69.0, see below).
 
 ## Single profile (v3.2.0)
 
@@ -112,7 +112,9 @@ TALENT POOL CARD (src/components/resume-hub/TalentPoolCard.tsx, new in v3.2.0): 
 
 CONSENT (v3.5.1, "honest discovery consent"). The card no longer claims an "anonymized profile", because that is not what employers get. Copy when OFF: "Turn this on and employers searching AYN can see your full profile: your resume, work history, skills, education, what you are looking for, and where you can work. AYN's AI uses all of it to match you to roles you would not have found on your own. Employers reach you through AYN. Your email and phone are only shared when you approve a specific request." Copy when ON: "You are discoverable. Employers searching AYN can see your full profile, and AYN's AI matches you to open roles using everything you have provided. Your email and phone stay private until you approve an intro. Turn this off anytime and your profile leaves the pool immediately." Switching ON opens an AlertDialog ("Make your profile discoverable" / "Turn on discovery" / "Cancel") and nothing is written until the user confirms; switching OFF is immediate. talent_pool_set now takes consent_version and writes it to the new talent_pool_consent.consent_version column alongside consented_at (current value: v3.5.1-full-profile). talent_pool_get returns consent_version.
 
-TOGGLE MOVED TO PROFILE (v3.66.0). Asked directly to make "Let employers find me" obvious and move it into Profile rather than leaving it one tab away in Get discovered. `ProfileTab.tsx` now owns the switch itself: its own `talentPoolGet`/`talentPoolSet` calls, its own confirm `AlertDialog`, rendered as a standalone card right after the readiness banner, above "Your resume" — the first thing on the page after the summary line. Styled to read at a glance rather than as a generic settings row: the whole card, the badge, and the switch itself all turn a solid green (`emerald-500`) when on, grey (`muted-foreground`) when off, overriding the app's default black/ember switch color specifically for this control since "am I visible to employers" is a bigger decision than a normal preference toggle. `CONSENT_VERSION` now lives in `ProfileTab.tsx` as `DISCOVERY_CONSENT_VERSION`, same value (`v3.5.1-full-profile`), same bump-when-wording-changes rule. `TalentPoolCard.tsx` (still rendered in the Get discovered tab) lost its own `Switch`/`AlertDialog`/toggle function entirely — it now takes an `onOpenProfile` prop and shows a "Manage in Profile" / "Turn on in Profile" button instead, so there is exactly one place that can actually flip the value, not two switches that could drift out of sync. The badge in `TalentPoolCard.tsx`'s own header was recolored to match (green/grey), and the detailed breakdown below it (what employers see, skills by provenance, freshness, findability) is unchanged, still gated on `optedIn`, still fetched independently by its own `load()`. Verified live with a real throwaway account: toggle renders grey/Off on a fresh Profile load, turning it on shows the same confirm dialog as before, the card turns green and reads "On" immediately after, and the Get discovered tab reflects the same state with a working "Manage in Profile" link back.
+TOGGLE MOVED TO PROFILE (v3.67.0). Asked directly to make "Let employers find me" obvious and move it into Profile rather than leaving it one tab away in Get discovered. `ProfileTab.tsx` now owns the switch itself: its own `talentPoolGet`/`talentPoolSet` calls, its own confirm `AlertDialog`, rendered as a standalone card right after the readiness banner, above "Your resume" — the first thing on the page after the summary line. Styled to read at a glance rather than as a generic settings row: the whole card, the badge, and the switch itself all turn a solid green (`emerald-500`) when on, grey (`muted-foreground`) when off, overriding the app's default black/ember switch color specifically for this control since "am I visible to employers" is a bigger decision than a normal preference toggle. `CONSENT_VERSION` now lives in `ProfileTab.tsx` as `DISCOVERY_CONSENT_VERSION`, same value (`v3.5.1-full-profile`), same bump-when-wording-changes rule. `TalentPoolCard.tsx` (at this point still rendered in the Get discovered tab) lost its own `Switch`/`AlertDialog`/toggle function entirely, replaced with a "Manage in Profile" / "Turn on in Profile" button — superseded two versions later, see GET DISCOVERED TAB REMOVED below.
+
+GET DISCOVERED TAB REMOVED, EVERYTHING FOLDED INTO PROFILE (v3.69.0). Reported directly from a screenshot of the nav rail: with the switch already in Profile, the "Get discovered" tab had nothing load-bearing left in it and looked redundant. Removed outright rather than left as a half-empty tab. `DiscoveryTab.tsx` is deleted; `TalentPoolCard.tsx` lost its "Manage in Profile" button (the v3.67.0 stopgap) along with the rest of its header, and is now body-only — no switch, no badge, no restriction message, all three already live in `ProfileTab.tsx`'s own toggle card. It returns `null` until `optedIn && !loading`, and renders directly under that toggle card in `ProfileTab.tsx` (`{poolOptedIn && <TalentPoolCard groupGaps={groupGaps} />}`) rather than needing its own tab or navigation at all. `groupGaps` — previously fetched by `DiscoveryTab.tsx` via a separate `loadHubSnapshot` call — is now computed directly in `ProfileTab.tsx` via `computeGroupGaps()` from the exact same live-edited form state (`gapInput`) that already feeds `computeReadiness()` for the top-of-page readiness line, so the two can never disagree the way a second independent DB read could. `ResumeHub.tsx`'s `NAV` array and `TabKey` type dropped `discovery` entirely; `HomeTab.tsx` and `ProfileTab.tsx` both had a dead or dead-ending `onOpenDiscovery` prop removed (`HomeTab`'s was already unused before this — never wired to a click handler; `ProfileTab`'s "Get discovered →" bottom link is now a plain sentence pointing at the card already visible above it, not a navigation button). Verified live with a real throwaway account: the nav rail shows six icons with no Users/"Get discovered" entry, and Profile alone — toggle plus the full detail breakdown (what employers see, skills by provenance, freshness, findability) — covers everything the old two-tab split did.
 
 REINDEX TRIGGERS (v3.2.1, the real bug behind the redesign: resumes and profile fields are written client side and bypass the edge function, so the pool index never rebuilt). All call sites go through ONE helper, src/lib/talentPoolSync.ts -> reindexTalentPool(reason). The helper enforces the rules so no call site can get them wrong: fire and forget, never awaited by the save path, errors swallowed, skipped entirely when the seeker is not opted in (opt-in state cached 5 minutes and seeded by TalentPoolCard), concurrent calls coalesced, and on success it dispatches the AYN_POOL_REINDEXED window event. TalentPoolCard listens for that event and reloads, so the freshness line updates in front of the user.
 
@@ -225,7 +227,7 @@ Web-lane actions:
 - **employer_reveal_status** { search_id? }: for org members. Without `search_id` it returns every proposal across the caller's orgs (the Sent list); with one it is scoped to that search. Includes name + email + phone ONLY for rows where status='approved' (from user_profile_data, falling back to auth.users for email). Otherwise no PII of any kind.
 
 ### v3.6.0 the proposal loop, end to end
-1. Seeker turns discovery ON in Get discovered. If it is OFF they are not in `talent_pool_consent` with `opted_in=true`, so `employer_match` never loads them.
+1. Seeker turns "Let employers find me" ON in Profile (was its own Get discovered tab before v3.69.0). If it is OFF they are not in `talent_pool_consent` with `opted_in=true`, so `employer_match` never loads them.
 2. Approved employer lands on `src/pages/EmployerHub.tsx` (routed from Index.tsx AuthedShell when profiles.role='employer' and employer_accounts.status='approved') and answers the intake widgets (v3.8.0).
 3. `employer_match` returns up to three candidates, each with score, headline, seniority, years, location, matched must-haves, gaps, three why lines, plus `skills_extracted`, `skills_inferred`, and an anonymous `summary` slice of profile_text (v3.6.0 additions, still no PII).
 4. Candidate detail dialog shows the full reasoning and the skills provenance split. No name, email, phone or user id exists in this payload.
@@ -262,9 +264,9 @@ Client contract. smart_tailor returns gapAnalysis { method, alreadyStrong[], sur
 
 Telemetry. logAiCall writes one ai_call_telemetry row per AI call: purpose, model, duration_ms, cache hit, the identity sourceMap, and for tailor the matched / missing / surfaced counts.
 
-## Findability panel (Get discovered tab)
+## Findability panel (in Profile, under the discoverability toggle)
 
-TalentPoolCard renders a per-group findability list instead of ad hoc nudges. It moved out of ProfileTab into DiscoveryTab in v3.3.0 (the on/off switch itself moved back to ProfileTab in v3.66.0 — see the TOGGLE MOVED TO PROFILE entry above; this findability list, the skills breakdown, and freshness stayed here).
+TalentPoolCard renders a per-group findability list instead of ad hoc nudges. It moved out of ProfileTab into a dedicated Get discovered tab (DiscoveryTab) in v3.3.0, the switch moved back to ProfileTab in v3.67.0, and in v3.69.0 the whole component — findability list, skills breakdown, freshness — followed it back, with DiscoveryTab deleted. See the GET DISCOVERED TAB REMOVED entry above.
 Props: `groupGaps: GroupGap[]` from src/lib/profileGaps.ts, supplied by loadHubSnapshot.
 
 | Group | Complete when | Consequence when missing |

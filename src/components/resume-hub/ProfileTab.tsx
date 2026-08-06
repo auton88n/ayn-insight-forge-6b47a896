@@ -36,10 +36,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { notifyProfileUpdated } from "@/lib/extension";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
+import TalentPoolCard from "@/components/resume-hub/TalentPoolCard";
 import { resumeHubApi, type ResumeContent, type TalentPoolStatus } from "@/lib/resumeHub";
 import { reindexTalentPool, setPoolOptInCache } from "@/lib/talentPoolSync";
 import { buildResumePdfBlob, buildResumeDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
-import { computeReadiness } from "@/lib/profileGaps";
+import { computeReadiness, computeGroupGaps } from "@/lib/profileGaps";
 
 /** v3.5.1 — bump whenever the consent wording changes. Kept in sync with TalentPoolCard.tsx. */
 const DISCOVERY_CONSENT_VERSION = "v3.5.1-full-profile";
@@ -148,7 +149,7 @@ function mapResumeToCareer(resume: ResumeContent, prev: Career): Career {
   };
 }
 
-export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string; onOpenDiscovery: () => void }) {
+export default function ProfileTab({ userId }: { userId: string }) {
   const { toast } = useToast();
   const [career, setCareer] = useState<Career>(EMPTY);
   const [personal, setPersonal] = useState<Personal>(EMPTY_PERSONAL);
@@ -498,7 +499,7 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
   const skillsWithLevel = career.skills.filter(s => !!s.level).length;
   const rolesWithAchievements = career.experiences.filter(e => (e.bullets ?? []).filter(Boolean).length > 0).length;
 
-  const readiness = computeReadiness({
+  const gapInput = {
     firstName: field("first_name").value,
     email: field("email").value,
     currentTitle: career.derived.current_title,
@@ -513,7 +514,12 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
     availability: career.preferences.availability,
     employmentTypes: career.preferences.employment_types,
     knownForCount: (career.derived.known_for ?? []).length,
-  });
+  };
+  const readiness = computeReadiness(gapInput);
+  // Feeds TalentPoolCard's "How findable you are" breakdown, moved into
+  // Profile alongside the toggle in v3.69.0 — same inputs, so Profile and
+  // the findability list can never disagree.
+  const groupGaps = computeGroupGaps(gapInput);
 
   const needsLevelPrompt =
     !levelPromptDone && career.skills.length > 0 && skillsWithLevel === 0;
@@ -606,6 +612,11 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* What employers see once the toggle above is on: preview, skills by
+          provenance, freshness, findability. Detail-only — no header, no
+          switch, no restriction message, all of that is the card above. */}
+      {poolOptedIn && <TalentPoolCard groupGaps={groupGaps} />}
 
       {/* ── 1. Your resume ───────────────────────────────────────────────── */}
       <Group id="resume" title="Your resume" line="Everything AYN writes starts from this.">
@@ -1117,14 +1128,7 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
       </Group>
 
       <p className="text-xs text-muted-foreground">
-        This profile is what employers search when you are in the talent pool.{" "}
-        <button
-          type="button"
-          onClick={onOpenDiscovery}
-          className="text-primary underline underline-offset-2 inline-flex items-center gap-1"
-        >
-          Get discovered <ArrowRight className="w-3 h-3" />
-        </button>
+        This profile is what employers search when "Let employers find me" above is on.
       </p>
     </div>
   );

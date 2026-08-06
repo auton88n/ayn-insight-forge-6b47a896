@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Home, User, Briefcase, Users, Puzzle, Download, Mail, LogOut, ClipboardCheck, CreditCard, Settings } from "lucide-react";
+import { Home, User, Briefcase, Puzzle, Download, Mail, LogOut, ClipboardCheck, CreditCard, Settings } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -12,7 +12,6 @@ import HomeTab from "@/components/resume-hub/HomeTab";
 import JobsTab from "@/components/resume-hub/JobsTab";
 import ExtensionTab from "@/components/resume-hub/ExtensionTab";
 import ProfileTab from "@/components/resume-hub/ProfileTab";
-import DiscoveryTab from "@/components/resume-hub/DiscoveryTab";
 import ProposalsTab from "@/components/resume-hub/ProposalsTab";
 import AssessmentsTab from "@/components/resume-hub/AssessmentsTab";
 import { employerApi } from "@/lib/employer";
@@ -25,17 +24,18 @@ import { useFeature } from "@/hooks/useFeatureFlags";
 import { PlatformMaintenanceScreen } from "@/components/shared/MaintenanceNotice";
 
 
-type TabKey = "home" | "profile" | "jobs" | "proposals" | "assessments" | "discovery" | "extension";
+type TabKey = "home" | "profile" | "jobs" | "proposals" | "assessments" | "extension";
 
-// v3.6.0 — Proposals is its own page, between Jobs and Get discovered.
+// v3.6.0 — Proposals is its own page, between Jobs and Assessments.
 // v3.13.0 — Assessments sits right after it, badged the same way.
+// v3.69.0 — Get discovered removed: "Let employers find me" and everything
+// it powers moved into Profile, so this nav item had nothing left to hold.
 const NAV: { key: TabKey; label: string; icon: typeof Home; hint: string }[] = [
   { key: "home",        label: "Home",              icon: Home,           hint: "Start here" },
   { key: "profile",     label: "Profile",           icon: User,           hint: "You, your resume, your goals" },
   { key: "jobs",        label: "Jobs",              icon: Briefcase,      hint: "Score and tailor" },
   { key: "proposals",   label: "Proposals",         icon: Mail,           hint: "Roles employers want you for" },
   { key: "assessments", label: "Assessments",       icon: ClipboardCheck, hint: "Questions about your own work" },
-  { key: "discovery",   label: "Get discovered",    icon: Users,          hint: "Let employers find you" },
   { key: "extension",   label: "Browser extension", icon: Puzzle,         hint: "Score jobs as you browse" },
 ];
 
@@ -242,12 +242,10 @@ export default function ResumeHub() {
                 userId={userId!}
                 onOpenProfile={() => setTab("profile")}
                 onOpenJobs={() => setTab("jobs")}
-                onOpenDiscovery={() => setTab("discovery")}
                 onOpenProposals={() => setTab("proposals")}
               />
             )}
-            {tab === "profile"   && <ProfileTab userId={userId!} onOpenDiscovery={() => setTab("discovery")} />}
-            {tab === "discovery" && <DiscoveryTab userId={userId!} onOpenProfile={() => setTab("profile")} />}
+            {tab === "profile"   && <ProfileTab userId={userId!} />}
             {tab === "proposals" && <ProposalsTab onChanged={setPendingIntros} />}
             {tab === "assessments" && <AssessmentsTab onChanged={setPendingAssessments} />}
 

@@ -16,7 +16,6 @@ interface Props {
   userId: string;
   onOpenProfile: () => void;
   onOpenJobs: () => void;
-  onOpenDiscovery: () => void;
   onOpenProposals: () => void;
 }
 
@@ -31,7 +30,7 @@ interface Action {
   primary?: boolean;
 }
 
-export default function HomeTab({ userId, onOpenProfile, onOpenJobs, onOpenDiscovery, onOpenProposals }: Props) {
+export default function HomeTab({ userId, onOpenProfile, onOpenJobs, onOpenProposals }: Props) {
   const [snap, setSnap] = useState<HubSnapshot | null>(null);
 
   useEffect(() => {

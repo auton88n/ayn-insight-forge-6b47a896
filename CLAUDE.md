@@ -4,7 +4,11 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: v3.68.0, the "Oops! AYN hit a snag" error screen rendered flush at the top of the page with a generic icon, not centered or on-brand.
+Last verified: v3.69.0, the "Get discovered" nav tab had nothing left in it once the toggle moved to Profile, and was reported as redundant.
+
+GET DISCOVERED TAB REMOVED, FOLDED ENTIRELY INTO PROFILE. Asked directly to remove it, since "Let employers find me" already lives in Profile (v3.67.0). Rather than leave a half-empty tab, the rest of what it held — the "what employers see" preview, skills by provenance, freshness, and the findability checklist — moved with it. `DiscoveryTab.tsx` is deleted; `TalentPoolCard.tsx` is now detail-only (no switch, no badge, no header at all — those live in `ProfileTab.tsx`'s own toggle card) and renders directly beneath it in Profile when discovery is on, returning `null` otherwise. `ResumeHub.tsx`'s nav went from seven items to six. Verified live: the nav rail no longer shows a "Get discovered" icon, and Profile alone — toggle plus full detail breakdown — covers what used to be two tabs. Details in docs/map/resume-hub.md.
+
+Preceded by v3.68.0, the "Oops! AYN hit a snag" error screen rendered flush at the top of the page with a generic icon, not centered or on-brand.
 
 ERROR BOUNDARY REBUILT AS A REAL FULL-SCREEN STATE. Reported directly from a screenshot. `ErrorBoundary.tsx`'s fallback was a bare `Card` with no layout wrapper, so it rendered top-left, full width, instead of a proper centered error screen, and used a generic lucide `Brain` icon instead of the real AYN mark. Rebuilt to match the same `min-h-screen flex items-center justify-center` pattern already used by `PlatformMaintenanceScreen` and `AynLoaderScreen`, with the actual `/ayn-mark.svg` in the icon badge. The ember colors were already correct (`.ayn-ember-card` etc. in `src/index.css` already used the site's real ember hue) — only the layout and icon were off. Verified live by temporarily forcing the error state and screenshotting the centered result. Details in docs/map/platform.md.
 
