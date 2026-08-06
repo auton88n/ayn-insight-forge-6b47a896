@@ -2072,6 +2072,44 @@ button, a, input, textarea, select {
   color: hsl(var(--primary-foreground));
 }
 
+/* ============================================================
+   v3.75.0 — Settings rebuilt on real data, same un-tokened black
+   Button as everywhere else on the site (see v3.12.0/v3.63.0
+   above). Same fix, same ember as .contact-surface: this page is
+   shared by both seekers and employers, so it uses the site's
+   general-purpose ember rather than the employer surface's
+   brighter search-flow orange.
+   ============================================================ */
+.settings-surface {
+  --primary: 13 79% 57%;             /* #e85d3a */
+  --primary-foreground: 0 0% 100%;
+  --ring: 13 79% 57%;
+}
+.settings-surface button.bg-foreground {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+.settings-surface button.bg-foreground:hover {
+  background-color: hsl(13 79% 50%);
+  color: hsl(var(--primary-foreground));
+}
+.settings-surface button.border-foreground {
+  border-width: 1px;
+  border-color: hsl(var(--primary) / 0.45);
+  color: hsl(var(--primary));
+  background-color: transparent;
+  box-shadow: none;
+}
+.settings-surface button.border-foreground:hover {
+  background-color: hsl(var(--primary) / 0.08);
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary));
+}
+.settings-surface [role="tab"][data-state="active"] {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
 
 /* Step transitions, restrained and reduced-motion aware. */
 .employer-step-in { animation: employer-step-in 220ms cubic-bezier(.19,1,.22,1) both; }

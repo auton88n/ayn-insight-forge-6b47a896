@@ -14,16 +14,10 @@ import {
 } from '@/components/ui/dialog';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import { supabaseApi } from '@/lib/supabaseApi';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Trash2, AlertTriangle, Download, PauseCircle } from 'lucide-react';
+import { Loader2, AlertTriangle, Download, PauseCircle } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
-import { MemoryManagement } from './MemoryManagement';
 import {
   DELETION_KEPT, DELETION_REMOVED, clearLocalTraces, downloadJson,
   selfDeleteAccount, selfExportAccount, selfPauseAccount,
@@ -39,24 +33,12 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const token = session.access_token;
   const email = session.user?.email || '';
 
   const [exporting, setExporting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [typedEmail, setTypedEmail] = useState('');
   const [working, setWorking] = useState<'delete' | 'pause' | null>(null);
-
-  const handleDeleteChatHistory = async () => {
-    if (!userId) return;
-    try {
-      await supabaseApi.delete(`messages?user_id=eq.${userId}`, token);
-      toast({ title: t('common.success'), description: t('settings.chatHistoryDeleted') });
-    } catch (error) {
-      console.error('Error deleting chat history:', error);
-      toast({ title: t('common.error'), description: 'Failed to delete chat history', variant: 'destructive' });
-    }
-  };
 
   const handleExport = async () => {
     setExporting(true);
@@ -119,9 +101,6 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
 
   return (
     <div className="space-y-6">
-      {/* AYN Memory Management */}
-      <MemoryManagement userId={userId} />
-
       <Card className="p-6 bg-card/50 backdrop-blur-xl border-border/50">
         <h2 className="text-xl font-semibold mb-6">{t('settings.dataManagement')}</h2>
         <div className="space-y-4">
@@ -136,37 +115,6 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               {exporting ? 'Preparing' : 'Export'}
             </Button>
-          </div>
-
-          <div className="flex items-center justify-between gap-4 pt-4 border-t border-border">
-            <div className="space-y-0.5">
-              <Label>{t('settings.deleteChatHistory')}</Label>
-              <p className="text-sm text-muted-foreground">
-                {t('settings.deleteChatHistoryDesc')}
-              </p>
-            </div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" className="gap-2 shrink-0">
-                  <Trash2 className="h-4 w-4" />
-                  {t('settings.delete')}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t('settings.confirmDeleteHistory')}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t('settings.confirmDeleteHistoryDesc')}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteChatHistory}>
-                    {t('settings.delete')}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
           </div>
 
           <div className="flex items-center justify-between gap-4 pt-4 border-t border-border">

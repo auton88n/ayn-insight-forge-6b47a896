@@ -1,13 +1,23 @@
+/**
+ * NotificationSettings.tsx — rebuilt v3.75.0
+ *
+ * The old tab toggled "in-app sounds" and "desktop notifications" — leftover
+ * chat-product controls for events this product doesn't have (no live
+ * in-app pings anywhere; confirmed zero other callers of the sound store or
+ * the desktop-notification hook, both deleted alongside this rewrite).
+ * Meanwhile user_settings already had real email_marketing/email_system_alerts
+ * columns with no UI anywhere to change them. This tab now shows those.
+ *
+ * Not yet enforced server-side: no email sender in this codebase (auth-send-email,
+ * resume-hub's notifyCandidate/notifyOrgMembers, stripe-webhook's receipt email)
+ * currently checks these flags before sending. The toggle saves a real value;
+ * wiring the senders to respect it is a separate follow-up.
+ */
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { useUserSettings } from '@/hooks/useUserSettings';
-import { useSoundStore } from '@/stores/soundStore';
-import { useDesktopNotifications } from '@/hooks/useDesktopNotifications';
-import { useToast } from '@/hooks/use-toast';
-import { Loader2, Volume1, Volume2, Bell, BellOff } from 'lucide-react';
+import { Loader2, Mail } from 'lucide-react';
 
 interface NotificationSettingsProps {
   userId: string;
@@ -15,33 +25,7 @@ interface NotificationSettingsProps {
 }
 
 export const NotificationSettings = ({ userId, accessToken }: NotificationSettingsProps) => {
-  const { t } = useLanguage();
-  const { toast } = useToast();
   const { settings, loading, updating, updateSettings } = useUserSettings(userId, accessToken);
-  const soundContext = useSoundStore();
-  const { isSupported, permission, requestPermission } = useDesktopNotifications();
-
-  const handleSoundToggle = (checked: boolean) => {
-    updateSettings({ in_app_sounds: checked });
-    // Also update SoundContext for immediate effect
-    soundContext?.setEnabled(checked);
-  };
-
-  const handleDesktopNotificationsToggle = async (checked: boolean) => {
-    if (checked) {
-      // Request permission when enabling
-      const granted = await requestPermission();
-      if (!granted) {
-        toast({
-          title: t('settings.notificationPermissionDenied') || 'Permission Denied',
-          description: t('settings.notificationPermissionDeniedDesc') || 'Please enable notifications in your browser settings',
-          variant: 'destructive',
-        });
-        return; // Don't save if permission denied
-      }
-    }
-    updateSettings({ desktop_notifications: checked });
-  };
 
   if (loading || !settings) {
     return (
@@ -52,79 +36,34 @@ export const NotificationSettings = ({ userId, accessToken }: NotificationSettin
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="p-6 bg-card/50 backdrop-blur-xl border-border/50">
-        <h2 className="text-xl font-semibold mb-6">{t('settings.inAppNotifications')}</h2>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>{t('settings.sounds')}</Label>
-              <p className="text-sm text-muted-foreground">
-                {t('settings.soundsDesc')}
-              </p>
-            </div>
-            <Switch
-              checked={settings.in_app_sounds}
-              onCheckedChange={handleSoundToggle}
-              disabled={updating}
-            />
-          </div>
-
-          {settings.in_app_sounds && soundContext && (
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm">Volume</Label>
-                <span className="text-sm text-muted-foreground">
-                  {Math.round(soundContext.volume * 100)}%
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Volume1 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <Slider
-                  value={[soundContext.volume]}
-                  onValueChange={([value]) => soundContext.setVolume(value)}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  className="flex-1"
-                />
-                <Volume2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label className="flex items-center gap-2">
-                {settings.desktop_notifications && permission === 'granted' ? (
-                  <Bell className="h-4 w-4 text-primary" />
-                ) : (
-                  <BellOff className="h-4 w-4 text-muted-foreground" />
-                )}
-                {t('settings.desktopNotifications')}
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                {t('settings.desktopNotificationsDesc')}
-              </p>
-              {!isSupported && (
-                <p className="text-xs text-yellow-600 dark:text-yellow-400">
-                  {t('settings.browserNotSupported') || "Your browser doesn't support desktop notifications"}
-                </p>
-              )}
-              {permission === 'denied' && (
-                <p className="text-xs text-destructive">
-                  {t('settings.notificationsBlocked') || 'Notifications blocked - check browser settings'}
-                </p>
-              )}
-            </div>
-            <Switch
-              checked={settings.desktop_notifications && permission === 'granted'}
-              onCheckedChange={handleDesktopNotificationsToggle}
-              disabled={updating || !isSupported || permission === 'denied'}
-            />
-          </div>
+    <Card className="p-6 bg-card/50 backdrop-blur-xl border-border/50">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="p-2 rounded-xl bg-primary/10">
+          <Mail className="w-5 h-5 text-primary" />
         </div>
-      </Card>
-    </div>
+        <div>
+          <h2 className="text-xl font-semibold">Email preferences</h2>
+          <p className="text-sm text-muted-foreground">
+            Account emails (receipts, proposals, assessments) always go out — they're how the product tells you something happened.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <Label>Product news and tips</Label>
+            <p className="text-sm text-muted-foreground">
+              Occasional emails about new AYN features and how to get more out of it.
+            </p>
+          </div>
+          <Switch
+            checked={settings.email_marketing}
+            onCheckedChange={(checked) => updateSettings({ email_marketing: checked })}
+            disabled={updating}
+          />
+        </div>
+      </div>
+    </Card>
   );
 };

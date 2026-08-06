@@ -7,7 +7,6 @@ import { AccountPreferences } from '@/components/settings/AccountPreferences';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
 import { PrivacySettings } from '@/components/settings/PrivacySettings';
 import { SessionManagement } from '@/components/settings/SessionManagement';
-import { MemoryManagement } from '@/components/settings/MemoryManagement';
 import { PageLoader } from '@/components/ui/page-loader';
 import { SEO, createBreadcrumbSchema } from '@/components/shared/SEO';
 
@@ -37,6 +36,14 @@ const Settings = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  // v3.75.0 — same trick as Contact.tsx/EmployerHub.tsx: the ember scope
+  // lives on <body> too, since Radix Dialog/AlertDialog portal their
+  // content there, outside this page's own element tree.
+  useEffect(() => {
+    document.body.classList.add('settings-surface');
+    return () => document.body.classList.remove('settings-surface');
+  }, []);
+
   if (loading) {
     return <PageLoader />;
   }
@@ -65,7 +72,6 @@ const Settings = () => {
           notifications: <NotificationSettings userId={user.id} accessToken={session.access_token} />,
           privacy: <PrivacySettings userId={user.id} session={session} />,
           sessions: <SessionManagement userId={user.id} userEmail={user.email || ''} accessToken={session.access_token} />,
-          memory: <MemoryManagement userId={user.id} />,
         }}
       </SettingsLayout>
     </>
