@@ -160,6 +160,13 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
       .catch(() => setOrg(null))
       .finally(() => setOrgLoading(false));
     loadSent();
+    // v3.74.0 — a cross-page link (Settings > Account's "Edit company
+    // profile") can ask to land straight on a tab instead of always Search.
+    const openTab = sessionStorage.getItem("ayn_open_tab");
+    if (openTab) {
+      sessionStorage.removeItem("ayn_open_tab");
+      if (EMPLOYER_NAV.some(n => n.key === openTab)) setTab(openTab as EmployerTab);
+    }
   }, [loadSent]);
 
   /**

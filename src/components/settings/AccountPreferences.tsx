@@ -158,7 +158,15 @@ export const AccountPreferences = ({ userId, userEmail }: AccountPreferencesProp
             <p className="text-sm font-medium">{userEmail}</p>
           </div>
         </div>
-        <Button variant="outline" className="mt-4 gap-2" onClick={() => navigate('/')}>
+        <Button
+          variant="outline"
+          className="mt-4 gap-2"
+          onClick={() => {
+            // v3.74.0 — land on the actual editor, not just the app root.
+            sessionStorage.setItem('ayn_open_tab', isEmployer ? 'company' : 'profile');
+            navigate('/');
+          }}
+        >
           {isEmployer ? 'Edit company profile' : 'Edit in Profile'} <ArrowRight className="w-3.5 h-3.5" />
         </Button>
       </Card>

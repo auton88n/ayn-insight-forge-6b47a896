@@ -76,6 +76,13 @@ export default function ResumeHub() {
       } catch { /* silent */ }
       setUserId(data.user.id);
       setLoading(false);
+      // v3.74.0 — a cross-page link (Settings > Account's "Edit in Profile")
+      // can ask to land straight on a tab instead of always opening Home.
+      const openTab = sessionStorage.getItem("ayn_open_tab");
+      if (openTab) {
+        sessionStorage.removeItem("ayn_open_tab");
+        if (NAV.some(n => n.key === openTab)) setTab(openTab as TabKey);
+      }
       // v3.6.0 — badge the Proposals tab with the pending count.
       employerApi.proposalList()
         .then(r => setPendingIntros((r.requests || []).filter(x => x.status === "pending").length))
