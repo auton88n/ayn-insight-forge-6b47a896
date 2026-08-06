@@ -11,7 +11,7 @@ import { loadHubSnapshot } from "@/lib/hubSnapshot";
 import type { GroupGap } from "@/lib/profileGaps";
 import TalentPoolCard from "./TalentPoolCard";
 
-export default function DiscoveryTab({ userId }: { userId: string }) {
+export default function DiscoveryTab({ userId, onOpenProfile }: { userId: string; onOpenProfile: () => void }) {
   const [gaps, setGaps] = useState<GroupGap[]>([]);
   const [pendingIntros, setPendingIntros] = useState(0);
 
@@ -23,7 +23,7 @@ export default function DiscoveryTab({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-6">
-      <TalentPoolCard groupGaps={gaps} pendingIntros={pendingIntros} />
+      <TalentPoolCard groupGaps={gaps} pendingIntros={pendingIntros} onOpenProfile={onOpenProfile} />
     </div>
   );
 }

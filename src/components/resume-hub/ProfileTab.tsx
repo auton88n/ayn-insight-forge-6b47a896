@@ -28,14 +28,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Plus, X, FileUp, ArrowRight, Download, RefreshCw, Trash2,
-  ChevronDown, Check, Undo2, Sparkles, AlertTriangle, ShieldCheck,
+  ChevronDown, Check, Undo2, Sparkles, AlertTriangle, ShieldCheck, Users,
 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { notifyProfileUpdated } from "@/lib/extension";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
-import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
-import { reindexTalentPool } from "@/lib/talentPoolSync";
+import { resumeHubApi, type ResumeContent, type TalentPoolStatus } from "@/lib/resumeHub";
+import { reindexTalentPool, setPoolOptInCache } from "@/lib/talentPoolSync";
 import { buildResumePdfBlob, buildResumeDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import { computeReadiness } from "@/lib/profileGaps";
+
+/** v3.5.1 — bump whenever the consent wording changes. Kept in sync with TalentPoolCard.tsx. */
+const DISCOVERY_CONSENT_VERSION = "v3.5.1-full-profile";
 
 // ── Types (mirror the edge-function canonical shape) ─────────────────────────
 export type SkillLevel = "familiar" | "proficient" | "advanced" | "expert";
@@ -163,6 +170,41 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
     () => sessionStorage.getItem("ayn_skill_level_prompt") === "done"
   );
 
+  // ── Discoverability toggle ("Let employers find me"), moved here from the
+  // Get discovered tab so it sits right where the profile it controls is
+  // being edited, instead of being one tab away and easy to miss. ─────────
+  const [poolStatus, setPoolStatus] = useState<TalentPoolStatus | null>(null);
+  const [poolSaving, setPoolSaving] = useState(false);
+  const [poolConfirmOpen, setPoolConfirmOpen] = useState(false);
+  const poolOptedIn = !!poolStatus?.opted_in;
+  const poolRestricted = !!poolStatus?.discovery_restricted;
+
+  const loadPool = useCallback(async () => {
+    try {
+      const r = await resumeHubApi.talentPoolGet();
+      setPoolStatus(r);
+      setPoolOptInCache(!!r.opted_in);
+    } catch { /* silent */ }
+  }, []);
+
+  const togglePool = async (next: boolean) => {
+    setPoolSaving(true);
+    setPoolConfirmOpen(false);
+    try {
+      await resumeHubApi.talentPoolSet(next, next ? DISCOVERY_CONSENT_VERSION : undefined);
+      setPoolOptInCache(next);
+      toast({
+        title: next ? "You're discoverable" : "Left the pool",
+        description: next
+          ? "Employers searching AYN can now see your full profile. Contact details stay private until you approve an intro."
+          : "Your profile left the pool.",
+      });
+      await loadPool();
+    } catch (e) {
+      toast({ title: "Couldn't update", description: (e as Error).message, variant: "destructive" });
+    } finally { setPoolSaving(false); }
+  };
+
   // ── Resumes list only: used on initial load AND after an upload, where a
   // full load() would re-fetch career from the DB before the freshly parsed
   // resume's skills/experience/education (merged into local state, not yet
@@ -234,6 +276,7 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
   }, [toast, userId, loadResumes]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadPool(); }, [loadPool]);
 
   // ── Fallback layer: resume, then account. Mirrors identity.ts order. ────
   const fallback = useMemo(() => {
@@ -498,6 +541,71 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
           {saveState === "saved" && <><Check className="w-3 h-3" /> Saved</>}
         </span>
       </div>
+
+      {/* ── Let employers find me — moved here from Get discovered so the
+          on/off decision sits right next to the profile it controls. Green
+          means on, grey means off, on purpose: this is a visibility switch,
+          not a settings checkbox, and it should read at a glance. ────────── */}
+      <Card
+        className={`p-4 sm:p-6 flex items-center justify-between gap-4 flex-wrap border ${
+          poolOptedIn ? "border-emerald-500/40 bg-emerald-500/[0.06]" : "border-border/60 bg-muted/20"
+        }`}
+      >
+        <div className="flex items-start gap-2.5 min-w-0">
+          <Users className={`w-4 h-4 mt-0.5 shrink-0 ${poolOptedIn ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium">Let employers find me</span>
+              <span
+                className={`text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                  poolOptedIn
+                    ? "bg-emerald-500 text-white"
+                    : "bg-muted-foreground/20 text-muted-foreground"
+                }`}
+              >
+                {poolOptedIn ? "On" : "Off"}
+              </span>
+            </div>
+            {poolRestricted ? (
+              <p className="text-xs text-destructive mt-1 max-w-md leading-relaxed">
+                An administrator has removed your profile from the talent pool, so employers cannot
+                find you right now.{poolStatus?.discovery_restriction_reason ? ` Reason given: ${poolStatus.discovery_restriction_reason}.` : ""}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-1 max-w-md leading-relaxed">
+                {poolOptedIn
+                  ? "You are discoverable. Employers can send you job proposals. Your contact details stay private until you accept one."
+                  : "Turn this on to be recommended to employers hiring for roles like yours."}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {poolSaving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          <Switch
+            checked={poolOptedIn}
+            disabled={poolSaving || poolRestricted}
+            onCheckedChange={(next) => (next ? setPoolConfirmOpen(true) : togglePool(false))}
+            className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-muted-foreground/30"
+          />
+        </div>
+      </Card>
+
+      <AlertDialog open={poolConfirmOpen} onOpenChange={setPoolConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Share your profile with employers</AlertDialogTitle>
+            <AlertDialogDescription>
+              Employers searching AYN will see your profile and can send you job proposals. Your
+              email and phone are only shared if you accept one. You can turn this off anytime.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => togglePool(true)}>Turn on</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── 1. Your resume ───────────────────────────────────────────────── */}
       <Group id="resume" title="Your resume" line="Everything AYN writes starts from this.">

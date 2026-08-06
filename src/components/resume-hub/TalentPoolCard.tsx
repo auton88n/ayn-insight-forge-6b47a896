@@ -11,13 +11,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Users, RefreshCw, X, ShieldCheck, Check, AlertCircle } from "lucide-react";
+import { Loader2, Users, RefreshCw, X, ShieldCheck, Check, AlertCircle, ArrowRight } from "lucide-react";
 import { resumeHubApi, type TalentPoolStatus, type PoolSkill } from "@/lib/resumeHub";
 import { AYN_POOL_REINDEXED, setPoolOptInCache } from "@/lib/talentPoolSync";
 import type { GroupGap } from "@/lib/profileGaps";
@@ -37,30 +32,22 @@ function relativeTime(iso: string | null): string {
   const months = Math.round(days / 30);
   return `${months} month${months === 1 ? "" : "s"} ago`;
 }
-/** v3.5.1 — bump whenever the consent wording changes. */
-const CONSENT_VERSION = "v3.5.1-full-profile";
-
-
-
-
 interface Props {
   /** Bumped by the parent after any save so the card refetches freshness. */
   refreshKey?: number;
   /** One entry per profile group, with what employers lose when it is empty. */
   groupGaps: GroupGap[];
   pendingIntros: number;
+  /** v3.66.0 — the on/off switch itself now lives in Profile; this jumps there. */
+  onOpenProfile: () => void;
 }
 
-export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntros }: Props) {
+export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntros, onOpenProfile }: Props) {
 
   const { toast } = useToast();
   const [status, setStatus] = useState<TalentPoolStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [reindexing, setReindexing] = useState(false);
-  // v3.5.1 — opting in requires an explicit confirmation step.
-  const [confirmOpen, setConfirmOpen] = useState(false);
-
 
   const load = useCallback(async () => {
     try {
@@ -82,25 +69,6 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
     window.addEventListener(AYN_POOL_REINDEXED, onReindexed);
     return () => window.removeEventListener(AYN_POOL_REINDEXED, onReindexed);
   }, [load]);
-
-  const toggle = async (next: boolean) => {
-    setSaving(true);
-    setConfirmOpen(false);
-    try {
-      await resumeHubApi.talentPoolSet(next, next ? CONSENT_VERSION : undefined);
-      setPoolOptInCache(next);
-      toast({
-        title: next ? "You're discoverable" : "Left the pool",
-        description: next
-          ? "Employers searching AYN can now see your full profile. Contact details stay private until you approve an intro."
-          : "Your profile left the pool.",
-      });
-      await load();
-
-    } catch (e) {
-      toast({ title: "Couldn't update", description: (e as Error).message, variant: "destructive" });
-    } finally { setSaving(false); }
-  };
 
   const reindex = async () => {
     setReindexing(true);
@@ -142,9 +110,15 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-sm">
-            <Users className="w-4 h-4 text-primary" />
+            <Users className={`w-4 h-4 ${optedIn ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`} />
             <span className="font-medium">Let employers find me</span>
-            {optedIn ? <Badge variant="secondary">On</Badge> : <Badge variant="outline">Off</Badge>}
+            <span
+              className={`text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                optedIn ? "bg-emerald-500 text-white" : "bg-muted-foreground/20 text-muted-foreground"
+              }`}
+            >
+              {optedIn ? "On" : "Off"}
+            </span>
           </div>
           {optedIn && pendingIntros > 0 && (
             <p className="text-xs font-medium text-primary mt-1">
@@ -164,34 +138,12 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
               : "Turn this on to be recommended to employers hiring for roles like yours."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {saving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
-          <Switch
-            checked={optedIn}
-            disabled={loading || saving || discoveryRestricted}
-            onCheckedChange={(next) => (next ? setConfirmOpen(true) : toggle(false))}
-          />
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={onOpenProfile} className="h-8">
+            {optedIn ? "Manage in Profile" : "Turn on in Profile"} <ArrowRight className="w-3 h-3 ml-1.5" />
+          </Button>
         </div>
       </div>
-
-      {/* v3.5.1 — explicit consent moment before the profile enters the pool. */}
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Share your profile with employers</AlertDialogTitle>
-            <AlertDialogDescription>
-              Employers searching AYN will see your profile and can send you job proposals. Your
-              email and phone are only shared if you accept one. You can turn this off anytime.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => toggle(true)}>Turn on</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-
 
       {optedIn && !loading && (
         <>

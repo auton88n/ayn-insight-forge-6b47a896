@@ -247,7 +247,7 @@ export default function ResumeHub() {
               />
             )}
             {tab === "profile"   && <ProfileTab userId={userId!} onOpenDiscovery={() => setTab("discovery")} />}
-            {tab === "discovery" && <DiscoveryTab userId={userId!} />}
+            {tab === "discovery" && <DiscoveryTab userId={userId!} onOpenProfile={() => setTab("profile")} />}
             {tab === "proposals" && <ProposalsTab onChanged={setPendingIntros} />}
             {tab === "assessments" && <AssessmentsTab onChanged={setPendingAssessments} />}
 
