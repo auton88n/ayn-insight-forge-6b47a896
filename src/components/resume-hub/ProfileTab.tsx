@@ -96,6 +96,13 @@ const INDUSTRIES = ["Fintech", "Healthcare", "Ecommerce", "Enterprise SaaS", "Go
 const EMPLOYMENT_TYPES = ["Full time", "Contract", "Part time", "Internship"];
 const AVAILABILITY = ["Immediately", "2 weeks", "1 month", "3 months", "Just looking"];
 const COMPANY_STAGES = ["Early startup", "Growth", "Large company", "No preference"];
+// Same vocabulary the backend's derived.seniority is documented and scored
+// against (supabase/functions/resume-hub/index.ts, canonicalDigest / the
+// resume-parsing prompt) — a datalist so an existing free-text value is
+// never lost, but a fresh pick lines up with what the matcher actually reads.
+const SENIORITY_LEVELS = ["Intern", "Entry", "Mid", "Senior", "Staff", "Principal", "Manager", "Director", "VP", "C-level"];
+const PRIMARY_FUNCTIONS = ["Engineering", "Product", "Design", "Data", "Marketing", "Sales", "Operations", "Finance", "HR", "Customer success", "Legal"];
+const CURRENCIES = ["CAD", "USD", "EUR", "GBP", "AUD", "AED"];
 
 /** Personal fields live in user_profile_data, the user-entered layer. */
 type PersonalKey = "first_name" | "last_name" | "email" | "phone" | "city" | "linkedin" | "github" | "portfolio";
@@ -308,6 +315,31 @@ export default function ProfileTab({ userId }: { userId: string }) {
     const entered = personal[k];
     const fromResume = fallback[k];
     if (!personalTouched[k] && !entered) {
+      return { value: fromResume, source: fromResume ? "resume" : "none" };
+    }
+    if (fromResume && entered.trim() !== fromResume.trim()) {
+      return { value: entered, source: "edited", original: fromResume };
+    }
+    return { value: entered, source: fromResume ? "resume" : "none" };
+  };
+
+  // v3.71.0 — Current title/company are just as resume-derived as the fields
+  // above but had no provenance badge or revert, unlike every other field in
+  // this group. No separate "touched" layer needed here (unlike Personal):
+  // career.derived.current_title IS the single stored value, so it is
+  // compared directly against a live resume-computed fallback.
+  const derivedFallback = useMemo(() => {
+    const w0 = resumeContent?.work?.[0];
+    return {
+      current_title: resumeContent?.basics?.title || w0?.title || "",
+      current_company: w0?.company || "",
+    };
+  }, [resumeContent]);
+
+  const derivedField = (k: "current_title" | "current_company"): { value: string; source: "resume" | "edited" | "none"; original?: string } => {
+    const entered = career.derived[k] || "";
+    const fromResume = derivedFallback[k];
+    if (!entered) {
       return { value: fromResume, source: fromResume ? "resume" : "none" };
     }
     if (fromResume && entered.trim() !== fromResume.trim()) {
@@ -763,8 +795,8 @@ export default function ProfileTab({ userId }: { userId: string }) {
           <SourcedField label="Email" f={field("email")} onChange={v => setPersonalField("email", v)} onBlur={queueSave} onRevert={v => { setPersonalField("email", v); queueSave(); }} />
           <SourcedField label="Phone" f={field("phone")} onChange={v => setPersonalField("phone", v)} onBlur={queueSave} onRevert={v => { setPersonalField("phone", v); queueSave(); }} />
           <SourcedField label="Location" f={field("city")} onChange={v => setPersonalField("city", v)} onBlur={queueSave} placeholder="City, region" onRevert={v => { setPersonalField("city", v); queueSave(); }} />
-          <PlainField label="Current title" value={career.derived.current_title || ""} onChange={v => setDerived("current_title", v)} onBlur={queueSave} />
-          <PlainField label="Current company" value={career.derived.current_company || ""} onChange={v => setDerived("current_company", v)} onBlur={queueSave} />
+          <SourcedField label="Current title" f={derivedField("current_title")} onChange={v => setDerived("current_title", v)} onBlur={queueSave} onRevert={v => { setDerived("current_title", v); queueSave(); }} />
+          <SourcedField label="Current company" f={derivedField("current_company")} onChange={v => setDerived("current_company", v)} onBlur={queueSave} onRevert={v => { setDerived("current_company", v); queueSave(); }} />
           <SourcedField label="LinkedIn" f={field("linkedin")} onChange={v => setPersonalField("linkedin", v)} onBlur={queueSave} placeholder="https://" onRevert={v => { setPersonalField("linkedin", v); queueSave(); }} />
           <SourcedField label="GitHub" f={field("github")} onChange={v => setPersonalField("github", v)} onBlur={queueSave} placeholder="https://" onRevert={v => { setPersonalField("github", v); queueSave(); }} />
           <SourcedField label="Portfolio" f={field("portfolio")} onChange={v => setPersonalField("portfolio", v)} onBlur={queueSave} placeholder="https://" onRevert={v => { setPersonalField("portfolio", v); queueSave(); }} />
@@ -892,7 +924,14 @@ export default function ProfileTab({ userId }: { userId: string }) {
                 <PlainField label="Title" value={e.title} onChange={v => updateExp(i, { ...e, title: v })} onBlur={queueSave} />
                 <PlainField label="Company" value={e.company} onChange={v => updateExp(i, { ...e, company: v })} onBlur={queueSave} />
                 <PlainField label="Start" value={e.start || ""} onChange={v => updateExp(i, { ...e, start: v })} onBlur={queueSave} placeholder="2022-01" />
-                <PlainField label="End" value={e.end || ""} onChange={v => updateExp(i, { ...e, end: v })} onBlur={queueSave} placeholder="Present" />
+                <PlainField
+                  label="End"
+                  value={e.current ? "Present" : (e.end || "")}
+                  onChange={v => updateExp(i, { ...e, end: v })}
+                  onBlur={queueSave}
+                  placeholder="2024-06"
+                  disabled={e.current}
+                />
                 <PlainField label="Location" value={e.location || ""} onChange={v => updateExp(i, { ...e, location: v })} onBlur={queueSave} placeholder="City, or Remote" />
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Industry or domain</Label>
@@ -913,7 +952,12 @@ export default function ProfileTab({ userId }: { userId: string }) {
                 />
                 <label className="flex items-center justify-between rounded-md border px-3 py-2 text-sm self-end">
                   <span>Current role</span>
-                  <Switch checked={!!e.current} onCheckedChange={v => updateExp(i, { ...e, current: v })} />
+                  {/* v3.71.0 fix: End previously kept whatever date was
+                      already typed even after this was switched on, so the
+                      toggle could silently have no effect. Turning it on now
+                      clears End (shown disabled with "Present" above);
+                      turning it off hands End back for a real date. */}
+                  <Switch checked={!!e.current} onCheckedChange={v => updateExp(i, { ...e, current: v, end: v ? "" : e.end })} />
                 </label>
               </div>
 
@@ -1008,15 +1052,47 @@ export default function ProfileTab({ userId }: { userId: string }) {
 
         {/* Derived signals employers and scoring both use */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4">
-          <PlainField
-            label="Total years of experience"
-            type="number"
-            value={career.derived.total_yoe == null ? "" : String(career.derived.total_yoe)}
-            onChange={v => setDerived("total_yoe", v === "" ? undefined : Number(v))}
-            onBlur={queueSave}
-          />
-          <PlainField label="Seniority" value={career.derived.seniority || ""} onChange={v => setDerived("seniority", v)} onBlur={queueSave} placeholder="entry, mid, senior, staff" />
-          <PlainField label="Primary function" value={career.derived.primary_function || ""} onChange={v => setDerived("primary_function", v)} onBlur={queueSave} placeholder="Backend, Product, Design" />
+          <div className="space-y-1">
+            <PlainField
+              label="Total years of experience"
+              type="number"
+              value={career.derived.total_yoe == null ? "" : String(career.derived.total_yoe)}
+              onChange={v => setDerived("total_yoe", v === "" ? undefined : Number(v))}
+              onBlur={queueSave}
+            />
+            <p className="text-[11px] text-muted-foreground">Calculated from your earliest role. Overwrite it if that is wrong.</p>
+          </div>
+          {/* v3.71.0 fix: was free text with a comma-separated placeholder
+              ("entry, mid, senior, staff") that read like a list of things to
+              type in, not one example. Datalist keeps free entry (so an
+              existing value is never lost) but suggests the same vocabulary
+              the matcher itself scores seniority against. */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Seniority</Label>
+            <Input
+              list="ayn-seniority"
+              value={career.derived.seniority || ""}
+              onChange={ev => setDerived("seniority", ev.target.value)}
+              onBlur={queueSave}
+              placeholder="e.g. Senior"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Primary function</Label>
+            <Input
+              list="ayn-functions"
+              value={career.derived.primary_function || ""}
+              onChange={ev => setDerived("primary_function", ev.target.value)}
+              onBlur={queueSave}
+              placeholder="e.g. Engineering"
+            />
+          </div>
+          <datalist id="ayn-seniority">
+            {SENIORITY_LEVELS.map(x => <option key={x} value={x} />)}
+          </datalist>
+          <datalist id="ayn-functions">
+            {PRIMARY_FUNCTIONS.map(x => <option key={x} value={x} />)}
+          </datalist>
         </div>
 
         {/* What you are known for */}
@@ -1053,6 +1129,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
         />
         <ChipList
           label="Desired locations"
+          hint="Where you want to work — not the same as your legal work eligibility below."
           values={career.preferences.desired_locations || []}
           onChange={v => { setPref("desired_locations", v); queueSave(); }}
           placeholder="Add a city or region"
@@ -1084,13 +1161,19 @@ export default function ProfileTab({ userId }: { userId: string }) {
             onBlur={queueSave}
             placeholder="80000"
           />
-          <PlainField
-            label="Currency"
-            value={career.preferences.salary_currency || ""}
-            onChange={v => setPref("salary_currency", v)}
-            onBlur={queueSave}
-            placeholder="CAD, USD, EUR"
-          />
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Currency</Label>
+            <Input
+              list="ayn-currencies"
+              value={career.preferences.salary_currency || ""}
+              onChange={ev => setPref("salary_currency", ev.target.value)}
+              onBlur={queueSave}
+              placeholder="e.g. CAD"
+            />
+            <datalist id="ayn-currencies">
+              {CURRENCIES.map(x => <option key={x} value={x} />)}
+            </datalist>
+          </div>
           <Toggle label="Open to remote" value={!!career.preferences.open_to_remote} onChange={v => { setPref("open_to_remote", v); queueSave(); }} />
           <Toggle label="Open to relocation" value={!!career.preferences.open_to_relocation} onChange={v => { setPref("open_to_relocation", v); queueSave(); }} />
         </div>
@@ -1100,6 +1183,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
       <Group id="eligibility" title="Work eligibility" line="Employers filter on this before anything else.">
         <div>
           <Label className="text-xs text-muted-foreground">Countries you can work in</Label>
+          <p className="text-[11px] text-muted-foreground">Legal eligibility, separate from the cities you'd actually want to work in above.</p>
           <div className="flex flex-wrap gap-2 mt-1.5">
             {WORK_COUNTRIES.map(c => (
               <button
@@ -1126,13 +1210,25 @@ export default function ProfileTab({ userId }: { userId: string }) {
             placeholder="e.g. Canada"
           />
           {nonCitizenCountries.length > 0 && (
-            <PlainField
-              label="Work permit expires (optional)"
-              type="date"
-              value={career.work_auth.work_permit_expires || ""}
-              onChange={v => setWA("work_permit_expires", v)}
-              onBlur={queueSave}
-            />
+            <>
+              <PlainField
+                label="Work permit expires (optional)"
+                type="date"
+                value={career.work_auth.work_permit_expires || ""}
+                onChange={v => setWA("work_permit_expires", v)}
+                onBlur={queueSave}
+              />
+              {/* v3.71.0 — this was already asked in every scoring/tailoring
+                  prompt (WORK_AUTH: ..., visa=n/a) with no field anywhere to
+                  answer it, so the AI never once actually knew it. */}
+              <PlainField
+                label="Visa type (optional)"
+                value={career.work_auth.visa_type || ""}
+                onChange={v => setWA("visa_type", v)}
+                onBlur={queueSave}
+                placeholder="e.g. H-1B, TN, Work permit"
+              />
+            </>
           )}
           <Toggle label="I need sponsorship now" value={!!career.work_auth.needs_sponsorship_now} onChange={v => { setWA("needs_sponsorship_now", v); queueSave(); }} />
           <Toggle label="I will need sponsorship later" value={!!career.work_auth.needs_sponsorship_future} onChange={v => { setWA("needs_sponsorship_future", v); queueSave(); }} />
@@ -1166,14 +1262,14 @@ function Group({ id, title, line, children }: { id: string; title: string; line:
 }
 
 function PlainField({
-  label, value, onChange, onBlur, placeholder, type,
+  label, value, onChange, onBlur, placeholder, type, disabled,
 }: {
-  label: string; value: string; onChange: (v: string) => void; onBlur?: () => void; placeholder?: string; type?: string;
+  label: string; value: string; onChange: (v: string) => void; onBlur?: () => void; placeholder?: string; type?: string; disabled?: boolean;
 }) {
   return (
     <div className="space-y-1">
       <Label className="text-xs text-muted-foreground">{label}</Label>
-      <Input value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} type={type} />
+      <Input value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} type={type} disabled={disabled} />
     </div>
   );
 }
@@ -1313,7 +1409,7 @@ function BulkAdd({ placeholder, onAdd }: { placeholder: string; onAdd: (values: 
   );
 }
 
-function ChipList({ label, values, onChange, placeholder }: { label: string; values: string[]; onChange: (v: string[]) => void; placeholder?: string }) {
+function ChipList({ label, hint, values, onChange, placeholder }: { label: string; hint?: string; values: string[]; onChange: (v: string[]) => void; placeholder?: string }) {
   const [draft, setDraft] = useState("");
   const add = () => {
     const v = draft.trim();
@@ -1324,6 +1420,7 @@ function ChipList({ label, values, onChange, placeholder }: { label: string; val
   return (
     <div className="space-y-1">
       <Label className="text-xs text-muted-foreground">{label}</Label>
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
       <div className="flex flex-wrap gap-1 mb-1">
         {values.map((v, i) => (
           <Badge key={i} variant="secondary" className="gap-1">

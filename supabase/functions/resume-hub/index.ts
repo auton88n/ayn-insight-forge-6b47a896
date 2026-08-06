@@ -844,7 +844,10 @@ function canonicalDigest(c: CanonicalProfile | null): string {
   const wa = c.work_auth;
   const waLine = `citizenship=${wa.citizenship || "?"}, us_auth=${wa.work_authorized_us ?? "?"}, ca_auth=${wa.work_authorized_ca ?? "?"}, needs_sponsorship_now=${wa.needs_sponsorship_now ?? "?"}, needs_sponsorship_future=${wa.needs_sponsorship_future ?? "?"}, visa=${wa.visa_type || "n/a"}`;
   const pr = c.preferences;
-  const prLine = `remote=${pr.open_to_remote ?? "?"}, relocate=${pr.open_to_relocation ?? "?"}, salary_min=${pr.salary_min_usd ?? "?"} ${pr.salary_currency || ""}, start=${pr.start_date_availability || "?"}`;
+  // v3.71.0 fix: this used to read pr.start_date_availability, a field
+  // nothing ever wrote (the frontend only ever writes preferences.availability),
+  // so "start=" was permanently "?" here regardless of what the seeker picked.
+  const prLine = `remote=${pr.open_to_remote ?? "?"}, relocate=${pr.open_to_relocation ?? "?"}, salary_min=${pr.salary_min_usd ?? "?"} ${pr.salary_currency || ""}, start=${pr.availability || "?"}`;
   const d = c.derived;
   return [
     `TOTAL_YOE=${d.total_yoe ?? "?"} | SENIORITY=${d.seniority || "?"} | FUNCTION=${d.primary_function || "?"} | EDU_LEVEL=${d.education_level || "?"}`,
