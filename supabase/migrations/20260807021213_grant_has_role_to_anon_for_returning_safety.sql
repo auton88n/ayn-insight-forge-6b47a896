@@ -1,0 +1,14 @@
+-- Found live while executing real security tests: the duty-role-removal
+-- migration (20260807010454) replaced 16 policies' has_duty_access() calls
+-- with has_role() calls directly. has_duty_access was anon-executable (by
+-- design, it's a pure read-only check); has_role was not. That's invisible
+-- today because every current anon INSERT path (guest support tickets)
+-- already avoids .select()/RETURNING specifically because of a past bug of
+-- this exact shape (see TicketForm.tsx). But INSERT...RETURNING re-checks
+-- the new row against a table's SELECT policies, and any of those policies
+-- now calling has_role() as anon throws a hard permission-denied instead of
+-- gracefully evaluating to false -- a landmine for the next person who adds
+-- .select() to a guest insert. has_role() is a pure boolean read with no
+-- side effects and correctly returns false for a null auth.uid(), so it is
+-- exactly as safe to expose to anon as has_duty_access already was.
+grant execute on function public.has_role(uuid, app_role) to anon;

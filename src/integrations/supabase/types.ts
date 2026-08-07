@@ -4311,6 +4311,7 @@ export type Database = {
           created_at: string
           guest_email: string | null
           guest_name: string | null
+          guest_token: string | null
           has_unread_reply: boolean
           id: string
           priority: Database["public"]["Enums"]["support_ticket_priority"]
@@ -4325,6 +4326,7 @@ export type Database = {
           created_at?: string
           guest_email?: string | null
           guest_name?: string | null
+          guest_token?: string | null
           has_unread_reply?: boolean
           id?: string
           priority?: Database["public"]["Enums"]["support_ticket_priority"]
@@ -4339,6 +4341,7 @@ export type Database = {
           created_at?: string
           guest_email?: string | null
           guest_name?: string | null
+          guest_token?: string | null
           has_unread_reply?: boolean
           id?: string
           priority?: Database["public"]["Enums"]["support_ticket_priority"]
@@ -4689,6 +4692,7 @@ export type Database = {
         Row: {
           attachments: Json | null
           created_at: string
+          guest_token: string | null
           id: string
           is_internal_note: boolean
           message: string
@@ -4699,6 +4703,7 @@ export type Database = {
         Insert: {
           attachments?: Json | null
           created_at?: string
+          guest_token?: string | null
           id?: string
           is_internal_note?: boolean
           message: string
@@ -4709,6 +4714,7 @@ export type Database = {
         Update: {
           attachments?: Json | null
           created_at?: string
+          guest_token?: string | null
           id?: string
           is_internal_note?: boolean
           message?: string
@@ -5800,7 +5806,6 @@ export type Database = {
       }
       get_user_status: { Args: { uid: string }; Returns: Json }
       has_active_access: { Args: { _user_id: string }; Returns: boolean }
-      has_duty_access: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -5954,7 +5959,7 @@ export type Database = {
       self_pause_account: { Args: never; Returns: Json }
       self_revoke_session: { Args: { p_session_id: string }; Returns: Json }
       ticket_belongs_to_caller: {
-        Args: { p_ticket_id: string }
+        Args: { p_guest_token?: string; p_ticket_id: string }
         Returns: boolean
       }
       trigger_emergency_alert: {

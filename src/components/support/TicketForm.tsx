@@ -47,6 +47,13 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
       // allowed. Supplying our own id sidesteps needing it read back at all.
       const ticketId = crypto.randomUUID();
 
+      // A guest has no session, so nothing server-side can tell "this
+      // request is really from the person who opened this ticket" apart
+      // from a secret only that browser holds. Generated the same way as
+      // ticketId above and never read back from the server; required by
+      // the guest branch of every write against this ticket from here on.
+      const guestToken = user?.id ? undefined : crypto.randomUUID();
+
       // Create ticket
       const ticketData: Record<string, unknown> = {
         id: ticketId,
@@ -64,6 +71,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
       } else {
         ticketData.guest_email = formData.email;
         ticketData.guest_name = formData.name;
+        ticketData.guest_token = guestToken;
       }
 
       const { error: ticketError } = await supabase
@@ -80,6 +88,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
           sender_type: 'user',
           sender_id: user?.id || null,
           message: formData.message,
+          guest_token: guestToken,
         });
 
       if (messageError) throw messageError;
