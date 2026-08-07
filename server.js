@@ -32,7 +32,7 @@ const ROUTES = [
   '/approval-result', '/subscription-success', '/subscription-canceled',
   '/dashboard', '/admin',
 ];
-const PREFIXES = ['/resume-hub/', '/dashboard/', '/admin/', '/sign/', '/nda/', '/manage-'];
+const PREFIXES = ['/resume-hub/', '/dashboard/', '/admin/', '/manage-'];
 
 function isKnownRoute(pathname) {
   if (ROUTES.includes(pathname)) return true;

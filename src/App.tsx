@@ -77,8 +77,6 @@ const DoNotSell = lazy(() => import("./pages/DoNotSell"));
 const LegalIndex = lazy(() => import("./pages/LegalIndex"));
 const LegalDoc = lazy(() => import("./components/legal/LegalPage"));
 import { CookieConsent } from "@/components/shared/CookieConsent";
-const ClientSign = lazy(() => import("./pages/ClientSign"));
-const NDASign = lazy(() => import("./pages/NDASign"));
 const ExtensionApprove = lazy(() => import("./pages/ExtensionApprove"));
 
 // Admin — lazy loaded so 3D/globe/main app code never loads for admin users
@@ -144,8 +142,6 @@ const AnimatedRoutes = () => {
       <Route path="/sla" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="sla" /></Suspense>} />
       <Route path="/copyright" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="copyright" /></Suspense>} />
 
-      <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><ClientSign /></Suspense>} />
-      <Route path="/nda/:token" element={<Suspense fallback={<PageLoader />}><NDASign /></Suspense>} />
       <Route path="/extension/approve" element={<Suspense fallback={<PageLoader />}><ExtensionApprove /></Suspense>} />
       <Route path="/manage-bae76e99d97e188b" element={<Suspense fallback={<PageLoader />}><AdminApp /></Suspense>} />
       <Route path="/manage-bae76e99d97e188b/*" element={<Suspense fallback={<PageLoader />}><AdminApp /></Suspense>} />
