@@ -305,183 +305,6 @@ export type Database = {
         }
         Relationships: []
       }
-      agent_society_messages: {
-        Row: {
-          belief_score: number | null
-          concrete_action: string | null
-          created_at: string
-          emotion: string | null
-          emotion_intensity: number | null
-          id: string
-          inner_thought: string | null
-          layer: number
-          persona_category: string | null
-          persona_id: string
-          persona_name: string | null
-          public_statement: string | null
-          round: number
-          run_id: string
-          user_id: string
-        }
-        Insert: {
-          belief_score?: number | null
-          concrete_action?: string | null
-          created_at?: string
-          emotion?: string | null
-          emotion_intensity?: number | null
-          id?: string
-          inner_thought?: string | null
-          layer: number
-          persona_category?: string | null
-          persona_id: string
-          persona_name?: string | null
-          public_statement?: string | null
-          round?: number
-          run_id: string
-          user_id: string
-        }
-        Update: {
-          belief_score?: number | null
-          concrete_action?: string | null
-          created_at?: string
-          emotion?: string | null
-          emotion_intensity?: number | null
-          id?: string
-          inner_thought?: string | null
-          layer?: number
-          persona_category?: string | null
-          persona_id?: string
-          persona_name?: string | null
-          public_statement?: string | null
-          round?: number
-          run_id?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      agent_society_news_feed: {
-        Row: {
-          agents_affected: number | null
-          category: string | null
-          created_at: string
-          headline: string
-          id: string
-          source: string | null
-          summary: string | null
-          url: string | null
-          user_id: string
-        }
-        Insert: {
-          agents_affected?: number | null
-          category?: string | null
-          created_at?: string
-          headline: string
-          id?: string
-          source?: string | null
-          summary?: string | null
-          url?: string | null
-          user_id: string
-        }
-        Update: {
-          agents_affected?: number | null
-          category?: string | null
-          created_at?: string
-          headline?: string
-          id?: string
-          source?: string | null
-          summary?: string | null
-          url?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
-      agent_society_runs: {
-        Row: {
-          agent_count: number
-          completed_at: string | null
-          created_at: string
-          current_layer: number | null
-          depth: string
-          duration_ms: number | null
-          error: string | null
-          id: string
-          question: string
-          report: Json | null
-          report_type: string
-          seed: string
-          status: string
-          user_id: string
-          user_target: Json | null
-        }
-        Insert: {
-          agent_count?: number
-          completed_at?: string | null
-          created_at?: string
-          current_layer?: number | null
-          depth?: string
-          duration_ms?: number | null
-          error?: string | null
-          id?: string
-          question: string
-          report?: Json | null
-          report_type?: string
-          seed: string
-          status?: string
-          user_id: string
-          user_target?: Json | null
-        }
-        Update: {
-          agent_count?: number
-          completed_at?: string | null
-          created_at?: string
-          current_layer?: number | null
-          depth?: string
-          duration_ms?: number | null
-          error?: string | null
-          id?: string
-          question?: string
-          report?: Json | null
-          report_type?: string
-          seed?: string
-          status?: string
-          user_id?: string
-          user_target?: Json | null
-        }
-        Relationships: []
-      }
-      agent_society_state: {
-        Row: {
-          belief_score: number | null
-          emotion: string | null
-          emotion_intensity: number | null
-          id: string
-          persona_id: string
-          recent_summary: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          belief_score?: number | null
-          emotion?: string | null
-          emotion_intensity?: number | null
-          id?: string
-          persona_id: string
-          recent_summary?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          belief_score?: number | null
-          emotion?: string | null
-          emotion_intensity?: number | null
-          id?: string
-          persona_id?: string
-          recent_summary?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       agent_telegram_bots: {
         Row: {
           bot_token: string
@@ -1051,135 +874,6 @@ export type Database = {
         }
         Relationships: []
       }
-      ayn_business_news: {
-        Row: {
-          country_code: string | null
-          fetched_at: string | null
-          headlines: Json | null
-          id: string
-          sector: string | null
-          sentiment: string | null
-          singleton_key: number | null
-          summary: string | null
-        }
-        Insert: {
-          country_code?: string | null
-          fetched_at?: string | null
-          headlines?: Json | null
-          id?: string
-          sector?: string | null
-          sentiment?: string | null
-          singleton_key?: number | null
-          summary?: string | null
-        }
-        Update: {
-          country_code?: string | null
-          fetched_at?: string | null
-          headlines?: Json | null
-          id?: string
-          sector?: string | null
-          sentiment?: string | null
-          singleton_key?: number | null
-          summary?: string | null
-        }
-        Relationships: []
-      }
-      ayn_consumer_sentiment: {
-        Row: {
-          confidence_index: Json | null
-          country_code: string
-          country_name: string
-          cutting_spending: Json | null
-          debt_levels: Json | null
-          fetched_at: string | null
-          id: string
-          intelligence_brief: Json | null
-          saving_rate: Json | null
-          spending_trends: Json | null
-          top_purchases: Json | null
-        }
-        Insert: {
-          confidence_index?: Json | null
-          country_code: string
-          country_name: string
-          cutting_spending?: Json | null
-          debt_levels?: Json | null
-          fetched_at?: string | null
-          id?: string
-          intelligence_brief?: Json | null
-          saving_rate?: Json | null
-          spending_trends?: Json | null
-          top_purchases?: Json | null
-        }
-        Update: {
-          confidence_index?: Json | null
-          country_code?: string
-          country_name?: string
-          cutting_spending?: Json | null
-          debt_levels?: Json | null
-          fetched_at?: string | null
-          id?: string
-          intelligence_brief?: Json | null
-          saving_rate?: Json | null
-          spending_trends?: Json | null
-          top_purchases?: Json | null
-        }
-        Relationships: []
-      }
-      ayn_country_intelligence: {
-        Row: {
-          business_climate: Json | null
-          consumer: Json | null
-          country_code: string
-          country_name: string
-          economy: Json | null
-          emerging: Json | null
-          fetched_at: string | null
-          government: Json | null
-          health_sector: Json | null
-          hot_sectors: Json | null
-          id: string
-          intelligence_brief: Json | null
-          job_market: Json | null
-          opportunities: Json | null
-          region: string
-        }
-        Insert: {
-          business_climate?: Json | null
-          consumer?: Json | null
-          country_code: string
-          country_name: string
-          economy?: Json | null
-          emerging?: Json | null
-          fetched_at?: string | null
-          government?: Json | null
-          health_sector?: Json | null
-          hot_sectors?: Json | null
-          id?: string
-          intelligence_brief?: Json | null
-          job_market?: Json | null
-          opportunities?: Json | null
-          region: string
-        }
-        Update: {
-          business_climate?: Json | null
-          consumer?: Json | null
-          country_code?: string
-          country_name?: string
-          economy?: Json | null
-          emerging?: Json | null
-          fetched_at?: string | null
-          government?: Json | null
-          health_sector?: Json | null
-          hot_sectors?: Json | null
-          id?: string
-          intelligence_brief?: Json | null
-          job_market?: Json | null
-          opportunities?: Json | null
-          region?: string
-        }
-        Relationships: []
-      }
       ayn_error_log: {
         Row: {
           component: string
@@ -1216,234 +910,6 @@ export type Database = {
         }
         Relationships: []
       }
-      ayn_geopolitical: {
-        Row: {
-          active_conflicts: Json | null
-          elections_upcoming: Json | null
-          fetched_at: string | null
-          id: string
-          intelligence_brief: Json | null
-          risk_by_region: Json | null
-          sanctions: Json | null
-          singleton_key: number | null
-          trade_tensions: Json | null
-        }
-        Insert: {
-          active_conflicts?: Json | null
-          elections_upcoming?: Json | null
-          fetched_at?: string | null
-          id?: string
-          intelligence_brief?: Json | null
-          risk_by_region?: Json | null
-          sanctions?: Json | null
-          singleton_key?: number | null
-          trade_tensions?: Json | null
-        }
-        Update: {
-          active_conflicts?: Json | null
-          elections_upcoming?: Json | null
-          fetched_at?: string | null
-          id?: string
-          intelligence_brief?: Json | null
-          risk_by_region?: Json | null
-          sanctions?: Json | null
-          singleton_key?: number | null
-          trade_tensions?: Json | null
-        }
-        Relationships: []
-      }
-      ayn_gov_policies: {
-        Row: {
-          central_bank: Json | null
-          country_code: string
-          country_name: string
-          elections: Json | null
-          fetched_at: string | null
-          id: string
-          intelligence_brief: Json | null
-          regulations: Json | null
-          tax_policy: Json | null
-          trade_policy: Json | null
-        }
-        Insert: {
-          central_bank?: Json | null
-          country_code: string
-          country_name: string
-          elections?: Json | null
-          fetched_at?: string | null
-          id?: string
-          intelligence_brief?: Json | null
-          regulations?: Json | null
-          tax_policy?: Json | null
-          trade_policy?: Json | null
-        }
-        Update: {
-          central_bank?: Json | null
-          country_code?: string
-          country_name?: string
-          elections?: Json | null
-          fetched_at?: string | null
-          id?: string
-          intelligence_brief?: Json | null
-          regulations?: Json | null
-          tax_policy?: Json | null
-          trade_policy?: Json | null
-        }
-        Relationships: []
-      }
-      ayn_health_intel: {
-        Row: {
-          country_code: string
-          country_name: string
-          digital_health: Json | null
-          drug_pipeline: Json | null
-          fetched_at: string | null
-          gaps: Json | null
-          growth_areas: Json | null
-          id: string
-          intelligence_brief: Json | null
-          market_size: Json | null
-          mental_health: Json | null
-        }
-        Insert: {
-          country_code: string
-          country_name: string
-          digital_health?: Json | null
-          drug_pipeline?: Json | null
-          fetched_at?: string | null
-          gaps?: Json | null
-          growth_areas?: Json | null
-          id?: string
-          intelligence_brief?: Json | null
-          market_size?: Json | null
-          mental_health?: Json | null
-        }
-        Update: {
-          country_code?: string
-          country_name?: string
-          digital_health?: Json | null
-          drug_pipeline?: Json | null
-          fetched_at?: string | null
-          gaps?: Json | null
-          growth_areas?: Json | null
-          id?: string
-          intelligence_brief?: Json | null
-          market_size?: Json | null
-          mental_health?: Json | null
-        }
-        Relationships: []
-      }
-      ayn_job_market: {
-        Row: {
-          country_code: string
-          country_name: string
-          fetched_at: string | null
-          hiring_sectors: Json | null
-          id: string
-          intelligence_brief: Json | null
-          layoff_sectors: Json | null
-          remote_trends: Json | null
-          salary_trends: Json | null
-          top_roles: Json | null
-          top_skills: Json | null
-        }
-        Insert: {
-          country_code: string
-          country_name: string
-          fetched_at?: string | null
-          hiring_sectors?: Json | null
-          id?: string
-          intelligence_brief?: Json | null
-          layoff_sectors?: Json | null
-          remote_trends?: Json | null
-          salary_trends?: Json | null
-          top_roles?: Json | null
-          top_skills?: Json | null
-        }
-        Update: {
-          country_code?: string
-          country_name?: string
-          fetched_at?: string | null
-          hiring_sectors?: Json | null
-          id?: string
-          intelligence_brief?: Json | null
-          layoff_sectors?: Json | null
-          remote_trends?: Json | null
-          salary_trends?: Json | null
-          top_roles?: Json | null
-          top_skills?: Json | null
-        }
-        Relationships: []
-      }
-      ayn_market_prices: {
-        Row: {
-          agriculture: Json | null
-          correlations: Json | null
-          crypto: Json | null
-          currencies: Json | null
-          energy: Json | null
-          fetched_at: string | null
-          id: string
-          indices: Json | null
-          metals: Json | null
-          narrative: Json | null
-          singleton_key: number | null
-        }
-        Insert: {
-          agriculture?: Json | null
-          correlations?: Json | null
-          crypto?: Json | null
-          currencies?: Json | null
-          energy?: Json | null
-          fetched_at?: string | null
-          id?: string
-          indices?: Json | null
-          metals?: Json | null
-          narrative?: Json | null
-          singleton_key?: number | null
-        }
-        Update: {
-          agriculture?: Json | null
-          correlations?: Json | null
-          crypto?: Json | null
-          currencies?: Json | null
-          energy?: Json | null
-          fetched_at?: string | null
-          id?: string
-          indices?: Json | null
-          metals?: Json | null
-          narrative?: Json | null
-          singleton_key?: number | null
-        }
-        Relationships: []
-      }
-      ayn_market_snapshot: {
-        Row: {
-          fetch_errors: string[] | null
-          fetched_at: string
-          id: string
-          singleton_key: number | null
-          snapshot: Json
-          sources_used: string[] | null
-        }
-        Insert: {
-          fetch_errors?: string[] | null
-          fetched_at?: string
-          id?: string
-          singleton_key?: number | null
-          snapshot?: Json
-          sources_used?: string[] | null
-        }
-        Update: {
-          fetch_errors?: string[] | null
-          fetched_at?: string
-          id?: string
-          singleton_key?: number | null
-          snapshot?: Json
-          sources_used?: string[] | null
-        }
-        Relationships: []
-      }
       ayn_mind: {
         Row: {
           content: string
@@ -1468,96 +934,6 @@ export type Database = {
           id?: string
           shared_with_admin?: boolean
           type?: string
-        }
-        Relationships: []
-      }
-      ayn_prediction_outcomes: {
-        Row: {
-          accuracy_score: number | null
-          actual_date: string | null
-          actual_direction: string | null
-          actual_pct_change: number | null
-          actual_value: number | null
-          data_source: string | null
-          error_magnitude: string | null
-          id: string
-          prediction_id: string
-          range_hit: boolean | null
-          resolved_at: string
-          value_error_pct: number | null
-          was_direction_correct: boolean | null
-          what_happened: string | null
-        }
-        Insert: {
-          accuracy_score?: number | null
-          actual_date?: string | null
-          actual_direction?: string | null
-          actual_pct_change?: number | null
-          actual_value?: number | null
-          data_source?: string | null
-          error_magnitude?: string | null
-          id?: string
-          prediction_id: string
-          range_hit?: boolean | null
-          resolved_at?: string
-          value_error_pct?: number | null
-          was_direction_correct?: boolean | null
-          what_happened?: string | null
-        }
-        Update: {
-          accuracy_score?: number | null
-          actual_date?: string | null
-          actual_direction?: string | null
-          actual_pct_change?: number | null
-          actual_value?: number | null
-          data_source?: string | null
-          error_magnitude?: string | null
-          id?: string
-          prediction_id?: string
-          range_hit?: boolean | null
-          resolved_at?: string
-          value_error_pct?: number | null
-          was_direction_correct?: boolean | null
-          what_happened?: string | null
-        }
-        Relationships: []
-      }
-      ayn_real_estate: {
-        Row: {
-          commercial: Json | null
-          cooling_markets: Json | null
-          country_code: string
-          country_name: string
-          fetched_at: string | null
-          hot_cities: Json | null
-          id: string
-          intelligence_brief: Json | null
-          rental_yields: Json | null
-          residential: Json | null
-        }
-        Insert: {
-          commercial?: Json | null
-          cooling_markets?: Json | null
-          country_code: string
-          country_name: string
-          fetched_at?: string | null
-          hot_cities?: Json | null
-          id?: string
-          intelligence_brief?: Json | null
-          rental_yields?: Json | null
-          residential?: Json | null
-        }
-        Update: {
-          commercial?: Json | null
-          cooling_markets?: Json | null
-          country_code?: string
-          country_name?: string
-          fetched_at?: string | null
-          hot_cities?: Json | null
-          id?: string
-          intelligence_brief?: Json | null
-          rental_yields?: Json | null
-          residential?: Json | null
         }
         Relationships: []
       }
@@ -1618,264 +994,6 @@ export type Database = {
           recommended_services?: string[] | null
           status?: string
           updated_at?: string
-        }
-        Relationships: []
-      }
-      ayn_sector_intel: {
-        Row: {
-          dying_trends: Json | null
-          fetched_at: string | null
-          growth_rate: string | null
-          hot_markets: Json | null
-          id: string
-          intelligence_brief: Json | null
-          new_entrants: Json | null
-          opportunities: Json | null
-          sector: string
-        }
-        Insert: {
-          dying_trends?: Json | null
-          fetched_at?: string | null
-          growth_rate?: string | null
-          hot_markets?: Json | null
-          id?: string
-          intelligence_brief?: Json | null
-          new_entrants?: Json | null
-          opportunities?: Json | null
-          sector: string
-        }
-        Update: {
-          dying_trends?: Json | null
-          fetched_at?: string | null
-          growth_rate?: string | null
-          hot_markets?: Json | null
-          id?: string
-          intelligence_brief?: Json | null
-          new_entrants?: Json | null
-          opportunities?: Json | null
-          sector?: string
-        }
-        Relationships: []
-      }
-      ayn_startup_intel: {
-        Row: {
-          big_rounds: Json | null
-          dead_trends: Json | null
-          emerging_themes: Json | null
-          exits: Json | null
-          fetched_at: string | null
-          hot_sectors: Json | null
-          id: string
-          intelligence_brief: Json | null
-          singleton_key: number | null
-        }
-        Insert: {
-          big_rounds?: Json | null
-          dead_trends?: Json | null
-          emerging_themes?: Json | null
-          exits?: Json | null
-          fetched_at?: string | null
-          hot_sectors?: Json | null
-          id?: string
-          intelligence_brief?: Json | null
-          singleton_key?: number | null
-        }
-        Update: {
-          big_rounds?: Json | null
-          dead_trends?: Json | null
-          emerging_themes?: Json | null
-          exits?: Json | null
-          fetched_at?: string | null
-          hot_sectors?: Json | null
-          id?: string
-          intelligence_brief?: Json | null
-          singleton_key?: number | null
-        }
-        Relationships: []
-      }
-      ayn_supply_chain: {
-        Row: {
-          bottlenecks: Json | null
-          fetched_at: string | null
-          id: string
-          intelligence_brief: Json | null
-          inventory_signals: Json | null
-          port_congestion: Json | null
-          risk_alerts: Json | null
-          shipping_rates: Json | null
-          singleton_key: number | null
-        }
-        Insert: {
-          bottlenecks?: Json | null
-          fetched_at?: string | null
-          id?: string
-          intelligence_brief?: Json | null
-          inventory_signals?: Json | null
-          port_congestion?: Json | null
-          risk_alerts?: Json | null
-          shipping_rates?: Json | null
-          singleton_key?: number | null
-        }
-        Update: {
-          bottlenecks?: Json | null
-          fetched_at?: string | null
-          id?: string
-          intelligence_brief?: Json | null
-          inventory_signals?: Json | null
-          port_congestion?: Json | null
-          risk_alerts?: Json | null
-          shipping_rates?: Json | null
-          singleton_key?: number | null
-        }
-        Relationships: []
-      }
-      ayn_tech_disruption: {
-        Row: {
-          ai_developments: Json | null
-          disrupted_industries: Json | null
-          emerging_tech: Json | null
-          fetched_at: string | null
-          id: string
-          intelligence_brief: Json | null
-          patents_filed: Json | null
-          rd_leaders: Json | null
-          singleton_key: number | null
-        }
-        Insert: {
-          ai_developments?: Json | null
-          disrupted_industries?: Json | null
-          emerging_tech?: Json | null
-          fetched_at?: string | null
-          id?: string
-          intelligence_brief?: Json | null
-          patents_filed?: Json | null
-          rd_leaders?: Json | null
-          singleton_key?: number | null
-        }
-        Update: {
-          ai_developments?: Json | null
-          disrupted_industries?: Json | null
-          emerging_tech?: Json | null
-          fetched_at?: string | null
-          id?: string
-          intelligence_brief?: Json | null
-          patents_filed?: Json | null
-          rd_leaders?: Json | null
-          singleton_key?: number | null
-        }
-        Relationships: []
-      }
-      ayn_trade_flows: {
-        Row: {
-          country_code: string
-          country_name: string
-          dependencies: Json | null
-          fetched_at: string | null
-          id: string
-          intelligence_brief: Json | null
-          opportunities: Json | null
-          top_exports: Json | null
-          top_imports: Json | null
-          trade_balance: Json | null
-        }
-        Insert: {
-          country_code: string
-          country_name: string
-          dependencies?: Json | null
-          fetched_at?: string | null
-          id?: string
-          intelligence_brief?: Json | null
-          opportunities?: Json | null
-          top_exports?: Json | null
-          top_imports?: Json | null
-          trade_balance?: Json | null
-        }
-        Update: {
-          country_code?: string
-          country_name?: string
-          dependencies?: Json | null
-          fetched_at?: string | null
-          id?: string
-          intelligence_brief?: Json | null
-          opportunities?: Json | null
-          top_exports?: Json | null
-          top_imports?: Json | null
-          trade_balance?: Json | null
-        }
-        Relationships: []
-      }
-      ayn_world_signals: {
-        Row: {
-          ancient_parallel: string | null
-          biblical_parallel: string | null
-          confidence_impact: number | null
-          countries_involved: string[] | null
-          created_at: string | null
-          headline: string
-          historical_parallel: string | null
-          id: string
-          impact_on_btc: string | null
-          impact_on_equities: string | null
-          impact_on_gold: string | null
-          impact_on_oil: string | null
-          impact_on_usd: string | null
-          overrides_regime: boolean | null
-          region: string | null
-          severity: string
-          signal_date: string
-          signal_type: string
-          source_url: string | null
-          status: string | null
-          summary: string | null
-          verified: boolean | null
-        }
-        Insert: {
-          ancient_parallel?: string | null
-          biblical_parallel?: string | null
-          confidence_impact?: number | null
-          countries_involved?: string[] | null
-          created_at?: string | null
-          headline: string
-          historical_parallel?: string | null
-          id?: string
-          impact_on_btc?: string | null
-          impact_on_equities?: string | null
-          impact_on_gold?: string | null
-          impact_on_oil?: string | null
-          impact_on_usd?: string | null
-          overrides_regime?: boolean | null
-          region?: string | null
-          severity?: string
-          signal_date?: string
-          signal_type: string
-          source_url?: string | null
-          status?: string | null
-          summary?: string | null
-          verified?: boolean | null
-        }
-        Update: {
-          ancient_parallel?: string | null
-          biblical_parallel?: string | null
-          confidence_impact?: number | null
-          countries_involved?: string[] | null
-          created_at?: string | null
-          headline?: string
-          historical_parallel?: string | null
-          id?: string
-          impact_on_btc?: string | null
-          impact_on_equities?: string | null
-          impact_on_gold?: string | null
-          impact_on_oil?: string | null
-          impact_on_usd?: string | null
-          overrides_regime?: boolean | null
-          region?: string | null
-          severity?: string
-          signal_date?: string
-          signal_type?: string
-          source_url?: string | null
-          status?: string | null
-          summary?: string | null
-          verified?: boolean | null
         }
         Relationships: []
       }
@@ -4999,78 +4117,6 @@ export type Database = {
         }
         Relationships: []
       }
-      world_personas: {
-        Row: {
-          active: boolean
-          age: number | null
-          beliefs: string | null
-          biases: string | null
-          bio: string | null
-          category: string
-          country: string | null
-          created_at: string
-          culture: string | null
-          ethnicity: string | null
-          flag: string | null
-          gender: string | null
-          id: string
-          income_class: string | null
-          layer: number
-          name: string
-          occupation: string | null
-          region: string | null
-          religion: string | null
-          speaking_style: string | null
-          subcategory: string | null
-        }
-        Insert: {
-          active?: boolean
-          age?: number | null
-          beliefs?: string | null
-          biases?: string | null
-          bio?: string | null
-          category: string
-          country?: string | null
-          created_at?: string
-          culture?: string | null
-          ethnicity?: string | null
-          flag?: string | null
-          gender?: string | null
-          id: string
-          income_class?: string | null
-          layer?: number
-          name: string
-          occupation?: string | null
-          region?: string | null
-          religion?: string | null
-          speaking_style?: string | null
-          subcategory?: string | null
-        }
-        Update: {
-          active?: boolean
-          age?: number | null
-          beliefs?: string | null
-          biases?: string | null
-          bio?: string | null
-          category?: string
-          country?: string | null
-          created_at?: string
-          culture?: string | null
-          ethnicity?: string | null
-          flag?: string | null
-          gender?: string | null
-          id?: string
-          income_class?: string | null
-          layer?: number
-          name?: string
-          occupation?: string | null
-          region?: string | null
-          religion?: string | null
-          speaking_style?: string | null
-          subcategory?: string | null
-        }
-        Relationships: []
-      }
     }
     Views: {
       admin_visitor_analytics_summary: {
@@ -5086,85 +4132,8 @@ export type Database = {
         }
         Relationships: []
       }
-      ayn_accuracy_dashboard: {
-        Row: {
-          accuracy_30d_pct: number | null
-          avg_accuracy_score: number | null
-          avg_value_error_pct: number | null
-          best_asset: string | null
-          correct_30d: number | null
-          direction_accuracy_pct: number | null
-          direction_correct: number | null
-          direction_wrong: number | null
-          resolved_30d: number | null
-          total_resolved: number | null
-          total_world: number | null
-          world_accuracy_pct: number | null
-          world_correct: number | null
-          world_pending: number | null
-          world_wrong: number | null
-        }
-        Relationships: []
-      }
-      ayn_prediction_context: {
-        Row: {
-          market_regime_json: string | null
-          recent_signals: Json | null
-          track_record: Json | null
-          wisdom_frameworks: Json | null
-        }
-        Relationships: []
-      }
-      ayn_prediction_scorecard: {
-        Row: {
-          accuracy_pct: number | null
-          avg_accuracy_score: number | null
-          avg_coherence: number | null
-          correct: number | null
-          happening_now: number | null
-          last_verified_at: string | null
-          partial: number | null
-          pending: number | null
-          total_checked: number | null
-          total_predictions: number | null
-          wrong: number | null
-        }
-        Relationships: []
-      }
-      ayn_prediction_vote_counts: {
-        Row: {
-          agree_count: number | null
-          disagree_count: number | null
-          prediction_id: string | null
-          total_votes: number | null
-        }
-        Relationships: []
-      }
-      ayn_system_accuracy_dashboard: {
-        Row: {
-          accuracy_pct: number | null
-          avg_score: number | null
-          category: string | null
-          correct: number | null
-          correct_30d: number | null
-          grade: string | null
-          total_30d: number | null
-          total_resolved: number | null
-        }
-        Relationships: []
-      }
     }
     Functions: {
-      add_bonus_credits: {
-        Args: {
-          p_amount: number
-          p_gift_type?: string
-          p_given_by?: string
-          p_reason: string
-          p_user_id: string
-        }
-        Returns: undefined
-      }
       admin_adjust_credits: {
         Args: { p_amount: number; p_reason: string; p_user_id: string }
         Returns: Json
@@ -5275,14 +4244,6 @@ export type Database = {
       }
       admin_user_snapshot: { Args: { p_user_id: string }; Returns: Json }
       admin_view_contact_with_logging: { Args: never; Returns: boolean }
-      apply_credit_topup: {
-        Args: { _credits?: number; _user_id: string }
-        Returns: Json
-      }
-      ayn_adjust_trust: {
-        Args: { p_agent_id: string; p_delta: number; p_target: string }
-        Returns: undefined
-      }
       backfill_missing_session_titles: { Args: never; Returns: number }
       billing_ensure: {
         Args: { _audience?: string; _user_id: string }
@@ -5312,7 +4273,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      cc_lookup_user_by_email: { Args: { p_email: string }; Returns: string }
       check_api_rate_limit: {
         Args: {
           p_endpoint: string
@@ -5327,10 +4287,6 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
-      check_application_rate_limit: {
-        Args: { _email: string }
-        Returns: boolean
-      }
       check_contact_rate_limit: { Args: { _email: string }; Returns: boolean }
       check_emergency_shutdown: { Args: never; Returns: boolean }
       check_rate_limit: {
@@ -5341,11 +4297,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      check_usage_limit: { Args: { _user_id: string }; Returns: boolean }
-      check_user_ai_limit: {
-        Args: { _intent_type?: string; _user_id: string }
-        Returns: Json
-      }
       check_user_exists_by_email: {
         Args: { p_email: string }
         Returns: boolean
@@ -5354,11 +4305,6 @@ export type Database = {
         Args: { _visitor_id: string }
         Returns: boolean
       }
-      check_webhook_rate_limit: {
-        Args: { p_endpoint: string; p_user_id: string }
-        Returns: boolean
-      }
-      cleanup_expired_memories: { Args: never; Returns: number }
       cleanup_location_data: { Args: never; Returns: undefined }
       cleanup_old_health_checks_v2: { Args: never; Returns: undefined }
       cleanup_old_health_metrics: { Args: never; Returns: undefined }
@@ -5368,17 +4314,6 @@ export type Database = {
       cleanup_security_data: { Args: never; Returns: undefined }
       cleanup_security_tables: { Args: never; Returns: undefined }
       cleanup_webhook_logs: { Args: never; Returns: undefined }
-      create_system_alert: {
-        Args: {
-          p_alert_type: string
-          p_content: string
-          p_metadata?: Json
-          p_recipient_email: string
-          p_subject: string
-          p_user_id?: string
-        }
-        Returns: string
-      }
       credit_balance: { Args: { _user_id: string }; Returns: number }
       credit_grant: {
         Args: {
@@ -5398,18 +4333,6 @@ export type Database = {
         }
         Returns: Json
       }
-      decrypt_email: {
-        Args: { encrypted_email: string; encryption_key: string }
-        Returns: string
-      }
-      decrypt_text: {
-        Args: { encrypted_data: string; encryption_key: string }
-        Returns: string
-      }
-      delete_user_chat_sessions: {
-        Args: { _session_ids: string[]; _user_id: string }
-        Returns: boolean
-      }
       detect_suspicious_ip: {
         Args: {
           _details?: Json
@@ -5418,14 +4341,6 @@ export type Database = {
           _threat_type: string
         }
         Returns: boolean
-      }
-      encrypt_email: {
-        Args: { email: string; encryption_key: string }
-        Returns: string
-      }
-      encrypt_text: {
-        Args: { encryption_key: string; plaintext: string }
-        Returns: string
       }
       enhanced_rate_limit_check: {
         Args: {
@@ -5473,95 +4388,12 @@ export type Database = {
       }
       get_admin_system_config: { Args: never; Returns: Json }
       get_admin_terms_consent: { Args: never; Returns: Json }
-      get_alert_history_with_emails: {
-        Args: { p_alert_id?: string; p_encryption_key?: string }
-        Returns: {
-          alert_type: string
-          content: string
-          created_at: string
-          error_message: string
-          id: string
-          metadata: Json
-          recipient_email_decrypted: string
-          sent_at: string
-          status: string
-          subject: string
-          user_id: string
-        }[]
-      }
       get_broadcast_recipients: {
         Args: { p_admin_id: string; p_audience: string }
         Returns: Json
       }
-      get_extension_security_status: {
-        Args: never
-        Returns: {
-          extension_name: string
-          recommendation: string
-          schema_name: string
-          security_risk: string
-        }[]
-      }
       get_feature_flags: { Args: never; Returns: Json }
-      get_global_intelligence_dashboard: { Args: never; Returns: Json }
-      get_predictions_by_domain: {
-        Args: { p_domain?: string; p_region?: string }
-        Returns: Json
-      }
-      get_profile_business_context: {
-        Args: { _user_id: string; p_encryption_key?: string }
-        Returns: string
-      }
-      get_rate_limit_stats: {
-        Args: never
-        Returns: {
-          blocked_until: string
-          endpoint: string
-          is_blocked: boolean
-          last_activity: string
-          max_requests: number
-          request_count: number
-          user_id: string
-          violation_count: number
-        }[]
-      }
-      get_security_extension_audit: {
-        Args: never
-        Returns: {
-          extension_name: string
-          schema_name: string
-          security_note: string
-          version: string
-        }[]
-      }
       get_security_headers: { Args: never; Returns: Json }
-      get_usage_stats: {
-        Args: { _user_id?: string }
-        Returns: {
-          company_name: string
-          current_usage: number
-          monthly_limit: number
-          reset_date: string
-          usage_percentage: number
-          user_email: string
-          user_id: string
-        }[]
-      }
-      get_user_context: { Args: { _user_id: string }; Returns: Json }
-      get_user_profile_secure: {
-        Args: { _user_id: string }
-        Returns: {
-          avatar_url: string
-          business_type: string
-          company_name: string
-          contact_person: string
-          created_at: string
-          id: string
-          updated_at: string
-          user_id: string
-        }[]
-      }
-      get_user_status: { Args: { uid: string }; Returns: Json }
       has_active_access: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
@@ -5579,10 +4411,6 @@ export type Database = {
       increment_faq_view: { Args: { faq_id: string }; Returns: undefined }
       increment_messages_daily: { Args: { uid: string }; Returns: undefined }
       increment_messages_monthly: { Args: { uid: string }; Returns: undefined }
-      increment_template_usage: {
-        Args: { template_id: string }
-        Returns: undefined
-      }
       increment_usage: {
         Args: { _action_type?: string; _count?: number; _user_id: string }
         Returns: boolean
@@ -5668,16 +4496,7 @@ export type Database = {
         }
         Returns: undefined
       }
-      manage_user_role: {
-        Args: {
-          p_new_role: Database["public"]["Enums"]["app_role"]
-          p_target_user_id: string
-        }
-        Returns: undefined
-      }
-      mark_email_opened:
-        | { Args: { order_id: string }; Returns: undefined }
-        | { Args: { p_tracking_id: string }; Returns: undefined }
+      mark_email_opened: { Args: { p_tracking_id: string }; Returns: undefined }
       match_candidates_by_embedding: {
         Args: {
           p_embedding: string
@@ -5704,7 +4523,6 @@ export type Database = {
         Returns: string
       }
       refresh_daily_summaries: { Args: never; Returns: undefined }
-      refresh_intelligence_brief: { Args: never; Returns: undefined }
       refresh_llm_cost_daily: { Args: { p_date?: string }; Returns: undefined }
       refresh_user_usage_daily: {
         Args: { p_date?: string }
@@ -5725,24 +4543,6 @@ export type Database = {
           _alert_type: string
           _threat_assessment?: Json
           _trigger_reason: string
-        }
-        Returns: string
-      }
-      update_profile_business_context: {
-        Args: {
-          _business_context: string
-          _user_id: string
-          p_encryption_key?: string
-        }
-        Returns: undefined
-      }
-      upsert_user_memory: {
-        Args: {
-          _memory_data: Json
-          _memory_key: string
-          _memory_type: string
-          _priority?: number
-          _user_id: string
         }
         Returns: string
       }
