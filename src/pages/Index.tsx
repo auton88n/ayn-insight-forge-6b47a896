@@ -19,14 +19,45 @@ import { PlatformMaintenanceScreen } from '@/components/shared/MaintenanceNotice
 // Module-level cache: once auth has resolved, subsequent re-mounts of <Index>
 // (e.g. navigating back to "/" from another route) reuse the result so we
 // don't replay the AYNLoader flash on every return.
+//
+// v3.84.0 fix — the listener that kept this cache correct used to live
+// inside <Index>'s own useEffect, so it only ever heard SIGNED_OUT while
+// <Index> itself was mounted. Signing out from anywhere else (Resume Hub,
+// Employer Hub, Settings — everywhere sign-out actually lives) left the
+// cache stale, still "signed in." The next navigate("/") mounted a fresh
+// <Index>, which trusted the stale cache without rechecking, rendered
+// AuthedShell, and bounced straight back into /resume-hub — which ran its
+// own real auth check, correctly found no session, toasted "Sign in
+// required," and navigated back to "/" — which hit the same stale cache
+// again. Infinite loop, visible as the page flickering between a loading
+// spinner and the toast, reported live from production. Fixed by moving
+// the auth listener to module scope: it now runs once for the app's whole
+// lifetime, independent of whether <Index> happens to be mounted, so the
+// cache can never go stale behind a sign-out that happens elsewhere.
 let cachedSession: Session | null = null;
 let cachedUser: User | null = null;
 let cachedInitialized = false;
+const cacheListeners = new Set<() => void>();
+
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT') {
+    cachedSession = null;
+    cachedUser = null;
+  } else if (session) {
+    // Any event that carries a session means we're authenticated:
+    // SIGNED_IN (fresh login), INITIAL_SESSION (restored on reload or
+    // returned from an OAuth redirect), TOKEN_REFRESHED, USER_UPDATED.
+    cachedSession = session;
+    cachedUser = session.user;
+  }
+  // INITIAL_SESSION with no session, or SIGNED_OUT: cache stays null above.
+  cachedInitialized = true;
+  cacheListeners.forEach((fn) => fn());
+});
 
 const Index = () => {
   const [user, setUser] = useState<User | null>(cachedUser);
   const [session, setSession] = useState<Session | null>(cachedSession);
-  const [loading, setLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(cachedInitialized);
 
   useEffect(() => {
@@ -42,74 +73,22 @@ const Index = () => {
       return;
     }
 
-    let mounted = true;
-
-    const initializeAuth = async () => {
-      // Already resolved in a previous mount — skip the network round-trip
-      // and the loader flash. onAuthStateChange below still keeps us in sync.
-      if (cachedInitialized) return;
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (mounted && data.session) {
-          cachedSession = data.session;
-          cachedUser = data.session.user;
-          setSession(data.session);
-          setUser(data.session.user);
-          setLoading(true);
-        }
-      } catch {
-        // Silent failure - show landing page
-      } finally {
-        if (mounted) {
-          cachedInitialized = true;
-          setIsInitialized(true);
-        }
-      }
+    // Adopt whatever the shared cache currently holds (covers both "the
+    // module-level listener above already resolved before this mount" and
+    // "it resolves later, while we're mounted") and re-sync on every change.
+    const sync = () => {
+      setUser(cachedUser);
+      setSession(cachedSession);
+      setIsInitialized(cachedInitialized);
     };
-
-    initializeAuth();
-
-    // Listen for auth changes (login, logout, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!mounted) return;
-
-        if (event === 'SIGNED_OUT') {
-          cachedSession = null;
-          cachedUser = null;
-          cachedInitialized = true;
-          setSession(null);
-          setUser(null);
-          setLoading(false);
-          setIsInitialized(true);
-        } else if (session) {
-          // Any event that carries a session means we're authenticated:
-          // SIGNED_IN (fresh login), INITIAL_SESSION (restored on reload or
-          // returned from an OAuth redirect), TOKEN_REFRESHED, USER_UPDATED.
-          // Previously only SIGNED_IN was handled, so a session arriving via
-          // INITIAL_SESSION left the user stuck on the landing page.
-          cachedSession = session;
-          cachedUser = session.user;
-          cachedInitialized = true;
-          setSession(session);
-          setUser(session.user);
-          setIsInitialized(true);
-        } else if (event === 'INITIAL_SESSION') {
-          // Initial check completed with no session — show the landing page.
-          cachedInitialized = true;
-          setIsInitialized(true);
-        }
-      }
-    );
-
+    sync();
+    cacheListeners.add(sync);
     return () => {
-      mounted = false;
-      subscription.unsubscribe();
+      cacheListeners.delete(sync);
     };
   }, []);
 
-  // Show loader only during initial check OR when transitioning to dashboard
-  if (!isInitialized || (loading && !user)) {
+  if (!isInitialized) {
     return <AYNLoader />;
   }
 
