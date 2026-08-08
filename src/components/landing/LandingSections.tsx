@@ -459,7 +459,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
         {!seeker && (
           <section id="employers" className="lp-section" style={{ paddingBlockStart: 0 }}>
             <div className="lp-shell">
-              <div className="lp-reveal" style={{ marginBottom: 34 }}>
+              <div id="employers-how" className="lp-reveal" style={{ marginBottom: 34 }}>
                 <p className="lp-eyebrow">For employers</p>
                 <h2 className="lp-display lp-h2">Read three people properly instead of skimming six hundred</h2>
                 <p className="lp-lead">
@@ -471,7 +471,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                 <ShortlistMockup />
               </div>
 
-              <div id="employers-how" className="lp-flow lp-reveal" style={{ marginTop: 36 }}>
+              <div className="lp-flow lp-reveal" style={{ marginTop: 36 }}>
                 {EMPLOYER_STEPS.map((s, i) => {
                   const Icon = s.icon;
                   return (

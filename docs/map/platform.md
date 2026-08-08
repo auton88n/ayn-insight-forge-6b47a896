@@ -1,3 +1,11 @@
+# v3.94.0 "How it works" retargeted to the employer demo mockup instead of the STEP list next to it
+
+Reported directly from a live screenshot: clicking "How it works" in employer mode should land on the role/candidates demo (`ShortlistMockup`, "THE ROLE, ONCE" / "THE THREE STRONGEST FITS"), not the plain STEP 1-4 text list `#employers-how` had pointed to since v3.90.0.
+
+`LandingSections.tsx`'s employer section has, in order: an intro block (eyebrow "For employers", headline, lead), the `ShortlistMockup` art, the `EMPLOYER_STEPS` STEP 1-4 flow, then the assessment/pricing block (`#employers-features`). Moved `id="employers-how"` off the STEP flow div and onto the intro block instead — `scrollIntoView` on that block lands with the mockup immediately visible right underneath it, since the two are adjacent siblings, no restructuring needed. The STEP list is unchanged and still renders in the same place, it just isn't a distinct nav target itself anymore.
+
+Verified live: confirmed `#employers-how`'s bounding rect sits in the viewport after a scroll, and read its actual text content back ("FOR EMPLOYERS / Read three people properly instead of skimming six hundred / Describe the role in a few taps, read the strongest fits, with the evidence") to prove it's the intro block, not the old STEP list. `#employers-how` still sits well before `#employers-features` in scroll order (2164px vs 3305px at a 1400px viewport), so "How it works" before "Features" in the nav still only ever scrolls forward, matching the v3.91.0 fix's intent. `npx tsc --noEmit` clean.
+
 # v3.93.0 Cookie banner/policy corrected for accuracy, admin panel gets real cookie-consent visibility
 
 Follow-up to v3.92.0's finding: the cookie banner and the Cookie Policy both overstated what's actually a cookie on this site. Asked directly to fix the wording, and to give the admin panel real visibility into consent once someone agrees (clarified via a follow-up question: a consent-stats pane like the existing Terms consent one, not a full Google Analytics dashboard).
