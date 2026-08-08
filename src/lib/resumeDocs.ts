@@ -176,6 +176,42 @@ export async function buildResumeDocxBlob(c: ResumeContent): Promise<Blob> {
   return Packer.toBlob(doc);
 }
 
+// ── Plain text documents (cover letters) ───────────────────────────────────
+//
+// A cover letter is prose, not a structured resume, so it has no blocks to
+// style. Same page setup and fonts as the resume builders, one fixed size.
+const TEXT_SIZE = 11;
+
+export function buildTextPdfBlob(text: string): Blob {
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(TEXT_SIZE);
+  const lineH = TEXT_SIZE * 1.45;
+  let y = MARGIN;
+  for (const para of String(text ?? "").split(/\n/)) {
+    const wrapped: string[] = para.trim() ? doc.splitTextToSize(para, CONTENT_W) : [""];
+    for (const line of wrapped) {
+      if (y > PAGE_H - MARGIN) { doc.addPage(); y = MARGIN; }
+      doc.text(line, MARGIN, y);
+      y += lineH;
+    }
+  }
+  return doc.output("blob");
+}
+
+export async function buildTextDocxBlob(text: string): Promise<Blob> {
+  const paragraphs = String(text ?? "").split(/\n/).map(line =>
+    new Paragraph({
+      spacing: { after: 120 },
+      children: [new TextRun({ text: line, font: "Calibri", size: TEXT_SIZE * 2 })],
+    })
+  );
+  const doc = new Document({ sections: [{ children: paragraphs }] });
+  return Packer.toBlob(doc);
+}
+
+
+
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

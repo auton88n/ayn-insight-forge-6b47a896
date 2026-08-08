@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Wand2, Download } from "lucide-react";
 import { handoffUrl } from "@/lib/extension";
-import { resumeToText, buildResumePdfBlob, buildResumeDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
+import { resumeToText, buildResumePdfBlob, buildResumeDocxBlob, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import ResumeDiffViewer from "./ResumeDiffViewer";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
@@ -135,6 +135,16 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
       toast({ title: "Download failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     }
   };
+
+  const downloadText = async (text: string, base: string, kind: "pdf" | "docx") => {
+    try {
+      if (kind === "pdf") downloadBlob(buildTextPdfBlob(text), `${base}.pdf`);
+      else downloadBlob(await buildTextDocxBlob(text), `${base}.docx`);
+    } catch (e) {
+      toast({ title: "Download failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+    }
+  };
+
 
   const removeJob = async (id: string) => {
     if (!confirm("Remove this job?")) return;
@@ -334,10 +344,11 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" onClick={() => downloadDoc(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "pdf")}>
+                        <Button size="sm" variant="outline" onClick={() => downloadText(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "pdf")}>
                           <Download className="w-4 h-4 mr-1.5" />PDF
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => downloadDoc(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "docx")}>
+                        <Button size="sm" variant="outline" onClick={() => downloadText(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "docx")}>
+
                           <Download className="w-4 h-4 mr-1.5" />Word
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(cover.body); toast({ title: "Copied" }); }}>Copy</Button>
