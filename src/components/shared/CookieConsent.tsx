@@ -51,9 +51,9 @@ export function CookieConsent() {
       <div className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 shadow-lg">
         <p className="text-sm font-medium text-foreground">Analytics cookies</p>
         <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
-          We would like to measure how the site is used. Cookies that keep you signed in and
-          keep the site secure are strictly necessary and stay on either way. You can change
-          this later from the footer.
+          We would like to measure how the site is used, with Google Analytics. Nothing else on
+          AYN sets a cookie, and staying signed in does not depend on this choice. You can change
+          it later from the footer.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button

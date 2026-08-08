@@ -2,6 +2,8 @@
 // static head on first paint, which sets cookies before anyone has chosen.
 // Nothing here runs until the visitor accepts, and a reject means the tag is
 // never fetched at all.
+import { supabase } from '@/integrations/supabase/client';
+
 export const GA_MEASUREMENT_ID = 'G-6ZYH0N7G6M';
 
 export const COOKIE_CONSENT_KEY = 'ayn-cookie-consent';
@@ -46,6 +48,14 @@ export function writeCookieConsent(choice: CookieChoice, gpc = false): CookieCon
     gpc,
   };
   try { localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify(record)); } catch { /* private mode */ }
+  // Best effort only. The local record above is what actually gates
+  // analytics; this just lets the admin panel see aggregate accept/reject
+  // counts. A failed send here must never block or retry against the
+  // person's own choice, and it works whether they're signed in or not.
+  void supabase.rpc('record_cookie_consent', { p_choice: choice, p_gpc: gpc }).then(
+    () => undefined,
+    () => undefined,
+  );
   return record;
 }
 

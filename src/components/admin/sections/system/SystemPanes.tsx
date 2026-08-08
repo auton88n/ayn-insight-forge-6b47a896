@@ -17,6 +17,7 @@ import {
   useAdminAIUsage,
   useAdminEmailAudience,
   useAdminTermsConsent,
+  useAdminCookieConsent,
   useAdminActivityLog,
   useAdminEmailLog,
 } from '@/admin-app/hooks/useAdminQuery';
@@ -725,6 +726,82 @@ export function ConsentPane() {
             <Cell>{r.privacy_accepted ? 'Yes' : 'No'}</Cell>
             <Cell>{r.ai_disclaimer_accepted ? 'Yes' : 'No'}</Cell>
             <Cell>{when(r.accepted_at)}</Cell>
+          </Row>
+        ))}
+      </Table>
+    </div>
+  );
+}
+
+/* ─────────────────────────── COOKIE CONSENT ──────────────────────────── */
+// v3.93.0 — the cookie banner's Accept/Reject choice used to live only in the
+// visitor's own browser (localStorage), nothing was ever sent to AYN. Now
+// every decision also calls record_cookie_consent(), and this pane reads the
+// aggregate back via get_admin_cookie_consent(), the same shape as the Terms
+// consent pane above but for anonymous visitors as well as accounts.
+export function CookieConsentPane() {
+  const query = useAdminCookieConsent();
+  if (query.isLoading) return <LoadingBlock />;
+  if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
+
+  const d: any = query.data || {};
+  const accepted = d.total_accepted ?? 0;
+  const rejected = d.total_rejected ?? 0;
+  const total = accepted + rejected;
+  const rate = total > 0 ? Math.round((accepted / total) * 100) : 0;
+  const daily: { date: string; accepted: number; rejected: number }[] = d.daily || [];
+  const recent: any[] = d.recent || [];
+  const dayMax = Math.max(1, ...daily.map(x => x.accepted + x.rejected));
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Stat label="Accepted" value={accepted} accent />
+        <Stat label="Rejected" value={rejected} />
+        <Stat label="Accept rate" value={total > 0 ? `${rate}%` : '—'} hint={`${total} decisions recorded`} />
+        <Stat label="Auto-rejected (GPC)" value={d.total_gpc ?? 0} hint="Global Privacy Control" />
+      </div>
+
+      <Card className="border border-border/60 bg-card">
+        <CardContent className="p-5">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium mb-3">Last 30 days</p>
+          {daily.length === 0 ? (
+            <EmptyRow>No decisions recorded yet.</EmptyRow>
+          ) : (
+            <div className="flex items-end gap-1 h-24">
+              {daily.map(day => {
+                const dayTotal = day.accepted + day.rejected;
+                const h = dayTotal > 0 ? Math.max(6, Math.round((dayTotal / dayMax) * 96)) : 0;
+                const acceptedH = dayTotal > 0 ? Math.round((day.accepted / dayTotal) * h) : 0;
+                return (
+                  <div
+                    key={day.date}
+                    className="flex-1 flex flex-col justify-end rounded-sm overflow-hidden bg-muted/40 min-h-[2px]"
+                    style={{ height: '96px' }}
+                    title={`${day.date}: ${day.accepted} accepted, ${day.rejected} rejected`}
+                  >
+                    <div className="w-full bg-muted-foreground/30" style={{ height: `${h - acceptedH}px` }} />
+                    <div className="w-full bg-primary" style={{ height: `${acceptedH}px` }} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Table head={['Person', 'Choice', 'GPC', 'When']}>
+        {recent.length === 0 && <tr><td colSpan={4}><EmptyRow>No decisions recorded yet.</EmptyRow></td></tr>}
+        {recent.slice(0, 200).map(r => (
+          <Row key={r.id}>
+            <Cell>{r.email || <span className="text-muted-foreground">Anonymous</span>}</Cell>
+            <Cell>
+              {r.choice === 'accepted'
+                ? <Badge variant="secondary">Accepted</Badge>
+                : <Badge variant="outline">Rejected</Badge>}
+            </Cell>
+            <Cell>{r.gpc ? 'Yes' : 'No'}</Cell>
+            <Cell>{when(r.created_at)}</Cell>
           </Row>
         ))}
       </Table>

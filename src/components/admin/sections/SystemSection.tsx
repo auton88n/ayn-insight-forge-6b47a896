@@ -5,11 +5,11 @@ import { cn } from '@/lib/utils';
 import { SectionHeader } from './ui';
 import {
   AccountsPane, SupportPane, ErrorsPane, LimitsPane,
-  AiPane, EmailPane, ConsentPane, SettingsPane, ActivityPane,
+  AiPane, EmailPane, ConsentPane, CookieConsentPane, SettingsPane, ActivityPane,
 } from './system/SystemPanes';
 import { ModerationPane, FlagsPane, CreditsPane, AdminsPane } from './system/ControlPanes';
 
-type Pane = 'accounts' | 'credits' | 'moderation' | 'flags' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'consent' | 'settings' | 'admins' | 'activity';
+type Pane = 'accounts' | 'credits' | 'moderation' | 'flags' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'consent' | 'cookies' | 'settings' | 'admins' | 'activity';
 
 const PANES: { id: Pane; label: string }[] = [
   { id: 'accounts', label: 'Accounts' },
@@ -22,6 +22,7 @@ const PANES: { id: Pane; label: string }[] = [
   { id: 'ai', label: 'AI cost' },
   { id: 'email', label: 'Email' },
   { id: 'consent', label: 'Terms consent' },
+  { id: 'cookies', label: 'Cookie consent' },
   { id: 'admins', label: 'Admins' },
   { id: 'activity', label: 'Activity' },
   { id: 'settings', label: 'Settings' },
@@ -63,6 +64,7 @@ export default function SystemSection() {
       {pane === 'ai' && <AiPane />}
       {pane === 'email' && <EmailPane />}
       {pane === 'consent' && <ConsentPane />}
+      {pane === 'cookies' && <CookieConsentPane />}
       {pane === 'admins' && <AdminsPane />}
       {pane === 'activity' && <ActivityPane />}
       {pane === 'settings' && <SettingsPane onGoToFlags={() => setPane('flags')} />}

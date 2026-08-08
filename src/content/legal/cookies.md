@@ -1,7 +1,7 @@
 # AYN Cookie Policy
 
-Version: 1.0
-Last updated: 1 August 2026
+Version: 1.1
+Last updated: 8 August 2026
 
 This policy explains what we store on your device and why. It forms part of our Privacy Policy.
 
@@ -11,9 +11,9 @@ We use very few cookies. We use none for advertising.
 
 ## The short version
 
-Two categories exist on AYN:
+Two categories are described below, and one of them is nearly empty:
 
-**Strictly necessary.** Sign in, session, and security. These cannot be switched off, because without them you cannot log in. They do not require consent.
+**Strictly necessary.** A small technical cookie our hosting layer may use for load balancing and abuse prevention. Signing in and remembering your cookie choice do not use a cookie at all, they use your browser's local storage instead, so there is little here that consent rules even apply to.
 
 **Analytics.** Aggregate measurement of how the product is used. These are **off until you accept them**. Rejecting is one click and costs you nothing.
 
@@ -23,12 +23,13 @@ We do not use advertising cookies, retargeting pixels, social media trackers, or
 
 | Purpose | Set by | Roughly how long |
 |---|---|---|
-| Keeping you signed in | AYN, via our authentication provider | Until you sign out or the session expires |
-| Protecting the session against cross site request forgery | AYN | Session |
-| Remembering your cookie choice | AYN | 12 months |
 | Load balancing and abuse prevention | Our hosting provider | Session |
 
-These are used only to run the service. They are not used to profile you and they are not shared for advertising.
+Whether this one is actually set depends on how our hosting infrastructure is configured underneath AYN, not on anything our own application code does directly.
+
+Signing in and remembering your cookie choice are handled by your browser's local storage, not a cookie. Clearing your browser's cookies will not sign you out or reset your cookie choice; clearing its site data (a broader setting than cookies alone) will do both.
+
+These, where they exist, are used only to run the service. They are not used to profile you and they are not shared for advertising.
 
 ## Analytics
 
@@ -52,7 +53,7 @@ The extension is read only. It does not write to, click, or submit anything on a
 
 Use the cookie settings link in the footer of any page. Your choice takes effect immediately.
 
-You can also clear or block cookies in your browser settings. Blocking strictly necessary cookies will prevent you from signing in.
+You can also clear or block cookies in your browser settings. Blocking cookies will not affect signing in, since that runs on local storage, not a cookie.
 
 ## Do Not Track and Global Privacy Control
 

@@ -63,6 +63,7 @@ export const adminKeys = {
   errorMonitoring: () => [...adminKeys.all, 'errorMonitoring'] as const,
   emailAudience: () => [...adminKeys.all, 'emailAudience'] as const,
   termsConsent: () => [...adminKeys.all, 'termsConsent'] as const,
+  cookieConsent: () => [...adminKeys.all, 'cookieConsent'] as const,
   rateLimits: () => [...adminKeys.all, 'rateLimits'] as const,
 } as const;
 
@@ -117,6 +118,14 @@ export function useAdminTermsConsent() {
   return useQuery({
     queryKey: adminKeys.termsConsent(),
     queryFn: () => adminRpc('get_admin_terms_consent'),
+    staleTime: ADMIN_STALE_TIME,
+  });
+}
+
+export function useAdminCookieConsent() {
+  return useQuery({
+    queryKey: adminKeys.cookieConsent(),
+    queryFn: () => adminRpc('get_admin_cookie_consent'),
     staleTime: ADMIN_STALE_TIME,
   });
 }

@@ -1252,6 +1252,30 @@ export type Database = {
         }
         Relationships: []
       }
+      cookie_consent_log: {
+        Row: {
+          choice: string
+          created_at: string
+          gpc: boolean
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          choice: string
+          created_at?: string
+          gpc?: boolean
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          choice?: string
+          created_at?: string
+          gpc?: boolean
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       cover_letters: {
         Row: {
           body: string
@@ -4264,15 +4288,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      call_agent_if_not_debounced: {
-        Args: {
-          p_agent_name: string
-          p_debounce_seconds?: number
-          p_function_name: string
-          p_payload?: Json
-        }
-        Returns: undefined
-      }
       check_api_rate_limit: {
         Args: {
           p_endpoint: string
@@ -4371,6 +4386,7 @@ export type Database = {
         Args: { p_privacy_version: string; p_terms_version: string }
         Returns: Json
       }
+      get_admin_cookie_consent: { Args: never; Returns: Json }
       get_admin_email_audience: { Args: never; Returns: Json }
       get_admin_email_log: { Args: { p_limit?: number }; Returns: Json }
       get_admin_employers: { Args: never; Returns: Json }
@@ -4513,6 +4529,10 @@ export type Database = {
           user_id: string
           years_experience: number
         }[]
+      }
+      record_cookie_consent: {
+        Args: { p_choice: string; p_gpc?: boolean }
+        Returns: undefined
       }
       record_device_fingerprint: {
         Args: {
