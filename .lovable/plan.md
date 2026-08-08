@@ -1,5 +1,10 @@
 # Chrome Web Store assets rebuilt from the real product UI
 
+## First, a build error to clear
+
+`JobsTab.tsx` passes the cover letter body (a plain string) into `downloadDoc`, which since v3.65.0 only accepts a structured `ResumeContent`. TypeScript fails on both cover letter buttons, and cover letter PDF and Word downloads are broken in the app right now. Fix: add a plain text PDF and DOCX builder back to `src/lib/resumeDocs.ts` (same page setup and fonts as the resume builders, no structured blocks) and give `JobsTab.tsx` a small `downloadText` helper the two cover letter buttons use, leaving the resume buttons on `downloadDoc` untouched.
+
+
 The current store screenshots were drawn from scratch in HTML. They look like AYN but they are not AYN, so they show layouts, labels and controls that do not exist in the shipped extension or in Resume Hub. Replace all of them with captures of the real interfaces.
 
 ## What changes
