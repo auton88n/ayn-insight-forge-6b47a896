@@ -1,3 +1,13 @@
+# v3.91.0 Employer nav anchors reordered so "Features" no longer scrolls backward past "How it works"
+
+Asked directly to rearrange the employer landing page sections so the nav scrolls smoothly, matching the menu order, instead of jumping around.
+
+v3.90.0 added `#employers-how` (the STEP 1-4 flow) as its own anchor, but left "Features" pointed at `#employers` — the id on the section's *outer* wrapper, which sits physically above the steps. Clicking the nav left to right (How it works, then Features) scrolled forward to the steps and then jumped back up above them for Features, backward relative to the nav's own order.
+
+No section content actually needed to move — the real features/pricing content (`AssessmentMockup`, "Verification assessments" copy, employer pricing, the `lp-split` div) already sat below the steps in the page's markup. Gave that div its own id, `employers-features`, and repointed `Header.tsx`'s employer "Features" link from `/#employers` to `/#employers-features`. `LandingSections.tsx`'s hash-driven audience-flip effect now also recognizes `employers-features` as an employer-only anchor, alongside `employers` and `employers-how`.
+
+Verified live: `#employers` (~2146px), `#employers-how` (~3039px), `#employers-features` (~3305px) — strictly increasing top-to-bottom, matching How it works before Features in the nav. `npx tsc --noEmit` clean.
+
 # v3.90.0 Employer "How it works" added back, Home button fixed to actually scroll to top
 
 Reported directly right after v3.89.0 shipped: the employer nav (Home, Features, Pricing, Contact) looked short next to the seeker one, and the Home button didn't seem to do anything.

@@ -301,7 +301,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
    */
   useEffect(() => {
     const id = location.hash.replace('#', '');
-    if (id === 'employers' || id === 'employers-how') setAudienceForHash('employer');
+    if (id === 'employers' || id === 'employers-how' || id === 'employers-features') setAudienceForHash('employer');
     else if (id === 'features' || id === 'proof') setAudienceForHash('job_seeker');
   }, [location.hash, setAudienceForHash]);
 
@@ -485,7 +485,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                 })}
               </div>
 
-              <div className="lp-split lp-reveal" style={{ marginTop: 52 }}>
+              <div id="employers-features" className="lp-split lp-reveal" style={{ marginTop: 52 }}>
                 <div className="lp-art lp-art-plain">
                   <AssessmentMockup />
                 </div>
