@@ -11,7 +11,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 
 import { PageLoader } from "@/components/ui/page-loader";
 // Skeleton layouts removed — using PageLoader for all route fallbacks
-import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
+import { ErrorBoundary, isStaleChunkError } from "@/components/shared/ErrorBoundary";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
 import { ScrollToTop } from "@/components/shared/ScrollToTop";
 // v3.34.0 — visitor tracking removed. It posted to an edge function that was
@@ -23,11 +23,30 @@ import { HelmetProvider } from 'react-helmet-async';
 // caused script/network contention and made page-to-page movement feel laggy.
 function PreloadRoutes() {
   useEffect(() => {
+    // A failed warm-up here used to be a silent, uncaught promise
+    // rejection — it never reaches React's render cycle, so the
+    // ErrorBoundary that recovers from this exact failure on a real
+    // navigation could never see it happen here first. Since a stale
+    // chunk on a background preload means the WHOLE app is running on a
+    // build the server has already moved past (not just this one route),
+    // reload once now — proactively, before the user ever hits it as a
+    // stuck loading screen on a real click.
+    const warm = (mod: () => Promise<unknown>) => {
+      mod().catch((e: unknown) => {
+        const message = e instanceof Error ? e.message : String(e);
+        if (!isStaleChunkError(message)) return;
+        try {
+          if (sessionStorage.getItem('ayn_auto_reload_stale_chunk')) return;
+          sessionStorage.setItem('ayn_auto_reload_stale_chunk', '1');
+          window.location.reload();
+        } catch { /* sessionStorage unavailable — not worth reloading blind */ }
+      });
+    };
     const preload = () => {
       // Warm chunks for the routes users actually click between, so
       // navigations don't flash the Suspense PageLoader.
-      import('./pages/Settings');
-      import('./pages/Pricing');
+      warm(() => import('./pages/Settings'));
+      warm(() => import('./pages/Pricing'));
     };
     const idleId = 'requestIdleCallback' in window
       ? window.requestIdleCallback(preload, { timeout: 3000 })

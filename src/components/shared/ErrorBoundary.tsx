@@ -4,6 +4,17 @@ import { RefreshCw } from 'lucide-react';
 
 const AYN_MARK = '/ayn-mark.svg';
 
+// Shared by componentDidCatch and render so the two checks can never drift
+// apart the way they just did (render's copy never got the MIME-type fix).
+export function isStaleChunkError(message: string): boolean {
+  return (
+    message.includes('dynamically imported module') ||
+    message.includes('Importing a module script failed') ||
+    (message.includes('module script') && message.includes('text/html')) ||
+    message.includes('Component is not a function')
+  );
+}
+
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
@@ -29,11 +40,18 @@ export class ErrorBoundary extends Component<Props, State> {
     // Non-blocking error report to Supabase
     this.reportError(error, errorInfo).catch(() => {});
     
-    // Auto-reload on dynamic import failures (stale chunk errors)
+    // Auto-reload on dynamic import failures (stale chunk errors) — a
+    // deploy replaced the JS chunk files with new content-hashed names
+    // while this tab still has the old index.html's manifest, so a lazy
+    // route import 404s and the SPA fallback serves index.html back in
+    // its place. Browsers word that failure differently depending on
+    // whether the fetch itself failed or merely returned the wrong
+    // content type, so isStaleChunkError matches the shared substring,
+    // not one exact phrasing — the MIME-type wording was missing here
+    // and slipped through uncaught, reported directly as a stuck
+    // "Loading" screen.
     const message = error?.message || '';
-    const shouldReload =
-      message.includes('Failed to fetch dynamically imported module') ||
-      message.includes('Component is not a function');
+    const shouldReload = isStaleChunkError(message);
 
     // Prevent infinite refresh loops
     if (shouldReload) {
@@ -79,9 +97,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
       const isDev = import.meta.env.DEV;
       const message = this.state.error?.message || '';
-      const isAutoReloadError =
-        message.includes('Failed to fetch dynamically imported module') ||
-        message.includes('Component is not a function');
+      const isAutoReloadError = isStaleChunkError(message);
 
       return (
         <div className="min-h-screen flex items-center justify-center bg-background px-6">
