@@ -1,32 +1,35 @@
-## Goal
+# Chrome Web Store assets rebuilt from the real product UI
 
-Redo both artifacts so they match the landing page look: white/paper background, ember orange accents, Outfit headings with Inter body, generous whitespace.
+The current store screenshots were drawn from scratch in HTML. They look like AYN but they are not AYN, so they show layouts, labels and controls that do not exist in the shipped extension or in Resume Hub. Replace all of them with captures of the real interfaces.
 
-## Design tokens taken from the landing page
+## What changes
 
-- Paper white background #FFFFFF, warm paper #FAF8F3 for alternating bands
-- Ink #221C1A for text, muted grey for captions
-- Ember #E85D3A as the single accent, with the ember gradient to #F0803C for bars and highlights
-- Hairline borders in warm grey, soft lift shadows on cards
-- Outfit for headings and numbers, Inter for body
+Every screenshot becomes a real capture:
 
-## Deck, ayn-investor-deck-v2.pptx
+1. Match score, captured from the real `extension/sidepanel.html` Home tab with a real score result rendered.
+2. Tailored resume, captured from the real sidepanel Resume tab after a tailor run.
+3. Cover letter, captured from the real sidepanel Cover tab.
+4. Ask AYN, captured from the real sidepanel Ask tab with a real question and answer.
+5. Resume Hub, captured from the real running app at `/resume-hub` (Jobs tab), signed in.
 
-Same 12 slides and same real numbers as the current deck, restyled:
+The two promo tiles keep the AYN brand frame but the product imagery inside them is swapped to crops of the real captures above, not drawn panels.
 
-- All slides on white, no dark sandwich. Section dividers use the warm paper tint instead of dark.
-- Title slide: AYN full logo top left, big Outfit headline, one ember underline block, quiet footer line.
-- Content slides: left column headline plus body, right column a card grid, stat callouts, or a simple diagram. Every slide keeps a visual element.
-- Motif carried across every slide: ember pill eyebrow label at top left, thin ember rule at the bottom, page number bottom right.
-- Stats in large Outfit numerals in ember with small ink labels.
-- Logo mark in the corner of each slide, sourced from the brand PNGs already saved in Supabase.
+## How the captures are produced
 
-## Business card, ayn-business-card-v2.pdf
+- Load `extension/sidepanel.html` directly in Playwright from the local file path, at the real sidepanel width, with the extension's own bundled fonts and CSS. No Chrome APIs are available in that context, so a small throwaway shim (in `/tmp` only, never in the repo) stubs `chrome.storage`, `chrome.runtime` and `chrome.tabs` and feeds the panel the same message shapes `background.js` already sends, so the panel renders its own real markup rather than a copy of it.
+- Content shown is realistic sample data for a single job posting, consistent across all four sidepanel shots (same job title, same company, same candidate), so the five images read as one story.
+- Resume Hub is captured against the running dev server with a real session restored, so the shot is the actual page, not a redraw.
 
-- Front: white background, full AYN logo (mark plus wordmark) in the top left, name and title lower left, thin ember rule, keep 0.125in bleed and safe margins.
-- Back: white background, AYN icon mark centred, nothing else except a small ember hairline or tagline if it stays balanced.
-- Contact details move to the front under the name so the back stays a clean mark.
+## Store framing
+
+Each raw capture is composited onto the 1280x800 canvas already used: white page, ember accent, AYN full logo lockup, one short headline per shot, no invented UI outside the frame. Promo tiles stay 440x280 and 1400x560. All exports stay 24 bit PNG with no alpha so the store accepts them.
 
 ## Verification
 
-Render every deck slide and both card faces to images and inspect each one for overflow, overlap, contrast and margins, fix and re-render until clean, then report what I checked.
+Every generated file is opened and inspected before delivery: correct dimensions, no alpha channel, no clipped or overlapping text, fonts rendering, logo sharp, and each product panel visibly matching the real UI it came from. Files are written as a new version alongside the existing ones rather than overwriting them.
+
+## Technical notes
+
+- Output directory: `/mnt/documents/ayn-chrome-store/` (new `-v2` filenames).
+- No repo files are modified. The shim, HTML frames and screenshots all live under `/tmp/store/`.
+- If the sidepanel cannot be driven far enough by the shim for a given tab, that tab's panel is captured from the live extension state instead of being redrawn, and if neither is possible the shot is dropped rather than faked.
