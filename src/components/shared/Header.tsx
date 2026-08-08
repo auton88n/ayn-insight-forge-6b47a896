@@ -4,20 +4,33 @@ import { Menu, LogOut, User } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { supabase } from '@/integrations/supabase/client';
+import { readAudience, onAudienceChange } from '@/lib/landingAudience';
 import aynLogo from '@/assets/ayn-logo.png';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 // Hash links point at LandingSections' own anchors. Scrolling to the target
-// (and, for #features/#employers, flipping the page's audience toggle first
-// so the right one is even mounted) is LandingSections' job, driven off
-// useLocation().hash — not this component's, since Header renders on every
-// page and a plain <Link to="/#x"> already navigates there correctly on its
-// own, cross-page or same-page, with no manual scroll/timeout logic needed.
-const navLinks = [
+// (and flipping the page's audience toggle first so the right one is even
+// mounted) is LandingSections' job, driven off useLocation().hash — not this
+// component's, since Header renders on every page and a plain <Link to="/#x">
+// already navigates there correctly on its own, cross-page or same-page,
+// with no manual scroll/timeout logic needed.
+//
+// The link set itself is audience-relative rather than one fixed list: a
+// job seeker sees how AYN works for them, an employer does not, and
+// "Features" points at whichever section actually describes that audience
+// (#features is seeker-only, #employers is employer-only — see
+// LandingSections.tsx). "For employers" as its own permanent link is gone;
+// switching to employer mode already gets you the employer section.
+const SEEKER_LINKS = [
 { path: '/', en: 'Home' },
 { path: '/#proof', en: 'How it works' },
 { path: '/#features', en: 'Features' },
-{ path: '/#employers', en: 'For employers' },
+{ path: '/pricing', en: 'Pricing' },
+{ path: '/contact', en: 'Contact' }];
+
+const EMPLOYER_LINKS = [
+{ path: '/', en: 'Home' },
+{ path: '/#employers', en: 'Features' },
 { path: '/pricing', en: 'Pricing' },
 { path: '/contact', en: 'Contact' }];
 
@@ -28,6 +41,7 @@ export const Header = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [audience, setAudience] = useState(readAudience);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -40,6 +54,14 @@ export const Header = () => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Stays in sync with the landing page's own switch — a same-tab custom
+  // event when it changes here, a storage event when it changed in another
+  // tab. Header remounts on every route change anyway, so this only matters
+  // while it's mounted alongside LandingSections (i.e. on "/" itself).
+  useEffect(() => onAudienceChange(setAudience), []);
+
+  const navLinks = audience === 'employer' ? EMPLOYER_LINKS : SEEKER_LINKS;
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();

@@ -10,6 +10,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { openCookiePreferences } from '@/components/shared/CookieConsent';
 import { COPYRIGHT_LINE, COMPANY_TAGLINE, NAV_LINKS, COMPANY_LINKS } from '@/components/shared/siteLinks';
+import { readAudience, writeAudience, type Audience } from '@/lib/landingAudience';
 import aynLogo from '@/assets/ayn-logo.png';
 import {
   ArrowRight, FileText, Target, ShieldCheck, MessagesSquare, Radar,
@@ -24,7 +25,6 @@ import {
 } from './AppMockups';
 import { BeforeAfterProof } from './BeforeAfterProof';
 
-type Audience = 'job_seeker' | 'employer';
 type Props = { onStartFree?: (role?: Audience) => void };
 
 // v3.48.0 — same social icons as src/components/shared/Footer.tsx, so the
@@ -243,10 +243,7 @@ const HERO: Record<Audience, {
 export const LandingSections = memo(({ onStartFree }: Props) => {
   const root = useRef<HTMLDivElement>(null);
   const location = useLocation();
-  const [audience, setAudience] = useState<Audience>(() => {
-    if (typeof window === 'undefined') return 'job_seeker';
-    return localStorage.getItem('ayn_landing_audience') === 'employer' ? 'employer' : 'job_seeker';
-  });
+  const [audience, setAudience] = useState<Audience>(readAudience);
 
   /**
    * Reveal on scroll. Re-runs whenever the audience changes, because the
@@ -278,7 +275,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
   const pickAudience = useCallback((next: Audience) => {
     setAudience((cur) => {
       if (cur === next) return cur;
-      try { localStorage.setItem('ayn_landing_audience', next); } catch { /* ignore */ }
+      writeAudience(next);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return next;
     });
@@ -290,7 +287,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
   const setAudienceForHash = useCallback((next: Audience) => {
     setAudience((cur) => {
       if (cur === next) return cur;
-      try { localStorage.setItem('ayn_landing_audience', next); } catch { /* ignore */ }
+      writeAudience(next);
       return next;
     });
   }, []);
