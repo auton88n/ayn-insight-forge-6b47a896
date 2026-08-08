@@ -136,6 +136,16 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
     }
   };
 
+  const downloadText = async (text: string, base: string, kind: "pdf" | "docx") => {
+    try {
+      if (kind === "pdf") downloadBlob(buildTextPdfBlob(text), `${base}.pdf`);
+      else downloadBlob(await buildTextDocxBlob(text), `${base}.docx`);
+    } catch (e) {
+      toast({ title: "Download failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+    }
+  };
+
+
   const removeJob = async (id: string) => {
     if (!confirm("Remove this job?")) return;
     await supabase.from("jobs").delete().eq("id", id);
