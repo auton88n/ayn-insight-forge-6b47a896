@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Wand2, Download } from "lucide-react";
 import { handoffUrl } from "@/lib/extension";
-import { resumeToText, buildResumePdfBlob, buildResumeDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
+import { resumeToText, buildResumePdfBlob, buildResumeDocxBlob, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import ResumeDiffViewer from "./ResumeDiffViewer";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
