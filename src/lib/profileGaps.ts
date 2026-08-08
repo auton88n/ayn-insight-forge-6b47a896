@@ -71,28 +71,28 @@ export interface Readiness {
  * two highest impact things still missing, in the order employers use them.
  */
 export function computeReadiness(i: GapInput): Readiness {
-  const misses: { what: string; why: string }[] = [];
+  const misses: string[] = [];
 
   if ((i.experiencesCount ?? 0) > 0 && (i.rolesWithAchievements ?? 0) === 0) {
-    misses.push({ what: "achievements on your roles", why: "tailoring rewrites those lines, so empty means nothing to rewrite" });
+    misses.push("achievements on your roles");
   }
   if ((i.skillsCount ?? 0) > 0 && (i.skillsWithLevel ?? 0) === 0) {
-    misses.push({ what: "levels on your top skills", why: "a bare skill name tells an employer nothing" });
+    misses.push("levels on your top skills");
   }
   if (!i.availability) {
-    misses.push({ what: "your availability", why: "employers filter on start date early" });
+    misses.push("your availability");
   }
   if ((i.desiredTitles?.length ?? 0) === 0) {
-    misses.push({ what: "desired titles", why: "role searches start there" });
+    misses.push("desired titles");
   }
   if ((i.countries?.length ?? 0) === 0 && !i.citizenship) {
-    misses.push({ what: "where you can work", why: "eligibility is the first filter applied" });
+    misses.push("where you can work");
   }
   if ((i.skillsCount ?? 0) === 0) {
-    misses.unshift({ what: "your skills", why: "there is nothing to match on yet" });
+    misses.unshift("your skills");
   }
   if ((i.experiencesCount ?? 0) === 0) {
-    misses.unshift({ what: "your work history", why: "it is the richest signal in the profile" });
+    misses.unshift("your work history");
   }
 
   if (misses.length === 0) {
@@ -100,7 +100,6 @@ export function computeReadiness(i: GapInput): Readiness {
   }
 
   const top = misses.slice(0, 2);
-  const what = top.length === 2 ? `${top[0].what} and ${top[1].what}` : top[0].what;
-  const why = top.length === 2 ? `${top[0].why}, and ${top[1].why}` : top[0].why;
-  return { ready: false, line: `Add ${what}. Reason: ${why}.` };
+  const what = top.length === 2 ? `${top[0]} and ${top[1]}` : top[0];
+  return { ready: false, line: `Add ${what}.` };
 }
