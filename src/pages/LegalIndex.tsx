@@ -56,7 +56,7 @@ export default function LegalIndex() {
 
           <p className="mt-8 text-sm text-muted-foreground">
             Questions about any of these, write to{' '}
-            <a href="mailto:legal@aynn.io" className="underline">legal@aynn.io</a>.
+            <a href="mailto:legal@ayn.careers" className="underline">legal@ayn.careers</a>.
           </p>
         </div>
       </main>

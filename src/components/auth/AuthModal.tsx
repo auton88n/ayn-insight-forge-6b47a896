@@ -41,7 +41,6 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [companyWebsite, setCompanyWebsite] = useState('');
   // v2.10.0 — role picker on signup. job_seekers get instant access; employers
   // sit in pending_approval until the AYN team activates them.
   const [signupRole, setSignupRole] = useState<'job_seeker' | 'employer'>(initialRole || 'job_seeker');
@@ -666,21 +665,6 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                   </div>
                 )}
               </div>
-
-              {signupRole === 'employer' && (
-                <div className="space-y-2">
-                  <Label htmlFor="signup-website" className="ayn-auth-label">Company website</Label>
-                  <Input
-                    id="signup-website"
-                    type="url"
-                    placeholder="https://acme.com"
-                    value={companyWebsite}
-                    onChange={(e) => setCompanyWebsite(e.target.value)}
-                    disabled={isLoading}
-                    className="ayn-auth-input"
-                  />
-                </div>
-              )}
 
               <div className="space-y-2">
                 <Label htmlFor="signup-email" className="ayn-auth-label">

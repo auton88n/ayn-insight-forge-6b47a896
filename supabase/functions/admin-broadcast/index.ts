@@ -6,7 +6,7 @@ import { corsHeaders, handleCors } from '../_shared/cors.ts';
 
 type Audience = 'all' | 'seekers' | 'employers' | 'discoverable' | 'test';
 
-const FROM = 'AYN <hello@aynn.io>';
+const FROM = 'AYN <hello@ayn.careers>';
 
 // v3.40.0 — subject and message are admin-authored free text, inserted
 // straight into the outgoing HTML email with no escaping. An admin typing
@@ -34,7 +34,7 @@ function wrap(subject: string, body: string) {
     <h1 style="font-size:19px;margin:0 0 18px;color:#0b0b0c">${escapeHtml(subject)}</h1>
     ${html}
     <hr style="border:none;border-top:1px solid #ece5da;margin:28px 0 16px"/>
-    <p style="font-size:12px;color:#8a8178;margin:0">You are receiving this because you have an AYN account. aynn.io</p>
+    <p style="font-size:12px;color:#8a8178;margin:0">You are receiving this because you have an AYN account. ayn.careers</p>
   </div></body></html>`;
 }
 

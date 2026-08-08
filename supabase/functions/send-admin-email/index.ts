@@ -85,7 +85,7 @@ serve(async (req: Request): Promise<Response> => {
     // admin -- unlike every sibling admin-email function (admin-broadcast,
     // custom-auth-emails, send-reply-email, send-ticket-reply,
     // verify-admin-pin all check has_role(...,'admin')). Any freshly
-    // signed-up account could send email "from" admin@aynn.io to anyone.
+    // signed-up account could send email "from" admin@ayn.careers to anyone.
     // Same has_role check as admin-broadcast, closing the gap.
     const { data: isAdmin, error: roleErr } = await supabaseClient.rpc('has_role', {
       _user_id: user.id,
@@ -107,7 +107,7 @@ serve(async (req: Request): Promise<Response> => {
     const { data: emailRecord, error: emailError } = await supabaseClient
       .from('admin_emails')
       .insert({
-        sender_email: fromEmail || 'admin@aynn.io',
+        sender_email: fromEmail || 'admin@ayn.careers',
         recipient_email: to,
         subject: finalSubject,
         content: finalContent,
@@ -133,7 +133,7 @@ serve(async (req: Request): Promise<Response> => {
     // Send email via Resend
     try {
       console.log('Attempting to send email via Resend...');
-      const primaryFrom = fromEmail || 'AYN Admin <admin@aynn.io>';
+      const primaryFrom = fromEmail || 'AYN Admin <admin@ayn.careers>';
 
       const emailResponse = await resend.emails.send({
         from: primaryFrom,

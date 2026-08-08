@@ -44,4 +44,4 @@ Employers subject to our Data Processing Agreement may object on reasonable data
 
 ## Questions
 
-support@aynn.io
+support@ayn.careers

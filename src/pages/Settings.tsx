@@ -53,8 +53,8 @@ const Settings = () => {
   }
 
   const breadcrumbSchema = createBreadcrumbSchema([
-    { name: 'Home', url: 'https://aynn.io/' },
-    { name: 'Settings', url: 'https://aynn.io/settings' }
+    { name: 'Home', url: 'https://ayn.careers/' },
+    { name: 'Settings', url: 'https://ayn.careers/settings' }
   ]);
 
   return (

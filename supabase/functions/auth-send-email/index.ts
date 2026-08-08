@@ -241,7 +241,7 @@ Deno.serve(async (req) => {
     let emailResult;
     try {
       emailResult = await resend.emails.send({
-        from: 'AYN <noreply@mail.aynn.io>',
+        from: 'AYN <noreply@mail.ayn.careers>',
         to: [user.email],
         subject,
         html

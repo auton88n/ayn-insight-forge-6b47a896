@@ -4,7 +4,7 @@
 // earlier curl-boundary-test pass): this function had verify_jwt:false and
 // NO auth check of any kind in its body. Anyone with the public anon key
 // could POST { type, subject, content, recipient_email } and have it send
-// a real "AYN System" branded email to that address from aynn.io -- or, by
+// a real "AYN System" branded email to that address from ayn.careers -- or, by
 // passing a user_id instead, resolve an arbitrary account id to its real
 // email via auth.admin.getUserById and message that person directly. The
 // `content` field was interpolated into the outgoing HTML with zero
@@ -55,7 +55,7 @@ serve(async (req) => {
     }
 
     const resendApiKey = Deno.env.get('RESEND_API_KEY')!;
-    const notificationEmail = Deno.env.get('NOTIFICATION_EMAIL') || 'noreply@aynn.io';
+    const notificationEmail = Deno.env.get('NOTIFICATION_EMAIL') || 'noreply@ayn.careers';
 
     if (!resendApiKey) {
       throw new Error('RESEND_API_KEY is not configured');

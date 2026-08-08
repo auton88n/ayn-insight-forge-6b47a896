@@ -7,7 +7,6 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 // Emotion state now managed by Zustand store (src/stores/emotionStore.ts)
-import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 // Debug state now managed by Zustand store (src/stores/debugStore.ts)
 
 import { PageLoader } from "@/components/ui/page-loader";
@@ -165,7 +164,6 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
         <ThemeProvider defaultTheme="light" storageKey="ayn-theme">
-              <SubscriptionProvider>
                   <TooltipProvider>
                     <OfflineBanner />
                     <Toaster />
@@ -181,7 +179,6 @@ const App = () => {
                       <CookieConsent />
                     </BrowserRouter>
                   </TooltipProvider>
-              </SubscriptionProvider>
         </ThemeProvider>
       </LanguageProvider>
     </QueryClientProvider>

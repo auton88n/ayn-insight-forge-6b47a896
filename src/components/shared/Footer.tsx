@@ -33,7 +33,7 @@ export const Footer = () => {
               {COMPANY_TAGLINE}
             </p>
             <div className="flex items-center gap-3 text-muted-foreground">
-              <a href="mailto:info@aynn.io" className="hover:text-foreground transition-colors" aria-label="Email">
+              <a href="mailto:info@ayn.careers" className="hover:text-foreground transition-colors" aria-label="Email">
                 <Mail className="w-5 h-5" />
               </a>
               <a href="https://discord.gg/y2DcBegbC7" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors" aria-label="Discord">

@@ -14,7 +14,7 @@ const NotFound = () => {
     <div className="min-h-screen flex items-center justify-center px-6 py-16 bg-background">
       <SEO
         title="Page not found, AYN"
-        description="This page does not exist on aynn.io."
+        description="This page does not exist on ayn.careers."
         noIndex={true}
       />
       <div className="w-full max-w-lg text-center">

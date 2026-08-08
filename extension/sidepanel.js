@@ -48,7 +48,7 @@ function switchTab(tab) {
 window.switchTab = switchTab;
 
 // ════════════════════════════════════════════════════════════════
-// AUTH — one-click sign-in via aynn.io
+// AUTH — one-click sign-in via ayn.careers
 // ════════════════════════════════════════════════════════════════
 
 let pollTimer = null;
@@ -169,7 +169,7 @@ function updateCreditPill(credits) {
   el.classList.toggle('low', credits.balance < S.costs.tailored_resume);
   el.classList.remove('hidden');
 }
-$('credit-pill').addEventListener('click', () => chrome.tabs.create({ url: 'https://aynn.io/billing' }));
+$('credit-pill').addEventListener('click', () => chrome.tabs.create({ url: 'https://ayn.careers/billing' }));
 
 // Strip raw URLs from any string before showing as a label.
 function cleanLabel(s) {
@@ -271,6 +271,12 @@ function setHeroRing(wrapId, numId, pct) {
 async function bootAfterAuth() {
   chrome.runtime.sendMessage({ type: 'BOOTSTRAP' }, resp => {
     if (resp?.error || !resp?.user) {
+      // v3.4.2 — an out of date build is told plainly, never wiped and looped.
+      if (resp?.code === 'extension_outdated') {
+        showOutdated(resp.error);
+        resetSignInBtn();
+        return;
+      }
       // Stale or invalid token — clear and force fresh sign-in
       chrome.runtime.sendMessage({ type: 'SIGN_OUT' }, () => {
         $('login-err').textContent = resp?.error || 'Sign-in failed';
@@ -294,6 +300,11 @@ async function restoreSession() {
   if (!stored.ayn_token) { show('v-login'); return; }
   chrome.runtime.sendMessage({ type: 'BOOTSTRAP' }, resp => {
     if (resp?.error || !resp?.user) {
+      // v3.4.2 — an out of date build is told plainly, never wiped and looped.
+      if (resp?.code === 'extension_outdated') {
+        showOutdated(resp.error);
+        return;
+      }
       // Token is stale/invalid — wipe so user can sign in again cleanly
       chrome.runtime.sendMessage({ type: 'SIGN_OUT' }, () => show('v-login'));
       return;
@@ -590,7 +601,7 @@ async function runScoreFlow({ auto = false } = {}) {
         <span>·</span>
         <span><b style="color:#b91c1c">0 to 3</b> Low</span>
       </div>
-      <div style="margin-top:6px;font-size:10px;color:#9ca3af;">This is a fit score out of 10 for the posting on this page. Resume Match on aynn.io is a different check, a keyword score out of 100 for text you paste in.</div>`;
+      <div style="margin-top:6px;font-size:10px;color:#9ca3af;">This is a fit score out of 10 for the posting on this page. Resume Match on ayn.careers is a different check, a keyword score out of 100 for text you paste in.</div>`;
     const ul = $('score-reasons'); ul.innerHTML = '';
     (d.reasons || []).forEach(rsn => { const li = document.createElement('li'); li.textContent = rsn; ul.appendChild(li); });
 
@@ -697,8 +708,12 @@ async function runScoreFlow({ auto = false } = {}) {
 
     $('score-result').classList.remove('hidden');
   } catch (e) {
-    if (!auto) { err.textContent = e.message || 'Score failed.'; err.classList.remove('hidden'); }
-    else { try { console.warn('[AYN] auto-score failed:', e?.message); } catch {} }
+    // v3.4.2 — auto-score failures are real (network/credits/auth), not just
+    // an empty page (that returns early above) — always surface them, not
+    // just when the user clicked Re-score.
+    err.textContent = e.message || 'Score failed.';
+    err.classList.remove('hidden');
+    if (auto) { try { console.warn('[AYN] auto-score failed:', e?.message); } catch {} }
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="ti ti-target-arrow"></i>Re-score This Job';
@@ -748,7 +763,7 @@ $('suggest-roles-btn').addEventListener('click', async () => {
     btn.disabled = false;
     btn.innerHTML = 'Get My Best Job Titles →';
     if (!resp?.roles?.length) {
-      err.textContent = resp?.summary || 'No resume found. Upload your resume at aynn.io first.';
+      err.textContent = resp?.summary || 'No resume found. Upload your resume at ayn.careers first.';
       err.classList.remove('hidden'); return;
     }
     renderRoles(resp);
@@ -914,7 +929,7 @@ async function generateCoverLetter() {
     { const out = $('cover-out'); out.dataset.raw = data.body || ''; out.innerHTML = aynFormatAiText(data.body || ''); }
     $('cover-result').classList.remove('hidden');
   } catch (e) {
-    err.textContent = e.message || 'Failed to generate. Make sure your resume is saved at aynn.io.';
+    err.textContent = e.message || 'Failed to generate. Make sure your resume is saved at ayn.careers.';
     err.classList.remove('hidden');
   } finally { btn.disabled = false; btn.innerHTML = 'Generate Cover Letter →'; }
 }

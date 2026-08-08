@@ -597,7 +597,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
               <img src={aynLogo} alt="AYN" style={{ height: 30, width: 'auto' }} />
               <p className="lp-footer-tagline">{COMPANY_TAGLINE}</p>
               <div className="lp-footer-social">
-                <a href="mailto:info@aynn.io" aria-label="Email"><Mail size={18} /></a>
+                <a href="mailto:info@ayn.careers" aria-label="Email"><Mail size={18} /></a>
                 <a href="https://discord.gg/y2DcBegbC7" target="_blank" rel="noopener noreferrer" aria-label="Discord"><DiscordIcon /></a>
                 <a href="https://x.com/AYNN_AI" target="_blank" rel="noopener noreferrer" aria-label="X (Twitter)"><XIcon /></a>
               </div>

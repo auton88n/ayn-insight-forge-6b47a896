@@ -5,15 +5,15 @@
 
 const SUPABASE_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
-const AYN_WEB = 'https://aynn.io';
+const AYN_WEB = 'https://ayn.careers';
 
 // Open side panel when toolbar icon clicked
 chrome.action.onClicked.addListener(tab => chrome.sidePanel.open({ tabId: tab.id }));
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
-// ── v1.9.55: External bridge for aynn.io / lovable dashboard ──────
+// ── v1.9.55: External bridge for ayn.careers / lovable dashboard ──────
 // Allows the web app to hand a job to the side panel.
-// The manifest `externally_connectable.matches` gate origins to aynn.io.
+// The manifest `externally_connectable.matches` gate origins to ayn.careers.
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   if (!message || !message.type) { sendResponse({ ok: false, error: 'bad_message' }); return; }
 
@@ -458,7 +458,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'BOOTSTRAP') {
     (async () => {
       try { sendResponse(await callFunction('ext_bootstrap', {})); }
-      catch (e) { sendResponse({ error: e.message }); }
+      catch (e) { sendResponse({ error: e.message, code: e.code || null }); }
     })();
     return true;
   }

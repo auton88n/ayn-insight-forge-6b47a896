@@ -129,22 +129,23 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
    */
   const profileComplete = isOrgComplete(org);
   const handleOrgSaved = useCallback((next: Org) => {
-    setOrg(prev => {
-      const was = isOrgComplete(prev);
-      const now = isOrgComplete(next);
-      if (!was && now) {
-        toast({ title: "Company profile complete", description: "You can search for candidates now." });
-      } else if (was && !now) {
-        const missing = missingOrgFields(next).map(m => m.label).join(", ");
-        toast({
-          title: `${missing} is now empty`,
-          description: "Candidate search and proposals are paused until you fill it back in.",
-          variant: "destructive",
-        });
-      }
-      return next;
-    });
-  }, [toast]);
+    // v3.86.0 — toast() must never run inside a setState updater: it triggers
+    // the Toaster's own setState while React is still processing this one,
+    // which React flags as updating a component while rendering another.
+    const was = isOrgComplete(org);
+    const now = isOrgComplete(next);
+    setOrg(next);
+    if (!was && now) {
+      toast({ title: "Company profile complete", description: "You can search for candidates now." });
+    } else if (was && !now) {
+      const missing = missingOrgFields(next).map(m => m.label).join(", ");
+      toast({
+        title: `${missing} is now empty`,
+        description: "Candidate search and proposals are paused until you fill it back in.",
+        variant: "destructive",
+      });
+    }
+  }, [org, toast]);
 
 
   const refreshUsage = useCallback((orgId: string) => {

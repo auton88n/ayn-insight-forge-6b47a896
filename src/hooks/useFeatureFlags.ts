@@ -57,7 +57,7 @@ export function useFeatureFlags() {
     // v3.35.0 — every component calling useFeature() fired its own
     // get_feature_flags round trip on mount even when a fresh cache already
     // existed, because this only checked for an in-flight request, never an
-    // already-loaded one. Measured live on aynn.io: two calls on one
+    // already-loaded one. Measured live on ayn.careers: two calls on one
     // landing page load, ~350-500ms each.
     if (!cache.loaded) void load();
     const id = window.setInterval(() => { void load(); }, POLL_MS);

@@ -1,5 +1,5 @@
 // Resume Hub — unified AI edge function.
-// Actions: extension lane (ext_bootstrap, ext_profile, ext_ingest_job,
+// Actions: extension lane (ext_bootstrap, ext_profile,
 // ext_job_score, ext_cover_letter_text, smart_tailor, ext_ask), hub lane
 // (profile, resumes, jobs, proposals, assessments) and employer lane.
 // Auth: requires the caller's Supabase JWT (Authorization: Bearer ...).
@@ -209,7 +209,7 @@ async function extVersionGate(
     feature: "extension",
     min_version: min,
     your_version: client === "0.0.0" ? null : client,
-    message: `This AYN extension build is out of date and no longer works. Download the current version from aynn.io and reinstall it. Minimum supported version is ${min}.`,
+    message: `This AYN extension build is out of date and no longer works. Download the current version from ayn.careers and reinstall it. Minimum supported version is ${min}.`,
   }, 426);
 }
 
@@ -586,7 +586,7 @@ async function resolveResumeContent(
 }
 
 const EXT_ACTIONS = new Set([
-  "ext_bootstrap", "ext_ingest_job", "ext_cover_letter_text",
+  "ext_bootstrap", "ext_cover_letter_text",
   "ext_job_score", "ext_suggest_roles", "ext_find_contacts",
   "ext_download_resume_text", "smart_tailor", "ext_ask",
   // v1.5.0: canonical profile read for extension
@@ -1433,14 +1433,8 @@ Deno.serve(async (req) => {
     }
 
     // ============ EXTENSION-AUTH ACTIONS (x-ayn-ext-token) ============
-    // v2.8.4 — DUAL_AUTH_ACTIONS may also be reached from the web dashboard
-    // with a session JWT (no ext token). All other EXT_ACTIONS keep the
-    // strict ext-token requirement.
-    const DUAL_AUTH_ACTIONS = new Set(["ext_ingest_job"]);
     if (typeof action === "string" && EXT_ACTIONS.has(action)) {
       const token = req.headers.get("x-ayn-ext-token");
-      const authHeader = req.headers.get("Authorization") ?? "";
-      const bearerJwt = authHeader.replace(/^Bearer\s+/i, "");
       const admin = createClient(supabaseUrl, serviceKey);
       // v3.31.0 — an out of date sideloaded build is refused before it can
       // authenticate, spend money, or write anything.
@@ -1463,14 +1457,6 @@ Deno.serve(async (req) => {
         userId = tok.user_id as string;
         deviceLabel = (tok.device_label as string) ?? null;
         admin.from("extension_tokens").update({ last_used_at: new Date().toISOString() }).eq("token_hash", tokenHash).then(() => {});
-      } else if (DUAL_AUTH_ACTIONS.has(action) && bearerJwt) {
-        const supaWeb = createClient(supabaseUrl, anonKey, {
-          global: { headers: { Authorization: `Bearer ${bearerJwt}` } },
-        });
-        const { data: u } = await supaWeb.auth.getUser();
-        if (!u?.user) return json({ error: "Invalid session" }, 401);
-        userId = u.user.id;
-        deviceLabel = "web-session";
       } else {
         return json({ error: "x-ayn-ext-token required" }, 401);
       }
@@ -1521,43 +1507,13 @@ Deno.serve(async (req) => {
         });
       }
 
-      if (action === "ext_ingest_job") {
-        let { source_url, html, text, company, title, location: loc, jd_text } = payload as Record<string, string | undefined>;
-        const raw = (text || html || "").slice(0, 25000);
-        if (!company || !title || !jd_text) {
-          try {
-            const parsed = await callAI({
-              system: "Extract job posting fields from raw page content. Return empty string for unknown fields.",
-              user: `URL: ${source_url ?? ""}\n\nCONTENT:\n${raw}`,
-              toolName: "emit_job",
-              toolSchema: {
-                type: "object",
-                properties: { company: { type: "string" }, title: { type: "string" }, location: { type: "string" }, jd_text: { type: "string" } },
-                required: ["company", "title", "jd_text"],
-              },
-            });
-            const p = parsed.structured as Record<string, string>;
-            company = company || p.company;
-            title = title || p.title;
-            loc = loc || p.location;
-            jd_text = jd_text || p.jd_text;
-          } catch (e) { console.warn("ext parse failed", e); }
-        }
-        const urlPath = source_url ? source_url.split("?")[0] : "";
-        const dedupe = await sha256Hex(`${(company ?? "").toLowerCase()}|${(title ?? "").toLowerCase()}|${urlPath}`);
-        const { data: existing } = await admin.from("jobs").select("id").eq("user_id", userId).eq("dedupe_hash", dedupe).maybeSingle();
-        if (existing) return json({ job_id: existing.id, deduped: true });
-        const { data: inserted, error } = await admin.from("jobs").insert({
-          user_id: userId, source: "extension", source_url, company: company || "Unknown", title: title || "Unknown role",
-          location: loc, jd_text, jd_html: html?.slice(0, 100000), dedupe_hash: dedupe,
-        }).select("id").single();
-        if (error) throw error;
-        return json({ job_id: inserted.id, deduped: false });
-      }
-
       // v2.12.0 — ext_tailor, ext_cover_letter, ext_job_ingest removed.
       // Live twins are smart_tailor (tailoring) and ext_cover_letter_text
       // (cover letters). JD ingest/cache lives inline in ext_job_score.
+      // v3.86.0 — ext_ingest_job (a separate, older job-ingest path) removed
+      // too: zero callers anywhere in extension/ or src/, confirmed by grep;
+      // this comment already documented that ingest/cache lives inline in
+      // ext_job_score, so this was dead weight since before that note.
 
 
       // ext_job_score: full-JD scoring with HONESTY rule + AI-failure fallback.
@@ -2112,20 +2068,6 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
 
 
     // ---------------- extension token management ----------------
-    if (action === "token_mint") {
-      const label = (payload as { label?: string }).label || "Browser";
-      const bytes = new Uint8Array(32);
-      crypto.getRandomValues(bytes);
-      const token = "ayn_" + Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
-      const tokHash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))))
-        .map((x) => x.toString(16).padStart(2, "0")).join("");
-      const prefix = token.slice(0, 12) + "…";
-      const { data, error } = await supa.from("extension_tokens")
-        .insert({ user_id: user.id, token_hash: tokHash, token_prefix: prefix, device_label: label })
-        .select("id").single();
-      if (error) throw error;
-      return json({ token, prefix, id: data.id });
-    }
     if (action === "token_list") {
       const { data, error } = await supa.from("extension_tokens")
         .select("id, token_prefix, device_label, last_used_at, revoked_at, created_at")
@@ -2141,19 +2083,6 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
       return json({ ok: true });
     }
 
-
-    // ---------------- parse ----------------
-    if (action === "parse") {
-      const { resumeText } = payload as { resumeText: string };
-      if (!resumeText || resumeText.length > 60000) return json({ error: "Bad resumeText" }, 400);
-      const r = await callAI({
-        system: "You convert raw resume text into a structured resume JSON. Be faithful, do not invent data.",
-        user: resumeText,
-        toolName: "emit_resume",
-        toolSchema: RESUME_SCHEMA,
-      });
-      return json({ resume: r.structured });
-    }
 
     // ---------------- parse_file ----------------
     if (action === "parse_file") {
@@ -2851,19 +2780,6 @@ RULES:
         profile_updated_at: canonRow?.updated_at ?? null,
       });
     }
-
-    // v3.2.0 — let a seeker remove an inferred skill they disagree with.
-    // Extracted skills are evidence-backed and are rebuilt on every index,
-    // so only inferred rows are deletable here.
-    if (action === "talent_pool_skill_delete") {
-      const { id } = payload as { id?: string };
-      if (!id) return json({ error: "id required" }, 400);
-      const { error } = await adminForNew.from("candidate_skills")
-        .delete().eq("id", id).eq("user_id", userId).eq("provenance", "inferred");
-      if (error) return json({ error: error.message }, 500);
-      return json({ ok: true });
-    }
-
 
     // v3.33.0 — the acceptance itself is recorded by handle_new_user, inside
     // the same transaction as the account, so it cannot be skipped by a failed
@@ -3626,7 +3542,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
         `New job proposal from ${proposalOrgName} | AYN`,
         `${heading("You have a new proposal")}
         ${para(`${escapeHtml(proposalOrgName)} sent you a proposal for ${escapeHtml(title)}.`)}
-        ${ctaButton("https://aynn.io/", "View proposal")}`,
+        ${ctaButton("https://ayn.careers/", "View proposal")}`,
         "proposal_received",
       );
       return json({ ok: true, status: "pending" });
@@ -3693,10 +3609,10 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
           approve
             ? `${heading("Your proposal was accepted")}
               ${para(`The candidate for ${roleTitle} accepted your proposal. Their contact details are now available.`)}
-              ${ctaButton("https://aynn.io/", "View candidate")}`
+              ${ctaButton("https://ayn.careers/", "View candidate")}`
             : `${heading("Your proposal was declined")}
               ${para(`The candidate for ${roleTitle} declined your proposal.`)}
-              ${ctaButton("https://aynn.io/", "View in EmployerHub")}`,
+              ${ctaButton("https://ayn.careers/", "View in EmployerHub")}`,
           approve ? "proposal_accepted" : "proposal_declined",
         );
       }
@@ -3963,7 +3879,7 @@ Write the assessment now.`,
           `New assessment from ${sendOrgName} | AYN`,
           `${heading("A company wants to verify your background")}
           ${para(`${escapeHtml(sendOrgName)} sent you a short assessment${a.job_title ? ` for ${escapeHtml(a.job_title)}` : ""}. It takes about ${minutes} minutes once you start.`)}
-          ${ctaButton("https://aynn.io/", "View assessment")}`,
+          ${ctaButton("https://ayn.careers/", "View assessment")}`,
           "assessment_received",
         );
       }
@@ -4278,7 +4194,7 @@ Grade it now.`,
           "An assessment was completed | AYN",
           `${heading("An assessment was completed")}
           ${para(`A candidate for ${roleTitle} finished the assessment you sent. Results and observations are ready to review.`)}
-          ${ctaButton("https://aynn.io/", "View results")}`,
+          ${ctaButton("https://ayn.careers/", "View results")}`,
           "assessment_completed",
         );
       }

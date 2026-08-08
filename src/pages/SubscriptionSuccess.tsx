@@ -1,25 +1,44 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { useSubscription, SUBSCRIPTION_TIERS } from '@/contexts/SubscriptionContext';
+import { billingApi, priceLabel, type Plan } from '@/lib/billing';
 import { SEO } from '@/components/shared/SEO';
+
+const planBenefits = (plan: Plan): string[] => {
+  if (plan.audience === 'seeker') {
+    return plan.credits != null ? [`${plan.credits} credits per ${plan.interval}`] : ['Unlimited credits'];
+  }
+  const parts: string[] = [];
+  parts.push(plan.proposals_limit != null ? `${plan.proposals_limit} proposals per month` : 'Unlimited proposals');
+  parts.push(plan.assessments_limit != null ? `${plan.assessments_limit} assessments per month` : 'Unlimited assessments');
+  return parts;
+};
 
 const SubscriptionSuccess = () => {
   const navigate = useNavigate();
-  const { checkSubscription, tier, isLoading } = useSubscription();
+  const [searchParams] = useSearchParams();
+  const planKey = searchParams.get('plan');
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [refreshed, setRefreshed] = useState(false);
 
   useEffect(() => {
-    // Refresh subscription status
-    const refreshStatus = async () => {
-      await checkSubscription();
-      setRefreshed(true);
+    const loadPlan = async () => {
+      try {
+        const plans = await billingApi.plans();
+        setPlan(plans.find(p => p.key === planKey) || null);
+      } catch {
+        setPlan(null);
+      } finally {
+        setIsLoading(false);
+        setRefreshed(true);
+      }
     };
-    refreshStatus();
-  }, [checkSubscription]);
+    loadPlan();
+  }, [planKey]);
 
   useEffect(() => {
     // Auto-redirect after 5 seconds
@@ -30,8 +49,6 @@ const SubscriptionSuccess = () => {
       return () => clearTimeout(timer);
     }
   }, [refreshed, navigate]);
-
-  const tierConfig = SUBSCRIPTION_TIERS[tier];
 
   return (
     <>
@@ -65,22 +82,25 @@ const SubscriptionSuccess = () => {
                 </motion.div>
 
                 <h1 className="text-2xl font-bold mb-2">
-                  Welcome to {tierConfig.name}!
+                  {plan ? `Welcome to ${plan.name}!` : 'Your plan is active'}
                 </h1>
-                
+
                 <p className="text-muted-foreground mb-6">
-                  Your subscription has been activated successfully. 
-                  You now have access to {tierConfig.limits.monthlyCredits.toLocaleString()} messages per month.
+                  {plan
+                    ? `Your subscription has been activated successfully, at ${priceLabel(plan.price_cents, plan.interval)}.`
+                    : 'Your payment went through and your plan is now active.'}
                 </p>
 
-                <div className="bg-muted/50 rounded-lg p-4 mb-6">
-                  <h3 className="font-medium mb-2">Your new benefits:</h3>
-                  <ul className="text-sm text-muted-foreground space-y-1">
-                    {tierConfig.features.map((feature) => (
-                      <li key={feature}>✓ {feature}</li>
-                    ))}
-                  </ul>
-                </div>
+                {plan && (
+                  <div className="bg-muted/50 rounded-lg p-4 mb-6">
+                    <h3 className="font-medium mb-2">Your new benefits:</h3>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      {planBenefits(plan).map((feature) => (
+                        <li key={feature}>✓ {feature}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 <div className="flex flex-col gap-3">
                   <Button onClick={() => navigate('/')} className="w-full">

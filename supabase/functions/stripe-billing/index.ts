@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || "checkout");
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-    const origin = req.headers.get("origin") || "https://aynn.io";
+    const origin = req.headers.get("origin") || "https://ayn.careers";
 
     // one customer per email
     const existing = await stripe.customers.list({ email: user.email, limit: 1 });

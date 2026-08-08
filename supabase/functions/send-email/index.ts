@@ -610,7 +610,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send email via Resend
     const emailResponse = await resend.emails.send({
-      from: "AYN Team <noreply@mail.aynn.io>",
+      from: "AYN Team <noreply@mail.ayn.careers>",
       to: [to],
       subject: template.subject,
       html: template.html,

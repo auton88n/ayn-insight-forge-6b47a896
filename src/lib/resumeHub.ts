@@ -53,9 +53,6 @@ export interface ResumeContent {
 }
 
 export const resumeHubApi = {
-  parse: (resumeText: string) =>
-    call<{ resume: ResumeContent }>("resume-hub", { action: "parse", resumeText }),
-
   parseFile: (fileBase64: string, mimeType: string) =>
     call<{ resume: ResumeContent; plainText: string }>("resume-hub", { action: "parse_file", fileBase64, mimeType }),
   /** Free: content-quality read only, no rewrite. Pass resumeId to cache the score onto that row. */
@@ -82,10 +79,6 @@ export const resumeHubApi = {
     call<{ body: string }>("resume-hub", { action: "cover_letter", jdText, ...opts }),
 
 
-  ingestJob: (payload: { source_url?: string; html?: string; text?: string; company?: string; title?: string; location?: string; jd_text?: string; source?: string }) =>
-    call<{ job_id: string; deduped: boolean }>("resume-hub", { action: "ext_ingest_job", ...payload }),
-
-  mintToken: (label: string) => call<{ token: string; prefix: string; id: string }>("resume-hub", { action: "token_mint", label }),
   listTokens: () => call<{ tokens: Array<{ id: string; token_prefix: string; device_label: string; last_used_at: string | null; revoked_at: string | null; created_at: string }> }>("resume-hub", { action: "token_list" }),
   revokeToken: (id: string) => call<{ ok: true }>("resume-hub", { action: "token_revoke", id }),
 
@@ -102,10 +95,6 @@ export const resumeHubApi = {
   // v2.9.1 — manual re-index for the caller (also fired after client writes).
   talentPoolReindexSelf: () =>
     call<{ model: string; skills_count: number }>("resume-hub", { action: "talent_pool_reindex_self" }),
-
-  // v3.2.0 — remove an inferred skill the seeker disagrees with.
-  talentPoolSkillDelete: (id: string) =>
-    call<{ ok: true }>("resume-hub", { action: "talent_pool_skill_delete", id }),
 };
 
 export interface PoolSkill {

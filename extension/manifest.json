@@ -1,21 +1,20 @@
 {
   "manifest_version": 3,
   "name": "AYN Resume Tailor",
-  "version": "3.4.0",
+  "version": "3.4.2",
   "description": "Read the real job posting, see your match score, tailor your resume, write a cover letter, ask AYN about the job.",
   "permissions": [
     "activeTab",
     "storage",
-    "sidePanel",
-    "webNavigation"
+    "sidePanel"
   ],
   "host_permissions": [
     "https://*/*"
   ],
   "externally_connectable": {
     "matches": [
-      "https://aynn.io/*",
-      "https://*.aynn.io/*",
+      "https://ayn.careers/*",
+      "https://*.ayn.careers/*",
       "https://*.lovable.app/*",
       "http://localhost/*"
     ]
@@ -67,8 +66,8 @@
     },
     {
       "matches": [
-        "https://aynn.io/handoff*",
-        "https://*.aynn.io/handoff*",
+        "https://ayn.careers/handoff*",
+        "https://*.ayn.careers/handoff*",
         "https://*.lovable.app/handoff*"
       ],
       "js": [
@@ -94,8 +93,7 @@
         "vendor/*"
       ],
       "matches": [
-        "https://*/*",
-        "http://*/*"
+        "https://*/*"
       ]
     }
   ]

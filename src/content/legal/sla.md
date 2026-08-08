@@ -47,7 +47,7 @@ If monthly uptime falls below the commitment, you may claim a credit against you
 
 Credits are available on the Growth and Scale plans only.
 
-**Claiming.** Email support@aynn.io within fifteen days of the end of the affected month, with the dates, times, and supporting evidence of the unavailability you experienced. Claims made after that period, or without evidence, are not eligible. We will respond within a reasonable time.
+**Claiming.** Email support@ayn.careers within fifteen days of the end of the affected month, with the dates, times, and supporting evidence of the unavailability you experienced. Claims made after that period, or without evidence, are not eligible. We will respond within a reasonable time.
 
 **Limits.** Credits in any calendar month will not exceed 25% of that month's fee, and credits in any twelve month period will not exceed the fees paid in one month. Credits are applied to future invoices, are not paid in cash, do not extend your term, and expire on termination.
 
@@ -68,7 +68,7 @@ If monthly uptime falls below 95.0% in three consecutive months, you may termina
 
 Business days are Monday to Friday excluding Nova Scotia statutory holidays. These are aims for a first response, not resolution, and are not commitments. Failure to meet them does not entitle you to a credit or any other remedy.
 
-All support is by email to support@aynn.io.
+All support is by email to support@ayn.careers.
 
 ## 7. Status and incident communication
 
@@ -86,4 +86,4 @@ This Agreement forms part of the Terms of Service. The disclaimers in section 15
 
 AYN AI
 145 Cresthaven Drive, Nova Scotia B3M 2E4, Canada
-support@aynn.io
+support@ayn.careers

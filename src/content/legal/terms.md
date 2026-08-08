@@ -233,7 +233,7 @@ On termination your right to use the Platform ends. Deletion of your personal da
 
 These Terms are governed by the laws of the Province of Nova Scotia and the federal laws of Canada applicable in it, without regard to conflict of laws rules. The United Nations Convention on Contracts for the International Sale of Goods does not apply.
 
-**Informal resolution.** Before commencing any proceeding, you will contact us at support@aynn.io with a written description of the dispute and allow thirty days for resolution. This is a condition precedent, except for applications for injunctive relief.
+**Informal resolution.** Before commencing any proceeding, you will contact us at support@ayn.careers with a written description of the dispute and allow thirty days for resolution. This is a condition precedent, except for applications for injunctive relief.
 
 **Jurisdiction.** The courts of Nova Scotia have jurisdiction over any dispute. **Nothing in this section deprives a consumer of the benefit of any mandatory provision of the law of their habitual residence, or of the right to bring proceedings in the courts of that place where that right cannot lawfully be waived.**
 
@@ -251,7 +251,7 @@ These Terms are governed by the laws of the Province of Nova Scotia and the fede
 
 **No third-party beneficiaries.** These Terms confer no right on any person who is not a party.
 
-**Notices.** We may give notice by email to your registered address or by posting in the Platform. You give notice to support@aynn.io.
+**Notices.** We may give notice by email to your registered address or by posting in the Platform. You give notice to support@ayn.careers.
 
 **Relationship.** Nothing creates a partnership, joint venture, agency, or employment relationship between the parties.
 
@@ -264,4 +264,4 @@ These Terms are governed by the laws of the Province of Nova Scotia and the fede
 AYN AI
 145 Cresthaven Drive, Nova Scotia B3M 2E4, Canada
 
-All enquiries, including legal, privacy, and copyright: support@aynn.io
+All enquiries, including legal, privacy, and copyright: support@ayn.careers

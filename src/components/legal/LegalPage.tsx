@@ -74,7 +74,7 @@ export default function LegalPage({ slug }: Props) {
           <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
           <p className="mt-4 text-sm text-muted-foreground">
             This document is being finalised and will appear here shortly. In the meantime,
-            write to <a className="underline" href="mailto:legal@aynn.io">legal@aynn.io</a>.
+            write to <a className="underline" href="mailto:legal@ayn.careers">legal@ayn.careers</a>.
           </p>
           <p className="mt-8">
             <Link to="/legal" className="text-sm underline">All legal documents</Link>

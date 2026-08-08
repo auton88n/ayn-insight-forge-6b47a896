@@ -10,8 +10,8 @@ const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
 
 const Contact = () => {
   const jsonLd = createBreadcrumbSchema([
-    { name: 'Home', url: 'https://aynn.io/' },
-    { name: 'Contact', url: 'https://aynn.io/contact' },
+    { name: 'Home', url: 'https://ayn.careers/' },
+    { name: 'Contact', url: 'https://ayn.careers/contact' },
   ]);
 
   // On <body> too, not just the wrapper div below, so Radix's portaled

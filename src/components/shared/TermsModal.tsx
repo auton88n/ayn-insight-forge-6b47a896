@@ -113,7 +113,7 @@ export const TermsModal = ({ open, onAccept }: TermsModalProps) => {
 
             {/* Contact */}
             <div className="text-center text-xs text-white/40 pt-2">
-              <p>Questions? Contact us at <span className="text-white/60">support@aynn.io</span></p>
+              <p>Questions? Contact us at <span className="text-white/60">support@ayn.careers</span></p>
             </div>
           </div>
         </div>

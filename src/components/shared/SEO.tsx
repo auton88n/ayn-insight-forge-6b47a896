@@ -12,8 +12,8 @@ interface SEOProps {
   language?: 'en' | 'ar' | 'fr';
 }
 
-const SITE_URL = 'https://aynn.io';
-const DEFAULT_IMAGE = 'https://aynn.io/og-image.jpg';
+const SITE_URL = 'https://ayn.careers';
+const DEFAULT_IMAGE = 'https://ayn.careers/og-image.jpg';
 
 export const SEO = ({
   title,
@@ -74,8 +74,8 @@ export const organizationSchema = {
   '@type': 'Organization',
   name: 'AYN AI',
   alternateName: ['AYN', 'عين AI', 'Perceptive AI', 'AYN Artificial Intelligence'],
-  url: 'https://aynn.io',
-  logo: 'https://aynn.io/favicon-brain.png',
+  url: 'https://ayn.careers',
+  logo: 'https://ayn.careers/favicon-brain.png',
   description: 'AYN AI is a perceptive artificial intelligence platform that learns your habits, understands your goals, and helps you succeed with AI employees, custom AI agents, and business automation.',
   sameAs: [
     'https://twitter.com/ayn_ai'
@@ -83,7 +83,7 @@ export const organizationSchema = {
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: 'customer support',
-    url: 'https://aynn.io/support'
+    url: 'https://ayn.careers/support'
   },
   foundingDate: '2024',
   slogan: 'AI That Knows You'
@@ -97,7 +97,7 @@ export const softwareApplicationSchema = {
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Web Browser',
   description: 'AYN AI is a personal AI assistant and business automation platform featuring AI employees, custom AI agents, and smart automation tools.',
-  url: 'https://aynn.io',
+  url: 'https://ayn.careers',
   offers: {
     '@type': 'Offer',
     price: '0',
@@ -116,12 +116,12 @@ export const websiteSchema = {
   '@type': 'WebSite',
   name: 'AYN AI',
   alternateName: ['AYN', 'عين AI'],
-  url: 'https://aynn.io',
+  url: 'https://ayn.careers',
   description: 'AYN AI - Personal AI Assistant That Learns You. Smart AI platform for AI employees, custom AI agents, and business automation.',
   inLanguage: ['en', 'ar', 'fr'],
   potentialAction: {
     '@type': 'SearchAction',
-    target: 'https://aynn.io/search?q={search_term_string}',
+    target: 'https://ayn.careers/search?q={search_term_string}',
     'query-input': 'required name=search_term_string'
   }
 };
@@ -139,7 +139,7 @@ export const createServiceSchema = (service: {
   provider: {
     '@type': 'Organization',
     name: 'AYN',
-    url: 'https://aynn.io'
+    url: 'https://ayn.careers'
   }
 });
 

@@ -1,5 +1,5 @@
 // Completely separate Supabase client for admin —
-// uses its own storage key so it NEVER shares session with the main aynn.io app.
+// uses its own storage key so it NEVER shares session with the main ayn.careers app.
 // Key is hardcoded as fallback so the admin panel NEVER silently breaks
 // due to missing env vars at build time.
 import { createClient } from '@supabase/supabase-js';

@@ -1,5 +1,5 @@
 # AYN - Robots.txt
-# https://aynn.io
+# https://ayn.careers
 
 User-agent: *
 Allow: /
@@ -20,4 +20,4 @@ Disallow: /subscription-success
 Disallow: /subscription-canceled
 
 # Sitemap location
-Sitemap: https://aynn.io/sitemap.xml
+Sitemap: https://ayn.careers/sitemap.xml

@@ -80,8 +80,8 @@ const Help = () => {
   const jsonLd = {
     '@graph': [
       createBreadcrumbSchema([
-        { name: 'Home', url: 'https://aynn.io/' },
-        { name: 'Help Center', url: 'https://aynn.io/help' },
+        { name: 'Home', url: 'https://ayn.careers/' },
+        { name: 'Help Center', url: 'https://ayn.careers/help' },
       ]),
       createFAQSchema(SECTIONS.flatMap(s => s.entries).map(e => ({ question: e.q, answer: e.a }))),
     ],

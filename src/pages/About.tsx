@@ -9,8 +9,8 @@ const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
 
 const About = () => {
   const jsonLd = createBreadcrumbSchema([
-    { name: 'Home', url: 'https://aynn.io/' },
-    { name: 'About', url: 'https://aynn.io/about' },
+    { name: 'Home', url: 'https://ayn.careers/' },
+    { name: 'About', url: 'https://ayn.careers/about' },
   ]);
 
   return (

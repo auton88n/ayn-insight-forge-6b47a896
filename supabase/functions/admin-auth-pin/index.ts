@@ -18,7 +18,7 @@ const MAX_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
 const ATTEMPTS_KEY = 'admin_pin_attempts';
 const HASH_KEY = 'admin_pin_hash';
-const ALERT_TO = 'ghazi@aynn.io';
+const ALERT_TO = 'ghazi@ayn.careers';
 
 type AttemptRecord = { count: number; locked_until: string | null };
 type AttemptMap = Record<string, AttemptRecord>;
@@ -105,7 +105,7 @@ async function alertLockout(email: string | null, userId: string) {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'AYN <hello@aynn.io>',
+        from: 'AYN <hello@ayn.careers>',
         to: [ALERT_TO],
         subject: 'AYN admin PIN locked out',
         html: `<p>An admin account was locked out of the AYN admin panel after ${MAX_ATTEMPTS} failed PIN attempts.</p>

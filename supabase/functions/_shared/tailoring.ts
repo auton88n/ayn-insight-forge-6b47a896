@@ -479,7 +479,7 @@ export async function fetchCompanyContext(
       if (!(await robotsAllows(u.origin, u.pathname))) continue;
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 3500);
-      const r = await fetch(candidate, { signal: ctrl.signal, redirect: "follow", headers: { "user-agent": "AYNBot/1.0 (+https://aynn.io)" } });
+      const r = await fetch(candidate, { signal: ctrl.signal, redirect: "follow", headers: { "user-agent": "AYNBot/1.0 (+https://ayn.careers)" } });
       clearTimeout(t);
       if (!r.ok) continue;
       const html = (await r.text()).slice(0, 400000);

@@ -17,7 +17,7 @@ AYN helps job seekers apply for roles and helps approved employers find candidat
 - We use automated systems to assess fit, order candidates, and evaluate assessments. Section 8 sets out what that means for you and what you can do about it.
 
 **Controller:** AYN AI, a business registered in Nova Scotia, Canada. 145 Cresthaven Drive, Nova Scotia B3M 2E4, Canada.
-**Privacy contact:** support@aynn.io.
+**Privacy contact:** support@ayn.careers.
 
 ## 2. Information we collect
 
@@ -106,7 +106,7 @@ When we generate or evaluate text, the relevant content leaves the United Kingdo
 
 So a single request may involve the United Kingdom, the United States, and Canada.
 
-For transfers out of the United Kingdom and the European Economic Area we rely on the UK International Data Transfer Addendum and the European Commission's Standard Contractual Clauses respectively, together with supplementary measures where required, and on the adequacy decisions in respect of Canada where they apply. You may request details of the safeguards applying to a specific transfer from support@aynn.io.
+For transfers out of the United Kingdom and the European Economic Area we rely on the UK International Data Transfer Addendum and the European Commission's Standard Contractual Clauses respectively, together with supplementary measures where required, and on the adequacy decisions in respect of Canada where they apply. You may request details of the safeguards applying to a specific transfer from support@ayn.careers.
 
 ## 7. Retention
 
@@ -144,7 +144,7 @@ AYN uses automated systems, including machine learning models, in four places:
 - Object to profiling on grounds relating to your particular situation; and
 - Withdraw entirely by disabling discoverability, which removes your profile from candidate ordering.
 
-Requests go to support@aynn.io.
+Requests go to support@ayn.careers.
 
 **For employers.** You are the deployer of an automated tool used in employment decisions. Obligations of notice, bias auditing, disclosure, provision of an alternative process, and record keeping in your jurisdiction rest with you. We will provide what we reasonably can to assist.
 
@@ -182,5 +182,5 @@ We will post any change here with a new version number and date. For changes mat
 
 ## 14. Contact
 
-All enquiries, including privacy and data protection: support@aynn.io
+All enquiries, including privacy and data protection: support@ayn.careers
 Postal: AYN AI, 145 Cresthaven Drive, Nova Scotia B3M 2E4, Canada

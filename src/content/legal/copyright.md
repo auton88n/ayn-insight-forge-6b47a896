@@ -13,11 +13,11 @@ It forms part of our Terms of Service.
 
 AYN hosts material uploaded by users, including resumes, profile content, company descriptions, logos, and role descriptions. If something a user has uploaded infringes your copyright, tell us and we will act on it.
 
-**What this does not cover.** Documents AYN generates for a user from their own information belong to that user. If you believe someone has misrepresented your work in a resume, that is a factual dispute rather than a copyright claim, and this is not the right route for it. Trade mark complaints, defamation, and privacy complaints should also go to support@aynn.io, but this policy does not govern them.
+**What this does not cover.** Documents AYN generates for a user from their own information belong to that user. If you believe someone has misrepresented your work in a resume, that is a factual dispute rather than a copyright claim, and this is not the right route for it. Trade mark complaints, defamation, and privacy complaints should also go to support@ayn.careers, but this policy does not govern them.
 
 ## Reporting infringement
 
-Send a written notice to **support@aynn.io** with the subject line **Copyright Notice**, including:
+Send a written notice to **support@ayn.careers** with the subject line **Copyright Notice**, including:
 
 1. Your name and contact details.
 2. Identification of the work you say has been infringed, with enough detail for us to understand what it is. A link to the original, or a copy of it, is best.
@@ -37,7 +37,7 @@ If we consider the report well founded we will remove or disable access to the m
 
 ## If your material was removed
 
-If we removed something of yours and you believe that was a mistake, email **support@aynn.io** with the subject line **Copyright Dispute**, telling us what was removed, where it appeared, and why you believe you are entitled to use it.
+If we removed something of yours and you believe that was a mistake, email **support@ayn.careers** with the subject line **Copyright Dispute**, telling us what was removed, where it appeared, and why you believe you are entitled to use it.
 
 We will consider your response and may restore the material. Where the parties genuinely disagree about ownership, that is a dispute between them, and we may leave the material down until it is resolved between them or by a court.
 
@@ -57,4 +57,4 @@ We will update this page with a new version number and date if the process chang
 
 ## Contact
 
-AYN AI 145 Cresthaven Drive, Nova Scotia B3M 2E4, Canada support@aynn.io
+AYN AI 145 Cresthaven Drive, Nova Scotia B3M 2E4, Canada support@ayn.careers

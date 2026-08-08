@@ -68,4 +68,4 @@ We will update this page with a new version number and date if what we use chang
 
 AYN AI
 145 Cresthaven Drive, Nova Scotia B3M 2E4, Canada
-support@aynn.io
+support@ayn.careers

@@ -1,5 +1,5 @@
 // deep-link.js — AYN handoff bridge (v1.9.55)
-// Runs on https://aynn.io/handoff* and lovable.app/handoff*. Reads
+// Runs on https://ayn.careers/handoff* and lovable.app/handoff*. Reads
 //   ?job=<encoded url>&resume=<id>
 // stores it into chrome.storage.local, then navigates the tab to the target
 // job URL so content.js / handoff-hydrate.js can restore context.

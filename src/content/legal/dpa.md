@@ -140,4 +140,4 @@ This Agreement takes effect on your acceptance of the Terms of Service and conti
 
 AYN AI
 145 Cresthaven Drive, Nova Scotia B3M 2E4, Canada
-support@aynn.io
+support@ayn.careers

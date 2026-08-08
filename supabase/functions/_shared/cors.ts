@@ -1,6 +1,6 @@
 /**
  * Shared CORS headers for all edge functions.
- * Uses originGuard to restrict Access-Control-Allow-Origin to aynn.io only.
+ * Uses originGuard to restrict Access-Control-Allow-Origin to ayn.careers only.
  * 
  * Usage in any edge function:
  *   import { corsHeaders, handleCors } from '../_shared/cors.ts';

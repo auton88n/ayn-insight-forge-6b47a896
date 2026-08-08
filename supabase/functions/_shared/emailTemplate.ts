@@ -96,7 +96,7 @@ export async function sendBrandedEmail(
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: "AYN <noreply@mail.aynn.io>", to: [to], subject, html }),
+      body: JSON.stringify({ from: "AYN <noreply@mail.ayn.careers>", to: [to], subject, html }),
     });
     if (!res.ok) {
       const text = await res.text();

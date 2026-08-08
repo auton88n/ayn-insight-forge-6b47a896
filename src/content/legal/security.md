@@ -3,7 +3,7 @@
 Version: 1.0
 Last updated: 1 August 2026
 
-This page describes how AYN protects data as at the date above. It is written to answer the questions a vendor security review normally asks, so you can assess us without sending a questionnaire. If you still need one completed, email support@aynn.io.
+This page describes how AYN protects data as at the date above. It is written to answer the questions a vendor security review normally asks, so you can assess us without sending a questionnaire. If you still need one completed, email support@ayn.careers.
 
 **This page is descriptive, not contractual.** It sets out our current practices and is not a warranty, guarantee, or representation that any specific control will remain in place. Our practices change as the product does. Nothing here forms part of any agreement, adds to the commitments in our Terms of Service or Data Processing Agreement, or creates any obligation or liability beyond them. No security measure prevents every incident.
 
@@ -73,7 +73,7 @@ We investigate suspected incidents on becoming aware of them. Where a breach cre
 
 Employers under our Data Processing Agreement are notified in accordance with that agreement.
 
-Report a suspected vulnerability or incident to **support@aynn.io**. We aim to acknowledge within a few business days, though we do not commit to a response time and do not operate a paid disclosure programme. We will not pursue legal action against anyone who reports a vulnerability in good faith, does not access or alter data beyond what is needed to demonstrate it, and gives us reasonable time to fix it before disclosing.
+Report a suspected vulnerability or incident to **support@ayn.careers**. We aim to acknowledge within a few business days, though we do not commit to a response time and do not operate a paid disclosure programme. We will not pursue legal action against anyone who reports a vulnerability in good faith, does not access or alter data beyond what is needed to demonstrate it, and gives us reasonable time to fix it before disclosing.
 
 ## Privacy commitments
 
@@ -105,4 +105,4 @@ If any of these is a blocker for your procurement process, tell us. We would rat
 
 AYN AI
 145 Cresthaven Drive, Nova Scotia B3M 2E4, Canada
-support@aynn.io
+support@ayn.careers
