@@ -344,10 +344,11 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" onClick={() => downloadDoc(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "pdf")}>
+                        <Button size="sm" variant="outline" onClick={() => downloadText(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "pdf")}>
                           <Download className="w-4 h-4 mr-1.5" />PDF
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => downloadDoc(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "docx")}>
+                        <Button size="sm" variant="outline" onClick={() => downloadText(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "docx")}>
+
                           <Download className="w-4 h-4 mr-1.5" />Word
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(cover.body); toast({ title: "Copied" }); }}>Copy</Button>
