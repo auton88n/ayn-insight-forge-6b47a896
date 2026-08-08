@@ -301,7 +301,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
    */
   useEffect(() => {
     const id = location.hash.replace('#', '');
-    if (id === 'employers') setAudienceForHash('employer');
+    if (id === 'employers' || id === 'employers-how') setAudienceForHash('employer');
     else if (id === 'features' || id === 'proof') setAudienceForHash('job_seeker');
   }, [location.hash, setAudienceForHash]);
 
@@ -471,7 +471,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                 <ShortlistMockup />
               </div>
 
-              <div className="lp-flow lp-reveal" style={{ marginTop: 36 }}>
+              <div id="employers-how" className="lp-flow lp-reveal" style={{ marginTop: 36 }}>
                 {EMPLOYER_STEPS.map((s, i) => {
                   const Icon = s.icon;
                   return (

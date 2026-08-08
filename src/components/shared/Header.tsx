@@ -15,12 +15,11 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 // already navigates there correctly on its own, cross-page or same-page,
 // with no manual scroll/timeout logic needed.
 //
-// The link set itself is audience-relative rather than one fixed list: a
-// job seeker sees how AYN works for them, an employer does not, and
-// "Features" points at whichever section actually describes that audience
-// (#features is seeker-only, #employers is employer-only — see
-// LandingSections.tsx). "For employers" as its own permanent link is gone;
-// switching to employer mode already gets you the employer section.
+// The link set itself is audience-relative rather than one fixed list: each
+// audience gets its own "How it works" and "Features" anchor (#proof/
+// #features are seeker-only, #employers-how/#employers are employer-only —
+// see LandingSections.tsx). "For employers" as its own permanent link is
+// gone; switching to employer mode already gets you the employer section.
 const SEEKER_LINKS = [
 { path: '/', en: 'Home' },
 { path: '/#proof', en: 'How it works' },
@@ -30,6 +29,7 @@ const SEEKER_LINKS = [
 
 const EMPLOYER_LINKS = [
 { path: '/', en: 'Home' },
+{ path: '/#employers-how', en: 'How it works' },
 { path: '/#employers', en: 'Features' },
 { path: '/pricing', en: 'Pricing' },
 { path: '/contact', en: 'Contact' }];
@@ -69,6 +69,18 @@ export const Header = () => {
   };
 
   const closeSheet = useCallback(() => setSheetOpen(false), []);
+
+  // A <Link to="/"> clicked while already on "/" is a no-op for React
+  // Router — same location, nothing re-renders, nothing scrolls — which
+  // reads as "the Home button doesn't work" the moment the page is scrolled
+  // past the hero (e.g. down in the employer section). Force the scroll
+  // whenever the click target is the page we're already sitting on.
+  const handleNavClick = useCallback((path: string) => {
+    closeSheet();
+    if (path === '/' && location.pathname === '/') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [closeSheet, location.pathname]);
 
   const isActive = (path: string) => {
     if (path.includes('#')) return false;
@@ -133,7 +145,7 @@ export const Header = () => {
               <Link
                 key={link.path}
                 to={link.path}
-                onClick={closeSheet}
+                onClick={() => handleNavClick(link.path)}
                 style={{
                   fontFamily: headFont,
                   fontSize: 14,
