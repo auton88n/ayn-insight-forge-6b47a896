@@ -1,3 +1,15 @@
+# v3.92.0 Landing footer gap closed, Do Not Sell moved into /legal, cookie use confirmed
+
+Reported from a screenshot: a large empty gap in the landing page's own footer between the brand block and the nav columns. Also asked directly: move "Do Not Sell or Share My Info" into Legal, and whether the site actually uses cookies.
+
+**Footer gap.** `.lp-footer-top` (`index.css`) was `display:flex; justify-content:space-between` inside the 1200px `.lp-shell`. Content (a ~300px brand block, ~350px of two link columns) is much narrower than 1200px, so `space-between` stretched it to the two edges, leaving a large, viewport-width-dependent dead zone in the middle, worse the wider the screen. Changed to `justify-content:flex-start` with `gap: 40px clamp(48px, 9vw, 140px)`, so brand and columns now sit together as one left-aligned group with a fixed gap, and any leftover space trails on the right instead of splitting the content. Verified live: measured a 140px brand-to-columns gap at 1600px viewport width. The shared `Footer.tsx` (used on `/pricing`, `/contact`, `/legal`, `/about`, `/help`) uses a 3-column CSS grid, not flex `space-between`, so it never had this bug and wasn't touched.
+
+**Do Not Sell relocated.** v3.57.0 put "Do Not Sell or Share My Info" in both footers' bottom bar next to Privacy Policy and Cookie choices, explicitly reasoning that folding it into the markdown-backed `LEGAL_DOCS` registry (`src/lib/legalDocs.ts`) wasn't worth it since `DoNotSell.tsx` is its own bespoke page, not a `.md` file. Asked directly to move it into Legal instead: removed from both footers' bottom bar (`Footer.tsx`, `LandingSections.tsx`), and added as a plain extra `<li>` on `/legal` (`LegalIndex.tsx`), right after the `LEGAL_DOCS.map()` loop, still outside the registry itself so `rawMarkdown`/`parseDocMeta` (which assume a matching markdown file) are never called on it. No copy changed, only its location. Verified live: gone from both footers, present and last on `/legal` with no fabricated version line.
+
+**Cookie use, confirmed, not changed.** `src/lib/analytics.ts` only loads Google Analytics (`gtag.js`, which does set real cookies) after `readCookieConsent()` returns `'accepted'`, and that consent choice itself lives in `localStorage`, not a cookie. `src/integrations/supabase/client.ts` sets `auth: { storage: localStorage }`, so the sign-in session is not a cookie either. Net answer: yes, the site uses cookies, exactly one kind (Google Analytics), only after an explicit accept, nothing else. Flagged but not changed: the consent banner's own copy ("Cookies that keep you signed in... are strictly necessary") implies a signed-in cookie that doesn't actually exist; imprecise wording, not a functional bug, left for a future pass since it wasn't asked for here.
+
+`npx tsc --noEmit` clean throughout.
+
 # v3.91.0 Employer nav anchors reordered so "Features" no longer scrolls backward past "How it works"
 
 Asked directly to rearrange the employer landing page sections so the nav scrolls smoothly, matching the menu order, instead of jumping around.

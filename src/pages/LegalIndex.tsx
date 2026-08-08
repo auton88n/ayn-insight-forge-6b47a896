@@ -52,6 +52,21 @@ export default function LegalIndex() {
                 </li>
               );
             })}
+            {/* Not markdown backed like the rest of LEGAL_DOCS -- DoNotSell.tsx
+                is its own bespoke page -- so it's listed here directly rather
+                than folded into that registry. */}
+            <li>
+              <Link
+                to="/do-not-sell"
+                className="group flex items-start gap-4 py-5 hover:bg-muted/40 transition-colors px-2 -mx-2 rounded"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Do Not Sell or Share My Info</p>
+                  <p className="text-sm text-muted-foreground mt-1">Your CCPA rights, and confirmation that AYN does not sell or share personal information.</p>
+                </div>
+                <ChevronRight className="w-4 h-4 mt-0.5 text-muted-foreground group-hover:text-foreground shrink-0" />
+              </Link>
+            </li>
           </ul>
 
           <p className="mt-8 text-sm text-muted-foreground">

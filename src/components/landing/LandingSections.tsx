@@ -625,7 +625,6 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
             <div className="lp-footer-bottom-links">
               <Link to="/privacy">Privacy Policy</Link>
               <button type="button" onClick={openCookiePreferences}>Cookie choices</button>
-              <Link to="/do-not-sell">Do Not Sell or Share My Info</Link>
             </div>
           </div>
         </div>

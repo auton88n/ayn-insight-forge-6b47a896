@@ -1863,7 +1863,7 @@ button, a, input, textarea, select {
 
 /* --- footer --- */
 .lp-footer { border-top: 1px solid hsl(var(--lp-border-soft)); padding-block: 56px 28px; }
-.lp-footer-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 40px 64px; padding-bottom: 40px; }
+.lp-footer-top { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 40px clamp(48px, 9vw, 140px); padding-bottom: 40px; }
 .lp-footer-brand { max-width: 300px; }
 .lp-footer-brand img { display: block; margin-bottom: 16px; }
 .lp-footer-tagline { font-size: 14px; line-height: 1.6; color: hsl(var(--lp-dim)); margin: 0 0 18px; }
