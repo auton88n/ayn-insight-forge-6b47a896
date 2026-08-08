@@ -47,6 +47,7 @@ export default function ResumeHub() {
   const [tab, setTab] = useState<TabKey>("home");
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [pendingIntros, setPendingIntros] = useState(0);
   const [pendingAssessments, setPendingAssessments] = useState(0);
   // v3.35.0 — billing_get already returns this; only /billing rendered it.
@@ -58,9 +59,24 @@ export default function ResumeHub() {
   const platform = useFeature("platform");
 
   useEffect(() => {
+    let alive = true;
     supabase.auth.getUser().then(async ({ data }) => {
+      if (!alive) return;
       if (!data.user) {
+        // v3.88.0 — this page's own auth check can be right when the
+        // cached "signed in" state Index.tsx trusts (module scope,
+        // shared across the app) is wrong: not just after an explicit
+        // sign-out elsewhere (fixed in v3.84.0), but any time a session
+        // that LOOKS present has actually gone bad — an expired refresh
+        // token, a failed silent refresh, anything short of a clean
+        // sign-out that never fires SIGNED_OUT. Toasting and navigating
+        // to "/" alone left that cache untouched, so Index routed
+        // straight back here, which found the same thing, forever —
+        // reported live as a stuck loading screen behind a toast that
+        // never went away. Signing out here forces the real SIGNED_OUT
+        // event before leaving, so Index can't bounce back on stale trust.
         toast({ title: "Sign in required", description: "Please sign in to use Resume Hub." });
+        await supabase.auth.signOut().catch(() => { /* already signed out server-side is fine */ });
         navigate("/");
         return;
       }
@@ -93,10 +109,15 @@ export default function ResumeHub() {
           .filter(a => a.status === "sent" || a.status === "started").length))
         .catch(() => { /* silent */ });
       refreshCredits();
-
-
-
+    }).catch((e) => {
+      // v3.88.0 — getUser() had no .catch() at all: a network failure
+      // (not "no user", an actual rejected promise) left loading true
+      // forever with no way out and no error shown. Now it surfaces a
+      // real retry state instead of hanging on the spinner indefinitely.
+      if (!alive) return;
+      setLoadError(e instanceof Error ? e.message : "Could not check your sign-in status.");
     });
+    return () => { alive = false; };
   }, [navigate, toast]);
 
 
@@ -111,6 +132,16 @@ export default function ResumeHub() {
     await supabase.auth.signOut();
     navigate("/");
   }, [navigate]);
+
+  if (loadError) {
+    return (
+      <div className="resume-hub-theme flex flex-col items-center justify-center gap-3" style={{ minHeight: "100vh" }}>
+        <div className="rh-eyebrow">Couldn't check your sign-in status.</div>
+        <p className="text-xs text-muted-foreground max-w-xs text-center">{loadError}</p>
+        <Button size="sm" onClick={() => window.location.reload()}>Try again</Button>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

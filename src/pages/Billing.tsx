@@ -45,7 +45,15 @@ export default function Billing() {
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getUser();
-      if (!data.user) { navigate("/"); return; }
+      if (!data.user) {
+        // v3.88.0 — a real server check disagreeing with Index.tsx's
+        // cached "signed in" state (session present but actually gone
+        // bad) must correct that shared cache before leaving, or "/"
+        // just bounces back here on the same stale trust. See ResumeHub.tsx.
+        await supabase.auth.signOut().catch(() => { /* already signed out server-side is fine */ });
+        navigate("/");
+        return;
+      }
       let role = "job_seeker";
       try {
         const { data: prof } = await supabase

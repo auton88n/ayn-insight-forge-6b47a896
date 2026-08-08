@@ -18,7 +18,13 @@ const EmployerPending = () => {
 
   const check = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigate('/'); return; }
+    if (!user) {
+      // v3.88.0 — same fix as ResumeHub.tsx: correct the shared cache
+      // before leaving, or "/" bounces right back on stale trust.
+      await supabase.auth.signOut().catch(() => { /* already signed out server-side is fine */ });
+      navigate('/');
+      return;
+    }
     const q = supabase.from('employer_accounts' as never).select('company_name, status').eq('user_id', user.id).maybeSingle();
     const { data } = await (q as unknown as Promise<{ data: { company_name?: string; status?: EmpStatus } | null }>);
     setCompany(data?.company_name || '');
