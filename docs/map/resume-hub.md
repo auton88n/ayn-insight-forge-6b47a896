@@ -129,6 +129,16 @@ Asked what happens to an upload whose format "looks off." Answering from the cod
 
 Verified live, twice each: the blank-PDF case now returns a clean, honest error with no fabricated person, both times post-fix. Re-ran both legitimate format-stress cases (sidebar-textbox resume, legible scanned-image resume) against the same deploy to confirm the fix cost nothing — both still extracted correctly. `npx tsc --noEmit` clean. Deployed live via `supabase functions deploy resume-hub`. Test accounts and all uploaded test files fully erased/deleted after.
 
+### v3.104.0 fix: a corrupted or password-protected upload leaked a raw upstream provider error
+
+Five more real-world "the format looks off" cases, tried live against the deployed function: a random-bytes file saved as `.pdf`, a real PDF encrypted with a password, a French-language resume, a cover letter uploaded in place of a resume, and a genuinely huge synthetic resume (7 pages, 180 distinct roles).
+
+**Two of the five shared one real bug.** Both the garbage file and the password-protected PDF hit the identical wall: Google's own document parser rejects the file before the vision model ever runs, returning `"The document has no pages."` — and the generic `!r.ok` branch in `parse_file`'s Stage 3 was forwarding that raw upstream response straight into the `error` field shown to the user: `"AI error 400: {\"error\":{...,\"metadata\":{\"provider_name\":\"Google AI Studio\",...`. Not a fabrication, but a real leak of internal vendor detail and a genuinely unhelpful message for someone who just tried to upload a locked or damaged file. Fixed by reusing the same `noContentMsg` the blank/scanned-file case already returns, moving the raw provider text into `detail` (a secondary field, never the headline) instead of the main error. Verified live: both cases now return the friendly message post-fix.
+
+**The other three needed no fix.** A French resume extracted with every fact and number intact ("3,8 secondes a 1,2 seconde"), nothing translated or altered. A cover letter, deliberately uploaded where a resume was expected, didn't crash and didn't invent an employer or figure that wasn't in the text — it did misattribute "Marketing Manager" (the role being applied *for*) as the person's own current title, a real but minor field-confusion given the source document isn't a resume at all, not a fabrication, and low priority since this specific mistake (uploading the wrong file type) is rare and visibly self-correcting once the person sees the result. The 180-role synthetic resume extracted completely: first and last entries verified correct against the source, no truncation, no timeout.
+
+`npx tsc --noEmit` clean. Deployed live via `supabase functions deploy resume-hub`. Test account and all uploaded test files fully erased/deleted after.
+
 ## Home next actions (v3.3.0)
 
 OverviewTab was a counts dashboard (resume count, saved job count, primary resume ATS badge, a static getting-started list). It told the user nothing to do, so it was deleted. HomeTab renders at most four cards, each only when its condition holds, from one loader: src/lib/hubSnapshot.ts -> loadHubSnapshot(userId).

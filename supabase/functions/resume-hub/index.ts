@@ -2182,16 +2182,26 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
         }),
       });
 
+      const noContentMsg = isPdf
+        ? "Couldn't read this PDF — it may be scanned/image-based, blank, or corrupted. Paste your resume text instead."
+        : "AI couldn't extract resume data. Paste your resume text instead.";
       if (r.status === 429) return json({ error: "AI rate limit. Try again in a minute." }, 429);
       if (r.status === 402) return json({ error: "AI credits exhausted." }, 402);
-      if (!r.ok) { const t = await r.text(); return json({ error: `AI error ${r.status}: ${t.slice(0, 300)}` }, 500); }
+      if (!r.ok) {
+        // A malformed/corrupted upload reaches the provider's own document
+        // parser and gets rejected there (reproduced live: a garbage file
+        // sent as a PDF got a raw "The document has no pages" 400 from
+        // Google AI Studio) -- that used to leak straight to the user as
+        // "AI error 400: {...raw upstream JSON, provider name and all...}"
+        // instead of the same honest, friendly message every other unreadable-
+        // file case already gets. The raw text is kept in `detail` only.
+        const t = await r.text();
+        return json({ error: noContentMsg, detail: t.slice(0, 300) }, 422);
+      }
 
       const data = await r.json();
       const call = data?.choices?.[0]?.message?.tool_calls?.[0];
       const tc = call?.function?.arguments;
-      const noContentMsg = isPdf
-        ? "Couldn't read this PDF — it may be scanned/image-based or blank. Paste your resume text instead."
-        : "AI couldn't extract resume data. Paste your resume text instead.";
       if (!tc || call?.function?.name === "emit_no_content") {
         const fallback = data?.choices?.[0]?.message?.content;
         let reason: string | null = null;
