@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
-import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Wand2, Download } from "lucide-react";
+import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Wand2, Download, X } from "lucide-react";
 import { handoffUrl } from "@/lib/extension";
 import { resumeToText, buildResumePdfBlob, buildResumeDocxBlob, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import ResumeDiffViewer from "./ResumeDiffViewer";
@@ -35,6 +35,11 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
   const [primaryResume, setPrimaryResume] = useState<{ id: string; content: ResumeContent; ats_score: number | null } | null>(null);
   const [matchData, setMatchData] = useState<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string } | null>(null);
   const [tailored, setTailored] = useState<TailoredRow | null>(null);
+  // v3.99.0 — required-but-not-evidenced skills the job asked for, shown as
+  // an opt-in add, never applied automatically. Each carries its own
+  // editable value so a person can add their own real wording instead of
+  // the job posting's exact phrase if that fits better.
+  const [gapSuggestions, setGapSuggestions] = useState<{ text: string; value: string }[]>([]);
   const tailoring = useFeature("tailoring");
   const [cover, setCover] = useState<CoverRow | null>(null);
   const [showDiff, setShowDiff] = useState(false);
@@ -72,6 +77,7 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
     setShowDiff(false);
     setTailored(null);
     setCover(null);
+    setGapSuggestions([]);
     loadDocs(j.id);
   };
 
@@ -96,7 +102,7 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
     if (!selected || !primaryResume || !selected.jd_text) return;
     setBusy(true);
     try {
-      const { resume } = await resumeHubApi.tailor(selected.jd_text);
+      const { resume, gapAnalysis } = await resumeHubApi.tailor(selected.jd_text);
       // Regenerating replaces the stored copy for this job.
       await supabase.from("resume_versions").delete().eq("user_id", userId).eq("created_for_job_id", selected.id);
       const { error } = await supabase.from("resume_versions").insert({
@@ -104,6 +110,7 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
       });
       if (error) throw error;
       await loadDocs(selected.id);
+      setGapSuggestions((gapAnalysis?.missing ?? []).map(text => ({ text, value: text })));
       toast({ title: "Tailored resume ready", description: "Download it below." });
     } catch (e) {
       toast(isFeatureDisabled(e)
@@ -111,6 +118,32 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
         : { title: "Tailor failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally { setBusy(false); }
   };
+
+  // v3.99.0 — patches the already-generated, already-paid-for tailored
+  // resume in place. No new AI call, no new credit charge: the person is
+  // just confirming something AYN is showing them, not asking it to
+  // generate anything new.
+  const patchTailoredContent = async (updater: (c: ResumeContent) => ResumeContent) => {
+    if (!tailored) return;
+    const nextContent = updater(tailored.content);
+    const { error } = await supabase.from("resume_versions").update({ content: nextContent as never }).eq("id", tailored.id);
+    if (error) { toast({ title: "Couldn't save that change", description: error.message, variant: "destructive" }); return; }
+    setTailored({ ...tailored, content: nextContent });
+  };
+
+  const useJobTitle = () => {
+    if (!selected) return;
+    patchTailoredContent(c => ({ ...c, basics: { ...c.basics, title: selected.title } }));
+  };
+
+  const addSuggestedSkill = (idx: number) => {
+    const item = gapSuggestions[idx];
+    if (!item || !item.value.trim()) return;
+    patchTailoredContent(c => ({ ...c, skills: [...(c.skills ?? []), item.value.trim()] }));
+    setGapSuggestions(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const dismissSuggestion = (idx: number) => setGapSuggestions(prev => prev.filter((_, i) => i !== idx));
 
   const writeCover = async () => {
     if (!selected || !primaryResume || !selected.jd_text) return;
@@ -331,6 +364,44 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
                         improved={resumeToText(tailored.content)}
                       />
                     )}
+                  </div>
+                )}
+
+                {tailored && selected.title && tailored.content.basics?.title &&
+                  tailored.content.basics.title.trim().toLowerCase() !== selected.title.trim().toLowerCase() && (
+                  <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      This role's title is <span className="font-medium text-foreground">"{selected.title}"</span>.
+                      Your resume says <span className="font-medium text-foreground">"{tailored.content.basics.title}"</span>.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={useJobTitle}>Use this job's title</Button>
+                      <span className="text-[11px] text-muted-foreground">Nothing changes unless you choose this.</span>
+                    </div>
+                  </div>
+                )}
+
+                {tailored && gapSuggestions.length > 0 && (
+                  <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2.5">
+                    <p className="text-xs text-muted-foreground">
+                      This role also asks for a few things not on your resume. Only add one if it's genuinely true —
+                      edit the text first if your own wording fits better.
+                    </p>
+                    {gapSuggestions.map((s, idx) => (
+                      <div key={s.text} className="flex items-center gap-2">
+                        <Input
+                          value={s.value}
+                          onChange={e => setGapSuggestions(prev => prev.map((x, i) => i === idx ? { ...x, value: e.target.value } : x))}
+                          className="h-8 text-sm"
+                        />
+                        <Button size="sm" variant="outline" className="shrink-0" onClick={() => addSuggestedSkill(idx)}>
+                          <Plus className="w-3.5 h-3.5 mr-1" />Add
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => dismissSuggestion(idx)} aria-label="Skip this suggestion">
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 )}
 

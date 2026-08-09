@@ -73,7 +73,7 @@ export const resumeHubApi = {
   match: (jdText: string) =>
     call<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string }>("resume-hub", { action: "match", jdText }),
   tailor: (jdText: string) =>
-    call<{ resume: ResumeContent }>("resume-hub", { action: "tailor", jdText }),
+    call<{ resume: ResumeContent; gapAnalysis?: { missing: string[] } }>("resume-hub", { action: "tailor", jdText }),
 
   coverLetter: (jdText: string, opts?: { tone?: string; company?: string }) =>
     call<{ body: string }>("resume-hub", { action: "cover_letter", jdText, ...opts }),

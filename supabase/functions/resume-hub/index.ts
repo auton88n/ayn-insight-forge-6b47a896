@@ -2445,7 +2445,15 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       const chargeTailor = await creditSpend(adminTailor, user.id, COST_TAILOR, "tailored_resume");
       if (!chargeTailor.ok) return insufficientCredits(chargeTailor.balance, COST_TAILOR, "tailored resume");
 
-      const result = { resume: r.structured };
+      // v3.99.0 — was computed and logged (gap_matched/gap_missing above)
+      // but never actually sent back. JobsTab uses this to let the person
+      // decide, on their own, whether to add a genuinely missing skill or
+      // align the header title to the job's — nothing here is applied
+      // automatically, this is only the raw material for that choice.
+      const result = {
+        resume: r.structured,
+        gapAnalysis: { missing: gap.missing.map((req) => req.text).slice(0, 6) },
+      };
       cacheSet(adminTailor, cacheKey, user.id, "tailor_web", result, TAILOR_TTL);
       logAiCall(adminTailor, {
         user_id: user.id, purpose: "tailor_web", model: DEFAULT_MODEL, duration_ms: Date.now() - tailorStarted,
