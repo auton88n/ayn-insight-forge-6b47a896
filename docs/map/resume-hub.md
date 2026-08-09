@@ -139,6 +139,20 @@ Five more real-world "the format looks off" cases, tried live against the deploy
 
 `npx tsc --noEmit` clean. Deployed live via `supabase functions deploy resume-hub`. Test account and all uploaded test files fully erased/deleted after.
 
+### v3.105.0 fix: the Jobs tab's tailored-document buttons overflowed the page on mobile
+
+A broad second-round test pass (billing, admin panel, account lifecycle, rate limits, real browser UI flows, resume downloads, storage security, mobile viewport) found one real bug, in the last of those.
+
+At a 375px mobile viewport, `JobsTab.tsx`'s tailored-resume card (PDF / Word / "See what changed") produced genuine page-level horizontal scroll — `document.documentElement.scrollWidth` measured 424px inside a 375px viewport, not just a visual clip. Root cause: the row's outer container had `flex flex-wrap`, but the inner `<div>` actually holding the three buttons only had `flex items-center gap-2`, no `flex-wrap` of its own, so the buttons were forced onto one line and overflowed the card instead of wrapping onto a second line the way the outer container's own class already implied they should. Fixed by adding `flex-wrap` to that inner div. Verified live: `scrollWidth` now exactly equals `clientWidth` (375 = 375) at the same viewport, and "See what changed" visibly wraps to its own line below PDF/Word instead of clipping off the right edge.
+
+Everything else in this pass held with no bugs: the credit-ledger concurrency guard re-verified under 8 genuinely parallel requests (exactly 4 successes against 4 available credits, zero double-spend), all 16 admin RPCs, `self_export_account`/`self_pause_account`/`self_delete_account` (including the wrong-email refusal), both proposal rate limits, the assessment's real server-side deadline, the signup modal and Settings' four tabs in a real browser, and both PDF and DOCX downloads (intercepted the actual client-generated Blob at download time and validated the raw bytes — valid one-page PDF, valid docx zip, correct content in both). Storage security was live-tested against real objects belonging to another real account (including the founder's own) — both `resumes` and `attachments` buckets correctly refused cross-account and anonymous access with a safe non-existence-confirming 404, content never viewed.
+
+One incidental note for future test passes: an early `employer_match` call in this pass used no must-have-skill filter and matched a real, live production candidate (confirmed to be the founder's own account). Every employer-search test since scopes `must_have_skills` to a fictional term so only synthetic test candidates can match — now the standing practice for testing this action.
+
+A second, separate mobile issue was found but deliberately not fixed in this pass: Resume Hub's own header title truncates to "Resu..." at narrow widths because the top bar runs out of room — flagged for its own pass since a good fix needs a real layout decision, not a class tweak.
+
+`npx tsc --noEmit` clean. All test accounts (one org, its search/proposal/assessment rows, and several throwaway seeker/employer/admin accounts) fully erased after.
+
 ## Home next actions (v3.3.0)
 
 OverviewTab was a counts dashboard (resume count, saved job count, primary resume ATS badge, a static getting-started list). It told the user nothing to do, so it was deleted. HomeTab renders at most four cards, each only when its condition holds, from one loader: src/lib/hubSnapshot.ts -> loadHubSnapshot(userId).

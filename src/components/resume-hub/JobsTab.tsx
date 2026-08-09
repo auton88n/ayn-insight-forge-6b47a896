@@ -344,7 +344,7 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
                           Generated {new Date(tailored.created_at).toLocaleDateString()}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Button size="sm" variant="outline" onClick={() => downloadDoc(tailored.content, fileBase(selected.company, selected.title, "Resume"), "pdf")}>
                           <Download className="w-4 h-4 mr-1.5" />PDF
                         </Button>
