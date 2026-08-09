@@ -73,6 +73,12 @@ Same audit, three more findings, all fixed together. **Links**: the exact same b
 
 **A real, current, unrelated finding surfaced while testing**: `rewrite`/`tailor` (both `QUALITY_MODEL`, `google/gemini-2.5-pro`) could not be round-tripped live today — `ai_call_telemetry` shows a real `tailor_web` call took 176 seconds for one generation, past the edge function's 150s idle timeout. `resume_diagnose` (the faster `DEFAULT_MODEL`) worked instantly and correctly in the same session, isolating this to the specific model, not a regression from this change. Flagged, not fixed — an external AI-gateway latency condition, worth the founder's own look since it could be timing out real users right now.
 
+### v3.97.0 fix: the slow model, actually swapped
+
+Asked directly, right after v3.96.0's finding, to try flash instead of pro. `QUALITY_MODEL` (`google/gemini-2.5-pro`) is shared by seven features; only the three that were actually measured slow got changed to `DEFAULT_MODEL` (`google/gemini-2.5-flash`) — `rewrite`, web `tailor`, and the extension's `handleSmartTailor` (every `callAI` call site in each, including `smart_tailor`'s two-call draft-plus-mandatory-critique chain, the worst case for hitting a timeout, plus the `logAiCall` telemetry entries so recorded model names stay accurate). Canonical-profile extraction (`extractCanonical`), candidate reranking, assessment grading, and cover letters were deliberately left on `gemini-2.5-pro` — not flagged as slow, not tested, out of scope for this specific fix.
+
+Verified live: the identical test resume from v3.96.0 (title-less summary, a real 8-month gap, a link, a certification) through the real deployed `rewrite` action completed in **6 seconds**, down from the 176 seconds measured before. Quality held across the swap: summary opened with the real title, both numbers ("3 days to 1 day", "35%") survived unchanged, the link and certification both came through, dates normalized to "Month YYYY". Deployed live via `supabase functions deploy resume-hub`. `npx tsc --noEmit` clean. Test account and data fully erased after.
+
 Deployed live via `supabase functions deploy resume-hub` (not just committed). `npx tsc --noEmit` clean. Test account and all data fully erased after.
 
 ## Home next actions (v3.3.0)

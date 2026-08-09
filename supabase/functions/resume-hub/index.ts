@@ -2222,7 +2222,11 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
       // low-temperature, single-purpose call (scoreResumeContent) so the
       // two stochastic jobs never contaminate each other's number.
       const r = await callAI({
-        model: QUALITY_MODEL,
+        // v3.97.0 — was QUALITY_MODEL (gemini-2.5-pro), measured live at 176s
+        // for one call, past this app's own 150s idle timeout. Swapped to
+        // the flash tier for latency; scoring already ran on this same tier
+        // (scoreResumeContent) with no quality complaint.
+        model: DEFAULT_MODEL,
         temperature: 0.3,
         system: `You rewrite a resume to be stronger and more ATS-friendly, without inventing anything, and it must read like a real person wrote it. RULES:
 1. NEVER invent or imply experience, employers, titles, dates, or numbers that are not already in the resume.
@@ -2418,7 +2422,9 @@ ${bundle.text}${applicantSection}${droppedNote}
 JOB DESCRIPTION:
 ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
 
-      let r = await callAI({ model: QUALITY_MODEL, temperature: 0.2, system, user: userMsg, toolName: "emit_resume", toolSchema: RESUME_SCHEMA });
+      // v3.97.0 — was QUALITY_MODEL (gemini-2.5-pro): a real tailor_web call
+      // measured 176s, past this app's own 150s idle timeout. Flash tier.
+      let r = await callAI({ model: DEFAULT_MODEL, temperature: 0.2, system, user: userMsg, toolName: "emit_resume", toolSchema: RESUME_SCHEMA });
 
       // FIGURE PRESERVATION — verified in code, not just asked for, same as
       // the extension's tailor. Stringifying the structured output is enough
@@ -2426,7 +2432,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       let missingFigures = droppedFigures(bundle.text, JSON.stringify(r.structured));
       if (missingFigures.length) {
         const retry = await callAI({
-          model: QUALITY_MODEL, temperature: 0.2, system,
+          model: DEFAULT_MODEL, temperature: 0.2, system,
           user: `${userMsg}\n\nPREVIOUS ATTEMPT DROPPED OR ALTERED THESE FIGURES: ${missingFigures.slice(0, 30).join(", ")}\nProduce the tailored resume again with every one of those figures present, unchanged, in the bullet it belongs to.`,
           toolName: "emit_resume", toolSchema: RESUME_SCHEMA,
         });
@@ -2440,7 +2446,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       const result = { resume: r.structured };
       cacheSet(adminTailor, cacheKey, user.id, "tailor_web", result, TAILOR_TTL);
       logAiCall(adminTailor, {
-        user_id: user.id, purpose: "tailor_web", model: QUALITY_MODEL, duration_ms: Date.now() - tailorStarted,
+        user_id: user.id, purpose: "tailor_web", model: DEFAULT_MODEL, duration_ms: Date.now() - tailorStarted,
         cache_hit: false, source_map: identity?.sourceMap() || null,
         gap_matched: gap.matched.length, gap_missing: gap.missing.length,
         meta: { jd_chars: jdText.length, section_chars: bundle.chars, figures_ok: missingFigures.length === 0 },
@@ -4507,13 +4513,17 @@ Return ONLY this JSON (no code fences):
 ${TAILOR_RULES}`;
 
   // PASS 1 — draft.
-  const draftRes = await callAI({ model: QUALITY_MODEL, system, user: userMsg });
+  // v3.97.0 — was QUALITY_MODEL (gemini-2.5-pro). This handler chains two
+  // full calls unconditionally (draft + self-critique), so it was the
+  // worst-case path for the 176s-measured latency that pushed rewrite/
+  // tailor_web past this app's own 150s idle timeout. Flash tier.
+  const draftRes = await callAI({ model: DEFAULT_MODEL, system, user: userMsg });
   let out = normalizeTailorOut(parseJsonLoose<TailorOut>(draftRes.text));
   if (!out.tailoredText) return json({ error: "Failed to parse AI response" }, 500);
 
   // PASS 2 — self critique, then revise. Always for tailoring.
   const critiqueRes = await callAI({
-    model: QUALITY_MODEL,
+    model: DEFAULT_MODEL,
     system: `You are a strict reviewer of a tailored resume. Check the DRAFT against the SECTIONS and the GAP ANALYSIS on four points:
 1. Every claim is grounded in the SECTIONS. Flag anything that is not.
 2. Every number, percentage, currency figure, date and year is unchanged from the SECTIONS.
@@ -4532,7 +4542,7 @@ Keep everything that was already correct. Do not add new claims to fix a gap.${T
   let missingFigures = droppedFigures(bundle.text, out.tailoredText);
   if (missingFigures.length) {
     const retry = await callAI({
-      model: QUALITY_MODEL,
+      model: DEFAULT_MODEL,
       system,
       user: `${userMsg}\n\nPREVIOUS ATTEMPT DROPPED OR ALTERED THESE FIGURES: ${missingFigures.slice(0, 30).join(", ")}\nProduce the tailored resume again with every one of those figures present, unchanged, in the bullet it belongs to.`,
     });
@@ -4572,7 +4582,7 @@ Keep everything that was already correct. Do not add new claims to fix a gap.${T
 
   cacheSet(admin, cacheKey, userId, "tailor", result, TAILOR_TTL);
   logAiCall(admin, {
-    user_id: userId, purpose: "tailor", model: QUALITY_MODEL, duration_ms: Date.now() - started,
+    user_id: userId, purpose: "tailor", model: DEFAULT_MODEL, duration_ms: Date.now() - started,
     cache_hit: false, source_map: identity?.sourceMap() || null,
     gap_matched: gap.matched.length, gap_missing: gap.missing.length, gap_surfaced: surfaced.length,
     meta: { jd_chars: jd.length, section_chars: bundle.chars, dropped: bundle.dropped, figures_ok: missingFigures.length === 0, passes: 2, credits_spent: COST_TAILOR },
