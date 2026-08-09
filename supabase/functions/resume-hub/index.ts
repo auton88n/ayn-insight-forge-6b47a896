@@ -2120,7 +2120,7 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
       // Stage 2 — text path (fast, accurate when extraction worked)
       if (isMeaningful) {
         const r = await callAI({
-          system: `You convert raw resume text into structured JSON. Be faithful — extract exactly what is written. Never invent names, employers, dates, or skills. If a field is missing, return an empty string or empty array. The name, contact info, and companies in this text are real.`,
+          system: `You convert raw resume text into structured JSON. Be faithful — extract exactly what is written. Never invent names, employers, dates, or skills. If a field is missing, return an empty string or empty array. The name, contact info, and companies in this text are real. If the text below does not actually contain resume content (it's garbled, boilerplate, or unrelated), return every field empty — do NOT fill in a generic example/placeholder person or job.`,
           user: `RESUME TEXT:\n${resumeText.slice(0, 18000)}`,
           toolName: "emit_resume",
           toolSchema: RESUME_SCHEMA,
@@ -2137,21 +2137,42 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
         : (mimeType || "application/octet-stream");
 
       const userContent = [
-        { type: "text", text: "Extract ALL information from this resume document: full name, contact details (email, phone, location, links), every job (company, title, dates, bullets), education, skills, certifications, projects. Be exhaustive and faithful — extract exactly what is written, never invent. Return through the emit_resume tool." },
+        { type: "text", text: "Extract ALL information from this resume document: full name, contact details (email, phone, location, links), every job (company, title, dates, bullets), education, skills, certifications, projects. Be exhaustive and faithful — extract exactly what is written, never invent. If, and only if, this document has no actual readable resume content in it at all (blank page, corrupted file, an unrelated document, or an image too degraded to read), call emit_no_content instead and explain why in one sentence. Otherwise call emit_resume." },
         { type: "file", file: { filename: isPdf ? "resume.pdf" : "resume.docx", file_data: `data:${realMime};base64,${fileBase64}` } },
       ];
 
+      // Two tools, not one pinned tool_choice. A forced single tool call gives
+      // the model no way to say "there's nothing here" -- reproduced live
+      // against a genuinely blank PDF, it filled the required schema with a
+      // complete fabricated person (name, employers, degrees, certifications)
+      // instead. emit_no_content is the explicit escape hatch; tool_choice
+      // "required" still forces SOME call, so the model can't just reply with
+      // prose, but it can now honestly decline instead of inventing.
       const r = await fetch(GATEWAY_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "google/gemini-2.5-flash",
           messages: [
-            { role: "system", content: "You convert resume documents into structured JSON. The name, employers, dates, and contact details in the document are real — extract them exactly. Never invent data. If a field is missing, leave it empty. Always call the emit_resume tool." },
+            { role: "system", content: "You convert resume documents into structured JSON. The name, employers, dates, and contact details in the document are real — extract them exactly. Never invent data, and never substitute a generic example or placeholder person/employer when the document is blank or unreadable. If a field is missing, leave it empty. Call emit_no_content if there is no real resume content to read; otherwise call emit_resume." },
             { role: "user", content: userContent },
           ],
-          tools: [{ type: "function", function: { name: "emit_resume", description: "emit_resume", parameters: RESUME_SCHEMA } }],
-          tool_choice: { type: "function", function: { name: "emit_resume" } },
+          tools: [
+            { type: "function", function: { name: "emit_resume", description: "emit_resume", parameters: RESUME_SCHEMA } },
+            {
+              type: "function",
+              function: {
+                name: "emit_no_content",
+                description: "Call this instead of emit_resume when the document has no readable resume content at all.",
+                parameters: {
+                  type: "object",
+                  properties: { reason: { type: "string", description: "One sentence: why nothing could be extracted." } },
+                  required: ["reason"],
+                },
+              },
+            },
+          ],
+          tool_choice: "required",
         }),
       });
 
@@ -2160,14 +2181,20 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
       if (!r.ok) { const t = await r.text(); return json({ error: `AI error ${r.status}: ${t.slice(0, 300)}` }, 500); }
 
       const data = await r.json();
-      const tc = data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-      if (!tc) {
+      const call = data?.choices?.[0]?.message?.tool_calls?.[0];
+      const tc = call?.function?.arguments;
+      const noContentMsg = isPdf
+        ? "Couldn't read this PDF — it may be scanned/image-based or blank. Paste your resume text instead."
+        : "AI couldn't extract resume data. Paste your resume text instead.";
+      if (!tc || call?.function?.name === "emit_no_content") {
         const fallback = data?.choices?.[0]?.message?.content;
+        let reason: string | null = null;
+        if (call?.function?.name === "emit_no_content") {
+          try { reason = JSON.parse(tc)?.reason ?? null; } catch { /* noop */ }
+        }
         return json({
-          error: isPdf
-            ? "Couldn't read this PDF — it may be scanned/image-based. Paste your resume text instead."
-            : "AI couldn't extract resume data. Paste your resume text instead.",
-          detail: typeof fallback === "string" ? fallback.slice(0, 400) : null,
+          error: noContentMsg,
+          detail: reason ?? (typeof fallback === "string" ? fallback.slice(0, 400) : null),
         }, 422);
       }
 
