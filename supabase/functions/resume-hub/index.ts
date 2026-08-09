@@ -514,11 +514,13 @@ const RESUME_SCHEMA = {
 // questions.
 const ATS_RUBRIC = `Score out of 100, starting at 100 and subtracting only for what is actually true of this resume:
 - No summary or profile section: -10
+- Summary's first sentence does not name the candidate's own current or most recent job title: -5
 - No dedicated skills section: -10
 - Dates not written consistently as "Month YYYY" throughout: -5
 - Each work bullet that neither contains a number/percentage/scale NOR leads with a specific action verb: -5 each, capped at -40 total for this category
 - Summary reads generic enough to apply to any candidate (buzzwords, no specifics from this actual background): -10
 - Fewer than 2 roles listed, or bullets so thin they show no real scope: -10
+- A gap of 6 months or more between the end of one role and the start of the next, with nothing in the resume accounting for it: -10, once per gap, capped at -20 total for this category
 Floor the result at 0. Do not deduct for anything not listed here. State the score as the literal result of this subtraction, not an impression.`;
 
 // Scoring lives in exactly one place, called by both resume_diagnose and
@@ -2231,6 +2233,7 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
 6. skills must be ATOMIC: one skill name per array entry (e.g. "React", "Stakeholder management"), never a category label with a colon and a comma-separated list crammed into one entry. Group related skills by ORDER in the array, not by writing a label into the string.
 7. If a job description is provided, weave in its keywords only where the person's real experience already supports them.
 8. No em dashes, no en dashes. Ranges use the word "to".
+9. The summary's first sentence must open by naming the candidate's own current or most recent job title (their real title, never an invented one, and never the job description's title unless it already matches). A recruiter's fast scan and an ATS both check for a title match before anything else, so it cannot be buried in the second sentence.
 Return the complete improved resume in the same schema, plus suggestions: an array of short strings describing what you changed and why.`,
         user: JSON.stringify({ resume, jdText: jdText ?? "" }).slice(0, 40000),
         toolName: "emit_rewrite",
@@ -2404,7 +2407,7 @@ RULES — YOU MUST FOLLOW EVERY ONE:
 2. ONLY reword existing bullets to naturally include job keywords where the underlying experience already supports it.
 3. Keep every fact, number, percentage, company name, date, and result exactly as-is.
 4. You may reorder skills to put the most relevant first, among skills the candidate actually has.
-5. You may adjust the summary to echo 2-3 key phrases from the job description — only using experience already in APPLICANT SECTIONS.
+5. You may adjust the summary to echo 2-3 key phrases from the job description — only using experience already in APPLICANT SECTIONS. Its first sentence must still open by naming the candidate's own current or most recent job title.
 6. Do NOT change job titles, company names, or dates.
 7. Address the GAP ANALYSIS's "REQUIRED BUT NOT EVIDENCED" items wherever real related experience exists in APPLICANT SECTIONS; stay silent where it does not. Do not add a new claim just to fix a gap.
 8. No em dashes. No en dashes. Write dates as "2023 to Present".
@@ -4415,6 +4418,7 @@ TAILORED RESUME:
 - Never add a skill to the skills section that is not supported by the sections.
 - Re-order skills to surface the job's terms first, among skills the candidate actually has.
 - Strengthen verbs (Led, Shipped, Reduced, Owned). Quantify only with numbers already present.
+- If a summary or profile line exists in the sections, its first sentence must open by naming the candidate's own current or most recent job title, never the job description's title unless it already matches.
 - Output as clean ATS plain text: section headers in CAPS, dashes for bullets, one column, no tables, no emojis.
 
 KEYWORDS (10 to 14): the most important hard skills, tools, certs and methodologies from the job description. Mark inResume=true only if the term (or a very close variant) is present in the sections. importance: high if it is a stated must have or repeated; medium otherwise; low for nice to haves.

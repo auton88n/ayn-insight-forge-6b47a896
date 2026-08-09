@@ -15,9 +15,12 @@ export function resumeToText(c: ResumeContent): string {
   const b = c.basics ?? {};
   const lines: string[] = [];
   if (b.name) lines.push(b.name);
-  const contact = [b.title, b.email, b.phone, b.location].filter(Boolean).join(" | ");
+  const linkUrls = (b.links ?? []).map(l => l.url).filter(Boolean);
+  const contact = [b.title, b.email, b.phone, b.location, ...linkUrls].filter(Boolean).join(" | ");
   if (contact) lines.push(contact);
   if (b.summary) lines.push("", b.summary);
+
+  if ((c.skills ?? []).length) lines.push("", "SKILLS", (c.skills ?? []).join(", "));
 
   if ((c.work ?? []).length) {
     lines.push("", "EXPERIENCE");
@@ -28,15 +31,13 @@ export function resumeToText(c: ResumeContent): string {
       lines.push("");
     });
   }
+  if ((c.certifications ?? []).length) lines.push("CERTIFICATIONS", (c.certifications ?? []).join(", "), "");
   if ((c.education ?? []).length) {
     lines.push("EDUCATION");
     (c.education ?? []).forEach(e =>
       lines.push([e.degree, e.field, e.school].filter(Boolean).join(", "))
     );
-    lines.push("");
   }
-  if ((c.skills ?? []).length) lines.push("SKILLS", (c.skills ?? []).join(", "), "");
-  if ((c.certifications ?? []).length) lines.push("CERTIFICATIONS", (c.certifications ?? []).join(", "));
   return lines.join("\n").trim();
 }
 
@@ -56,9 +57,15 @@ function buildResumeBlocks(c: ResumeContent): DocBlock[] {
   const blocks: DocBlock[] = [];
   const b = c.basics ?? {};
   if (b.name) blocks.push({ kind: "name", text: b.name });
-  const contact = [b.title, b.email, b.phone, b.location].filter(Boolean).join(" | ");
+  const linkUrls = (b.links ?? []).map(l => l.url).filter(Boolean);
+  const contact = [b.title, b.email, b.phone, b.location, ...linkUrls].filter(Boolean).join(" | ");
   if (contact) blocks.push({ kind: "contact", text: contact });
   if (b.summary) blocks.push({ kind: "summary", text: b.summary, gapBefore: 8 });
+
+  if ((c.skills ?? []).length) {
+    blocks.push({ kind: "header", text: "SKILLS", gapBefore: 12 });
+    blocks.push({ kind: "plain", text: (c.skills ?? []).join(", "), gapBefore: 4 });
+  }
 
   if ((c.work ?? []).length) {
     blocks.push({ kind: "header", text: "EXPERIENCE", gapBefore: 12 });
@@ -73,6 +80,11 @@ function buildResumeBlocks(c: ResumeContent): DocBlock[] {
     });
   }
 
+  if ((c.certifications ?? []).length) {
+    blocks.push({ kind: "header", text: "CERTIFICATIONS", gapBefore: 12 });
+    blocks.push({ kind: "plain", text: (c.certifications ?? []).join(", "), gapBefore: 4 });
+  }
+
   if ((c.education ?? []).length) {
     blocks.push({ kind: "header", text: "EDUCATION", gapBefore: 12 });
     (c.education ?? []).forEach((e, i) => {
@@ -82,16 +94,6 @@ function buildResumeBlocks(c: ResumeContent): DocBlock[] {
         gapBefore: i === 0 ? 4 : 4,
       });
     });
-  }
-
-  if ((c.skills ?? []).length) {
-    blocks.push({ kind: "header", text: "SKILLS", gapBefore: 12 });
-    blocks.push({ kind: "plain", text: (c.skills ?? []).join(", "), gapBefore: 4 });
-  }
-
-  if ((c.certifications ?? []).length) {
-    blocks.push({ kind: "header", text: "CERTIFICATIONS", gapBefore: 12 });
-    blocks.push({ kind: "plain", text: (c.certifications ?? []).join(", "), gapBefore: 4 });
   }
 
   return blocks;
