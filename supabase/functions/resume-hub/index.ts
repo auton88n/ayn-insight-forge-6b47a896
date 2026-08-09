@@ -731,7 +731,7 @@ YEARS_REQUIRED: integer if the JD says "X+ years"; omit otherwise.`,
 function keywordFallbackScore(canonical: CanonicalProfile | null, fullJd: string, parsed: JobParsed) {
   const userSkills = new Set<string>();
   if (canonical) {
-    for (const s of canonical.skills) userSkills.add(s.name.toLowerCase().trim());
+    for (const s of canonical.skills) { const n = String(s?.name || "").toLowerCase().trim(); if (n) userSkills.add(n); }
     for (const t of (canonical.derived.top_skills || [])) userSkills.add(String(t).toLowerCase().trim());
   }
   const jdLower = (fullJd || "").toLowerCase();
@@ -1635,8 +1635,9 @@ Deno.serve(async (req) => {
         const userSkillIndex = new Map<string, string>();
         if (canonical) {
           for (const s of canonical.skills) {
-            const k = s.name.toLowerCase().trim();
-            if (k) userSkillIndex.set(k, s.name);
+            const name = String(s?.name || "");
+            const k = name.toLowerCase().trim();
+            if (k) userSkillIndex.set(k, name);
           }
           for (const t of (canonical.derived.top_skills || [])) {
             const k = String(t).toLowerCase().trim();
@@ -2319,7 +2320,7 @@ Return the complete improved resume in the same schema, plus suggestions: an arr
 
       const userSkillIndex = new Map<string, string>();
       if (canonical) {
-        for (const s of canonical.skills) { const k = s.name.toLowerCase().trim(); if (k) userSkillIndex.set(k, s.name); }
+        for (const s of canonical.skills) { const name = String(s?.name || ""); const k = name.toLowerCase().trim(); if (k) userSkillIndex.set(k, name); }
         for (const t of (canonical.derived.top_skills || [])) { const k = String(t).toLowerCase().trim(); if (k && !userSkillIndex.has(k)) userSkillIndex.set(k, String(t)); }
       }
 
@@ -4446,7 +4447,23 @@ function normalizeTailorOut(p: TailorOut | null) {
       }))
       : [],
     tailoredText: String(p?.tailoredText || ""),
-    changes: Array.isArray(p?.changes) ? p!.changes.map(String).slice(0, 6) : [],
+    // Defensive: the model is asked for plain strings, but a self-critique
+    // pass can drift into returning {text/description/summary/change}
+    // objects instead -- a raw .map(String) on those produces the literal
+    // text "[object Object]", reproduced live. Pull a real string out of
+    // the common shapes first; only fall back to String() for anything
+    // that's genuinely already a primitive.
+    changes: Array.isArray(p?.changes)
+      ? p!.changes.map((c) => {
+          if (typeof c === "string") return c;
+          if (c && typeof c === "object") {
+            const o = c as Record<string, unknown>;
+            const s = o.text ?? o.description ?? o.summary ?? o.change ?? o.reason;
+            if (typeof s === "string" && s) return s;
+          }
+          return String(c ?? "");
+        }).filter(Boolean).slice(0, 6)
+      : [],
     atsScore: Math.max(0, Math.min(100, Math.round(Number(p?.atsScore) || 0))),
     scoreReasoning: String(p?.scoreReasoning || ""),
   };
@@ -4568,12 +4585,36 @@ ${TAILOR_RULES}`;
 4. The draft addresses the top items under "REQUIRED BUT NOT EVIDENCED" wherever real related evidence exists, and stays silent where it does not.
 
 Then output the CORRECTED version. Return ONLY the same JSON shape as the draft:
-{"keywords":[...],"tailoredText":"...","changes":[...],"atsScore":0,"scoreReasoning":"..."}
+{"keywords":[{"text":"<keyword>","inResume":true|false,"importance":"high|medium|low"}],"tailoredText":"<full plain-text ATS resume>","changes":["<change 1>","<change 2>"],"atsScore":<integer 0-100>,"scoreReasoning":"<one sentence on the score>"}
+"changes" must be plain strings, one sentence each describing an edit to the resume -- never an object, and never a note about the changes list itself.
 Keep everything that was already correct. Do not add new claims to fix a gap.${TAILOR_RULES}`,
     user: `${userMsg}\n\nDRAFT TO REVIEW:\n${JSON.stringify(out).slice(0, 40000)}`,
   });
   const revised = normalizeTailorOut(parseJsonLoose<TailorOut>(critiqueRes.text));
-  if (revised.tailoredText && revised.tailoredText.length > out.tailoredText.length * 0.5) out = revised;
+  if (revised.tailoredText && revised.tailoredText.length > out.tailoredText.length * 0.5) {
+    // The critique pass's own restated changes/atsScore/scoreReasoning are
+    // unreliable, reproduced live: when it made no real edit to the resume
+    // text, it still has to fill out the same JSON shape, and instead of
+    // repeating pass 1's fields it invents meta-commentary about its own
+    // review ("No changes were made to the tailoredText section...") and
+    // the score frequently comes back 0 — a value this rubric can never
+    // legitimately produce for a real resume. Pass 1's values are already
+    // grounded and valid, so keep them whenever pass 2 didn't actually
+    // change the text, and use them as a fallback even when it did.
+    const priorChanges = out.changes;
+    const priorScore = out.atsScore;
+    const priorReasoning = out.scoreReasoning;
+    const textActuallyChanged = revised.tailoredText.trim() !== out.tailoredText.trim();
+    out = revised;
+    if (!textActuallyChanged) {
+      out.changes = priorChanges;
+      out.atsScore = priorScore;
+      out.scoreReasoning = priorReasoning;
+    } else {
+      if (!out.atsScore) { out.atsScore = priorScore; out.scoreReasoning = priorReasoning; }
+      if (!out.changes.length) out.changes = priorChanges;
+    }
+  }
 
   // FIGURE PRESERVATION — verified in code, not asked for.
   let missingFigures = droppedFigures(bundle.text, out.tailoredText);
