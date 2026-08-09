@@ -57,6 +57,12 @@ Real fix: scoring was pulled out into one shared function, `scoreResumeContent(r
 
 Verified live against the exact same test resume across 3 consecutive `rewrite` calls: scores 75, 75, 80, verdict "Good" all three times, versus the prior 90-then-70 swing. The rewritten bullets differ each run (expected — that's the point of temperature on the generation side, so a re-optimize doesn't read like a template), but the number attached to them no longer does.
 
+### v3.95.0 fix: certifications never reached the downloaded file
+
+Found while producing an ATS/resume-craft reference guide, not reported by a user first. Every other link in the chain already carried certifications correctly: `ProfileTab.tsx`'s Certificates section (v3.70.0) saves to `user_profile_canonical.certifications`, the initial resume upload/parse action explicitly extracts certifications from the uploaded file, and `RESUME_SCHEMA` (the AI's structured-output contract for both `rewrite` and `tailor`) has always had a `certifications: string[]` field. The one broken link was `resumeDocs.ts` itself: `buildResumeBlocks()` (PDF/DOCX) and `resumeToText()` (the diff viewer) built exactly six sections — name, contact, summary, experience, education, skills — and never once read `c.certifications`. A real, ATS-relevant certification could sit in the data the whole time and never reach the actual file a recruiter or ATS opens. Fixed by adding a `CERTIFICATIONS` block to both functions, positioned right after Skills, reusing the same `header`/`plain` block kinds Skills already uses — no new styling or plumbing needed, since the PDF/DOCX renderers already key off `STYLE[block.kind]` generically.
+
+Verified directly: bundled `resumeDocs.ts` with esbuild and ran it in Node against a mock resume carrying two certifications. `resumeToText()` produced a real `CERTIFICATIONS` section; the generated PDF blob's raw bytes contained the literal `CERTIFICATIONS` text and still reported `/Count 1` (stayed one page); the DOCX blob came back as a valid zip archive at a sane size. `npx tsc --noEmit` clean.
+
 ## Home next actions (v3.3.0)
 
 OverviewTab was a counts dashboard (resume count, saved job count, primary resume ATS badge, a static getting-started list). It told the user nothing to do, so it was deleted. HomeTab renders at most four cards, each only when its condition holds, from one loader: src/lib/hubSnapshot.ts -> loadHubSnapshot(userId).

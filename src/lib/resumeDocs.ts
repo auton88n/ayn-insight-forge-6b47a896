@@ -35,7 +35,8 @@ export function resumeToText(c: ResumeContent): string {
     );
     lines.push("");
   }
-  if ((c.skills ?? []).length) lines.push("SKILLS", (c.skills ?? []).join(", "));
+  if ((c.skills ?? []).length) lines.push("SKILLS", (c.skills ?? []).join(", "), "");
+  if ((c.certifications ?? []).length) lines.push("CERTIFICATIONS", (c.certifications ?? []).join(", "));
   return lines.join("\n").trim();
 }
 
@@ -86,6 +87,11 @@ function buildResumeBlocks(c: ResumeContent): DocBlock[] {
   if ((c.skills ?? []).length) {
     blocks.push({ kind: "header", text: "SKILLS", gapBefore: 12 });
     blocks.push({ kind: "plain", text: (c.skills ?? []).join(", "), gapBefore: 4 });
+  }
+
+  if ((c.certifications ?? []).length) {
+    blocks.push({ kind: "header", text: "CERTIFICATIONS", gapBefore: 12 });
+    blocks.push({ kind: "plain", text: (c.certifications ?? []).join(", "), gapBefore: 4 });
   }
 
   return blocks;
