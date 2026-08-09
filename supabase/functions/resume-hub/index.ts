@@ -2233,11 +2233,12 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
 2. Rewrite every bullet to lead with a strong, specific action verb and, where the underlying fact supports it, surface the result with a real number already implied by the content — do not fabricate a metric that is not there. One bullet, one idea, one line where possible — this has to fit on one page.
 3. Keep every company name, job title, and date exactly as given; write dates consistently as "Month YYYY".
 4. Tighten vague or generic lines into specific ones using only what is already true.
-5. WRITE LIKE A PERSON, NOT A TEMPLATE. Ban these entirely: "proven ability to", "results-driven", "dynamic professional", "leveraging", "spearheaded transformational initiatives", "passionate about", any summary sentence that could be copy-pasted onto a stranger's resume unchanged. Prefer plain, direct, specific sentences over dense corporate phrasing. Vary sentence length and structure like a human writer would, not a repeating pattern.
+5. WRITE LIKE A PERSON, NOT A TEMPLATE. Ban these entirely: "proven ability to", "proven track record of", "results-driven", "dynamic professional", "leveraging", "spearheaded transformational initiatives", "passionate about", "in today's fast-paced", any summary sentence that could be copy-pasted onto a stranger's resume unchanged. Prefer plain, direct, specific sentences over dense corporate phrasing. Vary sentence length and structure like a human writer would, not a repeating pattern.
 6. skills must be ATOMIC: one skill name per array entry (e.g. "React", "Stakeholder management"), never a category label with a colon and a comma-separated list crammed into one entry. Group related skills by ORDER in the array, not by writing a label into the string.
 7. If a job description is provided, weave in its keywords only where the person's real experience already supports them.
 8. No em dashes, no en dashes. Ranges use the word "to".
 9. The summary's first sentence must open by naming the candidate's own current or most recent job title (their real title, never an invented one, and never the job description's title unless it already matches). A recruiter's fast scan and an ATS both check for a title match before anything else, so it cannot be buried in the second sentence.
+10. basics.title (the resume's own header line, separate from any job's title in the work array) must be the candidate's own current or most recent job title, taken from their most recent role in the resume. If basics.title arrives empty, fill it from their most recent work entry's title, never from the job description, and never with a higher seniority word ("Senior", "Lead", "Staff", "Principal") than their real title already has.
 Return the complete improved resume in the same schema, plus suggestions: an array of short strings describing what you changed and why.`,
         user: JSON.stringify({ resume, jdText: jdText ?? "" }).slice(0, 40000),
         toolName: "emit_rewrite",
@@ -2412,10 +2413,11 @@ RULES — YOU MUST FOLLOW EVERY ONE:
 3. Keep every fact, number, percentage, company name, date, and result exactly as-is.
 4. You may reorder skills to put the most relevant first, among skills the candidate actually has.
 5. You may adjust the summary to echo 2-3 key phrases from the job description — only using experience already in APPLICANT SECTIONS. Its first sentence must still open by naming the candidate's own current or most recent job title.
-6. Do NOT change job titles, company names, or dates.
+6. Do NOT change job titles, company names, or dates. This includes basics.title (the resume's own header line): it must be the candidate's own current or most recent job title, taken from their most recent role in APPLICANT SECTIONS. If it arrives empty, fill it from their most recent work entry's title, never from the job description, and never with a higher seniority word ("Senior", "Lead", "Staff", "Principal") than their real title already has.
 7. Address the GAP ANALYSIS's "REQUIRED BUT NOT EVIDENCED" items wherever real related experience exists in APPLICANT SECTIONS; stay silent where it does not. Do not add a new claim just to fix a gap.
 8. No em dashes. No en dashes. Write dates as "2023 to Present".
-9. Return the tailored resume in the RESUME_SCHEMA shape.`;
+9. WRITE LIKE A PERSON, NOT A TEMPLATE. Ban these entirely: "proven ability to", "proven track record of", "results-driven", "dynamic professional", "leveraging", "spearheaded transformational initiatives", "passionate about", "in today's fast-paced", any summary sentence that could be copy-pasted onto a stranger's resume unchanged. Prefer plain, direct, specific sentences over dense corporate phrasing.
+10. Return the tailored resume in the RESUME_SCHEMA shape.`;
       const userMsg = `APPLICANT SECTIONS (the only source of truth about this person):
 ${bundle.text}${applicantSection}${droppedNote}
 
@@ -4417,7 +4419,7 @@ function normalizeTailorOut(p: TailorOut | null) {
 
 const TAILOR_RULES = `
 TAILORED RESUME:
-- Start with the APPLICANT HEADER lines verbatim if provided (name, contact, location, links). Never invent a name, email, or phone number. If no APPLICANT HEADER is provided, use the header from the sections unchanged.
+- Start with the APPLICANT HEADER lines verbatim if provided (name, contact, location, links). Never invent a name, email, or phone number. If no APPLICANT HEADER is provided, use the header from the sections unchanged. Any professional title shown for the candidate (in the header or right under their name) must be their own current or most recent real title from the sections, taken from their most recent role if it is missing entirely — never the job description's title, and never a higher seniority word ("Senior", "Lead", "Staff", "Principal") than their real title already has.
 - Keep ALL company names, titles, dates EXACTLY as in the sections. Never change facts.
 - Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear in the output exactly as it appears in the input. Do not round, scale, add, or remove figures.
 - For each requirement under "REQUIRED BUT NOT EVIDENCED": look for genuinely related experience already present in the sections and surface it in the job description's own terminology. If there is no real basis in the sections, leave it out entirely and do not imply it.
@@ -4433,7 +4435,7 @@ CHANGES (3 to 6): plain-language list of edits, each naming the requirement it a
 
 ATS SCORE: keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.
 
-VOICE: write the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`;
+VOICE: write the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced", "proven ability to", "proven track record of", "results-driven", "dynamic professional", "spearheaded transformational initiatives"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`;
 
 async function handleSmartTailor(
   admin: SupabaseClient<any, any, any>,
