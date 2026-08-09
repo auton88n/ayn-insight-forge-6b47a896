@@ -2081,8 +2081,13 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
     if (action === "token_revoke") {
       const id = (payload as { id?: string }).id;
       if (!id) return json({ error: "id required" }, 400);
-      const { error } = await supa.from("extension_tokens").update({ revoked_at: new Date().toISOString() }).eq("id", id);
+      const { data: revoked, error } = await supa.from("extension_tokens")
+        .update({ revoked_at: new Date().toISOString() }).eq("id", id).select("id").maybeSingle();
       if (error) throw error;
+      // RLS already blocks touching someone else's token, but a bad/foreign
+      // id previously still got an unconditional {ok:true} back -- same
+      // silent-no-op response bug fixed in reveal_decide below.
+      if (!revoked) return json({ error: "Token not found." }, 404);
       return json({ ok: true });
     }
 
@@ -3647,6 +3652,14 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
         .eq("id", id).eq("candidate_user_id", userId)
         .select("org_id, job_title").maybeSingle();
       if (error) return json({ error: error.message }, 500);
+      // The ownership filter above can match zero rows -- someone else's id,
+      // a typo, an already-consumed link -- and .update() silently succeeds
+      // with nothing changed either way. Reproduced live: a second candidate
+      // guessing at another candidate's reveal_request id got a false
+      // {ok:true} back with no row actually touched. The write itself was
+      // never at risk (candidate_user_id already scoped it correctly), but
+      // the response claimed success for nothing happening.
+      if (!decided) return json({ error: "Proposal not found." }, 404);
       if (decided?.org_id) {
         const roleTitle = decided.job_title ? escapeHtml(decided.job_title) : "your role";
         await notifyOrgMembers(
