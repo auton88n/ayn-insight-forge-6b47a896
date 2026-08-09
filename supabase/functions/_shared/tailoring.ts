@@ -228,6 +228,15 @@ const STOP = new Set(("a an the and or of to in on for with as at by from is are
   "candidate candidates who what when where how team teams within across into about over under more most " +
   "such well also than then them there here very much many any all not no if while during per each both").split(/\s+/));
 
+// Generic quals/soft-skill filler that shows up as its own bullet in almost
+// every JD ("5+ years of experience", "Bachelor's degree preferred", "Strong
+// team player") but is not a real, addable skill -- surfacing it as a
+// "missing skill" in the UI would read as nonsensical. Checked as a whole
+// line, not per term, since none of its individual words are unusual enough
+// to blocklist on their own without also blocking real requirements.
+const GENERIC_QUAL =
+  /\b(years?\s+of\s+experience|degree\s*(preferred|required)?|bachelor'?s?|master'?s?(\s+degree)?|communication\s+skills?|team\s*player|problem[- ]solving|self[- ]starter|fast[- ]paced|detail[- ]oriented|work(ing)?\s+independently|interpersonal\s+skills?|time\s+management|organi[sz]ational\s+skills?|leadership\s+skills?|analytical\s+skills?|people\s+skills?|multi[- ]?task)\b/i;
+
 function norm(s: string): string {
   return s.toLowerCase()
     .replace(/[\u2018\u2019]/g, "'")
@@ -236,8 +245,14 @@ function norm(s: string): string {
     .trim();
 }
 
-function terms(s: string): string[] {
-  return norm(s).split(" ").map((t) => t.replace(/^[-.]+|[-.]+$/g, "")).filter((t) => t.length >= 3 && !STOP.has(t));
+// minLen defaults to 3 for extracting requirement LINES out of prose, where
+// a stray short fragment is more likely noise than a real requirement. The
+// coverage computation in computeGap() below deliberately calls this with
+// minLen 1 instead -- "Go", "C#", "R", "AI", "ML", "UX" are all real, short
+// tech terms, and hasTerm()'s own word-boundary check already guards
+// against false-positive substring matches for them.
+function terms(s: string, minLen = 3): string[] {
+  return norm(s).split(" ").map((t) => t.replace(/^[-.]+|[-.]+$/g, "")).filter((t) => t.length >= minLen && !STOP.has(t));
 }
 
 /** Split a JD into requirement-ish items with a required / nice-to-have tag. */
@@ -259,8 +274,19 @@ function extractRequirements(jd: string): Array<{ text: string; kind: "required"
     const bulletish = /^[-*•·‣◦o]\s+|^\d+[.)]\s+/.test(raw);
     if (!bulletish && !inReqSection) continue;
     const text = raw.replace(/^[-*•·‣◦o]\s+|^\d+[.)]\s+/, "").trim();
-    if (text.length < 8 || text.length > 320) continue;
-    if (terms(text).length < 2) continue;
+    if (text.length > 320) continue;
+    if (GENERIC_QUAL.test(text)) continue;
+    // A bullet is already a deliberate, single item -- "- Kubernetes" or
+    // "- AWS" is exactly as real a requirement as a full sentence, so it
+    // gets a lower bar than free-flowing prose in a requirements section.
+    // The stricter minimums (8 chars, 2+ real terms) stay for prose lines,
+    // where a short fragment is more likely a heading or noise than a
+    // genuine one-word requirement.
+    if (bulletish) {
+      if (!terms(text, 1).length) continue;
+    } else {
+      if (text.length < 8 || terms(text).length < 2) continue;
+    }
     const lineKind: "required" | "nice_to_have" =
       /(nice to have|preferred|a plus|bonus|desirable|ideally)/.test(text.toLowerCase())
         ? "nice_to_have"
@@ -302,7 +328,7 @@ export function computeGap(
     const key = norm(it.text).slice(0, 80);
     if (!key || seen.has(key)) continue;
     seen.add(key);
-    const ts = terms(it.text);
+    const ts = terms(it.text, 1);
     if (!ts.length) continue;
     const evidence = ts.filter(hasTerm);
     const coverage = evidence.length / ts.length;
