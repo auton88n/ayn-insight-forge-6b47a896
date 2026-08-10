@@ -56,6 +56,7 @@ export default function GuidedIntake({ open, onOpenChange, onComplete }: GuidedI
     key: `role_${i + 1}`,
     question: i === 0 ? ROLE_PROMPT : "Anything before that? Same idea: where, roughly when, what you did, what you're proud of.",
     placeholder: STEPS[0].placeholder,
+    optional: false as boolean | undefined,
   }));
   const steps = [...roleSteps, ...STEPS.slice(1)];
   const current = steps[stepIndex];
