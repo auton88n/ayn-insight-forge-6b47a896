@@ -7,7 +7,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { escapeHtml, wrapEmail, heading, para } from '../_shared/emailTemplate.ts';
 
-type IdentityKey = 'support' | 'hello' | 'ghazi';
+type IdentityKey = 'support' | 'hello' | 'ghazi' | 'admin';
 
 const IDENTITIES: Record<IdentityKey, { label: string; from: string; signature: string[] }> = {
   support: {
@@ -24,6 +24,11 @@ const IDENTITIES: Record<IdentityKey, { label: string; from: string; signature: 
     label: 'Ghazi (Founder)',
     from: 'Ghazi at AYN <ghazi@ayn.careers>',
     signature: ['Ghazi', 'Founder, AYN'],
+  },
+  admin: {
+    label: 'Admin',
+    from: 'AYN Admin <admin@ayn.careers>',
+    signature: ['AYN Admin Team'],
   },
 };
 

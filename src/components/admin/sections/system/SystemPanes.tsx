@@ -598,7 +598,11 @@ function EmailLogSection() {
   );
 }
 
-export function EmailPane() {
+// v3.113.0 — renamed from the old exported EmailPane. This is now just the
+// "Sent" half of the unified Email pane below (SystemEmailsReference, the
+// broadcast composer, and the sent-email log) — the "Received" half lives in
+// EmailReceivedPane (previously InboxPane) right after it.
+function EmailSentPane() {
   const query = useAdminEmailAudience();
   const [audience, setAudience] = useState<'all' | 'seekers' | 'employers' | 'discoverable'>('all');
   const [subject, setSubject] = useState('');
@@ -821,10 +825,11 @@ export function CookieConsentPane() {
 // automatically server side — the draft box only ever holds the message
 // itself, never the sign-off, so switching identities can't leave a
 // mismatched signature behind.
-const REPLY_IDENTITIES: { key: 'support' | 'hello' | 'ghazi'; label: string }[] = [
+const REPLY_IDENTITIES: { key: 'support' | 'hello' | 'ghazi' | 'admin'; label: string }[] = [
   { key: 'support', label: 'Support · support@ayn.careers' },
   { key: 'hello', label: 'Hello · hello@ayn.careers' },
   { key: 'ghazi', label: 'Ghazi · ghazi@ayn.careers' },
+  { key: 'admin', label: 'Admin · admin@ayn.careers' },
 ];
 
 function timeAgo(iso: string | null | undefined): string {
@@ -840,13 +845,15 @@ function timeAgo(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString();
 }
 
-export function InboxPane() {
+// v3.113.0 — renamed from the old exported InboxPane. Now the "Received"
+// half of the unified Email pane, rendered by the new EmailPane below.
+function EmailReceivedPane() {
   const query = useAdminInbox();
   const markRead = useMarkInboxRead();
   const [openId, setOpenId] = useState<string | null>(null);
   const [addressFilter, setAddressFilter] = useState<string | null>(null);
   const [replyingId, setReplyingId] = useState<string | null>(null);
-  const [replyIdentity, setReplyIdentity] = useState<'support' | 'hello' | 'ghazi'>('support');
+  const [replyIdentity, setReplyIdentity] = useState<'support' | 'hello' | 'ghazi' | 'admin'>('support');
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -880,12 +887,6 @@ export function InboxPane() {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <Stat label="Total received" value={d.total ?? emails.length} />
-        <Stat label="Unread" value={d.unread ?? 0} accent />
-        <Stat label="Addresses in use" value={addresses.length} hint={addresses.map(a => a.to_email).join(', ') || '—'} />
-      </div>
-
       {addresses.length > 1 && (
         <div className="flex flex-wrap gap-2">
           <button
@@ -998,6 +999,52 @@ export function InboxPane() {
           );
         })}
       </Table>
+    </div>
+  );
+}
+
+/* ────────────────────────────── EMAIL (unified) ────────────────────────────── */
+// v3.113.0 — one place for everything AYN's email touches: what came in
+// (EmailReceivedPane, née InboxPane) and what went out (EmailSentPane, née
+// EmailPane), instead of two separately-named panes an admin had to know to
+// check both of. Both halves are unchanged internally; this just switches
+// between them and shows counts from both at a glance.
+export function EmailPane() {
+  const [tab, setTab] = useState<'received' | 'sent'>('received');
+  const inboxQuery = useAdminInbox();
+  const emailLogQuery = useAdminEmailLog();
+
+  const inbox: any = inboxQuery.data || {};
+  const sentRows: any[] = (emailLogQuery.data as any) || [];
+  const sentFailed = sentRows.filter(r => r.status === 'failed').length;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Stat label="Received" value={inbox.total ?? '—'} hint={`${inbox.unread ?? 0} unread`} />
+        <Stat label="Sent" value={emailLogQuery.isLoading ? '—' : sentRows.length} accent hint="Automatic + broadcasts + replies" />
+        {sentFailed > 0 && <Stat label="Failed to send" value={sentFailed} />}
+        <Stat label="Addresses in use" value={(inbox.addresses || []).length} hint={(inbox.addresses || []).map((a: any) => a.to_email).join(', ') || '—'} />
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => setTab('received')}
+          className={`px-3.5 py-1.5 rounded-full text-sm border transition-colors ${
+            tab === 'received' ? 'bg-primary text-primary-foreground border-transparent' : 'bg-card text-muted-foreground border-border/60 hover:text-foreground'}`}
+        >
+          Received
+        </button>
+        <button
+          onClick={() => setTab('sent')}
+          className={`px-3.5 py-1.5 rounded-full text-sm border transition-colors ${
+            tab === 'sent' ? 'bg-primary text-primary-foreground border-transparent' : 'bg-card text-muted-foreground border-border/60 hover:text-foreground'}`}
+        >
+          Sent
+        </button>
+      </div>
+
+      {tab === 'received' ? <EmailReceivedPane /> : <EmailSentPane />}
     </div>
   );
 }

@@ -5,11 +5,11 @@ import { cn } from '@/lib/utils';
 import { SectionHeader } from './ui';
 import {
   AccountsPane, SupportPane, ErrorsPane, LimitsPane,
-  AiPane, EmailPane, InboxPane, ConsentPane, CookieConsentPane, SettingsPane, ActivityPane,
+  AiPane, EmailPane, ConsentPane, CookieConsentPane, SettingsPane, ActivityPane,
 } from './system/SystemPanes';
 import { ModerationPane, FlagsPane, CreditsPane, AdminsPane } from './system/ControlPanes';
 
-type Pane = 'accounts' | 'credits' | 'moderation' | 'flags' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'inbox' | 'consent' | 'cookies' | 'settings' | 'admins' | 'activity';
+type Pane = 'accounts' | 'credits' | 'moderation' | 'flags' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'consent' | 'cookies' | 'settings' | 'admins' | 'activity';
 
 const PANES: { id: Pane; label: string }[] = [
   { id: 'accounts', label: 'Accounts' },
@@ -20,8 +20,9 @@ const PANES: { id: Pane; label: string }[] = [
   { id: 'errors', label: 'Errors' },
   { id: 'limits', label: 'Rate limits' },
   { id: 'ai', label: 'AI cost' },
+  // v3.113.0 — Email and Inbox merged into one pane (received + sent, one
+  // click apart) so there is a single place to see everything email-related.
   { id: 'email', label: 'Email' },
-  { id: 'inbox', label: 'Inbox' },
   { id: 'consent', label: 'Terms consent' },
   { id: 'cookies', label: 'Cookie consent' },
   { id: 'admins', label: 'Admins' },
@@ -64,7 +65,6 @@ export default function SystemSection() {
       {pane === 'limits' && <LimitsPane />}
       {pane === 'ai' && <AiPane />}
       {pane === 'email' && <EmailPane />}
-      {pane === 'inbox' && <InboxPane />}
       {pane === 'consent' && <ConsentPane />}
       {pane === 'cookies' && <CookieConsentPane />}
       {pane === 'admins' && <AdminsPane />}
