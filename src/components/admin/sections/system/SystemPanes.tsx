@@ -815,8 +815,18 @@ export function CookieConsentPane() {
 // v3.109.0 — every real email AYN has received (support@, info@, whatever
 // address Resend routes inbound mail to), already captured live by
 // resend-inbound-webhook into inbound_email_replies, but never surfaced
-// anywhere until now. Read only, plus a mark read/unread toggle — replying
-// still happens from your own real inbox, this is just visibility.
+// anywhere until now.
+// v3.111.0 — replying now happens from here too, through admin-inbox-reply.
+// Three sending identities, each with its own signature appended
+// automatically server side — the draft box only ever holds the message
+// itself, never the sign-off, so switching identities can't leave a
+// mismatched signature behind.
+const REPLY_IDENTITIES: { key: 'support' | 'hello' | 'ghazi'; label: string }[] = [
+  { key: 'support', label: 'Support · support@ayn.careers' },
+  { key: 'hello', label: 'Hello · hello@ayn.careers' },
+  { key: 'ghazi', label: 'Ghazi · ghazi@ayn.careers' },
+];
+
 function timeAgo(iso: string | null | undefined): string {
   if (!iso) return '—';
   const ms = Date.now() - new Date(iso).getTime();
@@ -835,6 +845,10 @@ export function InboxPane() {
   const markRead = useMarkInboxRead();
   const [openId, setOpenId] = useState<string | null>(null);
   const [addressFilter, setAddressFilter] = useState<string | null>(null);
+  const [replyingId, setReplyingId] = useState<string | null>(null);
+  const [replyIdentity, setReplyIdentity] = useState<'support' | 'hello' | 'ghazi'>('support');
+  const [replyText, setReplyText] = useState('');
+  const [sending, setSending] = useState(false);
 
   if (query.isLoading) return <LoadingBlock />;
   if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
@@ -843,6 +857,26 @@ export function InboxPane() {
   const emails: any[] = d.emails || [];
   const addresses: { to_email: string; count: number }[] = d.addresses || [];
   const shown = addressFilter ? emails.filter(e => e.to_email === addressFilter) : emails;
+
+  const sendReply = async (e: any) => {
+    if (!replyText.trim()) { toast.error('Write a message first'); return; }
+    const identityLabel = REPLY_IDENTITIES.find(i => i.key === replyIdentity)?.label || replyIdentity;
+    if (!window.confirm(`Send this reply to ${e.from_email} as ${identityLabel}?`)) return;
+
+    setSending(true);
+    const { data, error } = await supabase.functions.invoke('admin-inbox-reply', {
+      body: { email_id: e.id, identity_key: replyIdentity, message: replyText.trim() },
+    });
+    setSending(false);
+
+    if (error) { toast.error(error.message || 'Reply failed'); return; }
+    const r = data as any;
+    if (r?.error) { toast.error(r.error); return; }
+    toast.success('Reply sent');
+    setReplyingId(null);
+    setReplyText('');
+    query.refetch();
+  };
 
   return (
     <div className="space-y-5">
@@ -896,18 +930,66 @@ export function InboxPane() {
                 <button className="text-left hover:text-primary" onClick={openRow}>
                   {e.subject || <span className="text-muted-foreground">(no subject)</span>}
                 </button>
+                {e.replied_at && (
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Replied {timeAgo(e.replied_at)} as {REPLY_IDENTITIES.find(i => i.key === e.reply_identity)?.label.split(' ·')[0] || e.reply_identity}
+                  </div>
+                )}
                 {isOpen && (
-                  <div className="mt-3 max-w-xl space-y-2">
+                  <div className="mt-3 max-w-xl space-y-3">
                     <div className="rounded-lg bg-muted/50 p-3 text-xs whitespace-pre-wrap">
                       {e.body_text || (e.body_html ? 'This email has no plain-text version — only HTML, not shown here.' : 'No body was captured for this email.')}
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => markRead.mutate({ id: e.id, read: !e.is_read })}
-                    >
-                      Mark {e.is_read ? 'unread' : 'read'}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => markRead.mutate({ id: e.id, read: !e.is_read })}
+                      >
+                        Mark {e.is_read ? 'unread' : 'read'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          if (replyingId === e.id) { setReplyingId(null); return; }
+                          setReplyingId(e.id);
+                          setReplyText('');
+                          setReplyIdentity('support');
+                        }}
+                      >
+                        {replyingId === e.id ? 'Cancel reply' : 'Reply'}
+                      </Button>
+                    </div>
+
+                    {replyingId === e.id && (
+                      <div className="rounded-lg border border-border/60 bg-card p-3 space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          {REPLY_IDENTITIES.map(idn => (
+                            <button
+                              key={idn.key}
+                              onClick={() => setReplyIdentity(idn.key)}
+                              className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                                replyIdentity === idn.key ? 'bg-primary text-primary-foreground border-transparent' : 'bg-card text-muted-foreground border-border/60 hover:text-foreground'}`}
+                            >
+                              {idn.label}
+                            </button>
+                          ))}
+                        </div>
+                        <Textarea
+                          value={replyText}
+                          onChange={ev => setReplyText(ev.target.value)}
+                          rows={5}
+                          placeholder={`Write your reply to ${e.from_email}. A signature is added automatically.`}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Sends to {e.from_email} as {REPLY_IDENTITIES.find(i => i.key === replyIdentity)?.label}.
+                        </p>
+                        <Button size="sm" disabled={sending || !replyText.trim()} onClick={() => sendReply(e)}>
+                          {sending ? 'Sending' : 'Send reply'}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </Cell>
