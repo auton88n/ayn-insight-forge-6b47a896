@@ -392,6 +392,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
           await supabase.functions.invoke('send-email', {
             body: {
               to: email,
+              userId: data.user?.id,
               emailType: 'welcome',
               data: { userName: fullName || 'there', role: signupRole }
             }
