@@ -234,6 +234,21 @@ export default function AdminApp() {
       if (data?.role !== 'admin') { sessionStorage.removeItem(ADMIN_TICKET_KEY); setStep('denied'); return; }
     } catch { setStep('denied'); return; }
 
+    // v3.110.0 — local-only PIN skip for driving the admin UI in automated
+    // browser testing, which can't type into a PIN field. import.meta.env.DEV
+    // is a build-time constant Vite hardcodes to false in every production
+    // build (vite build), so this branch cannot exist in what ships to
+    // ayn.careers regardless of any runtime value. The second condition, a
+    // var that is not set in .env.example and lives only in a local,
+    // gitignored .env file, means it also stays off in an ordinary local
+    // `npm run dev` unless someone deliberately opts in. The real has_role
+    // check above still ran and still gates this — this only ever skips the
+    // second, PIN screen for an account that is already a genuine admin.
+    if (import.meta.env.DEV && import.meta.env.VITE_ADMIN_PIN_DEV_BYPASS === '1') {
+      setStep('ready');
+      return;
+    }
+
     const ticket = sessionStorage.getItem(ADMIN_TICKET_KEY);
     if (ticket) {
       try {

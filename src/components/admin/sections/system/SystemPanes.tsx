@@ -883,19 +883,19 @@ export function InboxPane() {
           return (
             <Row key={e.id}>
               <Cell>
-                <div className="cursor-pointer" onClick={openRow}>
+                <button className="text-left" onClick={openRow}>
                   <span className={e.is_read ? 'text-muted-foreground' : 'font-semibold'}>
                     {e.from_name || e.from_email}
                   </span>
                   {e.lead_company && <span className="text-xs text-muted-foreground"> · {e.lead_company}</span>}
                   {!e.is_read && <Badge className="ml-2 bg-primary text-primary-foreground text-[10px] px-1.5">New</Badge>}
-                </div>
+                </button>
               </Cell>
               <Cell mono>{e.to_email}</Cell>
               <Cell>
-                <div className="cursor-pointer hover:text-primary" onClick={openRow}>
+                <button className="text-left hover:text-primary" onClick={openRow}>
                   {e.subject || <span className="text-muted-foreground">(no subject)</span>}
-                </div>
+                </button>
                 {isOpen && (
                   <div className="mt-3 max-w-xl space-y-2">
                     <div className="rounded-lg bg-muted/50 p-3 text-xs whitespace-pre-wrap">
