@@ -140,13 +140,17 @@ export function SupportPane() {
     const text = (drafts[ticketId] || '').trim();
     if (!text) return;
     setSending(ticketId);
-    const { error } = await supabase.rpc('admin_insert_ticket_message', {
-      p_ticket_id: ticketId, p_content: text, p_sender: 'admin',
+    // v3.118.0 — admin_insert_ticket_message only ever wrote a row nobody
+    // reads back; this edge function saves the reply AND emails the person
+    // who opened the ticket from support@ayn.careers, the only way they can
+    // actually see it (there is no in-app "my tickets" view, guest or signed in).
+    const { data, error } = await supabase.functions.invoke('send-ticket-reply', {
+      body: { ticket_id: ticketId, message: text },
     });
     setSending(null);
-    if (error) { toast.error(error.message); return; }
+    if (error || data?.error) { toast.error(data?.error || error?.message || 'Reply failed'); return; }
     setDrafts(d => ({ ...d, [ticketId]: '' }));
-    toast.success('Reply sent');
+    toast.success(data?.emailed === false ? 'Reply saved, but the email failed to send' : 'Reply sent');
     query.refetch();
   };
 

@@ -18,7 +18,7 @@ export function resumeToText(c: ResumeContent): string {
   const linkUrls = (b.links ?? []).map(l => l.url).filter(Boolean);
   const contact = [b.title, b.email, b.phone, b.location, ...linkUrls].filter(Boolean).join(" | ");
   if (contact) lines.push(contact);
-  if (b.summary) lines.push("", b.summary);
+  if (b.summary) lines.push("", "SUMMARY", b.summary);
 
   if ((c.skills ?? []).length) lines.push("", "SKILLS", (c.skills ?? []).join(", "));
 
@@ -60,11 +60,14 @@ function buildResumeBlocks(c: ResumeContent): DocBlock[] {
   const linkUrls = (b.links ?? []).map(l => l.url).filter(Boolean);
   const contact = [b.title, b.email, b.phone, b.location, ...linkUrls].filter(Boolean).join(" | ");
   if (contact) blocks.push({ kind: "contact", text: contact });
-  if (b.summary) blocks.push({ kind: "summary", text: b.summary, gapBefore: 8 });
+  if (b.summary) {
+    blocks.push({ kind: "header", text: "SUMMARY", gapBefore: 10 });
+    blocks.push({ kind: "summary", text: b.summary, gapBefore: 7 });
+  }
 
   if ((c.skills ?? []).length) {
     blocks.push({ kind: "header", text: "SKILLS", gapBefore: 12 });
-    blocks.push({ kind: "plain", text: (c.skills ?? []).join(", "), gapBefore: 4 });
+    blocks.push({ kind: "plain", text: (c.skills ?? []).join(", "), gapBefore: 7 });
   }
 
   if ((c.work ?? []).length) {
@@ -74,7 +77,7 @@ function buildResumeBlocks(c: ResumeContent): DocBlock[] {
       blocks.push({
         kind: "title",
         text: [w.title, w.company].filter(Boolean).join(", ") + (when ? ` (${when})` : ""),
-        gapBefore: i === 0 ? 4 : 8,
+        gapBefore: i === 0 ? 7 : 8,
       });
       (w.bullets ?? []).filter(Boolean).forEach(x => blocks.push({ kind: "bullet", text: x }));
     });
@@ -82,7 +85,7 @@ function buildResumeBlocks(c: ResumeContent): DocBlock[] {
 
   if ((c.certifications ?? []).length) {
     blocks.push({ kind: "header", text: "CERTIFICATIONS", gapBefore: 12 });
-    blocks.push({ kind: "plain", text: (c.certifications ?? []).join(", "), gapBefore: 4 });
+    blocks.push({ kind: "plain", text: (c.certifications ?? []).join(", "), gapBefore: 7 });
   }
 
   if ((c.education ?? []).length) {
@@ -91,7 +94,7 @@ function buildResumeBlocks(c: ResumeContent): DocBlock[] {
       blocks.push({
         kind: "title",
         text: [e.degree, e.field, e.school].filter(Boolean).join(", "),
-        gapBefore: i === 0 ? 4 : 4,
+        gapBefore: i === 0 ? 7 : 4,
       });
     });
   }
@@ -103,7 +106,7 @@ const STYLE: Record<BlockKind, { bold: boolean; sizeDelta: number; indent: numbe
   name: { bold: true, sizeDelta: 4, indent: 0 },
   contact: { bold: false, sizeDelta: 0, indent: 0 },
   summary: { bold: false, sizeDelta: 0, indent: 0 },
-  header: { bold: true, sizeDelta: 0.5, indent: 0 },
+  header: { bold: true, sizeDelta: 2.5, indent: 0 },
   title: { bold: true, sizeDelta: 0, indent: 0 },
   bullet: { bold: false, sizeDelta: 0, indent: 12 },
   plain: { bold: false, sizeDelta: 0, indent: 0 },
@@ -113,12 +116,25 @@ const PAGE_W = 612, PAGE_H = 792; // US letter, points
 const MARGIN = 54; // 0.75 inch
 const CONTENT_W = PAGE_W - MARGIN * 2;
 const CONTENT_H = PAGE_H - MARGIN * 2;
-const LINE_RATIO = 1.28;
+const LINE_RATIO = 1.15;
 // Shrink to fit one page: try each size in turn, smallest still-readable
 // size wins if nothing bigger fits. A genuinely very long resume (10+ roles)
 // falls through to the safety net in layoutPdf, which starts a second page
 // rather than silently clipping content.
 const CANDIDATE_SIZES = [10.5, 10, 9.5, 9, 8.5, 8];
+// A senior executive resume shouldn't get shrunk to 8pt to force one page —
+// two comfortable pages read better than one cramped one at that level.
+// Never below 10pt; let the existing page-break safety net in layoutPdf
+// carry the rest onto a real second page instead of shrinking further.
+// There's no structured field anywhere in this schema for "has an academic
+// publications list" (no publications section exists), so that half of the
+// exception isn't detectable — this only covers the executive-title case.
+const EXEC_CANDIDATE_SIZES = [10.5, 10];
+const EXEC_TITLE_RE = /\b(chief\s+\w+\s+officer|c[eoxfmt]o|president|vice\s*president|\bvp\b|executive\s+director|managing\s+director)\b/i;
+
+function isExecutiveResume(c: ResumeContent): boolean {
+  return EXEC_TITLE_RE.test(c.basics?.title || "");
+}
 
 /** Lays out every block at the given size. draw=false only measures (no page-break safety net, so the returned height reflects true overflow). */
 function layoutPdf(doc: jsPDF, blocks: DocBlock[], baseSize: number, draw: boolean): number {
@@ -142,17 +158,19 @@ function layoutPdf(doc: jsPDF, blocks: DocBlock[], baseSize: number, draw: boole
   return y - MARGIN;
 }
 
-function pickFontSize(doc: jsPDF, blocks: DocBlock[]): number {
-  for (const size of CANDIDATE_SIZES) {
-    if (layoutPdf(doc, blocks, size, false) <= CONTENT_H) return size;
+function pickFontSize(doc: jsPDF, blocks: DocBlock[], allowTwoPages: boolean): number {
+  const sizes = allowTwoPages ? EXEC_CANDIDATE_SIZES : CANDIDATE_SIZES;
+  const cap = allowTwoPages ? CONTENT_H * 2 : CONTENT_H;
+  for (const size of sizes) {
+    if (layoutPdf(doc, blocks, size, false) <= cap) return size;
   }
-  return CANDIDATE_SIZES[CANDIDATE_SIZES.length - 1];
+  return sizes[sizes.length - 1];
 }
 
 export function buildResumePdfBlob(c: ResumeContent): Blob {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const blocks = buildResumeBlocks(c);
-  const size = pickFontSize(doc, blocks);
+  const size = pickFontSize(doc, blocks, isExecutiveResume(c));
   layoutPdf(doc, blocks, size, true);
   return doc.output("blob");
 }
@@ -164,7 +182,7 @@ export async function buildResumeDocxBlob(c: ResumeContent): Promise<Blob> {
   // the PDF settled on. Word does its own pagination — this cannot guarantee
   // one page the way the PDF builder does, but starting from an already
   // shrunk, already-fits-in-one-PDF-page size gets it there in practice.
-  const size = pickFontSize(new jsPDF({ unit: "pt", format: "letter" }), blocks);
+  const size = pickFontSize(new jsPDF({ unit: "pt", format: "letter" }), blocks, isExecutiveResume(c));
 
   const paragraphs = blocks.map(block => {
     const style = STYLE[block.kind];

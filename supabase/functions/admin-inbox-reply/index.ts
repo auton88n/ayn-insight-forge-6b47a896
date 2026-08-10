@@ -13,24 +13,24 @@ const IDENTITIES: Record<IdentityKey, { label: string; from: string; signature: 
   support: {
     label: 'Support',
     from: 'AYN Support <support@ayn.careers>',
-    signature: ['The AYN Support Team'],
+    signature: ['Sincerely,', 'The AYN Support Team'],
   },
   hello: {
     label: 'Hello / General',
     from: 'AYN <hello@ayn.careers>',
-    signature: ['AYN'],
+    signature: ['Sincerely,', 'AYN'],
   },
   ghazi: {
     label: 'Ghazi (Founder)',
     from: 'Ghazi at AYN <ghazi@ayn.careers>',
     // v3.116.0 — this identity's own requested sign-off, distinct from
     // every other identity's plain "Name / Role" pair.
-    signature: ['GHAZI ALDHYAEI', 'Founder & AI Engineer | AYN', 'Land your dream job, without the burnout.'],
+    signature: ['Sincerely,', 'GHAZI ALDHYAEI', 'Founder & AI Engineer | AYN', 'Land your dream job, without the burnout.'],
   },
   admin: {
     label: 'Admin',
     from: 'AYN Admin <admin@ayn.careers>',
-    signature: ['AYN Admin Team'],
+    signature: ['Sincerely,', 'AYN Admin Team'],
   },
 };
 

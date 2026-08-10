@@ -31,7 +31,7 @@ export function escapeHtml(s: string): string {
 // Callers that build their own sign-off (admin-inbox-reply's per-identity
 // signatures) pass null to skip this one, so an email never ends up with
 // two signatures stacked on top of each other.
-export function signatureBlock(lines: string[] = ["The AYN Team"]): string {
+export function signatureBlock(lines: string[] = ["Sincerely,", "The AYN Team"]): string {
   return `<p style="color:${MUTED};line-height:1.7;margin:24px 0 8px;font-size:13px;">${lines.map(escapeHtml).join("<br/>")}</p>`;
 }
 
@@ -43,7 +43,7 @@ const LOGO_URL = "https://ayn.careers/ayn-email-logo.png";
 
 export function wrapEmail(
   content: string,
-  signatureLines: string[] | null = ["The AYN Team"],
+  signatureLines: string[] | null = ["Sincerely,", "The AYN Team"],
   ctaHtml: string = "",
 ): string {
   // v3.116.0 — the signature used to sit after the whole content block,

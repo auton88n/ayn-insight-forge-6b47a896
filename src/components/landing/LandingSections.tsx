@@ -14,7 +14,7 @@ import { readAudience, writeAudience, type Audience } from '@/lib/landingAudienc
 import aynLogo from '@/assets/ayn-logo.png';
 import {
   ArrowRight, FileText, Target, ShieldCheck, MessagesSquare, Radar,
-  Search, ClipboardCheck, MailCheck, Building2, Eye, Mail,
+  Search, ClipboardCheck, MailCheck, Building2, Eye, Mail, Ban, Clock, Users,
 } from 'lucide-react';
 import {
   ExtensionOnPostingMockup,
@@ -58,6 +58,7 @@ const PAIN: Record<Audience, { eyebrow: string; title: string; lead: string; who
       'Same resume, forty postings, no replies.',
       'Rewriting it properly costs you an evening.',
       'You never learn which line lost you the interview.',
+      'The company that would want you does not know you exist.',
     ],
   },
   employer: {
@@ -69,9 +70,50 @@ const PAIN: Record<Audience, { eyebrow: string; title: string; lead: string; who
       'Six hundred resumes, most of them wrong.',
       'The right people never see your ad.',
       'Confidence on paper proves nothing.',
+      'Or you hand it to an agency and pay a cut of the salary to skip the pile.',
     ],
   },
 };
+
+// The seeker-side contrast is against mass-apply/auto-apply bots (LazyApply,
+// Sonara and the like). The employer-side contrast is the flip side of that
+// same problem: those bots are exactly what's filling employer inboxes with
+// generic, AI-written resumes, which is why the answer here is verification,
+// not just matching. Two different competitor shapes, kept as two lists.
+const AI_CONTRAST = [
+  'Reads the actual posting in front of you, not a keyword list',
+  'Writes from your real experience. Nothing invented, nothing generic',
+  'Read only. It never fills out a form or submits anything for you',
+];
+
+const EMPLOYER_AI_CONTRAST = [
+  'Skills labeled proven or inferred, never blended together',
+  'Semantic matching on real evidence, not keyword stuffing',
+  'Assessments built from their own claims. A generic AI cannot fake them',
+];
+
+// The seeker product is two things, not one: applying (a tailored resume for
+// a job they found) and discovery (a profile employers can find them
+// through). The tailoring side had all the marketing weight; this carries
+// the other half, reusing the exact same card an employer sees, so the
+// promise is not abstract, it is the literal screen.
+const DISCOVER_CHIPS = [
+  { icon: Radar, text: 'One toggle, in your profile' },
+  { icon: Eye, text: 'Employers see evidence, never a resume pile' },
+  { icon: ShieldCheck, text: 'Your name and contact stay private until you accept' },
+];
+
+// The employer-side reframe: lead with what changes for them (no agency
+// fee, no resume pile, minutes not weeks), not a feature list. Real numbers
+// stay out of it deliberately, agency pricing varies; the comparison is the
+// honest, well known shape of it, not an invented figure. "Six hundred"
+// echoes the number used in the hero, the pain section and the showcase
+// headline below, so it reads as one thread, not four different guesses.
+const EASY_HIRING_CHIPS = [
+  { icon: Ban, text: 'No recruiter fee, ever' },
+  { icon: Clock, text: 'Minutes to a shortlist, not weeks' },
+  { icon: Users, text: 'Three people to read, not six hundred' },
+];
 
 const SEEKER_TILES = [
   {
@@ -97,6 +139,12 @@ const SEEKER_TILES = [
   },
   {
     span: 'lp-span-2',
+    icon: Radar,
+    title: 'Found while you sleep',
+    desc: 'Turn on discovery. Employers see the evidence first, you decide who gets your contact.',
+  },
+  {
+    span: 'lp-span-2',
     icon: Target,
     title: 'The honest gap list',
     desc: 'Matched, missing and nice to have, before a word is written.',
@@ -107,11 +155,32 @@ const SEEKER_TILES = [
     title: 'Nothing invented',
     desc: 'No skill, number or title that is not already yours.',
   },
+];
+
+// The employer side already had a step-by-step "how it works" flow
+// (EMPLOYER_STEPS below); the seeker side never did, only scattered tiles.
+// This is the direct answer to "why should I apply through this instead of
+// anywhere else": what the AI actually does, in the order it does it.
+const SEEKER_STEPS = [
   {
-    span: 'lp-span-2',
+    icon: Search,
+    title: 'Reads the posting for you',
+    desc: 'The real listing, in full, not a summary or a keyword scrape.',
+  },
+  {
+    icon: Target,
+    title: 'Scores your real fit',
+    desc: 'What matches, what is missing, before a word is written.',
+  },
+  {
+    icon: FileText,
+    title: 'Writes for that one job',
+    desc: 'A resume and cover letter from your real experience, in the posting\u2019s own language.',
+  },
+  {
     icon: Radar,
-    title: 'Found while you sleep',
-    desc: 'Employers can reach you. Your contact stays private until you accept.',
+    title: 'Keeps working after you apply',
+    desc: 'Turn on discovery and employers searching for your background find you too.',
   },
 ];
 
@@ -176,6 +245,10 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
       a: 'No. It only reads the page.',
     },
     {
+      q: 'How do employers find me?',
+      a: 'Turn on discovery in your Profile. Employers searching for people with your background can then see your evidence based profile and reach out with a proposal. Nothing about you opens until you accept.',
+    },
+    {
       q: 'Can employers see my name and email?',
       a: 'Not until you accept their proposal. Before that they see your profile and your match evidence only.',
     },
@@ -192,6 +265,10 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
     {
       q: 'Where do the candidates come from?',
       a: 'People who built a profile here and turned on discovery. Nobody is scraped.',
+    },
+    {
+      q: 'How does this compare to a recruiter?',
+      a: 'There is no placement fee. You pay a flat monthly rate no matter how many people you hire, where a staffing agency typically takes a cut of the new hire\u2019s first year pay just for the introduction.',
     },
     {
       q: 'How does the matching work?',
@@ -224,15 +301,15 @@ const HERO: Record<Audience, {
   art: JSX.Element;
 }> = {
   job_seeker: {
-    headline: <>A resume that fits <em>the job in front of you.</em></>,
-    lead: 'AYN reads the posting and writes from your real experience, in a minute.',
+    headline: <>Employers can find you <em>before you even apply.</em></>,
+    lead: "Turn on discovery and employers searching for someone like you find your evidence-based profile first, before you apply anywhere. And when you do apply somewhere yourself, AYN writes the resume and cover letter for that job from your real experience, in a minute.",
     cta: 'Start free',
     note: 'Read only. It never types or submits for you.',
     art: <ExtensionOnPostingMockup />,
   },
   employer: {
     headline: <>Three candidates with evidence, <em>not six hundred maybes.</em></>,
-    lead: 'Describe the role once. Read the strongest fits, with the proof and the gaps.',
+    lead: "Stop paying a recruiter a cut of the salary just to skip the pile, and stop reading the pile yourself. Describe the role once and AYN's AI hands you three people worth an actual conversation, evidence already checked.",
     cta: 'Request employer access',
     note: 'Contact stays private until the candidate accepts.',
     art: <CandidateCardMockup />,
@@ -410,6 +487,60 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
           </div>
         </section>
 
+        {/* ── GET DISCOVERED ──────────────────────────────────── */}
+        {seeker && (
+          <section id="discover" className="lp-section" style={{ paddingBlockStart: 0 }}>
+            <div className="lp-shell">
+              <div className="lp-split lp-reveal">
+                <div>
+                  <p className="lp-eyebrow">The other half of AYN</p>
+                  <h2 className="lp-display lp-h2">You do not have to find every job. <em>Some of them can find you.</em></h2>
+                  <p className="lp-lead">
+                    Applying is one job at a time, the one you found. Discovery works the other way: turn it on once,
+                    and employers searching for people with your background find you first, evidence and all,
+                    before they ever see your name.
+                  </p>
+                  <div className="lp-chips" style={{ marginTop: 22 }}>
+                    {DISCOVER_CHIPS.map((c) => (
+                      <span className="lp-chip" key={c.text}>
+                        <c.icon size={14} />
+                        {c.text}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="lp-art lp-art-plain">
+                  <CandidateCardMockup />
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── REAL AI, NOT MASS-APPLY SPAM ───────────────────── */}
+        {seeker && (
+          <section className="lp-section" style={{ paddingBlockStart: 0 }}>
+            <div className="lp-shell lp-reveal">
+              <p className="lp-eyebrow">The AI, and what it refuses to do</p>
+              <h2 className="lp-display lp-h2">Real AI, aimed at <em>one job, not six hundred.</em></h2>
+              <p className="lp-lead" style={{ maxWidth: 680 }}>
+                Some tools use AI to auto-apply to hundreds of postings a day and hope volume gets you an interview.
+                Low quality, unread by anyone, and it is not even looking for the right job, just applying to all of them.
+                AYN's AI does the opposite: it reads the specific posting you have open, writes your resume and
+                cover letter from your real experience for that job, and stops there.
+              </p>
+              <div className="lp-chips" style={{ marginTop: 22 }}>
+                {AI_CONTRAST.map((c) => (
+                  <span className="lp-chip" key={c}>
+                    <ShieldCheck size={14} />
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* ── SEEKER SHOWCASE ────────────────────────────────── */}
         {seeker && (
           <section id="features" className="lp-section" style={{ paddingBlockStart: 0 }}>
@@ -430,6 +561,23 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                 <div className="lp-art lp-art-plain">
                   <TailoredDocsMockup />
                 </div>
+              </div>
+
+              <div className="lp-reveal" style={{ marginTop: 48, marginBottom: 4 }}>
+                <p className="lp-eyebrow">How AYN's AI helps you</p>
+              </div>
+              <div className="lp-flow lp-reveal">
+                {SEEKER_STEPS.map((s, i) => {
+                  const Icon = s.icon;
+                  return (
+                    <div className="lp-flow-step" key={s.title}>
+                      <span className="lp-tile-icon" aria-hidden="true"><Icon size={18} strokeWidth={1.75} /></span>
+                      <span className="lp-step-n">STEP {i + 1}</span>
+                      <h3 className="lp-display">{s.title}</h3>
+                      <p>{s.desc}</p>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="lp-bento lp-reveal" style={{ marginTop: 44 }}>
@@ -455,6 +603,53 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
           </section>
         )}
 
+        {/* ── EASY HIRING, NOT AN INDUSTRY ────────────────────── */}
+        {!seeker && (
+          <section className="lp-section" style={{ paddingBlockStart: 0 }}>
+            <div className="lp-shell lp-reveal">
+              <p className="lp-eyebrow">What changes for you</p>
+              <h2 className="lp-display lp-h2">No recruiter retainer. <em>No stack of six hundred resumes.</em></h2>
+              <p className="lp-lead" style={{ maxWidth: 680 }}>
+                A staffing agency takes a cut of the salary just for the introduction. Doing it yourself costs an
+                afternoon buried in resumes that all start to blur together. AYN skips both: describe the role once,
+                and read three people worth an actual conversation, evidence already checked.
+              </p>
+              <div className="lp-chips" style={{ marginTop: 22 }}>
+                {EASY_HIRING_CHIPS.map((c) => (
+                  <span className="lp-chip" key={c.text}>
+                    <c.icon size={14} />
+                    {c.text}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── REAL AI, BUILT TO VERIFY ────────────────────────── */}
+        {!seeker && (
+          <section className="lp-section" style={{ paddingBlockStart: 0 }}>
+            <div className="lp-shell lp-reveal">
+              <p className="lp-eyebrow">The AI, and what it actually checks</p>
+              <h2 className="lp-display lp-h2">Real AI, built to find out <em>who actually did the work.</em></h2>
+              <p className="lp-lead" style={{ maxWidth: 680 }}>
+                Anyone can generate a polished, tailored-sounding resume in seconds now, so a resume alone proves
+                less than it used to. AYN's AI reads real evidence instead: it separates what a candidate has
+                proven from what it only inferred, ranks fit on that evidence, and builds a short verification
+                assessment from their own specific claims, the kind of thing a generic AI cannot fake its way through.
+              </p>
+              <div className="lp-chips" style={{ marginTop: 22 }}>
+                {EMPLOYER_AI_CONTRAST.map((c) => (
+                  <span className="lp-chip" key={c}>
+                    <ShieldCheck size={14} />
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* ── EMPLOYER SHOWCASE ──────────────────────────────── */}
         {!seeker && (
           <section id="employers" className="lp-section" style={{ paddingBlockStart: 0 }}>
@@ -471,7 +666,10 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                 <ShortlistMockup />
               </div>
 
-              <div className="lp-flow lp-reveal" style={{ marginTop: 36 }}>
+              <div className="lp-reveal" style={{ marginTop: 36, marginBottom: 4 }}>
+                <p className="lp-eyebrow">How AYN's AI helps you</p>
+              </div>
+              <div className="lp-flow lp-reveal">
                 {EMPLOYER_STEPS.map((s, i) => {
                   const Icon = s.icon;
                   return (
@@ -573,8 +771,8 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
               </h2>
               <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
                 {seeker
-                  ? 'Add your background once. Every application after that is written for the job.'
-                  : 'Describe the role once. Get the evidence, and a way to verify it.'}
+                  ? 'Add your background once. Every application after that is written for the job, and every employer searching finds you too.'
+                  : 'Describe the role once. No agency fee, just the evidence.'}
               </p>
               <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
                 <button type="button" className="lp-btn lp-btn-invert" onClick={() => onStartFree?.(audience)}>

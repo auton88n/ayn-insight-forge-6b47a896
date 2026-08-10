@@ -41,7 +41,7 @@ const LOGO_URL = "https://ayn.careers/ayn-email-logo.png";
 // The signature line used to sit after the CTA button (content already
 // included the button as its last line). Now a dedicated ctaHtml parameter
 // so the signature renders before the button, not after it.
-const SIGNATURE = `<p style="color:${MUTED};line-height:1.7;margin:24px 0 8px;font-size:13px;">The AYN Team</p>`;
+const SIGNATURE = `<p style="color:${MUTED};line-height:1.7;margin:24px 0 8px;font-size:13px;">Sincerely,<br/>The AYN Team</p>`;
 
 // Wraps the per-type content block in the shared card shell.
 const wrapEmail = (content: string, ctaHtml: string = ""): string => `

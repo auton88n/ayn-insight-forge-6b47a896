@@ -34,6 +34,8 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
   const [selected, setSelected] = useState<JobRow | null>(null);
   const [primaryResume, setPrimaryResume] = useState<{ id: string; content: ResumeContent; ats_score: number | null } | null>(null);
   const [matchData, setMatchData] = useState<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string } | null>(null);
+  const [fitAdvice, setFitAdvice] = useState<{ verdict: string; coverage: number; advice: string } | null>(null);
+  const [fitBusy, setFitBusy] = useState(false);
   const [tailored, setTailored] = useState<TailoredRow | null>(null);
   // v3.99.0 — required-but-not-evidenced skills the job asked for, shown as
   // an opt-in add, never applied automatically. Each carries its own
@@ -74,6 +76,7 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
   const openJob = async (j: JobRow) => {
     setSelected(j);
     setMatchData(null);
+    setFitAdvice(null);
     setShowDiff(false);
     setTailored(null);
     setCover(null);
@@ -144,6 +147,19 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
   };
 
   const dismissSuggestion = (idx: number) => setGapSuggestions(prev => prev.filter((_, i) => i !== idx));
+
+  const getFitAdvice = async () => {
+    if (!selected || !primaryResume || !selected.jd_text) return;
+    setFitBusy(true);
+    try {
+      const advice = await resumeHubApi.jobFitAdvice(selected.jd_text);
+      setFitAdvice(advice);
+    } catch (e) {
+      toast(isFeatureDisabled(e)
+        ? { title: "Under maintenance", description: e.message }
+        : { title: "Couldn't get a read on this one", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+    } finally { setFitBusy(false); }
+  };
 
   const writeCover = async () => {
     if (!selected || !primaryResume || !selected.jd_text) return;
@@ -321,6 +337,28 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
                     <div className="flex flex-wrap gap-1">
                       {matchData.missing_keywords.map((k, i) => <Badge key={i} variant="outline">{k}</Badge>)}
                     </div>
+                  </div>
+                )}
+
+                {!fitAdvice ? (
+                  <Button onClick={getFitAdvice} disabled={fitBusy} variant="outline" size="sm" className="mt-4">
+                    {fitBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    Should I apply?
+                  </Button>
+                ) : (
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant={fitAdvice.verdict === "strong_fit" ? "default" : "outline"}>
+                        {fitAdvice.verdict === "strong_fit" ? "Strong fit"
+                          : fitAdvice.verdict === "worth_trying" ? "Worth trying"
+                          : fitAdvice.verdict === "significant_gaps" ? "Real gaps here"
+                          : "No clear requirements to check"}
+                      </Badge>
+                      {fitAdvice.verdict !== "no_stated_requirements" && (
+                        <span className="text-xs text-muted-foreground">{fitAdvice.coverage}% of required items matched</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">{fitAdvice.advice}</p>
                   </div>
                 )}
               </Card>

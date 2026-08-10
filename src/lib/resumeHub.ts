@@ -39,6 +39,14 @@ async function call<T>(fn: string, body: unknown): Promise<T> {
   return data as T;
 }
 
+export interface GuidedIntakeExtraction {
+  experiences: Array<{ company: string; title: string; location?: string; start?: string; end?: string; current?: boolean; bullets: string[] }>;
+  education: Array<{ school: string; degree?: string; field?: string; start?: string; end?: string }>;
+  skills: string[];
+  certifications?: string[];
+  derived?: { current_title?: string; current_company?: string; total_yoe?: number };
+}
+
 export interface ResumeContent {
   basics?: {
     name?: string; title?: string; email?: string; phone?: string;
@@ -65,6 +73,17 @@ export const resumeHubApi = {
     call<{ resume: ResumeContent; ats_score: number; verdict: string; suggestions: string[]; credits: { spent: number; balance: number } }>(
       "resume-hub", { action: "rewrite", resume, jdText },
     ),
+
+  // v3.120.0 — for someone with no resume yet: a guided interview replaces
+  // the upload step, then this same paid rewrite tier builds the document.
+  /** Free: structures a plain-language interview into the same career shape Profile already edits. */
+  guidedIntakeExtract: (answers: Array<{ question: string; answer: string }>) =>
+    call<GuidedIntakeExtraction>("resume-hub", { action: "guided_intake_extract", answers }),
+  /** Paid (15 credits): builds a full resume from the caller's own profile, server side — no upload required. */
+  generateResume: () =>
+    call<{ resume: ResumeContent; ats_score: number; verdict: string; suggestions: string[]; credits: { spent: number; balance: number } }>(
+      "resume-hub", { action: "resume_generate" },
+    ),
   // v3.72.0 — these three no longer take a resume blob from the client.
   // The backend resolves the caller's own primary resume plus their full
   // canonical profile server side (the same way the extension already did),
@@ -77,6 +96,14 @@ export const resumeHubApi = {
 
   coverLetter: (jdText: string, opts?: { tone?: string; company?: string }) =>
     call<{ body: string }>("resume-hub", { action: "cover_letter", jdText, ...opts }),
+
+  /** Free. A grounded "should I apply" read: the verdict category is decided
+   * in code from the same gap analysis tailor/match already compute — the
+   * AI only explains it, never chooses it. See CLAUDE.md v3.124.0. */
+  jobFitAdvice: (jdText: string) =>
+    call<{ verdict: "no_stated_requirements" | "strong_fit" | "worth_trying" | "significant_gaps"; coverage: number; advice: string }>(
+      "resume-hub", { action: "job_fit_advice", jdText },
+    ),
 
 
   listTokens: () => call<{ tokens: Array<{ id: string; token_prefix: string; device_label: string; last_used_at: string | null; revoked_at: string | null; created_at: string }> }>("resume-hub", { action: "token_list" }),

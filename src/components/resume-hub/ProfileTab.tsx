@@ -36,7 +36,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { notifyProfileUpdated } from "@/lib/extension";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
-import { resumeHubApi, type ResumeContent, type TalentPoolStatus } from "@/lib/resumeHub";
+import GuidedIntake from "@/components/resume-hub/GuidedIntake";
+import { resumeHubApi, type ResumeContent, type TalentPoolStatus, type GuidedIntakeExtraction } from "@/lib/resumeHub";
 import { reindexTalentPool, setPoolOptInCache } from "@/lib/talentPoolSync";
 import { buildResumePdfBlob, buildResumeDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import { computeReadiness } from "@/lib/profileGaps";
@@ -171,6 +172,8 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const [checkingResume, setCheckingResume] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [optimizeChanges, setOptimizeChanges] = useState<string[] | null>(null);
+  const [intakeOpen, setIntakeOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [accountEmail, setAccountEmail] = useState("");
   const [openSkill, setOpenSkill] = useState<number | null>(null);
   const [levelPromptDone, setLevelPromptDone] = useState(
@@ -484,6 +487,70 @@ export default function ProfileTab({ userId }: { userId: string }) {
     }
   };
 
+  // ── Build from scratch: the guided interview's answers land here, merged
+  // into the same career fields the form below edits, so review is just the
+  // normal Skills/Work history/Education sections, pre-filled instead of
+  // blank. Nothing is "from your resume" here since there is no resume yet. ──
+  const handleIntakeComplete = (extracted: GuidedIntakeExtraction) => {
+    setCareer(prev => ({
+      ...prev,
+      experiences: extracted.experiences?.length
+        ? extracted.experiences.map(e => ({
+            company: e.company || "", title: e.title || "", location: e.location,
+            start: e.start, end: e.end, current: e.current ?? !e.end,
+            bullets: (e.bullets || []).slice(0, 5),
+          }))
+        : prev.experiences,
+      education: extracted.education?.length
+        ? extracted.education.map(ed => ({ school: ed.school || "", degree: ed.degree, field: ed.field, start: ed.start, end: ed.end }))
+        : prev.education,
+      skills: extracted.skills?.length
+        ? extracted.skills.filter(Boolean).map(name => ({ name, level: null, years: null, last_used: null }))
+        : prev.skills,
+      certifications: extracted.certifications?.length
+        ? extracted.certifications.filter(Boolean).map(name => ({ name }))
+        : prev.certifications,
+      derived: {
+        ...prev.derived,
+        current_title: extracted.derived?.current_title || prev.derived?.current_title,
+        current_company: extracted.derived?.current_company || prev.derived?.current_company,
+        total_yoe: extracted.derived?.total_yoe ?? prev.derived?.total_yoe,
+        top_skills: extracted.skills?.length ? extracted.skills.slice(0, 8) : prev.derived?.top_skills,
+      },
+    }));
+    queueSave();
+  };
+
+  // ── Generate my resume (15 credits): same paid tier and same document
+  // pipeline as Optimize, just built from the profile instead of a rewrite
+  // of an upload. Lands as the primary resume the same way. ──────────────
+  const generateResume = async () => {
+    setGenerating(true);
+    try {
+      const r = await resumeHubApi.generateResume();
+      await supabase.from("resumes").update({ is_primary: false }).eq("user_id", userId);
+      const title = r.resume.basics?.name ? `${r.resume.basics.name} Resume` : "Your Resume";
+      const { error } = await supabase.from("resumes").insert({
+        user_id: userId, title, content: r.resume as never, is_primary: true,
+        ats_score: r.ats_score, ats_issues: null,
+      });
+      if (error) throw error;
+      setResumeContent(r.resume);
+      setCareer(prev => mapResumeToCareer(r.resume, prev));
+      setOptimizeChanges(r.suggestions);
+      reindexTalentPool("resume_generate");
+      await loadResumes();
+      toast({
+        title: "Resume built",
+        description: `Your new resume is ready to download. ${r.credits.balance} credits left.`,
+      });
+    } catch (e) {
+      toast({ title: "Couldn't build your resume", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const downloadResume = async (content: ResumeContent, name: string, kind: "pdf" | "docx") => {
     try {
       const base = fileBase(name || "Resume");
@@ -641,6 +708,8 @@ export default function ProfileTab({ userId }: { userId: string }) {
         </AlertDialogContent>
       </AlertDialog>
 
+      <GuidedIntake open={intakeOpen} onOpenChange={setIntakeOpen} onComplete={handleIntakeComplete} />
+
       {/* ── 1. Your resume ───────────────────────────────────────────────── */}
       <Group id="resume" title="Your resume" line="Everything AYN writes starts from this.">
         {primaryResume ? (
@@ -677,6 +746,28 @@ export default function ProfileTab({ userId }: { userId: string }) {
             Upload a PDF, DOCX, or TXT. AYN reads it once and fills in everything below, so you only
             correct what it got wrong.
           </p>
+        )}
+
+        {!primaryResume && !replaceOpen && (
+          <div className="mt-3 flex items-center justify-between gap-3 flex-wrap rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-3">
+            <p className="text-xs text-muted-foreground">Don't have a resume yet?</p>
+            <Button variant="outline" size="sm" onClick={() => setIntakeOpen(true)}>
+              <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Build one with AYN
+            </Button>
+          </div>
+        )}
+
+        {!primaryResume && career.experiences.length > 0 && (
+          <div className="mt-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-xs text-muted-foreground max-w-sm">
+              AYN has enough to write a real, ATS-formatted resume from your profile below.
+            </p>
+            <Button size="sm" onClick={generateResume} disabled={generating}>
+              {generating
+                ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Building…</>
+                : <><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Generate my resume — 15 credits</>}
+            </Button>
+          </div>
         )}
 
         {primaryResume && !replaceOpen && (

@@ -38,7 +38,7 @@ const LandingPage = memo(() => {
     <>
       <SEO
         title="AYN, tailored applications for job seekers, verified candidates for employers"
-        description="AYN reads the job posting and writes you a tailored resume and cover letter from your real experience. Employers search candidates who chose to be found and verify them before reaching out."
+        description="AYN's AI reads the job posting and writes you a tailored resume and cover letter from your real experience, one job at a time, never auto-applying. Employers search candidates who chose to be found and verify them before reaching out."
         canonical="/"
         keywords="tailored resume for a job description, AI cover letter, job match score, candidate sourcing, verified candidates, hiring without job boards, Chrome extension for job seekers"
         jsonLd={{ '@graph': [organizationSchema, websiteSchema, softwareApplicationSchema, faqSchema] }}

@@ -237,6 +237,56 @@ const STOP = new Set(("a an the and or of to in on for with as at by from is are
 const GENERIC_QUAL =
   /\b(years?\s+of\s+experience|degree\s*(preferred|required)?|bachelor'?s?|master'?s?(\s+degree)?|communication\s+skills?|team\s*player|problem[- ]solving|self[- ]starter|fast[- ]paced|detail[- ]oriented|work(ing)?\s+independently|interpersonal\s+skills?|time\s+management|organi[sz]ational\s+skills?|leadership\s+skills?|analytical\s+skills?|people\s+skills?|multi[- ]?task)\b/i;
 
+// Real ATS in 2026 credit synonyms, not just exact keywords — "Adobe
+// Creative Suite" on a resume against a JD asking for "Adobe Creative
+// Cloud" is the same tool, not a gap. This app's own deterministic matcher
+// was stricter than the systems it's trying to get a resume past. Each
+// group is a set of interchangeable phrases; additive only (expands what
+// counts as present, never narrows), so it can only turn a false "missing"
+// into a correct "matched", never the reverse. Deliberately conservative:
+// only unambiguous, well-established equivalents, no abbreviation short
+// enough to risk a false hit inside an unrelated word.
+const SYNONYM_GROUPS: string[][] = [
+  ["adobe creative suite", "adobe creative cloud"],
+  ["postgres", "postgresql"],
+  ["node.js", "nodejs", "node js"],
+  ["react.js", "reactjs"],
+  ["kubernetes", "k8s"],
+  ["ci/cd", "ci cd", "continuous integration and deployment", "continuous integration and delivery", "continuous integration continuous deployment"],
+  ["machine learning", "ml"],
+  ["amazon web services", "aws"],
+  ["google cloud platform", "gcp", "google cloud"],
+  ["microsoft azure", "azure"],
+  ["software as a service", "saas"],
+  ["customer relationship management", "crm"],
+  ["enterprise resource planning", "erp"],
+  ["application programming interface", "api"],
+  ["object oriented programming", "oop"],
+  ["user experience design", "ux design"],
+  ["user interface design", "ui design"],
+  ["search engine optimization", "seo"],
+  ["business to business", "b2b"],
+  ["business to consumer", "b2c"],
+  ["structured query language", "sql"],
+  ["continuous integration", "ci"],
+];
+
+/**
+ * Additive expansion only: if any phrase from a synonym group is already
+ * present in the haystack, add every other phrase in that group too, so the
+ * existing per-term coverage matcher below picks up a requirement written
+ * with the other phrasing. Never removes or alters anything already there.
+ */
+function expandWithSynonyms(normalizedHaystack: string): string {
+  let expanded = normalizedHaystack;
+  for (const group of SYNONYM_GROUPS) {
+    const variants = group.map((g) => g.toLowerCase());
+    const present = variants.some((v) => expanded.includes(v.length >= 4 ? v : ` ${v} `));
+    if (present) expanded += " " + variants.join(" ");
+  }
+  return expanded;
+}
+
 function norm(s: string): string {
   return s.toLowerCase()
     .replace(/[\u2018\u2019]/g, "'")
@@ -306,7 +356,7 @@ export function computeGap(
   bundle: SectionBundle,
   extra?: { jdSkills?: string[]; mustHaves?: string[]; niceToHaves?: string[] },
 ): GapAnalysis {
-  const haystack = " " + norm(bundle.text) + " ";
+  const haystack = " " + expandWithSynonyms(norm(bundle.text)) + " ";
   const hasTerm = (t: string) => {
     const n = norm(t);
     if (!n) return false;
@@ -367,6 +417,90 @@ export function renderGapBlock(gap: GapAnalysis): string {
 }
 
 // ──────────────────────────────────────────────────────────────
+// 2b. Semantic gap recheck — real meaning, not just words or a curated
+// synonym list. The deterministic matcher above (plus its synonym
+// expansion) is the fast, free, zero-network first pass; this is a second
+// pass over ONLY what it called "missing", using real embeddings to catch
+// a genuine equivalent that isn't one of the ~20 hand-curated pairs and
+// doesn't share enough literal words to pass term-overlap. Still
+// code-decided, not model-decided — cosine similarity is arithmetic, not
+// a judgment call, same design rule as everywhere else in this file. Can
+// only promote a false "missing" to "matched"; never demotes an already
+// matched requirement, so it can only make the report more accurate.
+// ──────────────────────────────────────────────────────────────
+
+export function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length && i < b.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  if (!na || !nb) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+// Calibrated against real measurements, not guessed. text-embedding-3-small
+// cosine similarity on short phrases (a skill vs a requirement, not full
+// paragraphs) runs lower than intuition suggests: live-tested, "Interface
+// mockup software" against a resume's own "Prototyping" skill (a genuine,
+// fair match — Figma-style prototyping tools ARE interface mockup
+// software) scored 0.53, while two genuinely unrelated pairs scored 0.29
+// and 0.31. 0.5 sits with real margin above the confirmed negatives and
+// just below the one confirmed positive found so far — a starting point
+// from actual data, not a guess, but still based on a small sample; worth
+// revisiting once more real usage accumulates. A false "semantically
+// matched" is worse than a missed one (it would tell someone they already
+// have a skill they don't), so when in doubt this should move up, not down.
+export const SEMANTIC_MATCH_THRESHOLD = 0.5;
+
+/**
+ * missingEmbeddings and chunkEmbeddings are pre-computed (real embeddings
+ * only — call this with model !== FALLBACK_EMBED_MODEL results, the hash
+ * fallback has no real semantic meaning to compare). Each missing
+ * requirement is compared against every resume chunk (a skill or a
+ * bullet); the single best match decides it.
+ */
+export function applySemanticRecheck(
+  gap: GapAnalysis,
+  missingEmbeddings: Array<{ text: string; vector: number[] }>,
+  chunkEmbeddings: Array<{ text: string; vector: number[] }>,
+): GapAnalysis {
+  if (!missingEmbeddings.length || !chunkEmbeddings.length) return gap;
+  const promotedByText = new Map<string, Requirement>();
+  for (const req of gap.requirements) {
+    if (req.status !== "missing") continue;
+    // Bare tool/skill names (1-2 words: "Kubernetes", "Docker") are
+    // deliberately excluded from semantic promotion. Live-tested: "Docker"
+    // and "Kubernetes" score HIGHER on cosine similarity (0.559) than a
+    // genuine paraphrase match ("Interface mockup software" vs
+    // "Prototyping", 0.526) — short tech names that are commonly used
+    // together get pulled close in embedding space by topical association,
+    // not semantic identity, and no single threshold can separate "the
+    // same thing, worded differently" from "a different but related tool"
+    // when the wrong pair scores higher than the right one. Longer,
+    // descriptive phrases carry enough real content to disambiguate;
+    // bare short names don't, and are already handled better by the
+    // literal + curated-synonym matcher above, which doesn't confuse
+    // adjacent technologies. Only run the semantic check on the group
+    // where it actually showed real signal.
+    if (req.text.trim().split(/\s+/).length < 3) continue;
+    const me = missingEmbeddings.find((m) => m.text === req.text);
+    if (!me) continue;
+    let best = 0, bestChunk = "";
+    for (const c of chunkEmbeddings) {
+      const sim = cosineSimilarity(me.vector, c.vector);
+      if (sim > best) { best = sim; bestChunk = c.text; }
+    }
+    if (best >= SEMANTIC_MATCH_THRESHOLD) {
+      promotedByText.set(req.text, { ...req, status: "matched", evidence: [bestChunk.slice(0, 80)], coverage: Math.round(best * 100) / 100 });
+    }
+  }
+  if (!promotedByText.size) return gap;
+  const requirements = gap.requirements.map((r) => promotedByText.get(r.text) || r);
+  const matched = requirements.filter((r) => r.status === "matched" && r.kind === "required");
+  const missing = requirements.filter((r) => r.status === "missing" && r.kind === "required");
+  const niceToHave = requirements.filter((r) => r.kind === "nice_to_have");
+  return { requirements, matched, missing, niceToHave, method: "deterministic" };
+}
+
+// ──────────────────────────────────────────────────────────────
 // 3. Figure preservation
 // ──────────────────────────────────────────────────────────────
 
@@ -389,6 +523,89 @@ export function extractFigures(text: string): string[] {
 export function droppedFigures(input: string, output: string): string[] {
   const outNorm = String(output || "").toLowerCase().replace(/\s+/g, "");
   return extractFigures(input).filter((f) => !outNorm.includes(f));
+}
+
+// ──────────────────────────────────────────────────────────────
+// 3b. Self-verification — catch a rule violation in code before a human
+// has to. Every prior real bug in this app's writing (a fabricated name,
+// a dropped figure, a banned cliche slipping through) was found by testing
+// after the fact, never by the model noticing its own mistake. Everything
+// checkable here is checked deterministically, same design rule as the
+// gap analysis above: the model never grades its own homework, code does.
+// ──────────────────────────────────────────────────────────────
+
+export const WRITE_BANNED_PHRASES = [
+  "proven ability to", "proven track record of", "results-driven", "dynamic professional",
+  "leveraging", "spearheaded transformational initiatives", "passionate about", "in today's fast-paced",
+  "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "hard-working", "detail-oriented",
+];
+
+export interface WriteViolation { kind: "figure" | "banned_phrase" | "pronoun" | "dash"; detail: string }
+
+/** Only the prose a person actually reads — summary and bullets — so a
+ * company name or a structured field key can never trip the pronoun/dash
+ * checks below. */
+function extractProse(resume: unknown): string {
+  const r = (resume || {}) as Record<string, unknown>;
+  const basics = (r.basics || {}) as Record<string, unknown>;
+  const work = Array.isArray(r.work) ? (r.work as Array<Record<string, unknown>>) : [];
+  const parts: string[] = [];
+  if (typeof basics.summary === "string") parts.push(basics.summary);
+  for (const w of work) {
+    const bullets = Array.isArray(w?.bullets) ? (w.bullets as unknown[]) : [];
+    for (const b of bullets) if (typeof b === "string") parts.push(b);
+  }
+  return parts.join("\n");
+}
+
+/** Deterministic checks only — no second AI call. Figures use the whole
+ * output (a dropped number could hide in a title or a skill line too);
+ * everything else is scoped to prose only. */
+export function verifyWriteQuality(inputText: string, outputResume: unknown): WriteViolation[] {
+  const violations: WriteViolation[] = [];
+  const outputStr = JSON.stringify(outputResume ?? "");
+  for (const f of droppedFigures(inputText, outputStr)) violations.push({ kind: "figure", detail: f });
+
+  const prose = extractProse(outputResume);
+  const lowerProse = prose.toLowerCase();
+  for (const p of WRITE_BANNED_PHRASES) if (lowerProse.includes(p)) violations.push({ kind: "banned_phrase", detail: p });
+  if (/\b(I|me|my|we)\b/.test(prose)) violations.push({ kind: "pronoun", detail: "first-person pronoun present" });
+  if (/[–—]/.test(prose)) violations.push({ kind: "dash", detail: "em or en dash present" });
+  return violations;
+}
+
+/** Same checks as verifyWriteQuality, for a flat prose string instead of a
+ * structured resume — the extension's smart_tailor and both cover-letter
+ * paths (web and extension) produce plain text, not RESUME_SCHEMA. No
+ * figure check here; each of those call sites already runs its own
+ * droppedFigures check against the right before/after text.
+ * checkPronouns defaults on for resume-shaped prose (implied third person)
+ * but a cover letter is legitimately first person — callers writing a
+ * cover letter must pass false, or every real "I have experience with..."
+ * would wrongly flag as a violation. */
+export function verifyProseQuality(text: string, checkPronouns = true): WriteViolation[] {
+  const violations: WriteViolation[] = [];
+  const s = String(text || "");
+  const lower = s.toLowerCase();
+  for (const p of WRITE_BANNED_PHRASES) if (lower.includes(p)) violations.push({ kind: "banned_phrase", detail: p });
+  if (checkPronouns && /\b(I|me|my|we)\b/.test(s)) violations.push({ kind: "pronoun", detail: "first-person pronoun present" });
+  if (/[–—]/.test(s)) violations.push({ kind: "dash", detail: "em or en dash present" });
+  return violations;
+}
+
+/** One retry note covering every violation found, so a single retry call
+ * can fix all of them at once rather than one round trip per rule. */
+export function violationsToRetryNote(violations: WriteViolation[]): string {
+  const figures = violations.filter((v) => v.kind === "figure").map((v) => v.detail);
+  const phrases = Array.from(new Set(violations.filter((v) => v.kind === "banned_phrase").map((v) => v.detail)));
+  const hasPronoun = violations.some((v) => v.kind === "pronoun");
+  const hasDash = violations.some((v) => v.kind === "dash");
+  const notes: string[] = [];
+  if (figures.length) notes.push(`- Dropped or altered these figures: ${figures.slice(0, 30).join(", ")}. Include every one of them, unchanged, in the bullet it belongs to.`);
+  if (phrases.length) notes.push(`- Used a banned phrase: "${phrases.join('", "')}". Rewrite that line without it.`);
+  if (hasPronoun) notes.push(`- Used a first-person pronoun ("I", "me", "my", or "we"). Rewrite in implied third person.`);
+  if (hasDash) notes.push(`- Used an em dash or en dash. Remove it — use a period, a comma, or the word "to" for a range instead.`);
+  return notes.length ? `PREVIOUS ATTEMPT HAD REAL PROBLEMS, FIX EVERY ONE:\n${notes.join("\n")}\nProduce the complete resume again, correcting these, changing nothing else.` : "";
 }
 
 // ──────────────────────────────────────────────────────────────

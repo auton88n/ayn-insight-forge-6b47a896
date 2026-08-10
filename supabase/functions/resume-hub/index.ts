@@ -20,6 +20,8 @@ import { wrapEmail, ctaButton, heading, para, escapeHtml, sendBrandedEmail } fro
 import {
   sha256 as sha256b, buildSections, computeGap, renderGapBlock, droppedFigures,
   cacheGet, cacheSet, logAiCall, fetchCompanyContext,
+  verifyWriteQuality, verifyProseQuality, violationsToRetryNote,
+  applySemanticRecheck, cosineSimilarity,
   type GapAnalysis, type SectionBundle,
 } from "../_shared/tailoring.ts";
 
@@ -521,6 +523,8 @@ const ATS_RUBRIC = `Score out of 100, starting at 100 and subtracting only for w
 - Summary reads generic enough to apply to any candidate (buzzwords, no specifics from this actual background): -10
 - Fewer than 2 roles listed, or bullets so thin they show no real scope: -10
 - A gap of 6 months or more between the end of one role and the start of the next, with nothing in the resume accounting for it: -10, once per gap, capped at -20 total for this category
+- First-person pronouns anywhere ("I", "me", "my", "we"): -5, once regardless of how many appear
+- A role with no end date (current) written with past-tense verbs, or a role with an end date written with present-tense verbs: -5, once regardless of how many bullets are affected
 Floor the result at 0. Do not deduct for anything not listed here. State the score as the literal result of this subtraction, not an impression.`;
 
 // Scoring lives in exactly one place, called by both resume_diagnose and
@@ -978,7 +982,8 @@ RULES:
 - derived.top_skills: 8-12 skills you would put on a resume for this person, ordered by relevance.
 - work_auth: leave booleans missing if unstated. Do NOT guess citizenship from name.
 - preferences: leave fields missing if unstated. Do NOT default to true/false.
-- All dates: keep the format as written ("2021", "Jan 2021", "2021-03"). Do not normalize.`,
+- All dates: keep the format as written ("2021", "Jan 2021", "2021-03"). Do not normalize.
+- education vs certifications: education is degree-granting programs only (Bachelor's, Master's, Associate's, PhD, diploma). A professional certificate, online specialization (Coursera, edX, LinkedIn Learning, a school's own non-degree program like "Wharton Online"), bootcamp, license, or short course goes in certifications ONLY, never education, even when the resume lists both under one shared "Education" heading. The two arrays are mutually exclusive — the same credential must never appear in both.`,
     user: JSON.stringify({
       resumeContent: opts.resumeContent ?? null,
       resumeText: (opts.resumeText || "").slice(0, 30000),
@@ -1087,6 +1092,63 @@ async function embedText(text: string): Promise<{ vector: number[]; model: strin
     console.log(`[embedText] fallback path (exception: ${(e as Error).message})`);
     return { vector: await deterministicEmbed(input), model: FALLBACK_EMBED_MODEL };
   }
+}
+
+/**
+ * v3.124.0 — real semantic gap-matching. A first version tried the
+ * embeddings endpoint's array-input form to do a whole batch in one
+ * request; live testing showed it silently falling back to the hash
+ * embedding every time (the gateway's embeddings route does not accept
+ * `input` as an array the way raw OpenAI's does), so the "semantic" check
+ * was running on vectors with no real semantic meaning and never promoting
+ * anything. Fixed by fanning out to embedText — proven working in this
+ * project already (real candidate_index rows carry embedding_model
+ * 'openai/text-embedding-3-small') — one call per text, run concurrently.
+ * Model is uniform across the whole result: if even one call falls back,
+ * the caller (semanticGapRecheck) already treats the batch as "no real
+ * embeddings available" and skips the recheck rather than compare a mix
+ * of real and hashed vectors.
+ */
+async function embedBatch(texts: string[]): Promise<{ vectors: number[][]; model: string }> {
+  const results = await Promise.all(texts.map((t) => embedText(t)));
+  const model = results.every((r) => r.model === REAL_EMBED_MODEL) ? REAL_EMBED_MODEL : FALLBACK_EMBED_MODEL;
+  return { vectors: results.map((r) => r.vector), model };
+}
+
+/**
+ * Second-pass semantic check on whatever computeGap called "missing":
+ * one real embeddings call (skipped entirely if nothing is missing, so a
+ * clean match costs nothing extra) comparing each missing requirement
+ * against the candidate's own skills and bullets. Only ever promotes a
+ * false "missing" to "matched" — see applySemanticRecheck's own doc
+ * comment. Silently returns the original gap unchanged if the real
+ * embedding model isn't available (the hash fallback has no semantic
+ * meaning, so running cosine similarity on it would be noise, not signal).
+ */
+async function semanticGapRecheck(gap: GapAnalysis, bundle: SectionBundle): Promise<GapAnalysis> {
+  // Bare 1-2 word tool/skill names never get promoted (see
+  // applySemanticRecheck's own comment for why: they scored a confirmed
+  // false positive higher than a confirmed true one, live-tested) — skip
+  // embedding them at all rather than spend a call on something that can
+  // never change the result.
+  const missingReqs = gap.requirements.filter((r) => r.status === "missing" && r.text.trim().split(/\s+/).length >= 3).slice(0, 12);
+  if (!missingReqs.length) return gap;
+  // Capped at 20: embedBatch now fans out to one real HTTP call per text
+  // (see its own comment), so this bounds total concurrent requests to
+  // roughly 32 worst case, not an unbounded fan-out.
+  const chunks = Array.from(new Set([
+    ...bundle.sections.skills,
+    ...bundle.sections.work.flatMap((w) => (Array.isArray(w.bullets) ? (w.bullets as unknown[]) : []).map(String)),
+  ])).filter((c) => c && c.length >= 3).slice(0, 20);
+  if (!chunks.length) return gap;
+
+  const missingTexts = missingReqs.map((r) => r.text);
+  const { vectors, model } = await embedBatch([...missingTexts, ...chunks]);
+  if (model !== REAL_EMBED_MODEL) return gap; // hash fallback carries no real meaning to compare
+
+  const missingEmbeddings = missingTexts.map((text, i) => ({ text, vector: vectors[i] }));
+  const chunkEmbeddings = chunks.map((text, i) => ({ text, vector: vectors[missingTexts.length + i] }));
+  return applySemanticRecheck(gap, missingEmbeddings, chunkEmbeddings);
 }
 
 
@@ -2113,10 +2175,17 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
       if (isText) {
         try { resumeText = new TextDecoder("utf-8").decode(b64ToBytes(fileBase64)); } catch (_) { /* noop */ }
       } else if (isDocx) {
-        // Use mammoth for real DOCX text extraction
+        // Use mammoth for real DOCX text extraction. v3.121.0 — mammoth
+        // expects a real Node Buffer, not a bare Uint8Array; passing the raw
+        // typed array (cast through `as any` to satisfy TS) silently failed
+        // extraction in Deno's npm compat layer even though it works fine
+        // against the identical bytes in plain Node, reproduced live against
+        // a real user's real .docx resume. `node:buffer`'s Buffer.from wraps
+        // the same underlying bytes with the interface mammoth actually checks.
         try {
+          const { Buffer } = await import("node:buffer");
           const mammoth = await import("npm:mammoth@1.8.0");
-          const { value } = await mammoth.extractRawText({ buffer: b64ToBytes(fileBase64) as any });
+          const { value } = await mammoth.extractRawText({ buffer: Buffer.from(b64ToBytes(fileBase64)) as any });
           resumeText = (value || "").replace(/\s+\n/g, "\n").trim();
         } catch (e) {
           console.warn("mammoth DOCX extraction failed", e);
@@ -2128,7 +2197,8 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
       // Stage 2 — text path (fast, accurate when extraction worked)
       if (isMeaningful) {
         const r = await callAI({
-          system: `You convert raw resume text into structured JSON. Be faithful — extract exactly what is written. Never invent names, employers, dates, or skills. If a field is missing, return an empty string or empty array. The name, contact info, and companies in this text are real. If the text below does not actually contain resume content (it's garbled, boilerplate, or unrelated), return every field empty — do NOT fill in a generic example/placeholder person or job.`,
+          system: `You convert raw resume text into structured JSON. Be faithful — extract exactly what is written. Never invent names, employers, dates, or skills. If a field is missing, return an empty string or empty array. The name, contact info, and companies in this text are real. If the text below does not actually contain resume content (it's garbled, boilerplate, or unrelated), return every field empty — do NOT fill in a generic example/placeholder person or job.
+EDUCATION vs CERTIFICATIONS: education is degree-granting programs only (Bachelor's, Master's, Associate's, PhD, diploma). Everything else — a professional certificate, an online specialization (Coursera, edX, LinkedIn Learning, a school's own non-degree program like "Wharton Online"), a bootcamp, a license, a short course — goes in certifications ONLY, never education, even when the source document lists both under one shared "Education" heading. The two arrays are mutually exclusive — the same credential must never appear in both.`,
           user: `RESUME TEXT:\n${resumeText.slice(0, 18000)}`,
           toolName: "emit_resume",
           toolSchema: RESUME_SCHEMA,
@@ -2136,17 +2206,26 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
         return json({ resume: r.structured, plainText: resumeText.slice(0, 18000) });
       }
 
-      // Stage 3 — vision/file fallback for PDFs (or DOCX when mammoth failed)
+      // v3.121.0 — a DOCX that mammoth couldn't read has no other honest path:
+      // confirmed live, Google's own file API rejects the wordprocessingml
+      // MIME type outright ("Unsupported MIME type"), so sending it here was
+      // guaranteed to fail every time, wasting a call and surfacing a raw
+      // upstream error instead of the same clean message a genuinely
+      // unreadable file already gets everywhere else in this function.
+      if (isDocx) {
+        return json({
+          error: "Couldn't read this DOCX file. Try re-saving it from Word and uploading again, or paste your resume text instead.",
+        }, 422);
+      }
+
+      // Stage 3 — vision/file fallback for PDFs only (mammoth already
+      // handles every real DOCX; the branch above catches the rest).
       // Use the gateway's OpenAI-compatible `file` content block with a data URL.
-      const realMime = isPdf
-        ? "application/pdf"
-        : isDocx
-        ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        : (mimeType || "application/octet-stream");
+      const realMime = "application/pdf";
 
       const userContent = [
-        { type: "text", text: "Extract ALL information from this resume document: full name, contact details (email, phone, location, links), every job (company, title, dates, bullets), education, skills, certifications, projects. Be exhaustive and faithful — extract exactly what is written, never invent. If, and only if, this document has no actual readable resume content in it at all (blank page, corrupted file, an unrelated document, or an image too degraded to read), call emit_no_content instead and explain why in one sentence. Otherwise call emit_resume." },
-        { type: "file", file: { filename: isPdf ? "resume.pdf" : "resume.docx", file_data: `data:${realMime};base64,${fileBase64}` } },
+        { type: "text", text: "Extract ALL information from this resume document: full name, contact details (email, phone, location, links), every job (company, title, dates, bullets), education, skills, certifications, projects. Be exhaustive and faithful — extract exactly what is written, never invent. Education means degree-granting programs only (Bachelor's, Master's, Associate's, PhD, diploma); a professional certificate, online specialization, bootcamp, license, or short course goes in certifications ONLY, never also in education, even if the document lists both under one shared 'Education' heading. If, and only if, this document has no actual readable resume content in it at all (blank page, corrupted file, an unrelated document, or an image too degraded to read), call emit_no_content instead and explain why in one sentence. Otherwise call emit_resume." },
+        { type: "file", file: { filename: "resume.pdf", file_data: `data:${realMime};base64,${fileBase64}` } },
       ];
 
       // Two tools, not one pinned tool_choice. A forced single tool call gives
@@ -2266,38 +2345,61 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
       // needs some variation; the score is computed afterward by a separate,
       // low-temperature, single-purpose call (scoreResumeContent) so the
       // two stochastic jobs never contaminate each other's number.
+      const rewriteSystem = `You rewrite a resume to be stronger and more ATS-friendly, without inventing anything, and it must read like a real person wrote it. RULES:
+1. NEVER invent or imply experience, employers, titles, dates, or numbers that are not already in the resume.
+2. Rewrite every bullet on the Accomplished-[X]-measured-by-[Y]-by-doing-[Z] shape wherever the underlying fact supports it: lead with a strong, specific action verb, state the real result already implied by the content, then how it was done — do not fabricate a metric that is not there. One bullet, one idea, one line where possible — this has to fit on one page.
+3. Keep every company name, job title, and date exactly as given; write dates consistently as "Month YYYY".
+4. Tighten vague or generic lines into specific ones using only what is already true.
+5. WRITE LIKE A PERSON, NOT A TEMPLATE. Ban these entirely: "proven ability to", "proven track record of", "results-driven", "dynamic professional", "leveraging", "spearheaded transformational initiatives", "passionate about", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "hard-working", "detail-oriented", any summary sentence that could be copy-pasted onto a stranger's resume unchanged. Prefer plain, direct, specific sentences over dense corporate phrasing. Vary sentence length and structure like a human writer would, not a repeating pattern.
+5b. No first-person pronouns anywhere ("I", "me", "my", "we") — every line is implied first person. The current role (no end date, or end date is "Present") is written entirely in present tense ("Leads", "Manages"); every past role is written entirely in past tense ("Led", "Managed").
+5c. If the resume has more than about 5 roles or reaches back more than 10 to 15 years, keep full bullets only on the most recent, most relevant roles and compress the rest into a single line each (title, company, dates, no bullets) so the page-one budget goes to what's actually relevant, not to completeness for its own sake.
+6. skills must be ATOMIC: one skill name per array entry (e.g. "React", "Stakeholder management"), never a category label with a colon and a comma-separated list crammed into one entry. Group related skills by ORDER in the array, not by writing a label into the string.
+7. If a job description is provided, weave in its keywords only where the person's real experience already supports them.
+8. No em dashes, no en dashes. Ranges use the word "to".
+9. The summary's first sentence must open by naming the candidate's own current or most recent job title (their real title, never an invented one, and never the job description's title unless it already matches). A recruiter's fast scan and an ATS both check for a title match before anything else, so it cannot be buried in the second sentence. The whole summary is 1 to 2 sentences, no more — it is a hook, not a paragraph.
+9b. If a bullet uses an internal-only company term, a project codename, or phrasing specific to one employer, translate it into the plain, industry-standard equivalent so an outside reader recognizes it immediately — rephrase only, never invent a detail about what the internal thing was.
+10. basics.title (the resume's own header line, separate from any job's title in the work array) must be the candidate's own current or most recent job title, taken from their most recent role in the resume. If basics.title arrives empty, fill it from their most recent work entry's title, never from the job description, and never with a higher seniority word ("Senior", "Lead", "Staff", "Principal") than their real title already has.
+11. education vs certifications: education is degree-granting programs only (Bachelor's, Master's, Associate's, PhD, diploma). If the incoming resume's education array has an entry for a non-degree credential (a professional certificate, online specialization, bootcamp, license, short course), that entry must be DELETED from the education array in your output and represented only as a string in certifications instead. Example of what NOT to do: education still lists "Online Specialization, Wharton School" AND certifications also lists "AI for Business, Wharton School" — that is wrong, it is the same credential kept in both places. Correct: education contains only real degrees; that entry is gone from education entirely, present only in certifications. Check your own output before returning it: no school/program name may appear in both arrays.
+Return the complete improved resume in the same schema, plus suggestions: an array of short strings describing what you changed and why.`;
+      const rewriteUser = JSON.stringify({ resume, jdText: jdText ?? "" }).slice(0, 40000);
+      const rewriteSchema = {
+        type: "object",
+        properties: {
+          resume: RESUME_SCHEMA,
+          suggestions: { type: "array", items: { type: "string" } },
+        },
+        required: ["resume", "suggestions"],
+      };
       const r = await callAI({
         // v3.97.0 — was QUALITY_MODEL (gemini-2.5-pro), measured live at 176s
         // for one call, past this app's own 150s idle timeout. Swapped to
         // the flash tier for latency; scoring already ran on this same tier
         // (scoreResumeContent) with no quality complaint.
-        model: DEFAULT_MODEL,
-        temperature: 0.3,
-        system: `You rewrite a resume to be stronger and more ATS-friendly, without inventing anything, and it must read like a real person wrote it. RULES:
-1. NEVER invent or imply experience, employers, titles, dates, or numbers that are not already in the resume.
-2. Rewrite every bullet to lead with a strong, specific action verb and, where the underlying fact supports it, surface the result with a real number already implied by the content — do not fabricate a metric that is not there. One bullet, one idea, one line where possible — this has to fit on one page.
-3. Keep every company name, job title, and date exactly as given; write dates consistently as "Month YYYY".
-4. Tighten vague or generic lines into specific ones using only what is already true.
-5. WRITE LIKE A PERSON, NOT A TEMPLATE. Ban these entirely: "proven ability to", "proven track record of", "results-driven", "dynamic professional", "leveraging", "spearheaded transformational initiatives", "passionate about", "in today's fast-paced", any summary sentence that could be copy-pasted onto a stranger's resume unchanged. Prefer plain, direct, specific sentences over dense corporate phrasing. Vary sentence length and structure like a human writer would, not a repeating pattern.
-6. skills must be ATOMIC: one skill name per array entry (e.g. "React", "Stakeholder management"), never a category label with a colon and a comma-separated list crammed into one entry. Group related skills by ORDER in the array, not by writing a label into the string.
-7. If a job description is provided, weave in its keywords only where the person's real experience already supports them.
-8. No em dashes, no en dashes. Ranges use the word "to".
-9. The summary's first sentence must open by naming the candidate's own current or most recent job title (their real title, never an invented one, and never the job description's title unless it already matches). A recruiter's fast scan and an ATS both check for a title match before anything else, so it cannot be buried in the second sentence.
-10. basics.title (the resume's own header line, separate from any job's title in the work array) must be the candidate's own current or most recent job title, taken from their most recent role in the resume. If basics.title arrives empty, fill it from their most recent work entry's title, never from the job description, and never with a higher seniority word ("Senior", "Lead", "Staff", "Principal") than their real title already has.
-Return the complete improved resume in the same schema, plus suggestions: an array of short strings describing what you changed and why.`,
-        user: JSON.stringify({ resume, jdText: jdText ?? "" }).slice(0, 40000),
-        toolName: "emit_rewrite",
-        toolSchema: {
-          type: "object",
-          properties: {
-            resume: RESUME_SCHEMA,
-            suggestions: { type: "array", items: { type: "string" } },
-          },
-          required: ["resume", "suggestions"],
-        },
+        model: DEFAULT_MODEL, temperature: 0.3, system: rewriteSystem, user: rewriteUser,
+        toolName: "emit_rewrite", toolSchema: rewriteSchema,
       });
-      const rewritten = r.structured as { resume?: unknown; suggestions?: string[] } | undefined;
+      let rewritten = r.structured as { resume?: unknown; suggestions?: string[] } | undefined;
       if (!rewritten?.resume) return json({ error: "Failed to rewrite resume" }, 500);
+
+      // Self-verification — check the model's own output against the rules
+      // in code before anyone sees it, instead of only asking nicely and
+      // trusting compliance. One retry, same pattern tailor's own
+      // figure-preservation check already uses.
+      let writeViolations = verifyWriteQuality(JSON.stringify(resume), rewritten.resume);
+      if (writeViolations.length) {
+        const retryNote = violationsToRetryNote(writeViolations);
+        const retry = await callAI({
+          model: DEFAULT_MODEL, temperature: 0.3, system: rewriteSystem,
+          user: `${rewriteUser}\n\n${retryNote}`,
+          toolName: "emit_rewrite", toolSchema: rewriteSchema,
+        });
+        const retried = retry.structured as { resume?: unknown; suggestions?: string[] } | undefined;
+        if (retried?.resume) {
+          const retryViolations = verifyWriteQuality(JSON.stringify(resume), retried.resume);
+          if (retryViolations.length < writeViolations.length) { rewritten = retried; writeViolations = retryViolations; }
+        }
+      }
+
       const scored = await scoreResumeContent(rewritten.resume);
       const chargeRewrite = await creditSpend(adminRewrite, user.id, COST_OPTIMIZE, "resume_optimize");
       if (!chargeRewrite.ok) return insufficientCredits(chargeRewrite.balance, COST_OPTIMIZE, "resume optimization");
@@ -2307,6 +2409,186 @@ Return the complete improved resume in the same schema, plus suggestions: an arr
         ats_score: scored.ats_score,
         verdict: scored.verdict,
         credits: { spent: COST_OPTIMIZE, balance: chargeRewrite.balance },
+      });
+    }
+
+    // ---------------- guided_intake_extract (free) ----------------
+    // v3.120.0 — for someone with no resume at all. Takes a plain-language
+    // interview transcript (a handful of "tell me about a role/your
+    // education/your skills" answers) and structures it into the same
+    // Career shape ProfileTab already edits (skills/experiences/education/
+    // certifications/derived) — nothing is written here, the client merges
+    // this into its own profile state and the person reviews/corrects it
+    // through the normal Profile fields before anything is saved. Free,
+    // same reasoning as parse_file/resume_diagnose: this is reading and
+    // structuring what the person already told us, not generating new
+    // prose, so it isn't the paid "AI writes it for you" action.
+    if (action === "guided_intake_extract") {
+      const adminIntake = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminIntake, "tailoring"); if (off) return off; }
+      const { answers } = payload as { answers?: Array<{ question: string; answer: string }> };
+      if (!Array.isArray(answers) || !answers.length) return json({ error: "answers required" }, 400);
+      const transcript = answers
+        .filter(a => a && a.answer && a.answer.trim())
+        .map(a => `Q: ${a.question}\nA: ${a.answer.trim()}`)
+        .join("\n\n")
+        .slice(0, 20000);
+      if (!transcript) return json({ error: "No answers to work from" }, 400);
+
+      const r = await callAI({
+        model: DEFAULT_MODEL,
+        temperature: 0.2,
+        system: `A person with no resume yet answered a short interview about their work, education, and skills, in their own words. Structure their real answers into a career profile — never invent an employer, title, date, school, or skill they did not mention.
+1. Each distinct role, internship, volunteer position, freelance stretch, or substantial project they described is its own work entry — do not skip non-traditional experience just because it wasn't a formal job.
+2. Turn what they said about each role into 2-4 real bullets: strong action verb, specific, one idea per line, using only what they actually said. If they gave a number, keep it exact; never invent one.
+3. Dates: use whatever precision they gave (a year, a season, "last summer") — write it plainly, do not invent a specific month they never said.
+4. skills must be ATOMIC: one skill name per array entry, pulled from what they actually listed or that is clearly evidenced by a role's description — never a guessed skill they never mentioned.
+5. current_title/current_company come from their most recent real role. If they never held a formal title, leave current_title as a short plain description of what they actually did, never an invented job title.
+6. total_yoe is your best-effort count of full-time-equivalent years across everything they described, or 0 if none of it reads as real work experience yet (e.g. only a school project).
+7. education vs certifications: education is degree-granting programs only (Bachelor's, Master's, Associate's, PhD, diploma). A professional certificate, online specialization (Coursera, edX, LinkedIn Learning, a school's own non-degree program), bootcamp, license, or short course they mention belongs in certifications ONLY, never education, even if they described both in the same answer. The two arrays are mutually exclusive — never list the same thing in both.
+Return experiences, education, skills (plain strings), certifications (if any were mentioned), and derived: { current_title, current_company, total_yoe }.`,
+        user: transcript,
+        toolName: "emit_career_profile",
+        toolSchema: {
+          type: "object",
+          properties: {
+            experiences: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  company: { type: "string" }, title: { type: "string" }, location: { type: "string" },
+                  start: { type: "string" }, end: { type: "string" }, current: { type: "boolean" },
+                  bullets: { type: "array", items: { type: "string" } },
+                },
+                required: ["company", "title", "bullets"],
+              },
+            },
+            education: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { school: { type: "string" }, degree: { type: "string" }, field: { type: "string" }, start: { type: "string" }, end: { type: "string" } },
+                required: ["school"],
+              },
+            },
+            skills: { type: "array", items: { type: "string" } },
+            certifications: { type: "array", items: { type: "string" } },
+            derived: {
+              type: "object",
+              properties: {
+                current_title: { type: "string" }, current_company: { type: "string" }, total_yoe: { type: "number" },
+              },
+            },
+          },
+          required: ["experiences", "education", "skills"],
+        },
+      });
+      const extracted = r.structured as Record<string, unknown> | undefined;
+      if (!extracted) return json({ error: "Could not read your answers" }, 500);
+      return json(extracted);
+    }
+
+    // ---------------- resume_generate (the paid from-scratch builder) ----------------
+    // v3.120.0 — for someone building a resume with no upload to start
+    // from. Same output shape and same paid tier as `rewrite` (it is the
+    // same class of action: AI writes real prose), but the input is the
+    // caller's own canonical profile, resolved server side the same way
+    // `match`/`tailor` already do, rather than a resume blob from the
+    // client. The result lands in `resumes` through the exact same
+    // is_primary swap the optimizer uses, so it gets the exact same
+    // ATS-formatted, one-page PDF/DOCX build and the exact same scoring,
+    // tailoring, and extension pipeline as any uploaded resume.
+    if (action === "resume_generate") {
+      const adminGen = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminGen, "tailoring"); if (off) return off; }
+      const creditGateGen = await assertCredits(adminGen, user.id, COST_OPTIMIZE, "resume generation");
+      if (creditGateGen) return creditGateGen;
+
+      const canonical = await loadCanonical(adminGen, user.id);
+      const hasContent = !!canonical && (canonical.experiences.length > 0 || canonical.skills.length > 0 || canonical.education.length > 0);
+      if (!hasContent) return json({ error: "Add some work history, skills, or education to your profile first." }, 400);
+
+      const { data: personalRow } = await adminGen.from("user_profile_data")
+        .select("legal_first_name, legal_last_name, email, phone, address, links")
+        .eq("user_id", user.id).maybeSingle();
+      // v3.120.0 — a brand-new account has no user_profile_data row yet
+      // (that only gets written the first time someone edits "About you"),
+      // so basics.name had nothing real to work with and the model
+      // invented a plausible-sounding placeholder ("Ayn User") instead of
+      // leaving it honest. The real name typed at signup already sits in
+      // auth metadata; fall back to that, then to the account email, before
+      // ever letting the model guess.
+      const metaName = (user.user_metadata as { full_name?: string } | undefined)?.full_name || "";
+      const personalForPrompt = {
+        legal_first_name: personalRow?.legal_first_name || null,
+        legal_last_name: personalRow?.legal_last_name || null,
+        full_name_from_signup: personalRow?.legal_first_name ? null : (metaName || null),
+        email: personalRow?.email || user.email || null,
+        phone: personalRow?.phone || null,
+        address: personalRow?.address || null,
+        links: personalRow?.links || null,
+      };
+
+      const genSystem = `You write a complete, ATS-friendly resume from scratch for someone who has never had one, using ONLY the profile data given — never invent an employer, title, date, number, skill, or name that is not present in it. RULES:
+1. NEVER invent experience, employers, titles, dates, or numbers not already present in the profile.
+2. Turn each role's raw notes into 2-4 real bullets on the Accomplished-[X]-measured-by-[Y]-by-doing-[Z] shape wherever the profile supports it: strong action verb, specific result, then how it was done, one idea per line. Do not fabricate a metric that isn't implied by the profile — if there's no number, state the accomplishment plainly instead of inventing one.
+3. Keep every company name, title, and date exactly as given; write dates consistently as "Month YYYY" wherever the profile has at least a month, otherwise keep whatever precision it has.
+4. WRITE LIKE A PERSON, NOT A TEMPLATE. Ban entirely: "proven ability to", "proven track record of", "results-driven", "dynamic professional", "leveraging", "spearheaded transformational initiatives", "passionate about", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "hard-working", "detail-oriented".
+4b. No first-person pronouns ("I", "me", "my", "we"). The current role is written in present tense; every past role is written in past tense.
+4c. If the profile has more than about 5 roles or reaches back more than 10 to 15 years, give full bullets only to the most recent, most relevant roles and compress the rest to one line each (title, company, dates, no bullets).
+5. skills must be ATOMIC: one skill name per array entry, never a category label with a colon and a comma-separated list crammed into one entry.
+6. No em dashes, no en dashes. Ranges use the word "to".
+7. The summary's first sentence must open with the candidate's own current or most recent title/role from the profile — their real one. If they have never held a formal title, describe what they actually do in plain words instead of inventing a job title. The whole summary is 1 to 2 sentences, no more.
+7b. If a bullet uses an internal-only company term or project codename from the profile notes, translate it into the plain, industry-standard equivalent so an outside reader recognizes it immediately — rephrase only, never invent a detail about what the internal thing was.
+8. basics.title must be the candidate's own current or most recent real title/role from the profile, never invented, never bumped with a higher seniority word than the profile supports.
+9. Non-traditional experience in the profile (school projects, volunteer work, freelance work) belongs under work — do not omit it just because it wasn't a formal job.
+10. basics.name must come from legal_first_name/legal_last_name if present, otherwise full_name_from_signup, otherwise the local part of email. NEVER invent a name, and never write a placeholder like "Your Name" or "Ayn User" — use exactly what the profile data gives you, even if it is just an email's local part.
+11. education vs certifications: the profile's own education and certifications arrays are already split correctly — keep them split in the output. Never fold a certifications entry into the education section or vice versa, and never list the same credential in both.
+Return the complete resume in the schema, plus suggestions: short strings naming what would make the resume stronger if the person adds more detail to their profile (this is the only place to raise a gap — never paper over one in the resume text itself).`;
+      const genUser = JSON.stringify({ profile: canonical, personal: personalForPrompt }).slice(0, 40000);
+      const genSchema = {
+        type: "object",
+        properties: {
+          resume: RESUME_SCHEMA,
+          suggestions: { type: "array", items: { type: "string" } },
+        },
+        required: ["resume", "suggestions"],
+      };
+      const r = await callAI({
+        model: DEFAULT_MODEL, temperature: 0.3, system: genSystem, user: genUser,
+        toolName: "emit_resume_from_profile", toolSchema: genSchema,
+      });
+      let built = r.structured as { resume?: unknown; suggestions?: string[] } | undefined;
+      if (!built?.resume) return json({ error: "Failed to build resume" }, 500);
+
+      // Self-verification, same as rewrite: check the model's own output
+      // against the rules in code, one retry, before scoring or charging.
+      const genInputText = JSON.stringify({ profile: canonical, personal: personalForPrompt });
+      let genViolations = verifyWriteQuality(genInputText, built.resume);
+      if (genViolations.length) {
+        const retryNote = violationsToRetryNote(genViolations);
+        const retry = await callAI({
+          model: DEFAULT_MODEL, temperature: 0.3, system: genSystem,
+          user: `${genUser}\n\n${retryNote}`,
+          toolName: "emit_resume_from_profile", toolSchema: genSchema,
+        });
+        const retried = retry.structured as { resume?: unknown; suggestions?: string[] } | undefined;
+        if (retried?.resume) {
+          const retryViolations = verifyWriteQuality(genInputText, retried.resume);
+          if (retryViolations.length < genViolations.length) { built = retried; genViolations = retryViolations; }
+        }
+      }
+
+      const scoredGen = await scoreResumeContent(built.resume);
+      const chargeGen = await creditSpend(adminGen, user.id, COST_OPTIMIZE, "resume_generate");
+      if (!chargeGen.ok) return insufficientCredits(chargeGen.balance, COST_OPTIMIZE, "resume generation");
+      return json({
+        resume: built.resume,
+        suggestions: built.suggestions ?? [],
+        ats_score: scoredGen.ats_score,
+        verdict: scoredGen.verdict,
+        credits: { spent: COST_OPTIMIZE, balance: chargeGen.balance },
       });
     }
 
@@ -2332,7 +2614,8 @@ Return the complete improved resume in the same schema, plus suggestions: an arr
       ]);
       const bundle = buildSections(identity, canonical);
       if (!bundle.text || bundle.chars < 60) return json({ error: "No resume content available to score" }, 400);
-      const gap = computeGap(jdText, bundle);
+      let gap = computeGap(jdText, bundle);
+      gap = await semanticGapRecheck(gap, bundle);
       const canonText = canonicalDigest(canonical);
 
       const userSkillIndex = new Map<string, string>();
@@ -2424,7 +2707,8 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`,
       ]);
       const bundle = buildSections(identity, canonical);
       if (!bundle.text || bundle.chars < 60) return json({ error: "No resume content available to tailor" }, 400);
-      const gap = computeGap(jdText, bundle);
+      let gap = computeGap(jdText, bundle);
+      gap = await semanticGapRecheck(gap, bundle);
 
       const jdHash = (await sha256b(jdText)).slice(0, 24);
       const sectionHash = (await sha256b(bundle.text)).slice(0, 16);
@@ -2457,12 +2741,14 @@ RULES — YOU MUST FOLLOW EVERY ONE:
 2. ONLY reword existing bullets to naturally include job keywords where the underlying experience already supports it.
 3. Keep every fact, number, percentage, company name, date, and result exactly as-is.
 4. You may reorder skills to put the most relevant first, among skills the candidate actually has.
-5. You may adjust the summary to echo 2-3 key phrases from the job description — only using experience already in APPLICANT SECTIONS. Its first sentence must still open by naming the candidate's own current or most recent job title.
+5. You may adjust the summary to echo 2-3 key phrases from the job description — only using experience already in APPLICANT SECTIONS. Its first sentence must still open by naming the candidate's own current or most recent job title. The whole summary stays 1 to 2 sentences, no more.
+5b. If a bullet uses an internal-only company term or project codename, translate it into the plain, industry-standard equivalent so an outside reader recognizes it immediately — rephrase only, never invent a detail about what the internal thing was.
 6. Do NOT change job titles, company names, or dates. This includes basics.title (the resume's own header line): it must be the candidate's own current or most recent job title, taken from their most recent role in APPLICANT SECTIONS. If it arrives empty, fill it from their most recent work entry's title, never from the job description, and never with a higher seniority word ("Senior", "Lead", "Staff", "Principal") than their real title already has.
 7. Address the GAP ANALYSIS's "REQUIRED BUT NOT EVIDENCED" items wherever real related experience exists in APPLICANT SECTIONS; stay silent where it does not. Do not add a new claim just to fix a gap.
 8. No em dashes. No en dashes. Write dates as "2023 to Present".
-9. WRITE LIKE A PERSON, NOT A TEMPLATE. Ban these entirely: "proven ability to", "proven track record of", "results-driven", "dynamic professional", "leveraging", "spearheaded transformational initiatives", "passionate about", "in today's fast-paced", any summary sentence that could be copy-pasted onto a stranger's resume unchanged. Prefer plain, direct, specific sentences over dense corporate phrasing.
-10. Return the tailored resume in the RESUME_SCHEMA shape.`;
+9. WRITE LIKE A PERSON, NOT A TEMPLATE. Ban these entirely: "proven ability to", "proven track record of", "results-driven", "dynamic professional", "leveraging", "spearheaded transformational initiatives", "passionate about", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "hard-working", "detail-oriented", any summary sentence that could be copy-pasted onto a stranger's resume unchanged. Prefer plain, direct, specific sentences over dense corporate phrasing.
+10. No first-person pronouns ("I", "me", "my", "we"). The current role is written in present tense; every past role is written in past tense. Where the underlying fact supports it, shape a bullet as Accomplished-[X]-measured-by-[Y]-by-doing-[Z].
+11. Return the tailored resume in the RESUME_SCHEMA shape.`;
       const userMsg = `APPLICANT SECTIONS (the only source of truth about this person):
 ${bundle.text}${applicantSection}${droppedNote}
 
@@ -2473,19 +2759,21 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       // measured 176s, past this app's own 150s idle timeout. Flash tier.
       let r = await callAI({ model: DEFAULT_MODEL, temperature: 0.2, system, user: userMsg, toolName: "emit_resume", toolSchema: RESUME_SCHEMA });
 
-      // FIGURE PRESERVATION — verified in code, not just asked for, same as
-      // the extension's tailor. Stringifying the structured output is enough
-      // to check every number/percentage/date survived somewhere in it.
-      let missingFigures = droppedFigures(bundle.text, JSON.stringify(r.structured));
-      if (missingFigures.length) {
+      // SELF-VERIFICATION — figures, banned phrases, pronouns, and dashes
+      // all checked in code, not just asked for. One retry naming every
+      // violation found in a single round trip.
+      let writeViolations = verifyWriteQuality(bundle.text, r.structured);
+      if (writeViolations.length) {
+        const retryNote = violationsToRetryNote(writeViolations);
         const retry = await callAI({
           model: DEFAULT_MODEL, temperature: 0.2, system,
-          user: `${userMsg}\n\nPREVIOUS ATTEMPT DROPPED OR ALTERED THESE FIGURES: ${missingFigures.slice(0, 30).join(", ")}\nProduce the tailored resume again with every one of those figures present, unchanged, in the bullet it belongs to.`,
+          user: `${userMsg}\n\n${retryNote}`,
           toolName: "emit_resume", toolSchema: RESUME_SCHEMA,
         });
-        const stillMissing = droppedFigures(bundle.text, JSON.stringify(retry.structured));
-        if (stillMissing.length < missingFigures.length) { r = retry; missingFigures = stillMissing; }
+        const retryViolations = verifyWriteQuality(bundle.text, retry.structured);
+        if (retryViolations.length < writeViolations.length) { r = retry; writeViolations = retryViolations; }
       }
+      const missingFigures = writeViolations.filter((v) => v.kind === "figure").map((v) => v.detail);
 
       const chargeTailor = await creditSpend(adminTailor, user.id, COST_TAILOR, "tailored_resume");
       if (!chargeTailor.ok) return insufficientCredits(chargeTailor.balance, COST_TAILOR, "tailored resume");
@@ -2524,7 +2812,8 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       ]);
       const bundle = buildSections(identity, canonical);
       if (!bundle.text || bundle.chars < 60) return json({ error: "No resume content available" }, 400);
-      const gap = computeGap(jdText, bundle);
+      let gap = computeGap(jdText, bundle);
+      gap = await semanticGapRecheck(gap, bundle);
 
       const jdHash = (await sha256b(jdText)).slice(0, 24);
       const sectionHash = (await sha256b(bundle.text)).slice(0, 16);
@@ -2548,33 +2837,118 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       const companySection = companyCtx.text
         ? `\n\nCOMPANY CONTEXT (from ${companyCtx.source}, the employer's own public page):\n${companyCtx.text}`
         : "";
-      const system = `Write a concise, specific cover letter (under 280 words). Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}.
+      const system = `Write a concise, specific cover letter, 250 to 300 words total. Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}.
 
 STRUCTURE (4 short paragraphs, body text only — no address block, no date, no "Dear ..." salutation placeholders, no bracketed fields of any kind):
-1) Opening: who you are, the specific role, and one specific thing about this employer drawn from COMPANY CONTEXT if present; otherwise open with the role and the candidate's most relevant strength.
-2) Proof: one concrete achievement from the sections that maps to a stated requirement, with the real number if the sections have one.
-3) Skill bridge: two or three specific tools or skills the job asks for that the sections genuinely support.
-4) Close: a clear ask for a conversation, then sign off with the applicant's real name only.
+1) Hook (about 50 words): who you are, the specific role, and one specific thing about this employer drawn from COMPANY CONTEXT if present; otherwise open with the role and the candidate's most relevant strength. No clichés.
+2) Proof (about 100 words): one or two concrete achievements from the sections that map to the job's hardest requirements, with the real number if the sections have one. Show, don't tell.
+3) Alignment (about 75 words): two or three specific tools or skills the job asks for that the sections genuinely support, tied to why this specific employer matters to the candidate.
+4) Close (about 40 words): a clear, low-friction ask for a conversation, then sign off with the applicant's real name only.
 
 RULES:
 - Use ONLY facts from APPLICANT SECTIONS, the APPLICANT block, and COMPANY CONTEXT. Never invent companies, metrics, dates, names, emails, or phone numbers.
 - Never alter a number, percentage, currency figure, headcount, timeframe, date, or job title from what appears in the sections.
 - Do not claim any requirement listed as "REQUIRED BUT NOT EVIDENCED" in the gap analysis below unless real related experience is in the sections.
 - Never write a placeholder in brackets like "[Hiring Manager name]" — if you do not know a detail, leave it out entirely.
-- No clichés ("I am excited to", "leverage", "passionate", "in today's fast-paced"). Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`;
+- No clichés ("I am excited to", "leverage", "passionate", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy"). Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`;
       const userMsg = `APPLICANT SECTIONS:\n${bundle.text}${applicantSection}${companySection}\n\nJOB DESCRIPTION:\n${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
 
       const r = await callAI({ system, user: userMsg });
+      let coverBody = r.text;
+
+      // SELF-VERIFICATION — figures must trace back to the sections, no
+      // banned cliches, no em/en dash. Pronouns are fine here; a cover
+      // letter is legitimately first person.
+      let coverMissingFigures = droppedFigures(coverBody, bundle.text).filter((f) => f.length > 1);
+      let coverProseViolations = verifyProseQuality(coverBody, false);
+      if (coverMissingFigures.length || coverProseViolations.length) {
+        const figureNote = coverMissingFigures.length
+          ? `THE PREVIOUS DRAFT CITED FIGURES THAT DO NOT APPEAR IN THE SECTIONS: ${coverMissingFigures.slice(0, 20).join(", ")}\nRewrite the letter using only figures that appear verbatim in the sections, or no figures at all.\n`
+          : "";
+        const proseNote = coverProseViolations.length ? violationsToRetryNote(coverProseViolations) : "";
+        const retry = await callAI({ system, user: `${userMsg}\n\n${figureNote}${proseNote}` });
+        const fixed = String(retry.text || "").trim();
+        if (fixed) {
+          const stillMissing = droppedFigures(fixed, bundle.text).filter((f) => f.length > 1);
+          const stillProse = verifyProseQuality(fixed, false);
+          if (stillMissing.length + stillProse.length < coverMissingFigures.length + coverProseViolations.length) {
+            coverBody = fixed; coverMissingFigures = stillMissing; coverProseViolations = stillProse;
+          }
+        }
+      }
+
       const chargeCover = await creditSpend(adminCover, user.id, COST_COVER, "cover_letter");
       if (!chargeCover.ok) return insufficientCredits(chargeCover.balance, COST_COVER, "cover letter");
 
-      const result = { body: r.text };
+      const result = { body: coverBody };
       cacheSet(adminCover, cacheKey, user.id, "cover_letter_web", result, TAILOR_TTL);
       logAiCall(adminCover, {
         user_id: user.id, purpose: "cover_letter_web", duration_ms: Date.now() - coverStarted, cache_hit: false,
         source_map: identity?.sourceMap() || null, meta: { jd_chars: jdText.length, section_chars: bundle.chars },
       });
       return json({ ...result, credits: { spent: COST_COVER, balance: chargeCover.balance } });
+    }
+
+    // ---------------- job_fit_advice ----------------
+    // v3.124.0 — real judgment, scoped deliberately. This app already tried
+    // an open-ended, judgment-giving AI surface once: the original seeker
+    // product was a free-form career chat, deleted (v3.8.0) for producing
+    // confident-sounding, ungrounded flattery and offering capabilities the
+    // product didn't have. This is not that. The verdict category below is
+    // decided in code from the same deterministic gap analysis tailor/match
+    // already compute — the model is never asked to judge fit, only to
+    // explain, in plain words, a verdict it did not choose. Free: this is
+    // reasoning over facts already computed for free by match/tailor, not
+    // new AI-written content like a resume or cover letter.
+    if (action === "job_fit_advice") {
+      const adminFit = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminFit, "tailoring"); if (off) return off; }
+      const { jdText } = payload as { jdText: string };
+      if (!jdText) return json({ error: "jdText required" }, 400);
+
+      const [identity, canonical] = await Promise.all([
+        loadIdentity(adminFit, user.id, {}).catch(() => null),
+        loadCanonical(adminFit, user.id),
+      ]);
+      const bundle = buildSections(identity, canonical);
+      if (!bundle.text || bundle.chars < 60) return json({ error: "No resume content available" }, 400);
+      let gap = computeGap(jdText, bundle);
+      gap = await semanticGapRecheck(gap, bundle);
+
+      const requiredTotal = gap.matched.length + gap.missing.length;
+      const coverage = requiredTotal > 0 ? gap.matched.length / requiredTotal : 1;
+      const verdict: "no_stated_requirements" | "strong_fit" | "worth_trying" | "significant_gaps" =
+        requiredTotal === 0 ? "no_stated_requirements"
+        : coverage >= 0.8 ? "strong_fit"
+        : coverage >= 0.5 ? "worth_trying"
+        : "significant_gaps";
+
+      const fitSystem = `You explain, in plain honest language, whether this job is worth applying to for this candidate — grounded ONLY in the gap analysis given below, nothing else.
+
+THE VERDICT IS ALREADY DECIDED IN CODE, NOT BY YOU. Yours is only to explain it: "${verdict}".
+- strong_fit: most required things are matched. Say so plainly, name 1 or 2 real matched strengths from MATCHED below.
+- worth_trying: a real mix. Name something genuinely matched, name something genuinely missing, do not oversell it.
+- significant_gaps: more missing than matched. Say this plainly and honestly — do not soften it into false encouragement. It is fine, even useful, to say this one may not be worth the time right now.
+- no_stated_requirements: the posting did not list clear, checkable requirements. Say that plainly instead of inventing a verdict from nothing.
+
+RULES:
+- Cite only items from MATCHED and MISSING below. Never invent a skill, a number, a company, or a reason not present in this data.
+- Never promise an outcome ("you will get this job", "they will love you"). Never invent enthusiasm the data does not support.
+- Never suggest a next step outside what this product actually does. No interview coaching, no salary negotiation advice, no general career planning. If real gaps exist, it is fine to note that tailoring the resume or being ready to speak to a specific gap in an interview is the realistic move — nothing beyond that.
+- No em dashes, no en dashes. 3 to 5 sentences, plain language, no clichés.
+
+MATCHED (required items this resume already evidences): ${JSON.stringify(gap.matched.slice(0, 8).map((r) => r.text))}
+MISSING (required items this resume does not evidence): ${JSON.stringify(gap.missing.slice(0, 8).map((r) => r.text))}
+NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) => r.text))}`;
+
+      let r = await callAI({ system: fitSystem, user: "Write the verdict now." });
+      let adviceViolations = verifyProseQuality(r.text, false);
+      if (adviceViolations.length) {
+        const retry = await callAI({ system: fitSystem, user: `Write the verdict now.\n\n${violationsToRetryNote(adviceViolations)}` });
+        const retryViolations = verifyProseQuality(retry.text, false);
+        if (retryViolations.length < adviceViolations.length) { r = retry; adviceViolations = retryViolations; }
+      }
+      return json({ verdict, coverage: Math.round(coverage * 100), advice: r.text });
     }
 
     // ── NEW ACTIONS (JWT auth) ──
@@ -3441,10 +3815,24 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
 
 
       // Build anonymized rerank input.
+      // Impact-to-tenure: a deterministic count of quantified results
+      // (numbers, percentages, dollar/scale figures) in what the candidate
+      // actually wrote, divided by years of experience — one more real
+      // signal, counted in code rather than guessed at by the model, same
+      // design rule as the rest of this file ("the model never discovers
+      // what is missing, code does that"). A high ratio means concrete,
+      // provable delivery relative to tenure; a null ratio (0 years on
+      // file) is left null rather than guessed.
+      const IMPACT_METRIC_RE = /(\d[\d,.]*\s?%|[$€£]\s?\d[\d,.]*\s?(?:k|m|b|bn|million|billion)?|\b\d[\d,.]*\s?(?:x|\+)\b)/gi;
+      const countImpactMetrics = (text: string): number => (String(text || "").match(IMPACT_METRIC_RE) || []).length;
+
       const refMap: Record<string, string> = {};
       const rerankInput = ranked.map((row, i) => {
         const ref = `c${i + 1}`;
         refMap[ref] = row.user_id;
+        const impactCount = countImpactMetrics(row.profile_text || "");
+        const yoe = row.years_experience || 0;
+        const impactToTenure = yoe > 0 ? Math.round((impactCount / yoe) * 10) / 10 : null;
         return {
           ref,
           profile_text: (row.profile_text || "").slice(0, 4000),
@@ -3456,6 +3844,8 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
             inferred: Array.from(inferredByUser.get(row.user_id) || []),
           },
           headline: row.headline || "",
+          impact_metrics_count: impactCount,
+          impact_to_tenure_ratio: impactToTenure,
         };
       });
 
@@ -3463,6 +3853,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
 - must_have coverage may ONLY cite skills from candidate.skills.extracted. Never let an inferred skill satisfy a must-have.
 - Inferred skills may contribute AT MOST 10 total points across nice-to-haves.
 - Every sentence in "why" must reference something literally present in the candidate's provided data (profile_text, seniority, years_experience, location, or extracted/inferred skills). No speculation.
+- candidate.impact_to_tenure_ratio (quantified results per year of experience, counted from their own words, null if years unknown) is one more real signal on delivery, not a replacement for skills or seniority fit. A high ratio is a genuine plus worth a line in "why" when it is notably high; never let it override a clear skills or must-have mismatch.
 - If fewer than 3 candidates are genuinely strong, return fewer and explain in pool_note. Do not pad.
 - Never mention refs, ids, names, or emails you were not given. Never invent skills.
 - Output ONLY JSON: {"results":[{"ref":"c1","score":87,"why":["...","...","..."],"matched_must_haves":[],"gaps":[]}],"pool_note":""}
@@ -3503,6 +3894,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
             skills_extracted: c.skills.extracted,
             skills_inferred: c.skills.inferred,
             summary: (c.profile_text || "").slice(0, 1200),
+            impact_to_tenure_ratio: c.impact_to_tenure_ratio,
           };
         });
 
@@ -3840,6 +4232,7 @@ REQUIRED QUESTION SHAPES, use a mix of these, always anchored to something THIS 
 - Reconstructing a number they cite in an achievement bullet: how it was measured, what the baseline was
 - The constraint or messy detail only someone who did the work would know
 - Their specific role when a claim is team shaped, separating what they did from what the team did
+- A named real constraint from their own claimed work (their actual stack, scale, team size, or industry) and how they would adapt one of their own decisions if that specific constraint changed — a generic model can produce a plausible-sounding answer to this shape without knowing this person, but it cannot produce the SPECIFIC adaptation someone who actually lived that constraint would give, so the rubric must require an answer that could only come from having actually worked inside it
 
 FORMAT: exactly 4 multiple choice questions and 2 short answer questions. Keep every question and rubric tight, no preamble.
 Multiple choice: scenario based, four options, plausible distractors drawn from realistic alternative choices. No obviously silly option. The correct option must be the one consistent with how the work is actually done under the constraints described.
@@ -4513,8 +4906,11 @@ TAILORED RESUME:
 - For each requirement under "REQUIRED BUT NOT EVIDENCED": look for genuinely related experience already present in the sections and surface it in the job description's own terminology. If there is no real basis in the sections, leave it out entirely and do not imply it.
 - Never add a skill to the skills section that is not supported by the sections.
 - Re-order skills to surface the job's terms first, among skills the candidate actually has.
-- Strengthen verbs (Led, Shipped, Reduced, Owned). Quantify only with numbers already present.
-- If a summary or profile line exists in the sections, its first sentence must open by naming the candidate's own current or most recent job title, never the job description's title unless it already matches.
+- If the sections list more than about 5 roles or reach back more than 10 to 15 years, give full bullets only to the most recent, most relevant roles and compress the rest to one line each (title, company, dates, no bullets).
+- Strengthen verbs (Led, Shipped, Reduced, Owned). Quantify only with numbers already present. Shape a bullet as Accomplished-[X]-measured-by-[Y]-by-doing-[Z] wherever the underlying fact supports it.
+- If a summary or profile line exists in the sections, its first sentence must open by naming the candidate's own current or most recent job title, never the job description's title unless it already matches. The whole summary stays 1 to 2 sentences, no more.
+- No first-person pronouns ("I", "me", "my", "we"). The current role is written in present tense; every past role is written in past tense.
+- If a bullet uses an internal-only company term or project codename, translate it into the plain, industry-standard equivalent so an outside reader recognizes it immediately — rephrase only, never invent a detail about what the internal thing was.
 - Output as clean ATS plain text: section headers in CAPS, dashes for bullets, one column, no tables, no emojis.
 
 KEYWORDS (10 to 14): the most important hard skills, tools, certs and methodologies from the job description. Mark inResume=true only if the term (or a very close variant) is present in the sections. importance: high if it is a stated must have or repeated; medium otherwise; low for nice to haves.
@@ -4523,7 +4919,7 @@ CHANGES (3 to 6): plain-language list of edits, each naming the requirement it a
 
 ATS SCORE: keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.
 
-VOICE: write the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced", "proven ability to", "proven track record of", "results-driven", "dynamic professional", "spearheaded transformational initiatives"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`;
+VOICE: write the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced", "proven ability to", "proven track record of", "results-driven", "dynamic professional", "spearheaded transformational initiatives", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "hard-working", "detail-oriented"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`;
 
 async function handleSmartTailor(
   admin: SupabaseClient<any, any, any>,
@@ -4652,18 +5048,27 @@ Keep everything that was already correct. Do not add new claims to fix a gap.${T
     }
   }
 
-  // FIGURE PRESERVATION — verified in code, not asked for.
+  // SELF-VERIFICATION — figures, banned phrases, pronouns, dashes, all
+  // checked in code, not asked for. One retry naming every violation found.
   let missingFigures = droppedFigures(bundle.text, out.tailoredText);
-  if (missingFigures.length) {
+  let proseViolations = verifyProseQuality(out.tailoredText);
+  if (missingFigures.length || proseViolations.length) {
+    const figureNote = missingFigures.length
+      ? `- Dropped or altered these figures: ${missingFigures.slice(0, 30).join(", ")}. Include every one of them, unchanged, in the bullet it belongs to.\n`
+      : "";
+    const proseNote = proseViolations.length ? violationsToRetryNote(proseViolations) : "";
     const retry = await callAI({
       model: DEFAULT_MODEL,
       system,
-      user: `${userMsg}\n\nPREVIOUS ATTEMPT DROPPED OR ALTERED THESE FIGURES: ${missingFigures.slice(0, 30).join(", ")}\nProduce the tailored resume again with every one of those figures present, unchanged, in the bullet it belongs to.`,
+      user: `${userMsg}\n\n${figureNote}${proseNote}`,
     });
     const fixed = normalizeTailorOut(parseJsonLoose<TailorOut>(retry.text));
     if (fixed.tailoredText) {
       const stillMissing = droppedFigures(bundle.text, fixed.tailoredText);
-      if (stillMissing.length < missingFigures.length) { out = fixed; missingFigures = stillMissing; }
+      const stillProse = verifyProseQuality(fixed.tailoredText);
+      if (stillMissing.length + stillProse.length < missingFigures.length + proseViolations.length) {
+        out = fixed; missingFigures = stillMissing; proseViolations = stillProse;
+      }
     }
   }
 
@@ -4718,7 +5123,7 @@ async function handleCoverLetter(
   const url = payload.url ? String(payload.url) : undefined;
   const resumeVersionId = payload.resume_version_id ? String(payload.resume_version_id) : undefined;
   const lengthKey = String(payload.length || "standard");
-  const wordCap = lengthKey === "short" ? 180 : lengthKey === "detailed" ? 400 : 280;
+  const wordCap = lengthKey === "short" ? 180 : lengthKey === "detailed" ? 400 : 300;
   const guidanceRaw = String(payload.guidance || "").trim().slice(0, 200);
   const guidanceLine = guidanceRaw
     ? `\n- The applicant asked you to emphasize: ${guidanceRaw}. Honour this only where the sections support it; if it is not supported, ignore the request rather than inventing anything.`
@@ -4765,18 +5170,18 @@ async function handleCoverLetter(
 
   const system = `Write a cover letter under ${wordCap} words. Tone: ${tone}. Address ${company || "the hiring team"}${jobTitle ? ` for the ${jobTitle} role` : ""}.
 
-STRUCTURE (4 short paragraphs):
-1) Opening: who you are, the specific role, and one specific thing about this employer drawn from COMPANY CONTEXT. If COMPANY CONTEXT is absent or says nothing concrete, open with the role and the candidate's most relevant strength instead. Never invent enthusiasm or facts about the company.
-2) Proof: one concrete achievement from the sections that maps to a stated requirement. Include the number or scale if it is present in the sections.
-3) Skill bridge: two or three specific tools or skills the job asks for that the sections genuinely support. Tie them to outcomes, not lists.
-4) Close: a clear ask for a conversation, then sign off.
+STRUCTURE (4 short paragraphs, target word counts assume the standard length; scale proportionally for short/detailed):
+1) Hook (about 50 words): who you are, the specific role, and one specific thing about this employer drawn from COMPANY CONTEXT. If COMPANY CONTEXT is absent or says nothing concrete, open with the role and the candidate's most relevant strength instead. Never invent enthusiasm or facts about the company.
+2) Proof (about 100 words): one or two concrete achievements from the sections that map to the job's hardest stated requirements. Include the number or scale if it is present in the sections. Show, don't tell.
+3) Alignment (about 75 words): two or three specific tools or skills the job asks for that the sections genuinely support. Tie them to outcomes and to why this employer specifically, not a generic list.
+4) Close (about 40 words): a clear, low-friction ask for a conversation, then sign off.
 
 RULES:
 - Use ONLY facts from the APPLICANT SECTIONS, the APPLICANT block, and COMPANY CONTEXT. Never invent companies, metrics, dates, names, emails, or phone numbers.
 - Never alter numbers. Every metric, percentage, currency figure, headcount, timeframe, date and job title must appear exactly as in the sections.
 - Do not claim any requirement listed as not evidenced in the GAP ANALYSIS unless real related experience is in the sections.
 - The signature MUST use the applicant's real name from the APPLICANT block if provided. Never invent a name.
-- No clichés ("I'm excited to apply", "I hope this finds you well", "results-driven", "passionate", "leverage", "in today's fast-paced").
+- No clichés ("I'm excited to apply", "I hope this finds you well", "results-driven", "passionate", "leverage", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy").
 - Write the way a thoughtful person writes: vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.
 - Plain text, no markdown.${guidanceLine}`;
 
@@ -4799,17 +5204,27 @@ RULES:
 
   // A cover letter only cites a handful of figures, so we verify the other
   // direction: every figure IN the letter must exist verbatim in the sections.
+  // Banned phrases and dashes checked too; pronouns are NOT — a cover
+  // letter is legitimately first person, unlike a resume bullet.
   let missingFigures = droppedFigures(body, bundle.text).filter((f) => f.length > 1);
-  if (missingFigures.length) {
+  let coverProseViolations = verifyProseQuality(body, false);
+  if (missingFigures.length || coverProseViolations.length) {
+    const figureNote = missingFigures.length
+      ? `THE PREVIOUS DRAFT CITED FIGURES THAT DO NOT APPEAR IN THE SECTIONS: ${missingFigures.slice(0, 20).join(", ")}\nRewrite the letter using only figures that appear verbatim in the sections, or no figures at all.\n`
+      : "";
+    const proseNote = coverProseViolations.length ? violationsToRetryNote(coverProseViolations) : "";
     const retry = await callAI({
       model: QUALITY_MODEL,
       system,
-      user: `${userMsg}\n\nTHE PREVIOUS DRAFT CITED FIGURES THAT DO NOT APPEAR IN THE SECTIONS: ${missingFigures.slice(0, 20).join(", ")}\nRewrite the letter using only figures that appear verbatim in the sections, or no figures at all.`,
+      user: `${userMsg}\n\n${figureNote}${proseNote}`,
     });
     const fixed = String(retry.text || "").trim();
     if (fixed) {
       const still = droppedFigures(fixed, bundle.text).filter((f) => f.length > 1);
-      if (still.length < missingFigures.length) { body = fixed; missingFigures = still; }
+      const stillProse = verifyProseQuality(fixed, false);
+      if (still.length + stillProse.length < missingFigures.length + coverProseViolations.length) {
+        body = fixed; missingFigures = still; coverProseViolations = stillProse;
+      }
     }
   }
 
