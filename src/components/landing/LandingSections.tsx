@@ -67,7 +67,7 @@ const PAIN: Record<Audience, { eyebrow: string; title: string; lead: string; who
     lead: 'A resume is a claim. Hiring needs the evidence behind it.',
     who: 'If you are hiring',
     lines: [
-      'Six hundred resumes, most of them wrong.',
+      'A flooded inbox of resumes, most of them wrong.',
       'The right people never see your ad.',
       'Confidence on paper proves nothing.',
       'Or you hand it to an agency and pay a cut of the salary to skip the pile.',
@@ -106,13 +106,11 @@ const DISCOVER_CHIPS = [
 // The employer-side reframe: lead with what changes for them (no agency
 // fee, no resume pile, minutes not weeks), not a feature list. Real numbers
 // stay out of it deliberately, agency pricing varies; the comparison is the
-// honest, well known shape of it, not an invented figure. "Six hundred"
-// echoes the number used in the hero, the pain section and the showcase
-// headline below, so it reads as one thread, not four different guesses.
+// honest, well known shape of it, not an invented figure.
 const EASY_HIRING_CHIPS = [
   { icon: Ban, text: 'No recruiter fee, ever' },
   { icon: Clock, text: 'Minutes to a shortlist, not weeks' },
-  { icon: Users, text: 'Three people to read, not six hundred' },
+  { icon: Users, text: 'Three people to read, not a pile of resumes' },
 ];
 
 const SEEKER_TILES = [
@@ -308,8 +306,8 @@ const HERO: Record<Audience, {
     art: <ExtensionOnPostingMockup />,
   },
   employer: {
-    headline: <>Three candidates with evidence, <em>not six hundred maybes.</em></>,
-    lead: "AI-powered hiring built by engineers, for modern employers.",
+    headline: <>AI-powered hiring built by engineers, <em>for modern employers.</em></>,
+    lead: "The smartest way to hunt, screen, and hire top engineering talent.",
     cta: 'Request employer access',
     note: 'Contact stays private until the candidate accepts.',
     art: <CandidateCardMockup />,
@@ -522,7 +520,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
           <section className="lp-section" style={{ paddingBlockStart: 0 }}>
             <div className="lp-shell lp-reveal">
               <p className="lp-eyebrow">The AI, and what it refuses to do</p>
-              <h2 className="lp-display lp-h2">Real AI, aimed at <em>one job, not six hundred.</em></h2>
+              <h2 className="lp-display lp-h2">Real AI, aimed at <em>the one job in front of you.</em></h2>
               <p className="lp-lead" style={{ maxWidth: 680 }}>
                 Some tools use AI to auto-apply to hundreds of postings a day and hope volume gets you an interview.
                 Low quality, unread by anyone, and it is not even looking for the right job, just applying to all of them.
@@ -608,7 +606,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
           <section className="lp-section" style={{ paddingBlockStart: 0 }}>
             <div className="lp-shell lp-reveal">
               <p className="lp-eyebrow">What changes for you</p>
-              <h2 className="lp-display lp-h2">No recruiter retainer. <em>No stack of six hundred resumes.</em></h2>
+              <h2 className="lp-display lp-h2">No recruiter retainer. <em>No pile of resumes.</em></h2>
               <p className="lp-lead" style={{ maxWidth: 680 }}>
                 A staffing agency takes a cut of the salary just for the introduction. Doing it yourself costs an
                 afternoon buried in resumes that all start to blur together. AYN skips both: describe the role once,
@@ -656,7 +654,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
             <div className="lp-shell">
               <div id="employers-how" className="lp-reveal" style={{ marginBottom: 34 }}>
                 <p className="lp-eyebrow">For employers</p>
-                <h2 className="lp-display lp-h2">Read three people properly instead of skimming six hundred</h2>
+                <h2 className="lp-display lp-h2">Read three people properly instead of skimming a pile of resumes</h2>
                 <p className="lp-lead">
                   Describe the role in a few taps. Read the strongest fits, with the evidence.
                 </p>
@@ -767,7 +765,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
               <h2 className="lp-display lp-h2" style={{ maxWidth: 760, marginInline: 'auto' }}>
                 {seeker
                   ? 'Stop sending the same resume into the dark.'
-                  : 'Stop reading six hundred resumes to find three people.'}
+                  : 'Stop digging through a pile of resumes to find three people.'}
               </h2>
               <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
                 {seeker
