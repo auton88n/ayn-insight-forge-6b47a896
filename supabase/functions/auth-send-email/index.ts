@@ -49,6 +49,7 @@ const wrapEmail = (content: string): string => `
         <div style="width:36px;height:3px;background:${EMBER};border-radius:2px;margin-top:8px;"></div>
       </div>
       ${content}
+      <p style="color:${MUTED};line-height:1.7;margin:24px 0 8px;font-size:13px;">The AYN Team</p>
     </div>
     <p style="font-size:12px;color:${MUTED};margin:20px 4px 0;text-align:center;">
       © ${new Date().getFullYear()} AYN AI. All rights reserved.

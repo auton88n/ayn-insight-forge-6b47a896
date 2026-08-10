@@ -24,7 +24,19 @@ export function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-export function wrapEmail(content: string): string {
+// v3.115.0 — every real email was ending straight from its last sentence
+// into the copyright line, with nothing in between reading like it came
+// from a person or a team. signatureLines defaults to a plain "The AYN
+// Team" sign-off, rendered the same muted style para() already uses.
+// Callers that build their own sign-off (admin-inbox-reply's per-identity
+// signatures) pass null to skip this one, so an email never ends up with
+// two signatures stacked on top of each other.
+export function signatureBlock(lines: string[] = ["The AYN Team"]): string {
+  return `<p style="color:${MUTED};line-height:1.7;margin:24px 0 8px;font-size:13px;">${lines.map(escapeHtml).join("<br/>")}</p>`;
+}
+
+export function wrapEmail(content: string, signatureLines: string[] | null = ["The AYN Team"]): string {
+  const sig = signatureLines ? signatureBlock(signatureLines) : "";
   return `
 <!DOCTYPE html>
 <html>
@@ -40,6 +52,7 @@ export function wrapEmail(content: string): string {
         <div style="width:36px;height:3px;background:${EMBER};border-radius:2px;margin-top:8px;"></div>
       </div>
       ${content}
+      ${sig}
     </div>
     <p style="font-size:12px;color:${MUTED};margin:20px 4px 0;text-align:center;">
       © ${new Date().getFullYear()} AYN AI. All rights reserved.

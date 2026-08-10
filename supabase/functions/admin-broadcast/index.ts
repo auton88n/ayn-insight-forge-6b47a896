@@ -33,6 +33,7 @@ function wrap(subject: string, body: string) {
     <div style="font-weight:800;font-size:20px;letter-spacing:-0.02em;color:#0b0b0c;margin-bottom:24px">AYN</div>
     <h1 style="font-size:19px;margin:0 0 18px;color:#0b0b0c">${escapeHtml(subject)}</h1>
     ${html}
+    <p style="color:#8a8178;line-height:1.7;margin:24px 0 8px;font-size:13px;">The AYN Team</p>
     <hr style="border:none;border-top:1px solid #ece5da;margin:28px 0 16px"/>
     <p style="font-size:12px;color:#8a8178;margin:0">You are receiving this because you have an AYN account. ayn.careers</p>
   </div></body></html>`;

@@ -92,8 +92,10 @@ Deno.serve(async (req) => {
       .split(/\n{2,}/)
       .map((p) => para(escapeHtml(p).replace(/\n/g, '<br/>')))
       .join('');
-    const signatureHtml = para(identity.signature.map(escapeHtml).join('<br/>'), { muted: true, marginTop: 24 });
-    const html = wrapEmail(`${heading(subject)}${paragraphs}${signatureHtml}`);
+    // v3.115.0 — wrapEmail's own default sign-off is skipped (this identity
+    // already has its own, passed in directly) so the email never ends up
+    // with two signatures stacked on top of each other.
+    const html = wrapEmail(`${heading(subject)}${paragraphs}`, identity.signature);
 
     const resendKey = Deno.env.get('RESEND_API_KEY');
     if (!resendKey) {

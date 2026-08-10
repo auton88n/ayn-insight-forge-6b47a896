@@ -36,11 +36,11 @@ function welcomeEmailTemplate(userName: string, role: string | undefined): { sub
   const body = isEmployer
     ? `${heading(`Welcome to AYN, ${safeName}`)}
        ${para("Your account is on its way. Once you're approved, tell AYN about the role you're hiring for and it will search candidates who opted into the talent pool, with the reasoning behind every match.")}
-       ${para('Nothing is invented — every match is grounded in what a candidate actually put in their own profile.', { muted: true, marginTop: 16 })}
+       ${para('Nothing is invented. Every match is grounded in what a candidate actually put in their own profile.', { muted: true, marginTop: 16 })}
        ${ctaButton('https://ayn.careers/', 'Go to AYN')}`
     : `${heading(`Welcome to AYN, ${safeName}`)}
        ${para('Upload your resume to get started. From there you can score it against a real job posting, tailor it in seconds, and get a cover letter grounded in your real experience.')}
-       ${para('Nothing AYN writes is invented — every tailored resume and cover letter only ever uses what is really in your background.', { muted: true, marginTop: 16 })}
+       ${para('Nothing AYN writes is invented. Every tailored resume and cover letter only ever uses what is really in your background.', { muted: true, marginTop: 16 })}
        ${ctaButton('https://ayn.careers/resume-hub', 'Go to Resume Hub')}`;
 
   return { subject: 'Welcome to AYN', html: wrapEmail(body) };

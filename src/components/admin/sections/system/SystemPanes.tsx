@@ -546,11 +546,11 @@ const EMAIL_TYPE_LABELS: Record<string, string> = {
   proposal_accepted: 'Proposal accepted (to employer)',
   proposal_declined: 'Proposal declined (to employer)',
   assessment_completed: 'Assessment completed (to employer)',
-  admin_broadcast_all: 'Broadcast — everyone',
-  admin_broadcast_seekers: 'Broadcast — job seekers',
-  admin_broadcast_employers: 'Broadcast — employers',
-  admin_broadcast_discoverable: 'Broadcast — discoverable',
-  admin_broadcast_test: 'Broadcast — test',
+  admin_broadcast_all: 'Broadcast: everyone',
+  admin_broadcast_seekers: 'Broadcast: job seekers',
+  admin_broadcast_employers: 'Broadcast: employers',
+  admin_broadcast_discoverable: 'Broadcast: discoverable',
+  admin_broadcast_test: 'Broadcast: test',
 };
 
 function EmailLogSection() {
@@ -939,7 +939,7 @@ function EmailReceivedPane() {
                 {isOpen && (
                   <div className="mt-3 max-w-xl space-y-3">
                     <div className="rounded-lg bg-muted/50 p-3 text-xs whitespace-pre-wrap">
-                      {e.body_text || (e.body_html ? 'This email has no plain-text version — only HTML, not shown here.' : 'No body was captured for this email.')}
+                      {e.body_text || (e.body_html ? 'This email has no plain-text version. Only HTML, not shown here.' : 'No body was captured for this email.')}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button
