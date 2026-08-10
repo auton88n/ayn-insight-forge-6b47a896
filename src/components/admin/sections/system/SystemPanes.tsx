@@ -20,6 +20,8 @@ import {
   useAdminCookieConsent,
   useAdminActivityLog,
   useAdminEmailLog,
+  useAdminInbox,
+  useMarkInboxRead,
 } from '@/admin-app/hooks/useAdminQuery';
 import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when } from '../ui';
 
@@ -804,6 +806,115 @@ export function CookieConsentPane() {
             <Cell>{when(r.created_at)}</Cell>
           </Row>
         ))}
+      </Table>
+    </div>
+  );
+}
+
+/* ────────────────────────────── INBOX ────────────────────────────── */
+// v3.109.0 — every real email AYN has received (support@, info@, whatever
+// address Resend routes inbound mail to), already captured live by
+// resend-inbound-webhook into inbound_email_replies, but never surfaced
+// anywhere until now. Read only, plus a mark read/unread toggle — replying
+// still happens from your own real inbox, this is just visibility.
+function timeAgo(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const ms = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+export function InboxPane() {
+  const query = useAdminInbox();
+  const markRead = useMarkInboxRead();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [addressFilter, setAddressFilter] = useState<string | null>(null);
+
+  if (query.isLoading) return <LoadingBlock />;
+  if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
+
+  const d: any = query.data || {};
+  const emails: any[] = d.emails || [];
+  const addresses: { to_email: string; count: number }[] = d.addresses || [];
+  const shown = addressFilter ? emails.filter(e => e.to_email === addressFilter) : emails;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <Stat label="Total received" value={d.total ?? emails.length} />
+        <Stat label="Unread" value={d.unread ?? 0} accent />
+        <Stat label="Addresses in use" value={addresses.length} hint={addresses.map(a => a.to_email).join(', ') || '—'} />
+      </div>
+
+      {addresses.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setAddressFilter(null)}
+            className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${!addressFilter ? 'bg-primary text-primary-foreground border-transparent' : 'bg-card text-muted-foreground border-border/60 hover:text-foreground'}`}
+          >
+            All addresses
+          </button>
+          {addresses.map(a => (
+            <button
+              key={a.to_email}
+              onClick={() => setAddressFilter(a.to_email)}
+              className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${addressFilter === a.to_email ? 'bg-primary text-primary-foreground border-transparent' : 'bg-card text-muted-foreground border-border/60 hover:text-foreground'}`}
+            >
+              {a.to_email} <span className="opacity-60">({a.count})</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <Table head={['From', 'To', 'Subject', 'Received']}>
+        {shown.length === 0 && <tr><td colSpan={4}><EmptyRow>No emails received yet.</EmptyRow></td></tr>}
+        {shown.map(e => {
+          const isOpen = openId === e.id;
+          const openRow = () => {
+            setOpenId(isOpen ? null : e.id);
+            if (!isOpen && !e.is_read) markRead.mutate({ id: e.id, read: true });
+          };
+          return (
+            <Row key={e.id}>
+              <Cell>
+                <div className="cursor-pointer" onClick={openRow}>
+                  <span className={e.is_read ? 'text-muted-foreground' : 'font-semibold'}>
+                    {e.from_name || e.from_email}
+                  </span>
+                  {e.lead_company && <span className="text-xs text-muted-foreground"> · {e.lead_company}</span>}
+                  {!e.is_read && <Badge className="ml-2 bg-primary text-primary-foreground text-[10px] px-1.5">New</Badge>}
+                </div>
+              </Cell>
+              <Cell mono>{e.to_email}</Cell>
+              <Cell>
+                <div className="cursor-pointer hover:text-primary" onClick={openRow}>
+                  {e.subject || <span className="text-muted-foreground">(no subject)</span>}
+                </div>
+                {isOpen && (
+                  <div className="mt-3 max-w-xl space-y-2">
+                    <div className="rounded-lg bg-muted/50 p-3 text-xs whitespace-pre-wrap">
+                      {e.body_text || (e.body_html ? 'This email has no plain-text version — only HTML, not shown here.' : 'No body was captured for this email.')}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => markRead.mutate({ id: e.id, read: !e.is_read })}
+                    >
+                      Mark {e.is_read ? 'unread' : 'read'}
+                    </Button>
+                  </div>
+                )}
+              </Cell>
+              <Cell>{timeAgo(e.created_at)}</Cell>
+            </Row>
+          );
+        })}
       </Table>
     </div>
   );

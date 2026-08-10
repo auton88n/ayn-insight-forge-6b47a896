@@ -65,6 +65,7 @@ export const adminKeys = {
   termsConsent: () => [...adminKeys.all, 'termsConsent'] as const,
   cookieConsent: () => [...adminKeys.all, 'cookieConsent'] as const,
   rateLimits: () => [...adminKeys.all, 'rateLimits'] as const,
+  inbox: () => [...adminKeys.all, 'inbox'] as const,
 } as const;
 
 // Shared stale time: 5 min for admin data (it's not real-time critical)
@@ -135,6 +136,27 @@ export function useAdminRateLimits() {
     queryKey: adminKeys.rateLimits(),
     queryFn: () => adminRpc('get_admin_rate_limit_stats'),
     staleTime: FAST_STALE_TIME,
+  });
+}
+
+// v3.109.0 — every real inbound email AYN has received (support@, info@,
+// etc.), already captured by resend-inbound-webhook into
+// inbound_email_replies, but never read by anything until now.
+export function useAdminInbox() {
+  return useQuery({
+    queryKey: adminKeys.inbox(),
+    queryFn: () => adminRpc('get_admin_inbox'),
+    staleTime: FAST_STALE_TIME,
+  });
+}
+
+export function useMarkInboxRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { id: string; read: boolean }) =>
+      adminRpc('admin_mark_inbox_read', { p_id: v.id, p_read: v.read }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: adminKeys.inbox() }),
+    onError: (e: Error) => toast.error(e.message || 'Could not update'),
   });
 }
 
