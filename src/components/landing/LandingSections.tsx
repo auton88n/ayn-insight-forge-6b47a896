@@ -302,14 +302,14 @@ const HERO: Record<Audience, {
 }> = {
   job_seeker: {
     headline: <>Employers can find you <em>before you even apply.</em></>,
-    lead: "Turn on discovery and employers searching for someone like you find your evidence-based profile first, before you apply anywhere. And when you do apply somewhere yourself, AYN writes the resume and cover letter for that job from your real experience, in a minute.",
+    lead: "AI-powered job search built by engineers, for modern job seekers.",
     cta: 'Start free',
     note: 'Read only. It never types or submits for you.',
     art: <ExtensionOnPostingMockup />,
   },
   employer: {
     headline: <>Three candidates with evidence, <em>not six hundred maybes.</em></>,
-    lead: "Stop paying a recruiter a cut of the salary just to skip the pile, and stop reading the pile yourself. Describe the role once and AYN's AI hands you three people worth an actual conversation, evidence already checked.",
+    lead: "AI-powered hiring built by engineers, for modern employers.",
     cta: 'Request employer access',
     note: 'Contact stays private until the candidate accepts.',
     art: <CandidateCardMockup />,
