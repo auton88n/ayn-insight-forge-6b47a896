@@ -1989,6 +1989,9 @@ export type Database = {
           is_read: boolean
           message_id: string | null
           pipeline_lead_id: string | null
+          replied_at: string | null
+          replied_by: string | null
+          reply_identity: string | null
           subject: string | null
           to_email: string
         }
@@ -2003,6 +2006,9 @@ export type Database = {
           is_read?: boolean
           message_id?: string | null
           pipeline_lead_id?: string | null
+          replied_at?: string | null
+          replied_by?: string | null
+          reply_identity?: string | null
           subject?: string | null
           to_email: string
         }
@@ -2017,6 +2023,9 @@ export type Database = {
           is_read?: boolean
           message_id?: string | null
           pipeline_lead_id?: string | null
+          replied_at?: string | null
+          replied_by?: string | null
+          reply_identity?: string | null
           subject?: string | null
           to_email?: string
         }
@@ -4192,6 +4201,10 @@ export type Database = {
         Args: { p_user_ids: string[] }
         Returns: Json
       }
+      admin_mark_inbox_read: {
+        Args: { p_id: string; p_read: boolean }
+        Returns: Json
+      }
       admin_moderate_assessment: {
         Args: { p_id: string; p_note?: string }
         Returns: Json
@@ -4392,6 +4405,7 @@ export type Database = {
       get_admin_employers: { Args: never; Returns: Json }
       get_admin_error_monitoring: { Args: { p_limit?: number }; Returns: Json }
       get_admin_feature_flags: { Args: never; Returns: Json }
+      get_admin_inbox: { Args: never; Returns: Json }
       get_admin_marketplace: { Args: never; Returns: Json }
       get_admin_moderation: { Args: { p_limit?: number }; Returns: Json }
       get_admin_money: { Args: never; Returns: Json }
