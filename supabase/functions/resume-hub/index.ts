@@ -1339,12 +1339,13 @@ async function notifyCandidate(
   subject: string,
   bodyHtml: string,
   emailType: string,
+  ctaHtml?: string,
 ): Promise<void> {
   try {
     const { data: authUser } = await admin.auth.admin.getUserById(candidateUserId);
     const email = authUser?.user?.email;
     if (!email) return;
-    const r = await sendBrandedEmail(email, subject, wrapEmail(bodyHtml));
+    const r = await sendBrandedEmail(email, subject, wrapEmail(bodyHtml, undefined, ctaHtml));
     if (!r.ok) console.error("[notifyCandidate] send failed", r.error);
     // v3.47.0 — so the admin panel's email log shows whether this actually sent.
     await admin.from("email_logs").insert({
@@ -1365,11 +1366,12 @@ async function notifyOrgMembers(
   subject: string,
   bodyHtml: string,
   emailType: string,
+  ctaHtml?: string,
 ): Promise<void> {
   try {
     const { data: members } = await admin.from("org_members").select("user_id").eq("org_id", orgId);
     const ids = [...new Set((members || []).map(m => m.user_id).filter(Boolean))];
-    const html = wrapEmail(bodyHtml);
+    const html = wrapEmail(bodyHtml, undefined, ctaHtml);
     await Promise.all(ids.map(async (uid) => {
       const { data: authUser } = await admin.auth.admin.getUserById(uid);
       const email = authUser?.user?.email;
@@ -3613,9 +3615,9 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
         candidateUserId,
         `New job proposal from ${proposalOrgName} | AYN`,
         `${heading("You have a new proposal")}
-        ${para(`${escapeHtml(proposalOrgName)} sent you a proposal for ${escapeHtml(title)}.`)}
-        ${ctaButton("https://ayn.careers/", "View proposal")}`,
+        ${para(`${escapeHtml(proposalOrgName)} sent you a proposal for ${escapeHtml(title)}.`)}`,
         "proposal_received",
+        ctaButton("https://ayn.careers/", "View proposal"),
       );
       return json({ ok: true, status: "pending" });
     }
@@ -3688,12 +3690,13 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
           approve ? "A candidate accepted your proposal | AYN" : "A candidate declined your proposal | AYN",
           approve
             ? `${heading("Your proposal was accepted")}
-              ${para(`The candidate for ${roleTitle} accepted your proposal. Their contact details are now available.`)}
-              ${ctaButton("https://ayn.careers/", "View candidate")}`
+              ${para(`The candidate for ${roleTitle} accepted your proposal. Their contact details are now available.`)}`
             : `${heading("Your proposal was declined")}
-              ${para(`The candidate for ${roleTitle} declined your proposal.`)}
-              ${ctaButton("https://ayn.careers/", "View in EmployerHub")}`,
+              ${para(`The candidate for ${roleTitle} declined your proposal.`)}`,
           approve ? "proposal_accepted" : "proposal_declined",
+          approve
+            ? ctaButton("https://ayn.careers/", "View candidate")
+            : ctaButton("https://ayn.careers/", "View in EmployerHub"),
         );
       }
       return json({ ok: true, status });
@@ -3958,9 +3961,9 @@ Write the assessment now.`,
           a.candidate_user_id,
           `New assessment from ${sendOrgName} | AYN`,
           `${heading("A company wants to verify your background")}
-          ${para(`${escapeHtml(sendOrgName)} sent you a short assessment${a.job_title ? ` for ${escapeHtml(a.job_title)}` : ""}. It takes about ${minutes} minutes once you start.`)}
-          ${ctaButton("https://ayn.careers/", "View assessment")}`,
+          ${para(`${escapeHtml(sendOrgName)} sent you a short assessment${a.job_title ? ` for ${escapeHtml(a.job_title)}` : ""}. It takes about ${minutes} minutes once you start.`)}`,
           "assessment_received",
+          ctaButton("https://ayn.careers/", "View assessment"),
         );
       }
       return json({ ok: true, status: "sent" });
@@ -4273,9 +4276,9 @@ Grade it now.`,
           a.org_id,
           "An assessment was completed | AYN",
           `${heading("An assessment was completed")}
-          ${para(`A candidate for ${roleTitle} finished the assessment you sent. Results and observations are ready to review.`)}
-          ${ctaButton("https://ayn.careers/", "View results")}`,
+          ${para(`A candidate for ${roleTitle} finished the assessment you sent. Results and observations are ready to review.`)}`,
           "assessment_completed",
+          ctaButton("https://ayn.careers/", "View results"),
         );
       }
     }

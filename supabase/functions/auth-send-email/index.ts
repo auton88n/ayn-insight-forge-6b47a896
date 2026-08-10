@@ -33,8 +33,18 @@ const MUTED = "#8a8178";
 const BORDER = "#ece5da";
 const PAGE_BG = "#faf7f2";
 
+// v3.116.0 — the header used to spell out "AYN" as plain bold text with a
+// manual ember underline. Now the real logo lockup, served from a stable
+// public/ path since email clients cannot load a Vite-hashed bundle asset.
+const LOGO_URL = "https://ayn.careers/ayn-email-logo.png";
+
+// The signature line used to sit after the CTA button (content already
+// included the button as its last line). Now a dedicated ctaHtml parameter
+// so the signature renders before the button, not after it.
+const SIGNATURE = `<p style="color:${MUTED};line-height:1.7;margin:24px 0 8px;font-size:13px;">The AYN Team</p>`;
+
 // Wraps the per-type content block in the shared card shell.
-const wrapEmail = (content: string): string => `
+const wrapEmail = (content: string, ctaHtml: string = ""): string => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -45,11 +55,11 @@ const wrapEmail = (content: string): string => `
   <div style="max-width:560px;margin:0 auto;padding:32px 16px;">
     <div style="background:#ffffff;border-radius:16px;border:1px solid ${BORDER};padding:36px 32px;">
       <div style="margin-bottom:28px;">
-        <span style="font-weight:800;font-size:22px;letter-spacing:-0.02em;color:${INK};">AYN</span>
-        <div style="width:36px;height:3px;background:${EMBER};border-radius:2px;margin-top:8px;"></div>
+        <img src="${LOGO_URL}" alt="AYN" height="30" style="display:block;height:30px;width:auto;border:0;">
       </div>
       ${content}
-      <p style="color:${MUTED};line-height:1.7;margin:24px 0 8px;font-size:13px;">The AYN Team</p>
+      ${SIGNATURE}
+      ${ctaHtml}
     </div>
     <p style="font-size:12px;color:${MUTED};margin:20px 4px 0;text-align:center;">
       © ${new Date().getFullYear()} AYN AI. All rights reserved.
@@ -90,11 +100,10 @@ function getTemplate(
           <p style="color:${BODY_TEXT};line-height:1.7;margin:0;font-size:15px;">
             Thank you for signing up. Please confirm your email address to get started.
           </p>
-          ${ctaButton(confirmationUrl, 'Verify email')}
           <p style="color:${MUTED};font-size:13px;line-height:1.7;margin-top:32px;">
             This link expires in 24 hours. If you didn't create an account, you can safely ignore this email.
           </p>
-        `)
+        `, ctaButton(confirmationUrl, 'Verify email'))
       };
 
     case 'recovery':
@@ -110,11 +119,10 @@ function getTemplate(
           <p style="color:${BODY_TEXT};line-height:1.7;margin:0;font-size:15px;">
             We received a request to reset your password. Click the button below to create a new one.
           </p>
-          ${ctaButton(confirmationUrl, 'Reset password')}
           <p style="color:${MUTED};font-size:13px;line-height:1.7;margin-top:32px;">
             This link expires in 1 hour. If you didn't request a password reset, you can safely ignore this email.
           </p>
-        `)
+        `, ctaButton(confirmationUrl, 'Reset password'))
       };
 
     case 'magiclink':
@@ -130,11 +138,10 @@ function getTemplate(
           <p style="color:${BODY_TEXT};line-height:1.7;margin:0;font-size:15px;">
             Click the button below to securely log in to your AYN account.
           </p>
-          ${ctaButton(confirmationUrl, 'Log in')}
           <p style="color:${MUTED};font-size:13px;line-height:1.7;margin-top:32px;">
             This link expires in 1 hour and can only be used once.
           </p>
-        `)
+        `, ctaButton(confirmationUrl, 'Log in'))
       };
 
     case 'email_change':
@@ -150,11 +157,10 @@ function getTemplate(
           <p style="color:${BODY_TEXT};line-height:1.7;margin:0;font-size:15px;">
             You requested to change your email address. Please confirm this change by clicking the button below.
           </p>
-          ${ctaButton(confirmationUrl, 'Confirm email change')}
           <p style="color:${MUTED};font-size:13px;line-height:1.7;margin-top:32px;">
             If you didn't request this change, please contact support immediately.
           </p>
-        `)
+        `, ctaButton(confirmationUrl, 'Confirm email change'))
       };
 
     default:
@@ -167,8 +173,7 @@ function getTemplate(
           <p style="color:${BODY_TEXT};line-height:1.7;margin:0;font-size:15px;">
             Click the button below to continue.
           </p>
-          ${ctaButton(confirmationUrl, 'Continue')}
-        `)
+        `, ctaButton(confirmationUrl, 'Continue'))
       };
   }
 }

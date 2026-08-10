@@ -35,7 +35,22 @@ export function signatureBlock(lines: string[] = ["The AYN Team"]): string {
   return `<p style="color:${MUTED};line-height:1.7;margin:24px 0 8px;font-size:13px;">${lines.map(escapeHtml).join("<br/>")}</p>`;
 }
 
-export function wrapEmail(content: string, signatureLines: string[] | null = ["The AYN Team"]): string {
+// v3.116.0 — the header used to spell out "AYN" as plain bold text with a
+// manual ember underline. Replaced with the real logo lockup (the black
+// triangular mark plus the "YN" wordmark), served from a stable public/
+// path since email clients cannot load a Vite-hashed bundle asset.
+const LOGO_URL = "https://ayn.careers/ayn-email-logo.png";
+
+export function wrapEmail(
+  content: string,
+  signatureLines: string[] | null = ["The AYN Team"],
+  ctaHtml: string = "",
+): string {
+  // v3.116.0 — the signature used to sit after the whole content block,
+  // which put it below any CTA button embedded at the end of that block
+  // (every template built its button as the last line of `content`).
+  // Callers now pass the button separately so it renders after the
+  // signature instead of before it.
   const sig = signatureLines ? signatureBlock(signatureLines) : "";
   return `
 <!DOCTYPE html>
@@ -48,11 +63,11 @@ export function wrapEmail(content: string, signatureLines: string[] | null = ["T
   <div style="max-width:560px;margin:0 auto;padding:32px 16px;">
     <div style="background:#ffffff;border-radius:16px;border:1px solid ${BORDER};padding:36px 32px;">
       <div style="margin-bottom:28px;">
-        <span style="font-weight:800;font-size:22px;letter-spacing:-0.02em;color:${INK};">AYN</span>
-        <div style="width:36px;height:3px;background:${EMBER};border-radius:2px;margin-top:8px;"></div>
+        <img src="${LOGO_URL}" alt="AYN" height="30" style="display:block;height:30px;width:auto;border:0;">
       </div>
       ${content}
       ${sig}
+      ${ctaHtml}
     </div>
     <p style="font-size:12px;color:${MUTED};margin:20px 4px 0;text-align:center;">
       © ${new Date().getFullYear()} AYN AI. All rights reserved.

@@ -23,6 +23,11 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
+// v3.116.0 — the header used to spell out "AYN" as plain bold text. Now
+// the real logo lockup, served from a stable public/ path since email
+// clients cannot load a Vite-hashed bundle asset.
+const LOGO_URL = 'https://ayn.careers/ayn-email-logo.png';
+
 function wrap(subject: string, body: string) {
   const html = body
     .split(/\n{2,}/)
@@ -30,7 +35,7 @@ function wrap(subject: string, body: string) {
     .join('');
   return `<!doctype html><html><body style="margin:0;background:#faf7f2;padding:32px 16px;font-family:-apple-system,Segoe UI,Inter,Helvetica,Arial,sans-serif">
   <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;padding:32px;border:1px solid #ece5da">
-    <div style="font-weight:800;font-size:20px;letter-spacing:-0.02em;color:#0b0b0c;margin-bottom:24px">AYN</div>
+    <img src="${LOGO_URL}" alt="AYN" height="26" style="display:block;height:26px;width:auto;border:0;margin-bottom:24px">
     <h1 style="font-size:19px;margin:0 0 18px;color:#0b0b0c">${escapeHtml(subject)}</h1>
     ${html}
     <p style="color:#8a8178;line-height:1.7;margin:24px 0 8px;font-size:13px;">The AYN Team</p>

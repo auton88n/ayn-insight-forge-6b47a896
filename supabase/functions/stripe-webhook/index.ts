@@ -41,9 +41,8 @@ async function sendReceiptEmail(userId: string, planName: string, creditsGranted
       ${receiptRow("Amount charged", amount)}
       ${receiptRow("Credits added", String(creditsGranted))}
     </div>
-    ${ctaButton("https://ayn.careers/billing", "View billing")}
     ${para("This is an automated receipt. If anything looks wrong, contact support from your account.", { muted: true, marginTop: 32 })}
-  `);
+  `, undefined, ctaButton("https://ayn.careers/billing", "View billing"));
   const r = await sendBrandedEmail(email, "Your AYN payment receipt", html);
   if (!r.ok) console.error("[stripe-webhook] receipt email failed", r.error);
 

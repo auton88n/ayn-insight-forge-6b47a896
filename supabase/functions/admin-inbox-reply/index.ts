@@ -23,7 +23,9 @@ const IDENTITIES: Record<IdentityKey, { label: string; from: string; signature: 
   ghazi: {
     label: 'Ghazi (Founder)',
     from: 'Ghazi at AYN <ghazi@ayn.careers>',
-    signature: ['Ghazi', 'Founder, AYN'],
+    // v3.116.0 — this identity's own requested sign-off, distinct from
+    // every other identity's plain "Name / Role" pair.
+    signature: ['GHAZI ALDHYAEI', 'Founder & AI Engineer | AYN', 'Land your dream job, without the burnout.'],
   },
   admin: {
     label: 'Admin',
