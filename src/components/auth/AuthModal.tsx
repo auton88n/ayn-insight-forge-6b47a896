@@ -413,7 +413,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
         setPassword('');
         setFullName('');
         setCompanyName('');
-        setCompanyWebsite('');
+        
         setSignupRole('job_seeker');
         setAcceptedTerms(false);
       }
