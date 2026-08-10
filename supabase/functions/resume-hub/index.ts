@@ -3177,7 +3177,17 @@ Rules, strict:
     function roleLine(spec: Record<string, unknown>): string {
       const title = String(spec?.title || "").trim() || "this role";
       const sen = SENIORITY_LABEL[String(spec?.seniority || "")] || "";
-      return sen ? `${sen} ${title}` : title;
+      if (!sen) return title;
+      // Reproduced live: a job_spec.title of "Senior Wrenlathe Engineer" plus
+      // seniority "senior" always prepended the label regardless, producing
+      // "a senior Senior Wrenlathe Engineer" in drafted proposals -- most real
+      // senior/staff/director/manager titles already say so themselves. Skip
+      // prepending when the title already carries one of the seniority's own
+      // words.
+      const titleLower = title.toLowerCase();
+      const senWords = sen.split(/\s+/).filter((w) => w !== "or" && w !== "level" && w !== "above");
+      if (senWords.some((w) => titleLower.includes(w))) return title;
+      return `${sen} ${title}`;
     }
     function safeCard(c: Record<string, unknown>) {
       return {
