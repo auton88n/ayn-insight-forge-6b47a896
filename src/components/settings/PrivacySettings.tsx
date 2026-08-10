@@ -19,9 +19,10 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, AlertTriangle, Download, PauseCircle } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import {
-  DELETION_REMOVED, clearLocalTraces, downloadJson,
+  DELETION_REMOVED_SEEKER, DELETION_REMOVED_EMPLOYER, clearLocalTraces, downloadJson,
   selfDeleteAccount, selfExportAccount, selfPauseAccount,
 } from '@/lib/account';
+import { useUserRole } from '@/hooks/useUserRole';
 
 interface PrivacySettingsProps {
   userId: string;
@@ -32,6 +33,8 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
   const { t } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { role } = useUserRole(userId);
+  const isEmployer = role === 'employer';
 
   const email = session.user?.email || '';
 
@@ -65,7 +68,9 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
       setDeleteOpen(false);
       toast({
         title: 'Account paused',
-        description: 'Employers can no longer find you and we have turned every email off. Nothing was deleted.',
+        description: isEmployer
+          ? 'We have turned every email off. Nothing else changed, and nothing was deleted.'
+          : 'Employers can no longer find you and we have turned every email off. Nothing was deleted.',
       });
     } catch (error) {
       toast({
@@ -143,7 +148,7 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
                   <div>
                     <p className="font-medium text-destructive">What is removed</p>
                     <ul className="mt-2 space-y-1 text-muted-foreground list-disc pl-5">
-                      {DELETION_REMOVED.map(item => <li key={item}>{item}</li>)}
+                      {(isEmployer ? DELETION_REMOVED_EMPLOYER : DELETION_REMOVED_SEEKER).map(item => <li key={item}>{item}</li>)}
                     </ul>
                   </div>
 
@@ -152,8 +157,9 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
                       <PauseCircle className="h-4 w-4" /> Want to stop rather than destroy?
                     </p>
                     <p className="mt-1 text-muted-foreground">
-                      Pausing hides you from employers and turns every email off. Your resume, profile and
-                      documents stay exactly where they are, and you can turn discovery back on at any time.
+                      {isEmployer
+                        ? 'Pausing turns off every email. Nothing else changes — your company profile and history stay exactly as they are.'
+                        : 'Pausing hides you from employers and turns every email off. Your resume, profile and documents stay exactly where they are, and you can turn discovery back on at any time.'}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button variant="outline" size="sm" onClick={handlePause} disabled={working !== null}>

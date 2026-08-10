@@ -16,8 +16,19 @@ async function call<T>(name: string, args?: Record<string, unknown>): Promise<T>
   return data as T;
 }
 
-/** What deletion removes. Shown before anyone confirms. */
-export const DELETION_REMOVED = [
+/**
+ * What deletion removes. Shown before anyone confirms.
+ *
+ * v3.107.0 — this used to be one hardcoded, seeker-only list shown verbatim
+ * to employers too (found live: an employer's own Settings > Privacy >
+ * Delete Account dialog read "Your resume", "Saved jobs", "Your discovery
+ * listing, so employers can no longer find you" -- none of which applies to
+ * an employer account). erase_account_core() is role-agnostic under the
+ * hood (it deletes employer_accounts/org_members, and the org itself only
+ * if no teammates remain), but the copy never branched on role. Split into
+ * two lists matching what erase_account_core() actually does for each role.
+ */
+export const DELETION_REMOVED_SEEKER = [
   'Your resume and every tailored version of it',
   'Your career profile, skills, work history and education',
   'Your cover letters and generated documents',
@@ -25,6 +36,13 @@ export const DELETION_REMOVED = [
   'Your discovery listing, so employers can no longer find you',
   'Your settings, preferences and support tickets',
   'Every file you uploaded',
+];
+
+export const DELETION_REMOVED_EMPLOYER = [
+  'Your own login and access to AYN',
+  "Your company's profile, if you are the last person on the account",
+  'Your settings, preferences and support tickets',
+  'Any browser extension access tied to your account',
 ];
 
 export type SelfDeleteResult = { ok: boolean; erased: boolean; candidate_ref: string; files_removed: number };
