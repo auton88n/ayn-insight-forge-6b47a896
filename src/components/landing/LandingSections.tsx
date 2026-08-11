@@ -7,7 +7,7 @@
  * Every mockup on this page is a rendition of a screen that exists.
  */
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { openCookiePreferences } from '@/components/shared/CookieConsent';
 import { COPYRIGHT_LINE, COMPANY_TAGLINE, NAV_LINKS, COMPANY_LINKS } from '@/components/shared/siteLinks';
 import { readAudience, writeAudience, type Audience } from '@/lib/landingAudience';
@@ -318,6 +318,7 @@ const HERO: Record<Audience, {
 export const LandingSections = memo(({ onStartFree }: Props) => {
   const root = useRef<HTMLDivElement>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const [audience, setAudience] = useState<Audience>(readAudience);
 
   /**
@@ -352,9 +353,17 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
       if (cur === next) return cur;
       writeAudience(next);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      // A manual toggle click means "go to the top", full stop. Without this,
+      // a hash left over from an earlier click (e.g. "See the difference" ->
+      // #proof, or arriving from a header nav link) makes the hash-scroll
+      // effect below re-fire on this same audience change and drag the page
+      // back down to that old target, undoing the scroll to top above.
+      if (window.location.hash) {
+        navigate(window.location.pathname + window.location.search, { replace: true });
+      }
       return next;
     });
-  }, []);
+  }, [navigate]);
 
   // Same as pickAudience but without the scroll-to-top: used when a hash
   // link is driving the switch, since the effect below scrolls to the
