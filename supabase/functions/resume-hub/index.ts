@@ -2158,6 +2158,8 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
 
     // ---------------- parse_file ----------------
     if (action === "parse_file") {
+      const adminParse = createClient(supabaseUrl, serviceKey);
+      { const blocked = await accountGate(adminParse, user.id, action); if (blocked) return blocked; }
       const { fileBase64, mimeType } = payload as { fileBase64: string; mimeType: string };
       if (!fileBase64) return json({ error: "fileBase64 required" }, 400);
 
@@ -2318,6 +2320,7 @@ EDUCATION vs CERTIFICATIONS: education is degree-granting programs only (Bachelo
     if (action === "resume_diagnose") {
       const adminDiag = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminDiag, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminDiag, user.id, action); if (blocked) return blocked; }
       const { resume, resumeId } = payload as { resume: unknown; resumeId?: string };
       if (!resume) return json({ error: "resume required" }, 400);
       const structured = await scoreResumeContent(resume);
@@ -2336,6 +2339,7 @@ EDUCATION vs CERTIFICATIONS: education is degree-granting programs only (Bachelo
     if (action === "rewrite") {
       const adminRewrite = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminRewrite, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminRewrite, user.id, action); if (blocked) return blocked; }
       const creditGate = await assertCredits(adminRewrite, user.id, COST_OPTIMIZE, "resume optimization");
       if (creditGate) return creditGate;
       const { resume, jdText } = payload as { resume: unknown; jdText?: string };
@@ -2426,6 +2430,7 @@ Return the complete improved resume in the same schema, plus suggestions: an arr
     if (action === "guided_intake_extract") {
       const adminIntake = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminIntake, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminIntake, user.id, action); if (blocked) return blocked; }
       const { answers } = payload as { answers?: Array<{ question: string; answer: string }> };
       if (!Array.isArray(answers) || !answers.length) return json({ error: "answers required" }, 400);
       const transcript = answers
@@ -2502,6 +2507,7 @@ Return experiences, education, skills (plain strings), certifications (if any we
     if (action === "resume_generate") {
       const adminGen = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminGen, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminGen, user.id, action); if (blocked) return blocked; }
       const creditGateGen = await assertCredits(adminGen, user.id, COST_OPTIMIZE, "resume generation");
       if (creditGateGen) return creditGateGen;
 
@@ -2604,6 +2610,7 @@ Return the complete resume in the schema, plus suggestions: short strings naming
     if (action === "match") {
       const adminMatch = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminMatch, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminMatch, user.id, action); if (blocked) return blocked; }
       const matchStarted = Date.now();
       const { jdText } = payload as { jdText: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
@@ -2697,6 +2704,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`,
     if (action === "tailor") {
       const adminTailor = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminTailor, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminTailor, user.id, action); if (blocked) return blocked; }
       const tailorStarted = Date.now();
       const { jdText } = payload as { jdText: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
@@ -2802,6 +2810,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
     if (action === "cover_letter") {
       const adminCover = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminCover, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminCover, user.id, action); if (blocked) return blocked; }
       const coverStarted = Date.now();
       const { jdText, tone, company } = payload as { jdText: string; tone?: string; company?: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
@@ -2904,6 +2913,7 @@ RULES:
     if (action === "job_fit_advice") {
       const adminFit = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminFit, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminFit, user.id, action); if (blocked) return blocked; }
       const { jdText } = payload as { jdText: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
 
@@ -3347,10 +3357,25 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
     //      refs (no user_id/name/email), scored 1-100, inferred cap
     //      10 pts, "why" grounded in provided fields only.
     // ─────────────────────────────────────────────────────────────
+    // v3.129.0 — every employer action gated only on org membership, never on
+    // employer_accounts.status. The comment two lines below this one already
+    // named the exact principle this violated ("a UI-only gate is not a
+    // gate") for the company-profile check; the admin approval queue itself
+    // had the identical gap. Any signed-in user (including a plain job
+    // seeker) could call employer_org_create directly and reach the real
+    // candidate pool with zero admin approval. Fixed at the one place every
+    // org-scoped action already funnels through.
+    async function isApprovedEmployer(): Promise<boolean> {
+      const { data } = await adminForNew.from("employer_accounts")
+        .select("status").eq("user_id", userId).maybeSingle();
+      return (data as { status?: string } | null)?.status === "approved";
+    }
+
     async function assertOrgMember(orgId: string): Promise<boolean> {
       const { data } = await adminForNew.from("org_members")
         .select("org_id").eq("org_id", orgId).eq("user_id", userId).maybeSingle();
-      return !!data;
+      if (!data) return false;
+      return await isApprovedEmployer();
     }
 
     // v3.10.0 — the company profile a candidate reads on a proposal.
@@ -3386,6 +3411,10 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
     }
 
     if (action === "employer_org_create") {
+      // v3.129.0 — the one employer action that runs before any org (and
+      // therefore assertOrgMember) exists, so it needs its own copy of the
+      // same approval check that function now enforces for everything after it.
+      if (!(await isApprovedEmployer())) return json({ error: "Employer access is not approved for this account yet." }, 403);
       const { name, website } = payload as { name?: string; website?: string };
       if (!name || !name.trim()) return json({ error: "name required" }, 400);
       const { data: org, error } = await adminForNew.from("orgs").insert({
