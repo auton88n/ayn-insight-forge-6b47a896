@@ -107,7 +107,7 @@ export default function ExtensionApprove() {
             <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/30">
               <div className="flex items-start gap-2 text-sm">
                 <ShieldCheck className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
-                <span>This browser will be allowed to fill job applications, score jobs, and tailor your resume on your behalf.</span>
+                <span>This browser will be allowed to read job postings you view, score them against your resume, and tailor your resume and cover letters. It is read only: it never fills out or submits anything on a page on your behalf.</span>
               </div>
               <div className="flex items-start gap-2 text-sm">
                 <ShieldCheck className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />

@@ -121,6 +121,13 @@
     }
     .sign-out:hover { color: var(--ayn-red); background: var(--ayn-red-soft); border-color: var(--ayn-border); }
 
+    /* v3.4.3 — a persistent link to the privacy policy, so what this
+       extension reads and sends is disclosed inside the extension's own
+       UI, not only on the website. Reuses .icon-btn's sizing/hover and
+       the already-shipped ti-shield-check glyph, rather than a new
+       ::before codepoint that may not be in the subsetted icon font. */
+    .privacy-link i { font-size: 16px; }
+
     /* ═══════════════════════════════════════════════════════════
        Tabs, one inset rail on paper (v3.2.0)
        ═══════════════════════════════════════════════════════════ */
@@ -716,6 +723,7 @@
   <div class="hdr-right">
     <span class="credit-pill hidden" id="credit-pill" title="Credit balance"></span>
     <span class="user-email hidden" id="user-email" title=""></span>
+    <button class="icon-btn privacy-link" id="privacy-link-btn" title="Privacy policy"><i class="ti ti-shield-check"></i></button>
     <button class="sign-out hidden" id="sign-out-btn" title="Sign out">Sign out</button>
   </div>
 </div>

@@ -170,6 +170,7 @@ function updateCreditPill(credits) {
   el.classList.remove('hidden');
 }
 $('credit-pill').addEventListener('click', () => chrome.tabs.create({ url: 'https://ayn.careers/billing' }));
+$('privacy-link-btn').addEventListener('click', () => chrome.tabs.create({ url: 'https://ayn.careers/privacy' }));
 
 // Strip raw URLs from any string before showing as a label.
 function cleanLabel(s) {
