@@ -171,7 +171,19 @@ export async function loadIdentity(
 
   const profile = (profRes?.data as Record<string, any>) || null;
   const canonical = (canonRes?.data as Record<string, any>) || null;
-  const authEmail = (authRes?.data as any)?.user?.email || "";
+  const authUser = (authRes?.data as any)?.user;
+  const authEmail = authUser?.email || "";
+  // The name typed at signup (AuthModal.tsx passes it as user_metadata.full_name)
+  // was already the fix for resume_generate's own "Ayn User" placeholder bug
+  // (v3.120.0), but that fix only ever lived in resume_generate's bespoke
+  // prompt code, not here. Every other action that shares this file (tailor,
+  // cover_letter, match, rewrite) had no name fallback at all beyond the
+  // resume/profile/canonical sources above — a brand-new account with a
+  // resume but no user_profile_data row yet (that table is only written the
+  // first time someone edits "About you") left full_name completely empty,
+  // and the model filled the required basics.name field with an invented
+  // placeholder instead. Reproduced live: "A. Developer" for a real signup.
+  const authFullName = (authUser?.user_metadata as { full_name?: string } | undefined)?.full_name || "";
 
   // Choose resume: caller-requested version (if it belongs to this user) wins.
   let resumeSource: "version" | "primary" | "none" = "none";
@@ -204,15 +216,20 @@ export async function loadIdentity(
   const cIdent = (canonical?.identity || {}) as Record<string, any>;
   const cDerived = (canonical?.derived || {}) as Record<string, any>;
 
+  const [firstFromAuth, ...restFromAuth] = authFullName.trim().split(/\s+/);
+  const lastFromAuth = restFromAuth.join(" ");
+
   const first_name = pick([
     ["profile", profile?.legal_first_name],
     ["canonical", cIdent.first_name || cIdent.legal_first_name],
     ["resume", firstFromResume],
+    ["auth", firstFromAuth],
   ]);
   const last_name = pick([
     ["profile", profile?.legal_last_name],
     ["canonical", cIdent.last_name || cIdent.legal_last_name],
     ["resume", lastFromResume],
+    ["auth", lastFromAuth],
   ]);
   const full_from_parts = [first_name.value, last_name.value].filter(Boolean).join(" ");
   const full_name = pick([
@@ -220,6 +237,7 @@ export async function loadIdentity(
     ["canonical", cIdent.legal_name || cIdent.full_name],
     ["resume", basics.name],
     ["profile", full_from_parts],
+    ["auth", authFullName],
   ]);
 
   const email = pick([
