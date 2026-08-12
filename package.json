@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "node server.js",
-    "validate:pdf": "node scripts/validate-pdf.mjs"
+    "validate:pdf": "node scripts/validate-pdf.mjs",
+    "test:unit": "vitest run",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
+    "test": "npm run test:unit && npm run test:integration"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.8",

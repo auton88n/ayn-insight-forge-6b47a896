@@ -5,13 +5,66 @@ import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
 // corsHeaders: static fallback using primary origin (from _shared/cors.ts)
 const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
+// v3.131.0 — this endpoint had NO signature verification of any kind:
+// anyone who knew the URL could POST a fake "inbound email" with any
+// subject/body they chose (already exploited once for an HTML-injection
+// finding in admin-inbox-reply, fixed at the render layer there, but the
+// actual door — anyone can inject a fake inbound email at all — was left
+// open, documented, and unfixed pending a signing secret from Resend's own
+// dashboard). Resend signs inbound webhooks the same way Stripe does its
+// own: Svix-style HMAC-SHA256 over "{id}.{timestamp}.{raw body}", with the
+// signature and a replay-window timestamp in the svix-* headers.
+async function verifySvixSignature(req: Request, rawBody: string, secret: string): Promise<boolean> {
+  const svixId = req.headers.get("svix-id");
+  const svixTimestamp = req.headers.get("svix-timestamp");
+  const svixSignature = req.headers.get("svix-signature");
+  if (!svixId || !svixTimestamp || !svixSignature) return false;
+
+  // Reject anything older than 5 minutes — the same replay-window Stripe's
+  // own SDK enforces, not something this endpoint had before at all.
+  const tsSeconds = Number(svixTimestamp);
+  if (!Number.isFinite(tsSeconds) || Math.abs(Date.now() / 1000 - tsSeconds) > 300) return false;
+
+  const secretBytes = Uint8Array.from(atob(secret.replace(/^whsec_/, "")), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey("raw", secretBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`;
+  const sigBytes = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signedContent));
+  const expected = btoa(String.fromCharCode(...new Uint8Array(sigBytes)));
+
+  // svix-signature carries one or more space-separated "v1,<base64>" values.
+  return svixSignature.split(" ").some(part => part.split(",")[1] === expected);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const payload = await req.json();
+    const rawBody = await req.text();
+
+    // Fails closed once configured, fails open (with a loud warning) until
+    // then — disabling inbound email processing outright before the
+    // founder has actually generated a secret in Resend's dashboard would
+    // be a worse regression than the gap this closes. Set
+    // RESEND_WEBHOOK_SECRET (the "Signing Secret" on Resend's Webhooks
+    // page, starts with whsec_) as a Supabase edge function secret to
+    // switch this to real enforcement.
+    const webhookSecret = Deno.env.get("RESEND_WEBHOOK_SECRET");
+    if (webhookSecret) {
+      const valid = await verifySvixSignature(req, rawBody, webhookSecret);
+      if (!valid) {
+        console.error("Rejected inbound webhook: bad or missing signature");
+        return new Response(JSON.stringify({ error: "Invalid signature" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      console.warn("RESEND_WEBHOOK_SECRET not configured — inbound webhook is UNVERIFIED, anyone with this URL can inject a fake email");
+    }
+
+    const payload = JSON.parse(rawBody);
     console.log('Resend inbound webhook received:', JSON.stringify(payload).slice(0, 500));
 
     // Resend wraps email fields inside payload.data

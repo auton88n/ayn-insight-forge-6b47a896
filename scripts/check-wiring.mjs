@@ -23,7 +23,12 @@ const read = (p) => readFileSync(resolve(ROOT, p), 'utf8');
 const sidepanelJs = read('extension/sidepanel.js');
 const backgroundJs = read('extension/background.js');
 const contentJs = read('extension/content.js');
-const edgeTs = read('supabase/functions/resume-hub/index.ts');
+// v3.131.0 — resume-hub started splitting into supabase/functions/resume-hub/lib/*.ts
+// (stage 1: request-independent utilities, EXT_ACTIONS included). Concatenated
+// rather than switched over so this check keeps working regardless of which
+// file a given const/action block currently lives in as that split continues.
+const edgeTs = read('supabase/functions/resume-hub/index.ts')
+  + '\n' + read('supabase/functions/resume-hub/lib/utils.ts');
 const resumeHubTs = read('src/lib/resumeHub.ts');
 
 // ── Extract sets ────────────────────────────────────────────────────
