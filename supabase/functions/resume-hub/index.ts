@@ -4239,10 +4239,15 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       const spec = (search.job_spec as Record<string, unknown>) || {};
       const jobTitle = String(spec.title || "").trim() || block.current_title || "the role";
 
+      // v3.129.0 — CanonicalProfile's experience entries have never had an
+      // `achievements` field (it's `bullets`, confirmed against the type at
+      // loadCanonical's own definition); this always read undefined, so
+      // every assessment was generated with zero real detail to anchor
+      // questions to, despite the prompt below explicitly requiring one.
       const achievements = canon.experiences.slice(0, 4).map(e => ({
         title: e.title, company: e.company,
         dates: [e.start, e.end || (e.current ? "Now" : "")].filter(Boolean).join(" to "),
-        achievements: (e.achievements || []).slice(0, 3),
+        achievements: (e.bullets || []).slice(0, 3),
       }));
 
 
@@ -4665,30 +4670,45 @@ Grade it now.`,
         console.error("assessment grading failed", e);
       }
 
-      const verdicts = ["consistent", "partly consistent", "inconsistent"];
-      const perQ = Array.isArray(out.per_question) ? out.per_question as Array<Record<string, unknown>> : [];
-      const byQ = new Map(perQ.map(p => [String(p.id), p]));
-      await adminForNew.from("assessment_results").upsert({
-        assessment_id: assessmentId,
-        overall_score: Math.max(0, Math.min(100, Math.round(Number(out.overall_score) || 0))),
-        verification_verdict: verdicts.includes(String(out.verification_verdict))
-          ? String(out.verification_verdict) : "partly consistent",
-        per_question: items.map(it => {
-          const p = byQ.get(it.id);
-          return {
-            id: it.id,
-            question: it.question,
-            answer: it.candidate_answer,
-            seconds_spent: it.seconds_spent,
-            score: Math.max(0, Math.min(100, Math.round(Number(p?.score) || 0))),
-            observed: cleanEmployerText(String(p?.observed || "No observation available.")),
-          };
-        }),
-        strengths: (Array.isArray(out.strengths) ? out.strengths : []).map(s => cleanEmployerText(String(s))).slice(0, 5),
-        concerns: (Array.isArray(out.concerns) ? out.concerns : []).map(s => cleanEmployerText(String(s))).slice(0, 5),
-        employer_summary: cleanEmployerText(String(out.employer_summary || "")).slice(0, 1200),
-        seeker_growth_note: cleanEmployerText(String(out.seeker_growth_note || "")).slice(0, 300),
-      }, { onConflict: "assessment_id" });
+      // v3.129.0 — a thrown/timed-out/malformed grading call used to fall
+      // straight through into an unconditional upsert, writing a real-looking
+      // overall_score: 0, verification_verdict: "partly consistent" row —
+      // indistinguishable from a genuinely poor result, with a real hiring
+      // decision attached and no flag anywhere that grading never actually
+      // ran. Only write a result when the model actually returned one;
+      // employer_assessment_list already renders `result: null` as "no
+      // result yet" (the same state a normal in-flight grading call is in
+      // for the few seconds before this code runs), so leaving it unwritten
+      // on failure is an honest, already-handled state, not a new one.
+      const gradingSucceeded = typeof out.overall_score !== "undefined" && Array.isArray(out.per_question);
+      if (!gradingSucceeded) {
+        console.error("assessment grading produced no usable output, leaving ungraded", { assessmentId });
+      } else {
+        const verdicts = ["consistent", "partly consistent", "inconsistent"];
+        const perQ = out.per_question as Array<Record<string, unknown>>;
+        const byQ = new Map(perQ.map(p => [String(p.id), p]));
+        await adminForNew.from("assessment_results").upsert({
+          assessment_id: assessmentId,
+          overall_score: Math.max(0, Math.min(100, Math.round(Number(out.overall_score) || 0))),
+          verification_verdict: verdicts.includes(String(out.verification_verdict))
+            ? String(out.verification_verdict) : "partly consistent",
+          per_question: items.map(it => {
+            const p = byQ.get(it.id);
+            return {
+              id: it.id,
+              question: it.question,
+              answer: it.candidate_answer,
+              seconds_spent: it.seconds_spent,
+              score: Math.max(0, Math.min(100, Math.round(Number(p?.score) || 0))),
+              observed: cleanEmployerText(String(p?.observed || "No observation available.")),
+            };
+          }),
+          strengths: (Array.isArray(out.strengths) ? out.strengths : []).map(s => cleanEmployerText(String(s))).slice(0, 5),
+          concerns: (Array.isArray(out.concerns) ? out.concerns : []).map(s => cleanEmployerText(String(s))).slice(0, 5),
+          employer_summary: cleanEmployerText(String(out.employer_summary || "")).slice(0, 1200),
+          seeker_growth_note: cleanEmployerText(String(out.seeker_growth_note || "")).slice(0, 300),
+        }, { onConflict: "assessment_id" });
+      }
 
       // No score, no candidate identity in the email body — same rule the
       // product's own UI already follows (v3.13.0), just a heads up to go look.

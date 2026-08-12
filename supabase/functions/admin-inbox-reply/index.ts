@@ -86,9 +86,19 @@ Deno.serve(async (req) => {
     }
 
     const identity = IDENTITIES[identityKey];
+    // v3.129.0 — subject is sourced verbatim from inbound_email_replies
+    // (itself written by resend-inbound-webhook from an arbitrary inbound
+    // email's own headers). It's used two ways below: as the literal email
+    // Subject header (must stay raw, or a real subject containing "&" etc.
+    // would show escaped entities in the recipient's inbox) and inside the
+    // HTML body via heading(), which does zero escaping of its own — an
+    // inbound subject containing markup would have shipped as real,
+    // clickable HTML in a reply sent from AYN's own verified domain, the
+    // exact bug class v3.40.0 already fixed once in admin-broadcast.
     const subject = original.subject && /^re:/i.test(original.subject)
       ? original.subject
       : `Re: ${original.subject || '(no subject)'}`;
+    const subjectHtml = escapeHtml(subject);
 
     const paragraphs = messageText
       .split(/\n{2,}/)
@@ -97,7 +107,7 @@ Deno.serve(async (req) => {
     // v3.115.0 — wrapEmail's own default sign-off is skipped (this identity
     // already has its own, passed in directly) so the email never ends up
     // with two signatures stacked on top of each other.
-    const html = wrapEmail(`${heading(subject)}${paragraphs}`, identity.signature);
+    const html = wrapEmail(`${heading(subjectHtml)}${paragraphs}`, identity.signature);
 
     const resendKey = Deno.env.get('RESEND_API_KEY');
     if (!resendKey) {

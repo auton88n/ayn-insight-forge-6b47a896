@@ -661,6 +661,32 @@ export async function logAiCall(
 
 const COMPANY_CTX_TTL = 7 * 24 * 60 * 60 * 1000;
 
+// v3.129.0 — jobUrl arrives verbatim from the caller (the extension lane
+// passes it straight through). Without this, a URL like
+// "http://169.254.169.254/" or "http://127.0.0.1:PORT/..." would be handed
+// straight to fetch() below, a server-side-request-forgery primitive. This
+// blocks the direct, easy form (a literal internal/private/link-local IP or
+// well-known internal hostname) — it does not defend a genuine public
+// domain name that's been DNS-rebound to a private address, which would
+// need a resolve-then-check step this function doesn't do.
+function isBlockedHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  if (h === "localhost" || h.endsWith(".local")) return true;
+  if (h === "0.0.0.0" || h === "::1" || h === "[::1]") return true;
+  // literal IPv4
+  const ipv4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4) {
+    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+    if (a === 127) return true; // loopback
+    if (a === 10) return true; // RFC1918
+    if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918
+    if (a === 192 && b === 168) return true; // RFC1918
+    if (a === 169 && b === 254) return true; // link-local, incl. cloud metadata
+    return false;
+  }
+  return false;
+}
+
 function companyCandidates(company: string, url?: string): string[] {
   const out: string[] = [];
   try {
@@ -668,7 +694,11 @@ function companyCandidates(company: string, url?: string): string[] {
       const u = new URL(url);
       const host = u.hostname.toLowerCase();
       // Only the employer's own site. ATS hosts are not the company site.
-      if (!/(greenhouse|lever|ashbyhq|workday|myworkdayjobs|smartrecruiters|jobvite|bamboohr|indeed|linkedin|glassdoor|ziprecruiter|workable|recruitee|teamtailor)\./.test(host)) {
+      if (
+        (u.protocol === "http:" || u.protocol === "https:") &&
+        !isBlockedHost(host) &&
+        !/(greenhouse|lever|ashbyhq|workday|myworkdayjobs|smartrecruiters|jobvite|bamboohr|indeed|linkedin|glassdoor|ziprecruiter|workable|recruitee|teamtailor)\./.test(host)
+      ) {
         out.push(`${u.protocol}//${host}/about`, `${u.protocol}//${host}/`);
       }
     }
@@ -740,6 +770,17 @@ export async function fetchCompanyContext(
       if (text.length >= 200) { result = { text, source: candidate }; break; }
     } catch { /* try the next candidate */ }
   }
-  await cacheSet(admin, key, null, "company_ctx", result, COMPANY_CTX_TTL);
+  // v3.129.0 — the cache key is company name only (no user, no url), so
+  // anything written here was previously served to every AYN user asking
+  // for a cover letter for that company, for 7 days. jobUrl-derived
+  // candidates come from the caller (the extension lane passes it through
+  // unchecked) — caching one of those means a single caller's own
+  // attacker-controlled URL would poison what every other real user gets
+  // told is "the employer's own public page." Only the deterministic
+  // https://www.{slug}.com guesses, derived purely from the company name
+  // string, are safe to share across users; a jobUrl-sourced result is
+  // still used for this one request, just never written to the shared cache.
+  const safeToShare = !result.source || companyCandidates(name).includes(result.source);
+  if (safeToShare) await cacheSet(admin, key, null, "company_ctx", result, COMPANY_CTX_TTL);
   return result;
 }

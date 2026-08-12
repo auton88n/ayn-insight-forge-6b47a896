@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
         const periodStart = item?.current_period_start ?? null;
         const periodEnd = item?.current_period_end ?? null;
 
-        await admin.from("subscriptions").upsert({
+        const { error: subUpsertError } = await admin.from("subscriptions").upsert({
           user_id: userId,
           plan_key: ended ? (plan?.audience === "employer" ? "employer_free" : "seeker_free") : (plan?.key ?? "seeker_free"),
           status: ended ? "canceled" : sub.status,
@@ -115,6 +115,10 @@ Deno.serve(async (req) => {
           current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
           updated_at: new Date().toISOString(),
         }, { onConflict: "user_id" });
+        // v3.129.0 — this write was previously unchecked; a failure here
+        // left the account on its old plan state with no record anywhere
+        // that the sync from Stripe's own event didn't take.
+        if (subUpsertError) console.error("[stripe-webhook] subscriptions upsert failed", subUpsertError.message);
         break;
       }
 
@@ -141,19 +145,42 @@ Deno.serve(async (req) => {
           : (plan.credits ?? 0);
         if (!amount) break;
 
-        await admin.rpc("credit_grant", {
-          _user_id: userId,
-          _amount: amount,
-          _reason: overrideCredits !== null && overrideCredits !== undefined
-            ? `${plan.key} period, account override`
-            : `${plan.key} period`,
-          _ref: invoice.id,
-        });
+        // v3.129.0 — Stripe's own delivery is documented at-least-once, and
+        // this endpoint retries any non-2xx, so the same invoice.paid event
+        // can arrive twice. credit_grant itself has no idempotency (its ref
+        // convention is shared with admin_adjust_credits, which legitimately
+        // reuses the same ref across multiple real grants — so uniqueness
+        // can't be enforced inside credit_grant itself). Checked here
+        // instead, scoped to this call site only: a Stripe invoice id is
+        // globally unique, so a ledger row already carrying it means this
+        // exact event was already processed.
+        const { data: already } = await admin
+          .from("credit_ledger")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("ref_id", invoice.id)
+          .maybeSingle();
 
-        try {
-          await sendReceiptEmail(userId, plan.name || plan.key, amount, invoice.amount_paid ?? 0, invoice.currency || "usd");
-        } catch (e) {
-          console.error("[stripe-webhook] receipt email threw", e);
+        if (!already) {
+          const { error: grantError } = await admin.rpc("credit_grant", {
+            _user_id: userId,
+            _amount: amount,
+            _reason: overrideCredits !== null && overrideCredits !== undefined
+              ? `${plan.key} period, account override`
+              : `${plan.key} period`,
+            _ref: invoice.id,
+          });
+
+          if (grantError) {
+            console.error("[stripe-webhook] credit_grant failed", grantError.message);
+            break; // don't email a receipt for credits that were never actually granted
+          }
+
+          try {
+            await sendReceiptEmail(userId, plan.name || plan.key, amount, invoice.amount_paid ?? 0, invoice.currency || "usd");
+          } catch (e) {
+            console.error("[stripe-webhook] receipt email threw", e);
+          }
         }
         break;
       }
