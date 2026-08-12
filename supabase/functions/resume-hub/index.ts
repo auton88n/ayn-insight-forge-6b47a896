@@ -4670,8 +4670,16 @@ ${VOICE_RULES}`;
 
       let out: Record<string, unknown> = {};
       try {
+        // v3.129.0 — reproduced live: this call measured 143.9s on
+        // QUALITY_MODEL, right at the edge of this app's own documented
+        // 150s idle timeout that has already caused real failures on three
+        // other call sites (v3.96.0/v3.97.0, tailor/rewrite/smart_tailor,
+        // all fixed the same way). Assessment grading was deliberately left
+        // on QUALITY_MODEL in that pass ("not flagged as slow, not tested")
+        // — now it's both. Swapped to the flash tier already proven safe
+        // for the other three.
         const r = await callAI({
-          model: QUALITY_MODEL,
+          model: DEFAULT_MODEL,
           system: sys,
           user: `WHAT THE CANDIDATE CLAIMS ON THEIR PROFILE:
 ${JSON.stringify(claims, null, 1)}
