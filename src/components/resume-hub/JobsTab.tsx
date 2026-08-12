@@ -22,13 +22,13 @@ import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
 
-interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile: () => void }
+interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile: () => void; onCreditsChanged?: () => void }
 
 interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string }
 interface TailoredRow { id: string; created_at: string; content: ResumeContent }
 interface CoverRow { id: string; created_at: string; body: string }
 
-export default function JobsTab({ userId, onOpenProfile }: Props) {
+export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Props) {
   const { toast } = useToast();
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [selected, setSelected] = useState<JobRow | null>(null);
@@ -114,6 +114,7 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
       if (error) throw error;
       await loadDocs(selected.id);
       setGapSuggestions((gapAnalysis?.missing ?? []).map(text => ({ text, value: text })));
+      onCreditsChanged?.();
       toast({ title: "Tailored resume ready", description: "Download it below." });
     } catch (e) {
       toast(isFeatureDisabled(e)
@@ -169,6 +170,7 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
       await supabase.from("cover_letters").delete().eq("user_id", userId).eq("job_id", selected.id);
       await supabase.from("cover_letters").insert({ user_id: userId, job_id: selected.id, resume_id: primaryResume.id, body });
       await loadDocs(selected.id);
+      onCreditsChanged?.();
     } catch (e) {
       toast(isFeatureDisabled(e)
         ? { title: "Under maintenance", description: e.message }
@@ -405,7 +407,12 @@ export default function JobsTab({ userId, onOpenProfile }: Props) {
                   </div>
                 )}
 
-                {tailored && selected.title && tailored.content.basics?.title &&
+                {/* v3.129.0 — a manually-added job defaults to the literal
+                    placeholder title "Untitled role" until the person edits
+                    it; without this guard, the mismatch below fires on that
+                    placeholder and offers to overwrite the resume's real
+                    title with the word "Untitled role". */}
+                {tailored && selected.title && selected.title !== "Untitled role" && tailored.content.basics?.title &&
                   tailored.content.basics.title.trim().toLowerCase() !== selected.title.trim().toLowerCase() && (
                   <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2">
                     <p className="text-xs text-muted-foreground">

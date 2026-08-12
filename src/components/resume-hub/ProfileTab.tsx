@@ -156,7 +156,7 @@ function mapResumeToCareer(resume: ResumeContent, prev: Career): Career {
   };
 }
 
-export default function ProfileTab({ userId }: { userId: string }) {
+export default function ProfileTab({ userId, onCreditsChanged }: { userId: string; onCreditsChanged?: () => void }) {
   const { toast } = useToast();
   const [career, setCareer] = useState<Career>(EMPTY);
   const [personal, setPersonal] = useState<Personal>(EMPTY_PERSONAL);
@@ -476,6 +476,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
       setOptimizeChanges(r.suggestions);
       reindexTalentPool("resume_optimize");
       await loadResumes();
+      onCreditsChanged?.();
       toast({
         title: "Resume optimized",
         description: `Your new resume replaced the old one. ${r.credits.balance} credits left.`,
@@ -540,6 +541,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
       setOptimizeChanges(r.suggestions);
       reindexTalentPool("resume_generate");
       await loadResumes();
+      onCreditsChanged?.();
       toast({
         title: "Resume built",
         description: `Your new resume is ready to download. ${r.credits.balance} credits left.`,
