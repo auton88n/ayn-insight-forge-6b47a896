@@ -1333,13 +1333,30 @@ async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: stri
   // v3.5.0 — edges now carry level, years and recency so employer matching can
   // rank a recent expert above a name on a list. Provenance rules unchanged.
   type Edge = { skill: string; source: string; level: string | null; years: number | null; last_used: string | null };
+  // v3.129.0 — a real candidate's canonical.skills carried entries like
+  // "Applied AI: Built and shipped AYN (aynn.io), a production AI
+  // platform. LLM integration and orchestration, prompt engineering,
+  // RAG..." (213 chars) instead of an atomic skill name, and this
+  // function indexed it verbatim into candidate_skills, the one table
+  // employer_skill_catalog reads to suggest skills to EVERY employer
+  // during search intake — so one candidate's malformed data surfaced as
+  // a garbled multi-paragraph "skill" chip in a completely different
+  // employer's live search UI. The writing prompts (rewrite, resume_generate)
+  // already have an explicit atomic-skills rule (rule 6/5) preventing this
+  // going forward, but this function trusts whatever shape canonical.skills
+  // or a resume's own skills array already has, including older data from
+  // before that rule existed or from any path that never went through
+  // those prompts. A real skill name is short; nothing legitimate is lost
+  // by refusing to index something this long as a single "skill".
+  const MAX_SKILL_LEN = 60;
   const norm = (s: string) => s.toLowerCase().trim();
   const resumeSkills = Array.isArray((resumeContent as { skills?: unknown })?.skills)
-    ? ((resumeContent as { skills: unknown[] }).skills.filter(x => typeof x === "string") as string[])
+    ? ((resumeContent as { skills: unknown[] }).skills.filter(x => typeof x === "string" && x.length <= MAX_SKILL_LEN) as string[])
     : [];
 
   const extracted = new Map<string, Edge>();
   for (const s of canonical.skills) {
+    if ((s.name || "").length > MAX_SKILL_LEN) continue;
     const n = norm(s.name || "");
     if (n && !extracted.has(n)) {
       extracted.set(n, {
@@ -1356,6 +1373,7 @@ async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: stri
   const inferred = new Map<string, Edge>();
   for (const s of (canonical.derived.top_skills || [])) {
     const name = String(s);
+    if (name.length > MAX_SKILL_LEN) continue;
     const n = norm(name);
     if (n && !extracted.has(n) && !inferred.has(n)) {
       inferred.set(n, { skill: name, source: "canonical_profile", level: null, years: null, last_used: null });
