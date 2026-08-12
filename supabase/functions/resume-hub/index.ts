@@ -87,6 +87,13 @@ import { TAILOR_TTL, parseJsonLoose, handleSmartTailor, handleCoverLetter } from
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  // v3.132.0 — error_logs previously only ever heard from the frontend
+  // ErrorBoundary; every backend action failure landed here as a console
+  // line and nothing else, invisible to error-alert-check's burst check.
+  // Captured outside the try so the catch below can still name the action
+  // that failed even though `action` itself is scoped inside the try.
+  let erroredAction: string | undefined;
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -94,6 +101,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { action, ...payload } = body;
+    erroredAction = typeof action === "string" ? action : undefined;
 
     // ============ PUBLIC LINK FLOW (no auth) ============
     // Extension generates a random code, opens /extension/approve?code=...
@@ -3397,6 +3405,18 @@ Grade it now.`,
 
   } catch (e) {
     console.error("resume-hub error", e);
+    // Best effort only, same rule as every notify* helper in this file: a
+    // logging failure must never mask or replace the real error response.
+    try {
+      const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      await admin.from("error_logs").insert({
+        error_message: e instanceof Error ? e.message : String(e),
+        error_stack: e instanceof Error ? (e.stack || null) : null,
+        source: "backend",
+        severity: "error",
+        endpoint: erroredAction || null,
+      });
+    } catch { /* never blocks the real response below */ }
     return json({ error: e instanceof Error ? e.message : "Server error" }, 500);
   }
 });

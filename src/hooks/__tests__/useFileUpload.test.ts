@@ -1,13 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useFileUpload } from '../useFileUpload';
-import { createMockSupabaseClient } from '@/test/mocks/supabase';
+import { supabase } from '@/integrations/supabase/client';
+import type { MockSupabaseClient } from '@/test/mocks/supabase';
 import { mockToast } from '@/test/mocks/contexts';
 
-const mockSupabase = createMockSupabaseClient();
-vi.mock('@/integrations/supabase/client', () => ({
-  supabase: mockSupabase,
-}));
+// vi.mock factories are hoisted above every import in the file (confirmed
+// live: even vi.hoisted() couldn't see @/test/mocks/supabase's own import
+// binding, since vi.hoisted hoists above imports too, not just above plain
+// consts). The factory below is self-contained instead — it dynamically
+// imports the helper at the point Vitest actually resolves the mocked
+// module, not at hoist time — and mockSupabase is derived from the
+// now-mocked `supabase` import itself rather than a separate outer const,
+// which is the standard pattern for this exact situation.
+vi.mock('@/integrations/supabase/client', async () => {
+  const { createMockSupabaseClient } = await import('@/test/mocks/supabase');
+  return { supabase: createMockSupabaseClient() };
+});
+const mockSupabase = supabase as unknown as MockSupabaseClient;
 
 const waitFor = async (callback: () => void, timeout = 1000) => {
   const startTime = Date.now();

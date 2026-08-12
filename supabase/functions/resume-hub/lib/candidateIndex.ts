@@ -208,9 +208,9 @@ export async function indexCandidate(admin: SupabaseClient<any, any, any>, userI
   // rank a recent expert above a name on a list. Provenance rules unchanged.
   type Edge = { skill: string; source: string; level: string | null; years: number | null; last_used: string | null };
   // v3.129.0 — a real candidate's canonical.skills carried entries like
-  // "Applied AI: Built and shipped AYN (aynn.io), a production AI
-  // platform. LLM integration and orchestration, prompt engineering,
-  // RAG..." (213 chars) instead of an atomic skill name, and this
+  // "Applied AI: Built and shipped AYN, a production AI platform. LLM
+  // integration and orchestration, prompt engineering, RAG..." (213
+  // chars, domain name redacted here) instead of an atomic skill name, and this
   // function indexed it verbatim into candidate_skills, the one table
   // employer_skill_catalog reads to suggest skills to EVERY employer
   // during search intake — so one candidate's malformed data surfaced as

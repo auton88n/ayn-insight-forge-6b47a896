@@ -4,8 +4,8 @@
 // anywhere in the app, guest or signed-in) and nothing ever emailed them either,
 // so an admin's reply reached no one. The live send-ticket-reply this slug
 // previously pointed to was old, undeployed-from-source code: SMTP instead of
-// Resend, aynn.io instead of ayn.careers, the pre-rebrand black-and-white
-// template, and zero real callers. Rewritten on the current shared branding
+// Resend, the retired pre-rebrand domain instead of the current one, the
+// pre-rebrand black-and-white template, and zero real callers. Rewritten on the current shared branding
 // (matching admin-inbox-reply's identity/signature shape) and wired to the
 // actual reply button. Does the ticket_messages insert and the email send in
 // one call so neither can silently succeed without the other.
