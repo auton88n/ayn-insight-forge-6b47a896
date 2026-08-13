@@ -115,31 +115,7 @@
   
   
   <!-- Prevent FOUC: Apply theme before paint -->
-  <script>
-    (function() {
-      try {
-        // Landing page owns its own warm paper canvas
-        var isLanding = window.location.pathname === '/' || window.location.pathname === '';
-        if (isLanding) {
-          document.documentElement.classList.add('light');
-          document.documentElement.style.colorScheme = 'light';
-          document.documentElement.style.backgroundColor = '#faf8f3';
-          return;
-        }
-        // Dashboard / authenticated routes: apply saved theme or default dark
-        var saved = null;
-        try { saved = localStorage.getItem('ayn-theme'); } catch(e) {}
-        var theme = (saved === 'light') ? 'light' : 'dark';
-        document.documentElement.classList.add(theme);
-        document.documentElement.style.colorScheme = theme;
-        var bgColor = (theme === 'light') ? '#ffffff' : 'hsl(0 0% 4%)';
-        document.documentElement.style.backgroundColor = bgColor;
-        if (document.body) document.body.style.backgroundColor = bgColor;
-      } catch (e) {
-        document.documentElement.classList.add('dark');
-      }
-    })();
-  </script>
+  <script src="/theme-init-head.js"></script>
   
   
   
@@ -165,22 +141,8 @@
   </head>
 
   <body>
-    <script>
-      (function() {
-        var isLanding = window.location.pathname === '/' || window.location.pathname === '';
-        if (isLanding) {
-          document.body.style.backgroundColor = '#faf8f3';
-        } else {
-          var saved = null;
-          try { saved = localStorage.getItem('ayn-theme'); } catch(e) {}
-          document.body.style.backgroundColor = (saved === 'light') ? '#ffffff' : 'hsl(0 0% 4%)';
-        }
-        requestAnimationFrame(function() {
-          document.documentElement.setAttribute('data-ready', '');
-        });
-      })();
-    </script>
-    <div id="root" style="min-height: 100vh;"></div>
+    <script src="/theme-init-body.js"></script>
+    <div id="root" class="ayn-root-min-h"></div>
     <noscript>
       <a href="https://ayn.careers/privacy">Privacy Policy</a> |
       <a href="https://ayn.careers/terms">Terms of Service</a>

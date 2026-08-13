@@ -74,3 +74,18 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # v3.133.0 - real dependency scanning on every push, not never.
+      # audit-level=high: don't fail CI on low/moderate noise, only on
+      # high/critical. continue-on-error: true because as of this pass
+      # there are two known, deliberately-unforced findings (esbuild/vite
+      # need a major bump of the build tool itself; react-router needs a
+      # major v6->v7 bump with real breaking API changes) - forcing either
+      # blind is a bigger risk than the finding itself. Dependabot (see
+      # .github/dependabot.yml) is what actually proposes upgrades over
+      # time; this step's job is visibility in the Actions log, not a hard
+      # gate, until those two are deliberately scheduled. No github.event.*
+      # or other untrusted input anywhere in this step - fixed command only.
+      - name: Dependency vulnerability scan
+        run: npm audit --audit-level=high
+        continue-on-error: true

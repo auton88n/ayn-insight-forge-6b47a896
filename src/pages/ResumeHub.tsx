@@ -178,7 +178,7 @@ export default function ResumeHub() {
             <div className="flex items-center shrink-0" aria-label="AYN">
               <img src={aynLogo} alt="AYN" className="h-7 w-auto" />
             </div>
-            <div className="w-px h-6 bg-[color:var(--rh-line)]" aria-hidden />
+            <div className="w-px h-6 bg-[color:var(--rh-hair)]" aria-hidden />
             <div className="min-w-0">
               <div className="rh-eyebrow">Job Search OS</div>
               <h1 className="rh-title leading-tight truncate">Resume Hub</h1>
@@ -189,8 +189,8 @@ export default function ResumeHub() {
                 up anywhere before /billing itself. */}
             {creditBalance !== null && (
               <button
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium"
-                style={{ borderColor: "var(--rh-line)", color: "var(--rh-muted)" }}
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold"
+                style={{ borderColor: "var(--rh-accent)", color: "var(--rh-accent-2)", background: "var(--rh-tint)" }}
                 onClick={() => navigate("/billing")}
                 title="Credit balance"
               >

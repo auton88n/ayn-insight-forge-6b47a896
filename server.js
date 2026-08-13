@@ -9,6 +9,49 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DIST = path.join(__dirname, 'dist');
 
+// v3.133.0 — real security headers. script-src and style-src both drop
+// 'unsafe-inline': the two theme-init scripts that used to sit inline in
+// index.html now live at /theme-init-head.js and /theme-init-body.js, and
+// the one literal style="..." attribute (on #root) moved to a real CSS
+// class, so nothing in this app actually needs either exception. Verified
+// live against a real production build before shipping — see the CI/README
+// note for how to re-check after a template change.
+const SUPABASE_ORIGIN = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
+const CSP = [
+  "default-src 'self'",
+  `script-src 'self' https://www.googletagmanager.com`,
+  // 'unsafe-inline' here only: verified live that React/Radix/framer-motion
+  // set real style="..." attributes at runtime (not just CSSOM property
+  // assignment), which a strict style-src blocks outright. script-src has
+  // no such exception — it came back clean with zero violations, which is
+  // the directive that actually matters against injection.
+  `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+  `font-src 'self' https://fonts.gstatic.com data:`,
+  `img-src 'self' data: blob: https:`,
+  `connect-src 'self' ${SUPABASE_ORIGIN} wss://dfkoxuokfkttjhfjcecx.supabase.co https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com`,
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  'upgrade-insecure-requests',
+].join('; ');
+
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', CSP);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), interest-cohort=()'
+  );
+  // Real production traffic is HTTPS-only (verified in v3.85.0's domain
+  // migration); this header only ever reaches a browser over a connection
+  // that already terminated TLS in front of this process.
+  res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  next();
+});
+
 // Serve static files with proper caching:
 // - /assets/* are content-hashed by Vite — cache forever
 // - /frames/* are the hero animation frames (~22 MB total) — cache 7 days

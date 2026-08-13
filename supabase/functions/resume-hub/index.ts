@@ -814,10 +814,21 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
       { const limited = await rateLimitGate(adminParse, user.id, action, 15, 15); if (limited) return limited; }
       const { fileBase64, mimeType } = payload as { fileBase64: string; mimeType: string };
       if (!fileBase64) return json({ error: "fileBase64 required" }, 400);
+      // v3.133.0 — no server-side size cap existed at all: a real resume
+      // is never anywhere near this size, so this only ever rejects abuse
+      // (an oversized upload wasting decode time, mammoth CPU, or a real
+      // AI-gateway call), never a legitimate file. ~14M base64 chars ≈ 10MB
+      // decoded, generous headroom above any real resume.
+      if (fileBase64.length > 14_000_000) {
+        return json({ error: "File is too large. Please upload a resume under 10MB." }, 413);
+      }
 
       const isDocx = (mimeType || "").includes("wordprocessingml") || (mimeType || "").includes("docx");
       const isPdf = (mimeType || "").includes("pdf");
       const isText = (mimeType || "").startsWith("text/");
+      if (!isDocx && !isPdf && !isText) {
+        return json({ error: "Unsupported file type. Please upload a PDF, DOCX, or plain text resume." }, 415);
+      }
       const apiKey = Deno.env.get("LOVABLE_API_KEY");
       if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 

@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # npm deps (frontend + the two Node-based server files, server.js and
+  # scripts/*.mjs, share one package.json - there is no separate manifest).
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    # Security-relevant version bumps get grouped into one PR instead of
+    # one PR per package - this repo is solo-maintained (see CLAUDE.md),
+    # so a flood of individual bump PRs would just get ignored.
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  # This repo's own CI workflow (.github/workflows/ci.yml) - keeps
+  # actions/checkout and actions/setup-node current.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

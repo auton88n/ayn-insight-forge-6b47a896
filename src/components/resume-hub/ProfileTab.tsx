@@ -750,24 +750,35 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           </p>
         )}
 
-        {!primaryResume && !replaceOpen && (
+        {!replaceOpen && (
           <div className="mt-3 flex items-center justify-between gap-3 flex-wrap rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-3">
-            <p className="text-xs text-muted-foreground">Don't have a resume yet?</p>
+            <p className="text-xs text-muted-foreground">
+              {primaryResume ? "Want to build a fresh one from scratch instead?" : "Don't have a resume yet?"}
+            </p>
             <Button variant="outline" size="sm" onClick={() => setIntakeOpen(true)}>
               <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Build one with AYN
             </Button>
           </div>
         )}
 
-        {!primaryResume && career.experiences.length > 0 && (
+        {career.experiences.length > 0 && (
           <div className="mt-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
             <p className="text-xs text-muted-foreground max-w-sm">
-              AYN has enough to write a real, ATS-formatted resume from your profile below.
+              {primaryResume
+                ? "AYN can write a fresh resume from your profile below — this replaces your current one."
+                : "AYN has enough to write a real, ATS-formatted resume from your profile below."}
             </p>
-            <Button size="sm" onClick={generateResume} disabled={generating}>
+            <Button
+              size="sm"
+              disabled={generating}
+              onClick={() => {
+                if (primaryResume && !confirm("Build a new resume from your profile? Your current resume becomes inactive.")) return;
+                generateResume();
+              }}
+            >
               {generating
                 ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Building…</>
-                : <><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Generate my resume — 15 credits</>}
+                : <><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Generate my resume · 15 credits</>}
             </Button>
           </div>
         )}
@@ -782,7 +793,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
                 <Button variant="outline" size="sm" onClick={checkResume} disabled={checkingResume}>
                   {checkingResume
                     ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Checking…</>
-                    : <><ShieldCheck className="w-3.5 h-3.5 mr-1.5" /> Check my resume — free</>}
+                    : <><ShieldCheck className="w-3.5 h-3.5 mr-1.5" /> Check my resume · free</>}
                 </Button>
               </div>
             ) : (
@@ -793,7 +804,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
                       ? <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
                       : <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />}
                     <p className="text-sm font-medium">
-                      {primaryResume.ats_score}/100 — {
+                      {primaryResume.ats_score}/100 · {
                         primaryResume.ats_score >= 85 ? "Strong" : primaryResume.ats_score >= 70 ? "Good"
                           : primaryResume.ats_score >= 50 ? "Fair" : "Poor"
                       }
@@ -806,7 +817,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
                     <Button size="sm" onClick={optimizeResume} disabled={optimizing}>
                       {optimizing
                         ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Rewriting…</>
-                        : <><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Optimize my resume — 15 credits</>}
+                        : <><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Optimize my resume · 15 credits</>}
                     </Button>
                   </div>
                 </div>
@@ -820,8 +831,8 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
                   </ul>
                 )}
                 <p className="text-[11px] text-muted-foreground">
-                  Optimizing rewrites your resume for clarity and impact and replaces the one above —
-                  nothing is invented, and you can download the result right after.
+                  Optimizing rewrites your resume for clarity and impact and replaces the one above.
+                  Nothing is invented, and you can download the result right after.
                 </p>
               </div>
             )}
