@@ -20,7 +20,12 @@ export function resumeToText(c: ResumeContent): string {
   if (contact) lines.push(contact);
   if (b.summary) lines.push("", "SUMMARY", b.summary);
 
-  if ((c.skills ?? []).length) lines.push("", "SKILLS", (c.skills ?? []).join(", "));
+  if ((c.skillGroups ?? []).length) {
+    lines.push("", "SKILLS");
+    (c.skillGroups ?? []).forEach(g => lines.push(`${g.category}: ${g.skills.join(", ")}`));
+  } else if ((c.skills ?? []).length) {
+    lines.push("", "SKILLS", (c.skills ?? []).join(", "));
+  }
 
   if ((c.work ?? []).length) {
     lines.push("", "EXPERIENCE");
@@ -65,7 +70,12 @@ function buildResumeBlocks(c: ResumeContent): DocBlock[] {
     blocks.push({ kind: "summary", text: b.summary, gapBefore: 7 });
   }
 
-  if ((c.skills ?? []).length) {
+  if ((c.skillGroups ?? []).length) {
+    blocks.push({ kind: "header", text: "SKILLS", gapBefore: 12 });
+    (c.skillGroups ?? []).forEach((g, i) =>
+      blocks.push({ kind: "plain", text: `${g.category}: ${g.skills.join(", ")}`, gapBefore: i === 0 ? 7 : 3 })
+    );
+  } else if ((c.skills ?? []).length) {
     blocks.push({ kind: "header", text: "SKILLS", gapBefore: 12 });
     blocks.push({ kind: "plain", text: (c.skills ?? []).join(", "), gapBefore: 7 });
   }

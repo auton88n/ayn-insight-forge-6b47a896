@@ -37,7 +37,9 @@ import {
 import { notifyProfileUpdated } from "@/lib/extension";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import GuidedIntake from "@/components/resume-hub/GuidedIntake";
-import { resumeHubApi, type ResumeContent, type TalentPoolStatus, type GuidedIntakeExtraction } from "@/lib/resumeHub";
+import GapProbeDialog from "@/components/resume-hub/GapProbeDialog";
+import { classifyProbableIssue, type ProbeTarget } from "@/lib/gapProbe";
+import { resumeHubApi, type ResumeContent, type TalentPoolStatus, type GuidedIntakeExtraction, type GapProbeResult } from "@/lib/resumeHub";
 import { reindexTalentPool, setPoolOptInCache } from "@/lib/talentPoolSync";
 import { buildResumePdfBlob, buildResumeDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import { computeReadiness } from "@/lib/profileGaps";
@@ -165,8 +167,8 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [uploading, setUploading] = useState(false);
   const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string; created_at: string; ats_score: number | null; ats_issues: string[] | null } | null>(null);
-  const [olderResumes, setOlderResumes] = useState<{ id: string; title: string; created_at: string; content: ResumeContent }[]>([]);
-  const [showOlder, setShowOlder] = useState(false);
+  const [probeState, setProbeState] = useState<{ issue: string; question: string; target: ProbeTarget } | null>(null);
+  const [probeApplying, setProbeApplying] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [resumeContent, setResumeContent] = useState<ResumeContent | null>(null);
   const [checkingResume, setCheckingResume] = useState(false);
@@ -232,10 +234,6 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       setPrimaryResume(null);
       setResumeContent(null);
     }
-    setOlderResumes(
-      rows.filter(r => r.id !== active?.id)
-        .map(r => ({ id: r.id, title: r.title, created_at: r.created_at, content: (r.content ?? {}) as ResumeContent }))
-    );
   }, [userId]);
 
   // ── Load everything the single profile reads from ───────────────────────
@@ -408,11 +406,15 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
-  // ── Resume upload: becomes THE active resume, previous one goes inactive ──
+  // ── Resume upload: becomes THE active resume. A replacement resume
+  // deletes the one it replaces outright — there is no history to keep,
+  // just the one resume that's actually current. (Tailored, job-specific
+  // documents in resume_versions are unaffected: that table stores its own
+  // independent copy of the content, not a reference to this row.) ──
   const handleResumeParsed = async ({ resume }: { resume: ResumeContent; plainText: string }) => {
     setUploading(true);
     try {
-      await supabase.from("resumes").update({ is_primary: false }).eq("user_id", userId);
+      await supabase.from("resumes").delete().eq("user_id", userId);
       const autoTitle = resume.basics?.name ? `${resume.basics.name} Resume` : "Uploaded Resume";
       const { data: inserted, error } = await supabase.from("resumes").insert({
         user_id: userId, title: autoTitle, content: resume as never, is_primary: true,
@@ -456,19 +458,57 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
     }
   };
 
+  // ── Gap probe (free): patches one specific flagged weak point with a
+  // real answer the person just gave, then re-scores the exact resume
+  // that's currently on file. Never touches career/Profile fields — this
+  // fixes the resume file itself, the same thing the score is about. ──
+  const applyGapFix = async (result: GapProbeResult, target: ProbeTarget) => {
+    if (!resumeContent || !primaryResume) return;
+    const patched: ResumeContent = JSON.parse(JSON.stringify(resumeContent));
+    if (target.kind === "weak_bullet" && result.kind === "bullet" && result.revised_bullet) {
+      const bullets = patched.work?.[target.workIndex]?.bullets;
+      if (!bullets) return;
+      bullets[target.bulletIndex] = result.revised_bullet;
+    } else if (target.kind === "generic_summary" && result.kind === "summary" && result.revised_summary) {
+      patched.basics = { ...(patched.basics ?? {}), summary: result.revised_summary };
+    } else if (target.kind === "gap" && result.kind === "new_work_entry" && result.new_work_entry) {
+      const e = result.new_work_entry;
+      patched.work = [
+        ...(patched.work ?? []),
+        { company: e.company || "", title: e.title || "", start: e.start, end: e.end, bullets: e.bullets ?? [] },
+      ];
+    } else {
+      return;
+    }
+    setProbeApplying(true);
+    try {
+      const { error } = await supabase.from("resumes").update({ content: patched as never }).eq("id", primaryResume.id);
+      if (error) throw error;
+      setResumeContent(patched);
+      const d = await resumeHubApi.diagnose(patched, primaryResume.id);
+      setPrimaryResume(p => p ? { ...p, ats_score: d.ats_score, ats_issues: d.issues } : p);
+      toast({ title: "Added", description: "Your resume was updated and rescored." });
+    } catch (e) {
+      toast({ title: "Couldn't save that", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setProbeApplying(false);
+    }
+  };
+
   // ── Optimize (15 credits): rewrite, then automatically replace the resume
-  // in AYN with the improved version — same is_primary swap as an upload. ──
+  // in AYN with the improved version — same delete-then-insert as an upload,
+  // no old copy kept around. ──
   const optimizeResume = async () => {
     if (!resumeContent || !primaryResume) return;
     setOptimizing(true);
     setOptimizeChanges(null);
     try {
       const r = await resumeHubApi.rewrite(resumeContent);
-      await supabase.from("resumes").update({ is_primary: false }).eq("user_id", userId);
+      await supabase.from("resumes").delete().eq("user_id", userId);
       const title = r.resume.basics?.name ? `${r.resume.basics.name} Resume (Optimized)` : "Optimized Resume";
       const { error } = await supabase.from("resumes").insert({
         user_id: userId, title, content: r.resume as never, is_primary: true,
-        ats_score: r.ats_score, ats_issues: null,
+        ats_score: r.ats_score, ats_issues: r.issues ?? null,
       });
       if (error) throw error;
       setResumeContent(r.resume);
@@ -524,16 +564,16 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
 
   // ── Generate my resume (15 credits): same paid tier and same document
   // pipeline as Optimize, just built from the profile instead of a rewrite
-  // of an upload. Lands as the primary resume the same way. ──────────────
+  // of an upload. Same delete-then-insert as upload/optimize. ──────────────
   const generateResume = async () => {
     setGenerating(true);
     try {
       const r = await resumeHubApi.generateResume();
-      await supabase.from("resumes").update({ is_primary: false }).eq("user_id", userId);
+      await supabase.from("resumes").delete().eq("user_id", userId);
       const title = r.resume.basics?.name ? `${r.resume.basics.name} Resume` : "Your Resume";
       const { error } = await supabase.from("resumes").insert({
         user_id: userId, title, content: r.resume as never, is_primary: true,
-        ats_score: r.ats_score, ats_issues: null,
+        ats_score: r.ats_score, ats_issues: r.issues ?? null,
       });
       if (error) throw error;
       setResumeContent(r.resume);
@@ -561,13 +601,6 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
     } catch (e) {
       toast({ title: "Download failed", description: (e as Error).message, variant: "destructive" });
     }
-  };
-
-  const deleteOlderResume = async (id: string) => {
-    if (!confirm("Delete this older resume? This cannot be undone.")) return;
-    const { error } = await supabase.from("resumes").delete().eq("id", id);
-    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
-    setOlderResumes(list => list.filter(r => r.id !== id));
   };
 
   const setDerived = (k: keyof Derived, v: unknown) => setCareer(p => ({ ...p, derived: { ...p.derived, [k]: v } }));
@@ -711,6 +744,18 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       </AlertDialog>
 
       <GuidedIntake open={intakeOpen} onOpenChange={setIntakeOpen} onComplete={handleIntakeComplete} />
+      {probeState && (
+        <GapProbeDialog
+          open={!!probeState}
+          onOpenChange={(o) => { if (!o) setProbeState(null); }}
+          issue={probeState.issue}
+          question={probeState.question}
+          onApplied={(result) => {
+            void applyGapFix(result, probeState.target);
+            setProbeState(null);
+          }}
+        />
+      )}
 
       {/* ── 1. Your resume ───────────────────────────────────────────────── */}
       <Group id="resume" title="Your resume" line="Everything AYN writes starts from this.">
@@ -822,12 +867,26 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
                   </div>
                 </div>
                 {(primaryResume.ats_issues?.length ?? 0) > 0 && (
-                  <ul className="space-y-1 pl-1">
-                    {(primaryResume.ats_issues ?? []).map((issue, i) => (
-                      <li key={i} className="text-xs text-muted-foreground flex gap-1.5">
-                        <span className="text-amber-500 shrink-0">•</span> {issue}
-                      </li>
-                    ))}
+                  <ul className="space-y-1.5 pl-1">
+                    {(primaryResume.ats_issues ?? []).map((issue, i) => {
+                      const probe = resumeContent ? classifyProbableIssue(issue, resumeContent) : null;
+                      return (
+                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5 flex-wrap">
+                          <span className="text-amber-500 shrink-0">•</span>
+                          <span className="flex-1 min-w-[180px]">{issue}</span>
+                          {probe && (
+                            <button
+                              type="button"
+                              className="text-[11px] font-medium text-primary underline underline-offset-2 shrink-0"
+                              onClick={() => setProbeState({ issue, question: probe.question, target: probe.target })}
+                              disabled={probeApplying}
+                            >
+                              Tell AYN more
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
                 <p className="text-[11px] text-muted-foreground">
@@ -858,37 +917,6 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
         )}
 
         {(!primaryResume || replaceOpen) && <ResumeUpload onParsed={handleResumeParsed} variant="full" />}
-
-        {olderResumes.length > 0 && (
-          <div className="pt-1">
-            <p className="text-[11px] text-muted-foreground">
-              You have {olderResumes.length} older {olderResumes.length === 1 ? "resume" : "resumes"} from an earlier version of AYN.{" "}
-              <button type="button" className="underline hover:text-foreground" onClick={() => setShowOlder(v => !v)}>
-                {showOlder ? "Hide" : "View"}
-              </button>
-            </p>
-            {showOlder && (
-              <div className="mt-2 space-y-1.5">
-                {olderResumes.map(r => (
-                  <div key={r.id} className="flex items-center justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
-                    <div className="min-w-0">
-                      <p className="text-xs truncate">{r.title}</p>
-                      <p className="text-[11px] text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => downloadResume(r.content, r.title, "pdf")}>
-                        <Download className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => deleteOlderResume(r.id)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </Group>
 
       {/* ── 2. About you ─────────────────────────────────────────────────── */}

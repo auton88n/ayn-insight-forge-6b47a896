@@ -47,6 +47,18 @@ export interface GuidedIntakeExtraction {
   derived?: { current_title?: string; current_company?: string; total_yoe?: number };
 }
 
+/** applicable:false covers both "the answer was too vague to use" and "the
+ * result was blocked for containing a number/company the person never
+ * actually said" — both cases mean nothing changed, the caller doesn't
+ * need to distinguish them beyond an honest "didn't apply". */
+export interface GapProbeResult {
+  applicable: boolean;
+  kind?: "bullet" | "new_work_entry" | "summary" | "none";
+  revised_bullet?: string;
+  new_work_entry?: { company?: string; title?: string; start?: string; end?: string; bullets?: string[] };
+  revised_summary?: string;
+}
+
 export interface ResumeContent {
   basics?: {
     name?: string; title?: string; email?: string; phone?: string;
@@ -56,6 +68,12 @@ export interface ResumeContent {
   work?: Array<{ company: string; title: string; location?: string; start?: string; end?: string; bullets: string[] }>;
   education?: Array<{ school: string; degree?: string; field?: string; start?: string; end?: string }>;
   skills?: string[];
+  /** Presentation-only grouping of `skills` into category labels for a
+   * nicer downloaded document — every skill here must also appear in the
+   * flat `skills` array above verbatim, since that's what tailoring's gap
+   * matcher, the ATS rubric, and candidate search all still read. Optional:
+   * older resumes and a resume with too few skills to group won't have it. */
+  skillGroups?: Array<{ category: string; skills: string[] }>;
   projects?: Array<{ name: string; description?: string; url?: string }>;
   certifications?: string[];
 }
@@ -70,7 +88,7 @@ export const resumeHubApi = {
     ),
   /** Paid (15 credits): the actual rewrite. */
   rewrite: (resume: ResumeContent, jdText?: string) =>
-    call<{ resume: ResumeContent; ats_score: number; verdict: string; suggestions: string[]; credits: { spent: number; balance: number } }>(
+    call<{ resume: ResumeContent; ats_score: number; verdict: string; issues: string[]; suggestions: string[]; credits: { spent: number; balance: number } }>(
       "resume-hub", { action: "rewrite", resume, jdText },
     ),
 
@@ -79,9 +97,17 @@ export const resumeHubApi = {
   /** Free: structures a plain-language interview into the same career shape Profile already edits. */
   guidedIntakeExtract: (answers: Array<{ question: string; answer: string }>) =>
     call<GuidedIntakeExtraction>("resume-hub", { action: "guided_intake_extract", answers }),
+  // v3.133.0 — fixing one specific flagged weak point (a thin bullet, an
+  // unexplained gap, a generic summary) instead of rebuilding from nothing.
+  // Free, same "structure only what they said, never invent" role as
+  // guidedIntakeExtract above. applicable:false means the answer was too
+  // vague to honestly use — nothing to apply, nothing changed.
+  /** Free: turns one honest answer about one flagged weak point into resume content, or declines if too vague to use honestly. */
+  gapProbe: (issue: string, question: string, answer: string) =>
+    call<GapProbeResult>("resume-hub", { action: "resume_gap_probe", issue, question, answer }),
   /** Paid (15 credits): builds a full resume from the caller's own profile, server side — no upload required. */
   generateResume: () =>
-    call<{ resume: ResumeContent; ats_score: number; verdict: string; suggestions: string[]; credits: { spent: number; balance: number } }>(
+    call<{ resume: ResumeContent; ats_score: number; verdict: string; issues: string[]; suggestions: string[]; credits: { spent: number; balance: number } }>(
       "resume-hub", { action: "resume_generate" },
     ),
   // v3.72.0 — these three no longer take a resume blob from the client.
