@@ -5,10 +5,14 @@
  * the extension panel on a live posting, the tailored documents produced for
  * one job, the employer candidate card, and a verification assessment.
  *
- * All static, no images, no runtime fetch, so reduced motion is satisfied by
- * construction. Palette matches the landing tokens.
+ * All static, no runtime fetch, so reduced motion is satisfied by
+ * construction. Palette matches the landing tokens. One exception to the
+ * "no images" rule: the real AYN wordmark (the same asset used in the site
+ * header) is embedded via SVG <image> rather than hand-redrawn, so the
+ * panel's own brand badge is pixel-identical to the real logo.
  */
 import type React from 'react';
+import aynLogo from '@/assets/ayn-logo.png';
 
 const T = {
   ink: '#0B0C0F',
@@ -69,14 +73,12 @@ export function ExtensionOnPostingMockup({ style }: { style?: React.CSSPropertie
         {/* panel */}
         <rect x="596" y="34" width={W - 596} height={H - 34} fill={T.surface} />
         <line x1="596" y1="34" x2="596" y2={H} stroke={T.border} />
-        <circle cx="622" cy="62" r="7" fill="none" stroke={T.ember} strokeWidth="2.5" />
-        <circle cx="622" cy="62" r="2" fill={T.ember} />
-        <text x="638" y="66" fontFamily={FD} fontSize="12.5" fontWeight="700" fill={T.ink} letterSpacing="0.6">AYN</text>
+        <image href={aynLogo} x="607" y="53" width="52" height="18" preserveAspectRatio="xMinYMid meet" />
 
         <circle cx="748" cy="132" r="42" fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth="9" />
         <circle cx="748" cy="132" r="42" fill="none" stroke={T.ember} strokeWidth="9" strokeLinecap="round"
-          strokeDasharray={`${2 * Math.PI * 42 * 0.84} ${2 * Math.PI * 42}`} transform="rotate(-90 748 132)" />
-        <text x="748" y="139" textAnchor="middle" fontFamily={FD} fontSize="26" fontWeight="700" fill={T.ink}>84%</text>
+          strokeDasharray={`${2 * Math.PI * 42 * 0.8} ${2 * Math.PI * 42}`} transform="rotate(-90 748 132)" />
+        <text x="748" y="139" textAnchor="middle" fontFamily={FD} fontSize="26" fontWeight="700" fill={T.ink}>8<tspan fontSize="14" fontWeight="600" fill={T.inkSub}>/10</tspan></text>
         <text x="748" y="192" textAnchor="middle" fontFamily={F} fontSize="11" fill={T.inkSub}>match for this role</text>
 
         <text x="620" y="224" fontFamily={F} fontSize="10" fontWeight="700" fill={T.inkSub} letterSpacing="1">WHAT LINES UP</text>
