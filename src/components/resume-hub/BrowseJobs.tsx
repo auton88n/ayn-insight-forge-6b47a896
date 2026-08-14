@@ -36,7 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Loader2, ExternalLink, Plus, Flame, Search, MapPin, Home, ChevronDown, X, Building2,
+  Loader2, ExternalLink, Plus, Flame, Search, MapPin, Home, ChevronDown, X, Building2, Bookmark, Wand2,
 } from "lucide-react";
 import { resumeHubApi, type JobPosting } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
@@ -45,6 +45,7 @@ interface Props {
   userId: string;
   /** Adds the posting to the caller's own jobs list and opens it there. */
   onAdded: (jobId: string) => void;
+  onOpenProfile: () => void;
 }
 
 const PAGE_SIZE = 25;
@@ -106,7 +107,30 @@ function safeLike(s: string) {
   return s.replace(/[%,()]/g, " ").trim();
 }
 
-export default function BrowseJobs({ userId, onAdded }: Props) {
+// v3.142.0 — asked directly for "a better way to organize locations": the
+// filter held 1,000+ distinct raw strings (job-board-sync pulls location
+// text as-is from each company's own ATS, so granularity varies wildly —
+// "Germany", "Kyle, TX", "Dearborn, MI, United States" all coexist) in one
+// flat alphabetical list. There's no reliable geocoder here to turn that
+// into real city/country structure, so this groups by the last
+// comma-separated segment instead — usually a state, province or country —
+// which is honest about what the data actually is rather than pretending
+// to a precision it doesn't have. Search still works as a flat filter
+// across everything; grouping is only for browsing with no query typed.
+function groupLocations(locs: string[]) {
+  const groups = new Map<string, string[]>();
+  for (const loc of locs) {
+    const parts = loc.split(",").map((s) => s.trim()).filter(Boolean);
+    const key = parts.length > 1 ? parts[parts.length - 1] : loc;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(loc);
+  }
+  return Array.from(groups.entries())
+    .map(([key, items]) => ({ key, items: items.sort((a, b) => a.localeCompare(b)) }))
+    .sort((a, b) => b.items.length - a.items.length || a.key.localeCompare(b.key));
+}
+
+export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const { toast } = useToast();
 
   const [jobs, setJobs] = useState<JobPosting[]>([]);
@@ -137,6 +161,19 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
 
+  // v3.142.0 — a bookmark on each row saves without leaving the list or
+  // opening detail, separate from "Score and tailor" in the detail pane
+  // (which deliberately still jumps to the Jobs page — that's someone
+  // saying "I want to work on this now", not "keep this for later").
+  const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set());
+
+  // v3.142.0 — "Match me": AYN filters to the locations already declared in
+  // Profile (preferences.desired_locations) and sorts by the same quick
+  // keyword score every card already shows, instead of the person having
+  // to hand-pick a location and read down the list themselves.
+  const [matchMode, setMatchMode] = useState(false);
+  const [desiredLocations, setDesiredLocations] = useState<string[] | null>(null);
+
   const hasFilters = !!query || !!location || remoteOnly;
 
   /* Debounce the search box so typing doesn't fire a query per keystroke. */
@@ -165,6 +202,28 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
+
+  /* Every job URL already saved, so the bookmark can show its filled state
+     without a round trip per row. */
+  useEffect(() => {
+    let cancelled = false;
+    supabase.from("jobs").select("source_url").eq("user_id", userId).not("source_url", "is", null).then(({ data }) => {
+      if (cancelled || !data) return;
+      setSavedUrls(new Set((data as { source_url: string | null }[]).map((r) => r.source_url).filter((u): u is string => !!u)));
+    });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  /* Profile's own desired-locations list, read once for Match me. */
+  useEffect(() => {
+    let cancelled = false;
+    supabase.from("user_profile_canonical").select("preferences").eq("user_id", userId).maybeSingle().then(({ data }) => {
+      if (cancelled) return;
+      const prefs = data?.preferences as { desired_locations?: string[] } | null | undefined;
+      setDesiredLocations(prefs?.desired_locations?.filter(Boolean) ?? []);
+    });
+    return () => { cancelled = true; };
+  }, [userId]);
 
   const scorePage = useCallback((rows: JobPosting[]) => {
     if (!rows.length) return;
@@ -197,10 +256,28 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
       .order("posted_at", { ascending: false });
     const term = safeLike(query);
     if (term) q = q.or(`title.ilike.%${term}%,company.ilike.%${term}%`);
-    if (location) q = q.eq("location", location);
-    if (remoteOnly) q = q.ilike("location", "%remote%");
+    if (matchMode && desiredLocations && desiredLocations.length > 0) {
+      q = q.or(desiredLocations.map((l) => `location.ilike.%${safeLike(l)}%`).join(","));
+    } else {
+      if (location) q = q.eq("location", location);
+      if (remoteOnly) q = q.ilike("location", "%remote%");
+    }
     return q;
-  }, [query, location, remoteOnly]);
+  }, [query, location, remoteOnly, matchMode, desiredLocations]);
+
+  // v3.142.0 — the underlying query still sorts by recency (that's what
+  // keeps pagination and the total count honest); once a page's quick
+  // scores come back, Match me re-sorts what's already loaded so the
+  // strongest overlap with the resume surfaces first. Guarded against a
+  // no-op reorder so this can never loop against the score update below.
+  useEffect(() => {
+    if (!matchMode) return;
+    setJobs((prev) => {
+      const sorted = [...prev].sort((a, b) => (scores[b.id] ?? -1) - (scores[a.id] ?? -1));
+      const same = sorted.every((j, i) => j.id === prev[i]?.id);
+      return same ? prev : sorted;
+    });
+  }, [scores, matchMode]);
 
   /* First page, and every filter change. */
   useEffect(() => {
@@ -264,14 +341,24 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
   // inserted a second row for the identical apply_url. Now checks for an
   // existing row on that exact URL first and opens it instead of
   // inserting a duplicate.
-  const handleAdd = async (job: JobPosting) => {
+  // v3.142.0 — split into a shared save plus two callers: "Score and
+  // tailor" in the detail pane still jumps straight to the Jobs page
+  // (someone choosing to work on this job right now); the row bookmark
+  // saves quietly and keeps browsing, which is the whole point of a
+  // bookmark icon instead of forcing a navigation on every save.
+  const saveJob = async (job: JobPosting, navigateAfter: boolean) => {
     setAddingId(job.id);
     try {
       const { data: existing } = await supabase.from("jobs")
         .select("id").eq("user_id", userId).eq("source_url", job.apply_url).maybeSingle();
       if (existing) {
-        toast({ title: "Already added", description: "You already saved this one — opening it on the Jobs page." });
-        onAdded((existing as { id: string }).id);
+        setSavedUrls((prev) => new Set(prev).add(job.apply_url));
+        if (navigateAfter) {
+          toast({ title: "Already added", description: "You already saved this one — opening it on the Jobs page." });
+          onAdded((existing as { id: string }).id);
+        } else {
+          toast({ title: "Already saved" });
+        }
         return;
       }
       const { data, error } = await supabase.from("jobs").insert({
@@ -284,8 +371,13 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
         location: job.location,
       }).select("id").single();
       if (error) throw error;
-      toast({ title: "Job added", description: "Scoring and tailoring are ready on the Jobs page." });
-      onAdded((data as { id: string }).id);
+      setSavedUrls((prev) => new Set(prev).add(job.apply_url));
+      if (navigateAfter) {
+        toast({ title: "Job added", description: "Scoring and tailoring are ready on the Jobs page." });
+        onAdded((data as { id: string }).id);
+      } else {
+        toast({ title: "Saved", description: "Find it anytime on the Saved jobs page." });
+      }
     } catch (e) {
       toast({ title: "Couldn't add that job", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally {
@@ -293,10 +385,23 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
     }
   };
 
+  const handleAdd = (job: JobPosting) => saveJob(job, true);
+  const toggleBookmark = (e: React.MouseEvent, job: JobPosting) => {
+    e.stopPropagation();
+    if (savedUrls.has(job.apply_url)) {
+      toast({ title: "Already saved", description: "Find it on the Saved jobs page." });
+      return;
+    }
+    saveJob(job, false);
+  };
+
+  // v3.142.0 — flat while searching (a typed filter beats a category
+  // browse every time), grouped by region while just browsing so 1,000+
+  // raw strings aren't one undifferentiated alphabetical wall.
   const visibleLocations = useMemo(() => {
     const f = locFilter.trim().toLowerCase();
-    const list = f ? locations.filter((l) => l.toLowerCase().includes(f)) : locations;
-    return list.slice(0, 120);
+    if (f) return { flat: locations.filter((l) => l.toLowerCase().includes(f)).slice(0, 120), groups: null as ReturnType<typeof groupLocations> | null };
+    return { flat: null as string[] | null, groups: groupLocations(locations).slice(0, 60) };
   }, [locations, locFilter]);
 
   const clearFilters = () => {
@@ -304,6 +409,20 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
     setQuery("");
     setLocation(null);
     setRemoteOnly(false);
+    setMatchMode(false);
+  };
+
+  const startMatchMode = () => {
+    if (!desiredLocations || desiredLocations.length === 0) {
+      toast({
+        title: "Add your desired locations first",
+        description: "Set the countries or cities you're looking in under Profile, then try Match me again.",
+      });
+      return;
+    }
+    setLocation(null);
+    setRemoteOnly(false);
+    setMatchMode(true);
   };
 
   const scorePill = (id: string) => {
@@ -385,12 +504,31 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold">Browse jobs</h3>
-        <p className="text-xs text-muted-foreground">
-          Real postings from company career pages, refreshed continuously. Never LinkedIn or Indeed.
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="text-sm font-semibold">Browse jobs</h3>
+          <p className="text-xs text-muted-foreground">
+            Real postings from company career pages, refreshed continuously. Never LinkedIn or Indeed.
+          </p>
+        </div>
+        <Button
+          type="button"
+          onClick={() => (matchMode ? setMatchMode(false) : startMatchMode())}
+          style={matchMode ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" } : undefined}
+          variant={matchMode ? undefined : "outline"}
+          className={matchMode ? "hover:opacity-90" : ""}
+        >
+          <Wand2 className="w-4 h-4 mr-2" />{matchMode ? "Showing my matches" : "Match me"}
+        </Button>
       </div>
+
+      {matchMode && (
+        <p className="text-xs text-muted-foreground -mt-2">
+          Sorted by fit, filtered to {desiredLocations?.length === 1 ? "the location" : "the locations"} you set in Profile:{" "}
+          <span className="text-foreground font-medium">{desiredLocations?.join(", ")}</span>.{" "}
+          <button type="button" className="underline hover:text-foreground" onClick={onOpenProfile}>Change this</button>
+        </p>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col lg:flex-row gap-2">
@@ -404,7 +542,7 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
           />
         </div>
 
-        <div className="relative w-full lg:w-64" ref={locBoxRef}>
+        <div className={`relative w-full lg:w-64 ${matchMode ? "opacity-50 pointer-events-none" : ""}`} ref={locBoxRef}>
           <button
             type="button"
             onClick={() => { setLocOpen((v) => !v); setLocFilter(""); }}
@@ -435,17 +573,37 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
                 >
                   All locations
                 </button>
-                {visibleLocations.map((loc) => (
-                  <button
-                    key={loc}
-                    type="button"
-                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted ${loc === location ? "font-medium text-primary" : ""}`}
-                    onClick={() => { setLocation(loc); setLocOpen(false); }}
-                  >
-                    {loc}
-                  </button>
-                ))}
-                {visibleLocations.length === 0 && (
+                {visibleLocations.flat
+                  ? visibleLocations.flat.map((loc) => (
+                    <button
+                      key={loc}
+                      type="button"
+                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted ${loc === location ? "font-medium" : ""}`}
+                      style={loc === location ? { color: "var(--rh-accent-2)" } : undefined}
+                      onClick={() => { setLocation(loc); setLocOpen(false); }}
+                    >
+                      {loc}
+                    </button>
+                  ))
+                  : visibleLocations.groups?.map((g) => (
+                    <div key={g.key}>
+                      <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {g.key} <span className="font-normal normal-case">· {g.items.length}</span>
+                      </p>
+                      {g.items.slice(0, 8).map((loc) => (
+                        <button
+                          key={loc}
+                          type="button"
+                          className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted ${loc === location ? "font-medium" : ""}`}
+                          style={loc === location ? { color: "var(--rh-accent-2)" } : undefined}
+                          onClick={() => { setLocation(loc); setLocOpen(false); }}
+                        >
+                          {loc}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                {visibleLocations.flat?.length === 0 && (
                   <p className="px-3 py-2 text-sm text-muted-foreground">No location matches that.</p>
                 )}
               </div>
@@ -457,12 +615,13 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
           type="button"
           variant={remoteOnly ? "default" : "outline"}
           onClick={() => setRemoteOnly((v) => !v)}
-          className="shrink-0"
+          disabled={matchMode}
+          className={`shrink-0 ${matchMode ? "opacity-50" : ""}`}
         >
           <Home className="w-4 h-4 mr-1.5" />Remote
         </Button>
 
-        {hasFilters && (
+        {(hasFilters || matchMode) && (
           <Button type="button" variant="ghost" onClick={clearFilters} className="shrink-0">
             <X className="w-4 h-4 mr-1.5" />Clear
           </Button>
@@ -474,7 +633,7 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
           ? "Loading jobs…"
           : total === null
             ? ""
-            : hasFilters
+            : hasFilters || matchMode
               ? `${total} job${total === 1 ? "" : "s"} match your search`
               : `${total} jobs`}
       </p>
@@ -508,57 +667,82 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
                   const avatar = companyAvatar(j.company);
                   const showLogo = !!j.company_logo_url && !logoFailed.has(j.id);
                   const active = selected?.id === j.id;
+                  const isSaved = savedUrls.has(j.apply_url);
                   return (
-                    <button
+                    // v3.142.0 — the row used to be one big <button>; adding
+                    // a bookmark control meant it could no longer be, since
+                    // an interactive element can't nest inside another one.
+                    // The clickable area (avatar + text) is now its own
+                    // inner button, with the bookmark as a sibling instead
+                    // of a child.
+                    <div
                       key={j.id}
-                      type="button"
-                      onClick={() => openJob(j)}
-                      className="w-full text-left flex items-start gap-3 p-4 transition border-l-2 hover:bg-muted/40"
+                      className="w-full flex items-start gap-2 p-4 transition border-l-2 hover:bg-muted/40"
                       style={active
                         ? { background: "var(--rh-tint)", borderLeftColor: "var(--rh-accent)" }
                         : { borderLeftColor: "transparent" }}
                     >
-                      {showLogo ? (
-                        <img
-                          src={j.company_logo_url!}
-                          alt=""
-                          className="w-10 h-10 rounded-lg shrink-0 object-contain bg-muted p-1.5"
-                          onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
-                        />
-                      ) : (
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-semibold text-sm shrink-0 ${avatar.className}`}>
-                          {avatar.initial}
+                      <button type="button" onClick={() => openJob(j)} className="flex items-start gap-3 flex-1 min-w-0 text-left">
+                        {showLogo ? (
+                          <img
+                            src={j.company_logo_url!}
+                            alt=""
+                            className="w-10 h-10 rounded-lg shrink-0 object-contain bg-muted p-1.5"
+                            onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
+                          />
+                        ) : (
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-semibold text-sm shrink-0 ${avatar.className}`}>
+                            {avatar.initial}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <p className="font-medium text-sm leading-snug">{j.title}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {j.company}{j.location ? ` • ${j.location}` : ""}
+                          </p>
+                          <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                            {scorePill(j.id)}
+                            <span className="text-[11px] text-muted-foreground">{postedAge(j.posted_at)} · {postedDate(j.posted_at)}</span>
+                          </div>
                         </div>
-                      )}
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <p className="font-medium text-sm leading-snug">{j.title}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {j.company}{j.location ? ` • ${j.location}` : ""}
-                        </p>
-                        <div className="flex items-center gap-2 flex-wrap pt-0.5">
-                          {scorePill(j.id)}
-                          <span className="text-[11px] text-muted-foreground">{postedAge(j.posted_at)} · {postedDate(j.posted_at)}</span>
-                        </div>
-                      </div>
-                      {/* v3.139.0 — reported directly: the New badge sat
-                          inline right after the title, so a one-line title
-                          and a two-line title left it in a different spot
-                          on every card. Pulled out to its own column at the
-                          end of the row instead, so it lands in the same
-                          place on every card regardless of title length —
-                          and given real AYN ember colors (var(--rh-accent)),
-                          since bg-primary/text-primary resolve to this
-                          app's near-black default here, not orange. */}
-                      {isHot && (
-                        <Badge
-                          variant="outline"
-                          className="shrink-0 gap-1 border"
-                          style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)", borderColor: "#f9731650" }}
+                      </button>
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        {/* v3.139.0 — reported directly: the New badge sat
+                            inline right after the title, so a one-line title
+                            and a two-line title left it in a different spot
+                            on every card. Pulled out to its own column at the
+                            end of the row instead, so it lands in the same
+                            place on every card regardless of title length —
+                            and given real AYN ember colors (var(--rh-accent)),
+                            since bg-primary/text-primary resolve to this
+                            app's near-black default here, not orange. */}
+                        {isHot && (
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 gap-1 border"
+                            style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)", borderColor: "#f9731650" }}
+                          >
+                            <Flame className="w-3 h-3" /> New
+                          </Badge>
+                        )}
+                        {/* v3.142.0 — asked directly for a bookmark-style
+                            save so a job can be kept without leaving the
+                            list or reading the full posting first. */}
+                        <button
+                          type="button"
+                          onClick={(e) => toggleBookmark(e, j)}
+                          disabled={addingId === j.id}
+                          aria-label={isSaved ? "Saved" : "Save job"}
+                          title={isSaved ? "Saved" : "Save job"}
+                          className="p-1 rounded hover:bg-muted transition"
                         >
-                          <Flame className="w-3 h-3" /> New
-                        </Badge>
-                      )}
-                    </button>
+                          <Bookmark
+                            className="w-4 h-4"
+                            style={isSaved ? { fill: "var(--rh-accent)", color: "var(--rh-accent)" } : { color: "var(--rh-faint, #9ca3af)" }}
+                          />
+                        </button>
+                      </div>
+                    </div>
                   );
                 })}
               </Card>

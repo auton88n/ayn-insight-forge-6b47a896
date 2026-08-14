@@ -60,6 +60,19 @@ export default function ResumeHub() {
   // v3.25.0 — a platform wide stop shows one message instead of a broken hub.
   const platform = useFeature("platform");
 
+  // v3.142.0 — found while adding a Dialog to Jobs: its "Save job" button
+  // rendered with a transparent background instead of ember, because Radix
+  // portals Dialog/Sheet/Popover/Select content straight onto document.body,
+  // outside this page's own .resume-hub-theme div — so --rh-accent and
+  // every other scoped token simply weren't in scope for anything portaled.
+  // Same root cause CLAUDE.md already documents fixing once for
+  // .employer-surface (v3.10.1): apply the theme class to body too, for as
+  // long as this page is mounted.
+  useEffect(() => {
+    document.body.classList.add("resume-hub-theme");
+    return () => document.body.classList.remove("resume-hub-theme");
+  }, []);
+
   useEffect(() => {
     let alive = true;
     supabase.auth.getUser().then(async ({ data }) => {
@@ -289,7 +302,7 @@ export default function ResumeHub() {
             {tab === "proposals" && <ProposalsTab onChanged={setPendingIntros} />}
             {tab === "assessments" && <AssessmentsTab onChanged={setPendingAssessments} />}
 
-            {tab === "browse"    && <BrowseJobs userId={userId!} onAdded={goJob} />}
+            {tab === "browse"    && <BrowseJobs userId={userId!} onAdded={goJob} onOpenProfile={() => setTab("profile")} />}
             {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} onOpenProfile={() => setTab("profile")} onCreditsChanged={refreshCredits} />}
 
             {tab === "extension" && <ExtensionTab userId={userId!} />}

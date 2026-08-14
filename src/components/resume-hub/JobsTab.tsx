@@ -26,10 +26,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
-import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Wand2, Download, X } from "lucide-react";
-import { handoffUrl } from "@/lib/extension";
+import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Download, X, ArrowLeft } from "lucide-react";
 import { resumeToText, buildResumePdfBlob, buildResumeDocxBlob, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import ResumeDiffViewer from "./ResumeDiffViewer";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
@@ -246,89 +246,70 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
     } finally { setBusy(false); }
   };
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
-      <aside className="space-y-2">
-        <Button onClick={() => setAdding((a) => !a)} variant="outline" className="w-full">
-          <Plus className="w-4 h-4 mr-2" />Add job manually
-        </Button>
-        {adding && (
-          <Card className="p-3 space-y-2">
-            <Input placeholder="Job URL (optional)" value={newJob.url} onChange={(e) => setNewJob({ ...newJob, url: e.target.value })} />
-            <Textarea placeholder="Paste job description" value={newJob.text} onChange={(e) => setNewJob({ ...newJob, text: e.target.value })} rows={4} />
-            <Button onClick={addManually} disabled={busy} size="sm" className="w-full">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save job"}
-            </Button>
-          </Card>
-        )}
-
-        {jobs.length === 0 && (
-          <p className="text-xs text-muted-foreground p-3">No saved jobs yet. Install the Chrome extension to save jobs from LinkedIn, Indeed, or any career page.</p>
-        )}
-
-        {jobs.map((j) => {
-          const avatar = companyAvatar(j.company || "?");
-          const active = selected?.id === j.id;
-          return (
-            <button
-              key={j.id}
-              onClick={() => openJob(j)}
-              className="w-full text-left flex items-center gap-3 p-3 rounded-lg border transition hover:bg-muted/40"
-              style={active
-                ? { background: "var(--rh-tint)", borderColor: "#f9731650" }
-                : { borderColor: "var(--rh-hair)" }}
-            >
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-semibold text-xs shrink-0 ${avatar.className}`}>
-                {avatar.initial}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div
-                  className="font-medium text-sm truncate"
-                  style={active ? { color: "var(--rh-accent-2)" } : undefined}
-                >
-                  {j.title}
-                </div>
-                <div className="text-xs text-muted-foreground truncate">{j.company} {j.location && `• ${j.location}`}</div>
-              </div>
-            </button>
-          );
-        })}
-      </aside>
-
+  // v3.142.0 — reported directly against a screenshot: the detail view was
+  // squeezed next to a 320px list, the description sat stacked all the way
+  // at the bottom under two other cards, and "Add job manually" ate space
+  // at the top of the list every time it was opened. Selecting a job now
+  // hides the list entirely and uses the full width for a real two-column
+  // split — description on the left, AYN's own actions and results on the
+  // right — with a back control to return to the list. "Add job manually"
+  // moved into a dialog instead of an inline card. "Open job with AYN"
+  // (handoff to the extension) is gone; the exact same actions are already
+  // right here.
+  if (selected) {
+    return (
       <div className="space-y-4">
-        {!selected && (
-          <Card className="p-10 text-center text-muted-foreground">
-            <FileText className="w-10 h-10 mx-auto mb-3 opacity-50" />
-            Select a job to see its match score and generate tailored materials.
-          </Card>
-        )}
+        <button
+          type="button"
+          onClick={() => setSelected(null)}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition"
+        >
+          <ArrowLeft className="w-4 h-4" />Saved jobs
+        </button>
 
-        {selected && (
-          <>
-            <Card className="p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-semibold">{selected.title}</h2>
-                  <p className="text-sm text-muted-foreground">{selected.company} {selected.location && `• ${selected.location}`}</p>
-                  {selected.source_url && (
-                    <a href={selected.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center text-xs text-primary mt-2">
-                      View original <ExternalLink className="w-3 h-3 ml-1" />
-                    </a>
-                  )}
-                </div>
-                {matchData && (
-                  <div
-                    className="text-lg px-3 py-1 rounded-full font-semibold"
-                    style={{ fontFamily: "JetBrains Mono, monospace", ...scoreBadgeStyle(matchData.score) }}
-                  >
-                    {matchData.score}/100
-                  </div>
+        <Card className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className={`w-11 h-11 rounded-lg flex items-center justify-center font-semibold shrink-0 ${companyAvatar(selected.company || "?").className}`}>
+                {companyAvatar(selected.company || "?").initial}
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold leading-snug">{selected.title}</h2>
+                <p className="text-sm text-muted-foreground">{selected.company} {selected.location && `• ${selected.location}`}</p>
+                {selected.source_url && (
+                  <a href={selected.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center text-xs mt-1" style={{ color: "var(--rh-accent-2)" }}>
+                    View original <ExternalLink className="w-3 h-3 ml-1" />
+                  </a>
                 )}
               </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {matchData && (
+                <div
+                  className="text-lg px-3 py-1 rounded-full font-semibold"
+                  style={{ fontFamily: "JetBrains Mono, monospace", ...scoreBadgeStyle(matchData.score) }}
+                >
+                  {matchData.score}/100
+                </div>
+              )}
+              <Button onClick={() => removeJob(selected.id)} variant="ghost" size="icon" aria-label="Remove job"><Trash2 className="w-4 h-4" /></Button>
+            </div>
+          </div>
+        </Card>
 
-              <MaintenanceNotice feature="tailoring" className="mt-4" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+          <Card className="p-5 lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)] overflow-y-auto">
+            <h3 className="font-semibold mb-2">Job description</h3>
+            {selected.jd_text
+              ? <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground">{selected.jd_text}</pre>
+              : <p className="text-sm text-muted-foreground">No description was saved for this job.</p>}
+          </Card>
 
-              <div className="flex flex-wrap gap-2 mt-4">
+          <div className="space-y-4">
+            <Card className="p-5">
+              <h3 className="font-semibold mb-3">AYN</h3>
+              <MaintenanceNotice feature="tailoring" className="mb-3" />
+              <div className="flex flex-wrap gap-2">
                 <Button
                   onClick={calcMatch}
                   disabled={busy || !primaryResume}
@@ -339,19 +320,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
                 </Button>
                 <Button onClick={tailorResume} disabled={busy || !primaryResume || !tailoring.enabled} variant="outline">Tailor resume</Button>
                 <Button onClick={writeCover} disabled={busy || !primaryResume || !tailoring.enabled} variant="outline">Write cover letter</Button>
-
-                {selected.source_url && (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      window.open(handoffUrl(selected.source_url!, primaryResume?.id), "_blank", "noopener");
-                      toast({ title: "Opening job page", description: "AYN opens with this job and resume selected." });
-                    }}
-                  >
-                    <Wand2 className="w-4 h-4 mr-2" />Open job with AYN
-                  </Button>
-                )}
-                <Button onClick={() => removeJob(selected.id)} variant="ghost" size="sm" className="ml-auto"><Trash2 className="w-4 h-4" /></Button>
               </div>
               {!primaryResume && (
                 <p className="text-xs text-amber-500 mt-3">Add your resume in Profile to enable AI actions.</p>
@@ -492,7 +460,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
                           <Download className="w-4 h-4 mr-1.5" />PDF
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => downloadText(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "docx")}>
-
                           <Download className="w-4 h-4 mr-1.5" />Word
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(cover.body); toast({ title: "Copied" }); }}>Copy</Button>
@@ -503,16 +470,68 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
                 )}
               </Card>
             )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">Saved jobs</h2>
+        <Button onClick={() => setAdding(true)} variant="outline">
+          <Plus className="w-4 h-4 mr-2" />Add job manually
+        </Button>
+      </div>
 
-            {selected.jd_text && (
-              <Card className="p-5">
-                <h3 className="font-semibold mb-2">Job description</h3>
-                <pre className="text-sm whitespace-pre-wrap font-sans max-h-96 overflow-auto text-muted-foreground">{selected.jd_text}</pre>
-              </Card>
-            )}
-          </>
+      <Dialog open={adding} onOpenChange={setAdding}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add a job manually</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input placeholder="Job URL (optional)" value={newJob.url} onChange={(e) => setNewJob({ ...newJob, url: e.target.value })} />
+            <Textarea placeholder="Paste job description" value={newJob.text} onChange={(e) => setNewJob({ ...newJob, text: e.target.value })} rows={6} />
+            <Button
+              onClick={addManually}
+              disabled={busy}
+              style={{ background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }}
+              className="w-full hover:opacity-90"
+            >
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save job"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="space-y-2">
+        {jobs.length === 0 && (
+          <Card className="p-10 text-center text-muted-foreground">
+            <FileText className="w-10 h-10 mx-auto mb-3 opacity-50" />
+            No saved jobs yet. Install the Chrome extension to save jobs from LinkedIn, Indeed, or any career page.
+          </Card>
         )}
+
+        {jobs.map((j) => {
+          const avatar = companyAvatar(j.company || "?");
+          return (
+            <button
+              key={j.id}
+              onClick={() => openJob(j)}
+              className="w-full text-left flex items-center gap-3 p-3 rounded-lg border transition hover:bg-muted/40"
+              style={{ borderColor: "var(--rh-hair)" }}
+            >
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-semibold text-xs shrink-0 ${avatar.className}`}>
+                {avatar.initial}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-sm truncate">{j.title}</div>
+                <div className="text-xs text-muted-foreground truncate">{j.company} {j.location && `• ${j.location}`}</div>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
