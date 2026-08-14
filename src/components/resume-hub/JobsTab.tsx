@@ -35,6 +35,7 @@ import ResumeDiffViewer from "./ResumeDiffViewer";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
+import { companyAvatar } from "./BrowseJobs";
 
 interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile: () => void; onCreditsChanged?: () => void }
 
@@ -265,16 +266,33 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
           <p className="text-xs text-muted-foreground p-3">No saved jobs yet. Install the Chrome extension to save jobs from LinkedIn, Indeed, or any career page.</p>
         )}
 
-        {jobs.map((j) => (
-          <button
-            key={j.id}
-            onClick={() => openJob(j)}
-            className={`w-full text-left p-3 rounded-lg border transition ${selected?.id === j.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"}`}
-          >
-            <div className="font-medium text-sm truncate">{j.title}</div>
-            <div className="text-xs text-muted-foreground truncate">{j.company} {j.location && `• ${j.location}`}</div>
-          </button>
-        ))}
+        {jobs.map((j) => {
+          const avatar = companyAvatar(j.company || "?");
+          const active = selected?.id === j.id;
+          return (
+            <button
+              key={j.id}
+              onClick={() => openJob(j)}
+              className="w-full text-left flex items-center gap-3 p-3 rounded-lg border transition hover:bg-muted/40"
+              style={active
+                ? { background: "var(--rh-tint)", borderColor: "#f9731650" }
+                : { borderColor: "var(--rh-hair)" }}
+            >
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-semibold text-xs shrink-0 ${avatar.className}`}>
+                {avatar.initial}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div
+                  className="font-medium text-sm truncate"
+                  style={active ? { color: "var(--rh-accent-2)" } : undefined}
+                >
+                  {j.title}
+                </div>
+                <div className="text-xs text-muted-foreground truncate">{j.company} {j.location && `• ${j.location}`}</div>
+              </div>
+            </button>
+          );
+        })}
       </aside>
 
       <div className="space-y-4">

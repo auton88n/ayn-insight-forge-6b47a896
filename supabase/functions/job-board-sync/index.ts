@@ -136,6 +136,40 @@ interface FreehireJob {
 // for a null company_logo_url, so a bad lookup never blocks a real posting.
 const FREEHIRE_COMPANY_BASE = "https://freehire.me/api/v1/companies";
 const FAVICON_CONCURRENCY = 8;
+// v3.140.0 — reported directly against a live screenshot: several logos
+// rendered as a blurry, near-illegible smudge. Traced to a real limit of
+// the favicon-by-domain approach, not a display bug: Google's own service
+// serves whatever native resolution a site's favicon.ico actually has —
+// confirmed live that asking for a bigger sz (128 vs 256) makes no
+// difference, it's not a scaling parameter, it's a request for the
+// biggest size Google already has cached. Plenty of real sites (oscars.org,
+// 1800contacts.com, both confirmed live) only have a 16x16 icon, which
+// reads as a smudge in any display box bigger than 16px. Two other
+// candidate sources were checked and ruled out, not assumed dead: Clearbit's
+// logo API no longer resolves at all (DNS failure, confirmed live —
+// discontinued), and logo.dev now requires an API key (confirmed live,
+// 401 on the plain endpoint). Favicons are still the only free, no-auth
+// option, so the fix is a quality floor instead: actually fetch and
+// measure the real pixel size before trusting the URL, and treat
+// anything under MIN_LOGO_PX as no logo at all — the client-side colored-
+// initial fallback already looks clean and reads better than a stretched
+// smudge.
+const MIN_LOGO_PX = 32;
+
+/** Reads a PNG's real width/height straight from its IHDR chunk (bytes
+ * 16-23, right after the 8-byte signature + 4-byte length + 4-byte "IHDR"
+ * type) — no image library needed, just the fixed header layout every PNG
+ * has. Returns null for anything that isn't recognizably a PNG rather than
+ * guessing; Google's favicon service has only ever returned PNG in every
+ * live check here, but a non-PNG response should fail open (keep the URL)
+ * rather than be silently misjudged as too small. */
+function pngDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (bytes.length < 24) return null;
+  for (let i = 0; i < 8; i++) if (bytes[i] !== PNG_SIG[i]) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return { width: view.getUint32(16), height: view.getUint32(20) };
+}
 
 async function resolveCompanyLogo(slug: string): Promise<string | null> {
   try {
@@ -157,7 +191,17 @@ async function resolveCompanyLogo(slug: string): Promise<string | null> {
     if (!raw || typeof raw !== "string") return null;
     const domain = raw.replace(/^https?:\/\//i, "").replace(/\/.*$/, "").trim();
     if (!domain) return null;
-    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+    const url = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+
+    const imgRes = await fetch(url);
+    if (!imgRes.ok) return null;
+    const buf = new Uint8Array(await imgRes.arrayBuffer());
+    const dims = pngDimensions(buf);
+    // dims === null means "couldn't parse it as PNG" — fail open, keep the
+    // URL rather than assume it's bad. A real, measured size below the
+    // floor is the only thing that rejects it.
+    if (dims && (dims.width < MIN_LOGO_PX || dims.height < MIN_LOGO_PX)) return null;
+    return url;
   } catch {
     return null;
   }

@@ -54,7 +54,7 @@ const COLS = "id, source, company, company_logo_url, title, description, locatio
 // A small, deliberately warm palette that sits next to this app's own ember
 // accent without competing with it — each company gets one deterministically,
 // so the same company always lands on the same color across a session.
-const AVATAR_PALETTE = [
+export const AVATAR_PALETTE = [
   "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300",
   "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300",
   "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
@@ -65,7 +65,7 @@ const AVATAR_PALETTE = [
   "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
 ];
 
-function companyAvatar(name: string) {
+export function companyAvatar(name: string) {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
   const initial = (name.trim()[0] || "?").toUpperCase();
@@ -90,6 +90,15 @@ function postedAge(iso: string) {
   if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
   const days = Math.round(hours / 24);
   return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+// v3.141.0 — asked directly to also show the actual posting date, not just
+// a relative "3 hours ago". Short form for the compact list row (no year —
+// job_postings is pruned past a 7-day freshness window, so a stored date
+// is always within the current year in practice); the detail pane gets the
+// same short date, room there doesn't call for anything longer either.
+function postedDate(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 /** Escapes the characters PostgREST treats as special inside an ilike filter. */
@@ -347,7 +356,7 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
 
         <div className="flex items-center gap-2 flex-wrap">
           {scorePill(selected.id)}
-          <span className="text-xs text-muted-foreground">Posted {postedAge(selected.posted_at)}</span>
+          <span className="text-xs text-muted-foreground">Posted {postedAge(selected.posted_at)} · {postedDate(selected.posted_at)}</span>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap pt-1">
@@ -504,7 +513,10 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
                       key={j.id}
                       type="button"
                       onClick={() => openJob(j)}
-                      className={`w-full text-left flex items-start gap-3 p-4 transition ${active ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted/40 border-l-2 border-l-transparent"}`}
+                      className="w-full text-left flex items-start gap-3 p-4 transition border-l-2 hover:bg-muted/40"
+                      style={active
+                        ? { background: "var(--rh-tint)", borderLeftColor: "var(--rh-accent)" }
+                        : { borderLeftColor: "transparent" }}
                     >
                       {showLogo ? (
                         <img
@@ -525,7 +537,7 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
                         </p>
                         <div className="flex items-center gap-2 flex-wrap pt-0.5">
                           {scorePill(j.id)}
-                          <span className="text-[11px] text-muted-foreground">{postedAge(j.posted_at)}</span>
+                          <span className="text-[11px] text-muted-foreground">{postedAge(j.posted_at)} · {postedDate(j.posted_at)}</span>
                         </div>
                       </div>
                       {/* v3.139.0 — reported directly: the New badge sat
