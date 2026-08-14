@@ -1753,6 +1753,58 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       return json({ verdict, coverage: Math.round(coverage * 100), advice: r.text });
     }
 
+    // ---------------- job_board_score (free) ----------------
+    // v3.134.0 — the point of storing real, clean JD text from job_postings
+    // ahead of time (job-board-sync) is that a browse list can show a real
+    // match score per job, not just a list of titles. Running the full
+    // match action's AI call for every job on a page would be slow and
+    // expensive at browse-list scale; this reuses only the deterministic
+    // half of that same pipeline (computeGap, no AI call) — the identical
+    // coverage formula job_fit_advice already uses (matched / (matched +
+    // missing) required items) — so scoring a whole page of jobs costs
+    // nothing but CPU.
+    //
+    // Deliberately, honestly cruder than match/tailor/job_fit_advice: those
+    // three all also run semanticGapRecheck (an embedding call per missing
+    // requirement) so a paraphrased requirement can still count as matched.
+    // Live-verified this actually matters, not just a theoretical gap: the
+    // identical real JD and profile scored 0% here but 15% coverage through
+    // job_fit_advice, because semanticGapRecheck caught matches this
+    // keyword-only pass couldn't. Adding it here would mean ~5-8 embedding
+    // calls per job, times up to 50 jobs a page — real latency/cost this
+    // feature can't carry for a browse list. The frontend labels this
+    // "quick match" rather than a bare percentage for exactly this reason;
+    // clicking into a specific job for the full written analysis still goes
+    // through the real match/tailor/cover_letter actions, unchanged, with
+    // the semantic recheck intact, using this same stored JD text as jdText.
+    // This is the accepted tradeoff, not a bug to fix quietly later.
+    if (action === "job_board_score") {
+      const adminScore = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminScore, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminScore, user.id, action); if (blocked) return blocked; }
+      { const limited = await rateLimitGate(adminScore, user.id, action, 60, 15); if (limited) return limited; }
+      const { jobs } = payload as { jobs?: Array<{ id: string; description: string }> };
+      if (!Array.isArray(jobs) || !jobs.length) return json({ error: "jobs required" }, 400);
+      const capped = jobs.slice(0, 50);
+
+      const [identity, canonical] = await Promise.all([
+        loadIdentity(adminScore, user.id, {}).catch(() => null),
+        loadCanonical(adminScore, user.id),
+      ]);
+      const bundle = buildSections(identity, canonical);
+      if (!bundle.text || bundle.chars < 60) {
+        return json({ scores: capped.map((j) => ({ id: j.id, match_pct: null })) });
+      }
+
+      const scores = capped.map((j) => {
+        const gap = computeGap(String(j.description || ""), bundle);
+        const total = gap.matched.length + gap.missing.length;
+        const match_pct = total > 0 ? Math.round((gap.matched.length / total) * 100) : null;
+        return { id: j.id, match_pct };
+      });
+      return json({ scores });
+    }
+
     // ── NEW ACTIONS (JWT auth) ──
     // These run after JWT validation using supa client with RLS
     const userId = user.id;

@@ -148,7 +148,30 @@ export const resumeHubApi = {
   // v2.9.1 — manual re-index for the caller (also fired after client writes).
   talentPoolReindexSelf: () =>
     call<{ model: string; skills_count: number }>("resume-hub", { action: "talent_pool_reindex_self" }),
+
+  // v3.134.0 — Browse Jobs. Free, deterministic-only (no AI call), scores a
+  // whole page of job_postings rows against the caller's own profile using
+  // the same coverage formula job_fit_advice already uses. The listing
+  // itself (company/title/location/apply_url/posted_at) is read directly
+  // from job_postings via Supabase, not through this action — RLS already
+  // allows any authenticated user to read that table, same as resumes/
+  // user_profile_canonical are read directly elsewhere in this app.
+  jobBoardScore: (jobs: Array<{ id: string; description: string }>) =>
+    call<{ scores: Array<{ id: string; match_pct: number | null }> }>(
+      "resume-hub", { action: "job_board_score", jobs },
+    ),
 };
+
+export interface JobPosting {
+  id: string;
+  source: string;
+  company: string;
+  title: string;
+  description: string;
+  location: string | null;
+  apply_url: string;
+  posted_at: string;
+}
 
 export interface PoolSkill {
   id: string;
