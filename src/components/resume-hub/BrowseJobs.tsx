@@ -226,8 +226,25 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
     scorePage(rows);
   };
 
+  // v3.139.0 — reported directly: clicking a job on desktop turned the
+  // whole screen gray, and a second click was needed to clear it. Real
+  // cause: SheetContent's className="... lg:hidden" only hides the sheet
+  // PANEL at the lg breakpoint — the Sheet primitive always renders its
+  // own full-screen overlay regardless of that class (confirmed directly
+  // in ui/sheet.tsx: SheetOverlay has no responsive class of its own), so
+  // opening the sheet on desktop mounted an invisible-but-real dark
+  // backdrop on top of the already-correct split-view pane. The second
+  // click wasn't "clearing" anything on purpose — it was landing on that
+  // overlay, which closes on any outside click. Fixed at the actual
+  // trigger instead of the shared sheet.tsx primitive (used elsewhere in
+  // the app; narrowing it here is safer than changing its behavior
+  // everywhere): the sheet is a narrow-screen-only affordance to begin
+  // with (the detail already shows in the split-view right pane on
+  // desktop), so it now simply never opens above the same lg breakpoint
+  // SheetContent already hides its panel at.
   const openJob = (j: JobPosting) => {
     setSelected(j);
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) return;
     setSheetOpen(true);
   };
 
@@ -502,14 +519,7 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
                         </div>
                       )}
                       <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex items-start gap-2">
-                          <p className="font-medium text-sm leading-snug">{j.title}</p>
-                          {isHot && (
-                            <Badge className="shrink-0 bg-primary/10 text-primary border-primary/30 gap-1 hover:bg-primary/10">
-                              <Flame className="w-3 h-3" /> New
-                            </Badge>
-                          )}
-                        </div>
+                        <p className="font-medium text-sm leading-snug">{j.title}</p>
                         <p className="text-xs text-muted-foreground truncate">
                           {j.company}{j.location ? ` • ${j.location}` : ""}
                         </p>
@@ -518,6 +528,24 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
                           <span className="text-[11px] text-muted-foreground">{postedAge(j.posted_at)}</span>
                         </div>
                       </div>
+                      {/* v3.139.0 — reported directly: the New badge sat
+                          inline right after the title, so a one-line title
+                          and a two-line title left it in a different spot
+                          on every card. Pulled out to its own column at the
+                          end of the row instead, so it lands in the same
+                          place on every card regardless of title length —
+                          and given real AYN ember colors (var(--rh-accent)),
+                          since bg-primary/text-primary resolve to this
+                          app's near-black default here, not orange. */}
+                      {isHot && (
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 gap-1 border"
+                          style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)", borderColor: "#f9731650" }}
+                        >
+                          <Flame className="w-3 h-3" /> New
+                        </Badge>
+                      )}
                     </button>
                   );
                 })}
