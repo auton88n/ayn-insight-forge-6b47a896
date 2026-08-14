@@ -5,9 +5,28 @@
  *
  * Same output contract as extension/resumeFormat.js: real selectable text in
  * the file, never a rasterized screenshot.
+ *
+ * v3.137.0 — two real bugs found by generating and inspecting real output,
+ * not guessed at. One, every job/school "title" block concatenated title,
+ * company, and the date range into one plain string with no structure at
+ * all — reported directly as "titles not aligned," and rightly so: a real
+ * resume puts the date range flush right on the same line as the title,
+ * consistently, and this had no such column at all. Both builders below
+ * now draw the date right-aligned when it fits on the title's own line.
+ * Two, and the more serious one: buildResumeDocxBlob has never set an
+ * explicit page size/margin, so it silently fell back to the docx
+ * library's own default — confirmed directly in its source, a flat 1-inch
+ * margin on every side. The PDF builder uses 0.75in margins, and
+ * pickFontSize picks ONE font size by measuring against the PDF's wider
+ * 504pt content width, then reuses that same size for the DOCX — meaning
+ * the DOCX was always wrapping into a narrower real column than the size
+ * was actually chosen for, overflowing lines it was never measured
+ * against and landing on two pages more often than the PDF ever would.
+ * Fixed by giving the DOCX section the identical 0.75in margins the PDF
+ * already uses, so the same picked size fits the same real width in both.
  */
 import { jsPDF } from "jspdf";
-import { Document, Packer, Paragraph, TextRun } from "docx";
+import { Document, Packer, Paragraph, TextRun, TabStopType } from "docx";
 import type { ResumeContent } from "@/lib/resumeHub";
 
 /** Flatten a structured resume into plain text — used by the diff viewer, not the downloads below. */
@@ -56,7 +75,11 @@ export function resumeToText(c: ResumeContent): string {
 // line shouting in all caps" on a string that has already lost the
 // structure.
 type BlockKind = "name" | "contact" | "summary" | "header" | "title" | "bullet" | "plain";
-interface DocBlock { kind: BlockKind; text: string; gapBefore?: number }
+// v3.137.0 — `meta` is the date range for a "title" block, kept separate
+// from `text` (title + company/school) so it can be drawn right-aligned on
+// the same line, the standard resume convention, instead of being
+// concatenated into one plain string with nothing to align it.
+interface DocBlock { kind: BlockKind; text: string; meta?: string; gapBefore?: number }
 
 function buildResumeBlocks(c: ResumeContent): DocBlock[] {
   const blocks: DocBlock[] = [];
@@ -86,7 +109,8 @@ function buildResumeBlocks(c: ResumeContent): DocBlock[] {
       const when = [w.start, w.end || "Present"].filter(Boolean).join(" to ");
       blocks.push({
         kind: "title",
-        text: [w.title, w.company].filter(Boolean).join(", ") + (when ? ` (${when})` : ""),
+        text: [w.title, w.company].filter(Boolean).join(", "),
+        meta: when || undefined,
         gapBefore: i === 0 ? 7 : 8,
       });
       (w.bullets ?? []).filter(Boolean).forEach(x => blocks.push({ kind: "bullet", text: x }));
@@ -101,9 +125,11 @@ function buildResumeBlocks(c: ResumeContent): DocBlock[] {
   if ((c.education ?? []).length) {
     blocks.push({ kind: "header", text: "EDUCATION", gapBefore: 12 });
     (c.education ?? []).forEach((e, i) => {
+      const when = [e.start, e.end].filter(Boolean).join(" to ");
       blocks.push({
         kind: "title",
         text: [e.degree, e.field, e.school].filter(Boolean).join(", "),
+        meta: when || undefined,
         gapBefore: i === 0 ? 7 : 4,
       });
     });
@@ -149,13 +175,41 @@ function isExecutiveResume(c: ResumeContent): boolean {
 /** Lays out every block at the given size. draw=false only measures (no page-break safety net, so the returned height reflects true overflow). */
 function layoutPdf(doc: jsPDF, blocks: DocBlock[], baseSize: number, draw: boolean): number {
   let y = MARGIN;
-  for (const block of blocks) {
+  for (let block of blocks) {
     const style = STYLE[block.kind];
     const size = baseSize + style.sizeDelta;
     doc.setFont("helvetica", style.bold ? "bold" : "normal");
     doc.setFontSize(size);
     const lineH = size * LINE_RATIO;
     y += block.gapBefore ?? 0;
+
+    // v3.137.0 — a title block with a date range draws the date flush right
+    // on the title's own line when there's room for both, the standard
+    // resume convention instead of one plain concatenated string. A title
+    // long enough that it wouldn't leave room degrades to the old
+    // parenthetical form rather than an awkward two-width wrap.
+    if (block.kind === "title" && block.meta) {
+      doc.setFont("helvetica", "bold");
+      const titleWidth = doc.getTextWidth(block.text);
+      doc.setFont("helvetica", "normal");
+      const metaWidth = doc.getTextWidth(block.meta);
+      const GAP = 10;
+      if (titleWidth + GAP + metaWidth <= CONTENT_W) {
+        if (draw && y > PAGE_H - MARGIN) { doc.addPage(); y = MARGIN; }
+        if (draw) {
+          doc.setFont("helvetica", "bold");
+          doc.text(block.text, MARGIN, y);
+          doc.setFont("helvetica", "normal");
+          doc.text(block.meta, MARGIN + CONTENT_W - metaWidth, y);
+        }
+        y += lineH;
+        continue;
+      }
+      // Doesn't fit on one line — fall through to the plain wrap below,
+      // with the date folded back into the text as before.
+      block = { ...block, text: `${block.text} (${block.meta})` };
+    }
+
     const prefix = block.kind === "bullet" ? "• " : "";
     const width = CONTENT_W - style.indent;
     const wrapped: string[] = block.text.trim() ? doc.splitTextToSize(prefix + block.text, width) : [""];
@@ -185,21 +239,47 @@ export function buildResumePdfBlob(c: ResumeContent): Blob {
   return doc.output("blob");
 }
 
+// v3.137.0 — twips (1pt = 20 twips) is the unit both the page margin and
+// the tab-stop position below need, converted from the exact same
+// point-based constants the PDF builder uses.
+const TWIPS_PER_PT = 20;
+
 export async function buildResumeDocxBlob(c: ResumeContent): Promise<Blob> {
   const blocks = buildResumeBlocks(c);
   // jsPDF is used here purely as a text-measuring ruler (Helvetica metrics
   // are close enough to Calibri for this) so the DOCX picks the same size
   // the PDF settled on. Word does its own pagination — this cannot guarantee
   // one page the way the PDF builder does, but starting from an already
-  // shrunk, already-fits-in-one-PDF-page size gets it there in practice.
+  // shrunk, already-fits-in-one-PDF-page size gets it there in practice —
+  // and only actually holds if the DOCX's own usable width matches what
+  // the size was picked against, which is why the page margins below are
+  // no longer left at the docx library's own default.
   const size = pickFontSize(new jsPDF({ unit: "pt", format: "letter" }), blocks, isExecutiveResume(c));
+  const rightTabPos = Math.round(CONTENT_W * TWIPS_PER_PT);
 
   const paragraphs = blocks.map(block => {
     const style = STYLE[block.kind];
     const prefix = block.kind === "bullet" ? "• " : "";
+    const baseSpacing = { before: (block.gapBefore ?? 0) * TWIPS_PER_PT, after: 60 };
+    const indent = style.indent ? { left: style.indent * TWIPS_PER_PT } : undefined;
+
+    // Same right-aligned date treatment as layoutPdf: a real tab stop at
+    // the page's own right margin, not a plain concatenated string.
+    if (block.kind === "title" && block.meta) {
+      return new Paragraph({
+        spacing: baseSpacing,
+        indent,
+        tabStops: [{ type: TabStopType.RIGHT, position: rightTabPos }],
+        children: [
+          new TextRun({ text: block.text, bold: true, font: "Calibri", size: Math.round((size + style.sizeDelta) * 2) }),
+          new TextRun({ text: `\t${block.meta}`, bold: false, font: "Calibri", size: Math.round((size + style.sizeDelta) * 2) }),
+        ],
+      });
+    }
+
     return new Paragraph({
-      spacing: { before: (block.gapBefore ?? 0) * 20, after: 60 },
-      indent: style.indent ? { left: style.indent * 20 } : undefined,
+      spacing: baseSpacing,
+      indent,
       children: [new TextRun({
         text: prefix + block.text,
         bold: style.bold,
@@ -208,7 +288,23 @@ export async function buildResumeDocxBlob(c: ResumeContent): Promise<Blob> {
       })],
     });
   });
-  const doc = new Document({ sections: [{ children: paragraphs }] });
+
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          size: { width: Math.round(PAGE_W * TWIPS_PER_PT), height: Math.round(PAGE_H * TWIPS_PER_PT) },
+          margin: {
+            top: Math.round(MARGIN * TWIPS_PER_PT),
+            right: Math.round(MARGIN * TWIPS_PER_PT),
+            bottom: Math.round(MARGIN * TWIPS_PER_PT),
+            left: Math.round(MARGIN * TWIPS_PER_PT),
+          },
+        },
+      },
+      children: paragraphs,
+    }],
+  });
   return Packer.toBlob(doc);
 }
 

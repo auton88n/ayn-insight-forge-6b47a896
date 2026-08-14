@@ -1,5 +1,5 @@
 /**
- * BrowseJobs.tsx — v3.137.0
+ * BrowseJobs.tsx — v3.138.0
  *
  * Real job postings sourced from company career pages (never LinkedIn or
  * Indeed — job-board-sync's own header comment covers how that's enforced
@@ -231,9 +231,23 @@ export default function BrowseJobs({ userId, onAdded }: Props) {
     setSheetOpen(true);
   };
 
+  // v3.138.0 — reported directly against a live screenshot: the same
+  // posting listed twice on the Jobs page. This had no dedup check at
+  // all — clicking Add a second time on a posting already saved (a
+  // double click, or coming back to Browse and clicking it again) just
+  // inserted a second row for the identical apply_url. Now checks for an
+  // existing row on that exact URL first and opens it instead of
+  // inserting a duplicate.
   const handleAdd = async (job: JobPosting) => {
     setAddingId(job.id);
     try {
+      const { data: existing } = await supabase.from("jobs")
+        .select("id").eq("user_id", userId).eq("source_url", job.apply_url).maybeSingle();
+      if (existing) {
+        toast({ title: "Already added", description: "You already saved this one — opening it on the Jobs page." });
+        onAdded((existing as { id: string }).id);
+        return;
+      }
       const { data, error } = await supabase.from("jobs").insert({
         user_id: userId,
         source: "job_board",
