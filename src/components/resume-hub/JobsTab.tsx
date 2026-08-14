@@ -4,8 +4,22 @@
  * A tailored resume is not a resume the user maintains, it is an output of a
  * job. So the generated documents are stored against the job and downloaded
  * from here. The source resume is the single active one in Profile.
+ *
+ * v3.136.0 — asked directly to remove "Should I apply?" (job_fit_advice):
+ * a real, paid AI call sitting behind a button that wasn't earning its
+ * keep. Removed the button, its state, and the frontend client wrapper
+ * (resumeHub.ts) — nothing in this app calls that action anymore, so it
+ * can no longer fire from here. The backend action itself was left alone,
+ * not deleted, matching this codebase's own standing practice for an
+ * orphaned-but-harmless action (see delete-account/resume-match in
+ * CLAUDE.md) rather than assuming it should be torn out unasked.
+ * Same pass: the detail view's primary CTA and score badges picked up
+ * real AYN branding (--rh-accent ember, plus the same tiered emerald/
+ * amber/neutral scheme BrowseJobs.tsx already uses for its own quick-match
+ * pill) — this whole panel was rendering on shadcn's plain black default,
+ * the one part of Resume Hub that hadn't been re-skinned.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,14 +43,22 @@ interface JobRow { id: string; company: string; title: string; location: string 
 interface TailoredRow { id: string; created_at: string; content: ResumeContent }
 interface CoverRow { id: string; created_at: string; body: string }
 
+// v3.136.0 — same tiering BrowseJobs.tsx uses for its own quick-match pill
+// (score >=50 strong / >=20 some overlap / below that neutral), reused here
+// for the real match/100 score so the two surfaces read as one system
+// instead of two different color languages for the same idea.
+function scoreBadgeStyle(score: number): CSSProperties {
+  if (score >= 50) return { background: "#d1fae5", color: "#047857" };
+  if (score >= 20) return { background: "#fef3c7", color: "#b45309" };
+  return { background: "var(--rh-raised)", color: "var(--rh-muted)" };
+}
+
 export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Props) {
   const { toast } = useToast();
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [selected, setSelected] = useState<JobRow | null>(null);
   const [primaryResume, setPrimaryResume] = useState<{ id: string; content: ResumeContent; ats_score: number | null } | null>(null);
   const [matchData, setMatchData] = useState<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string } | null>(null);
-  const [fitAdvice, setFitAdvice] = useState<{ verdict: string; coverage: number; advice: string } | null>(null);
-  const [fitBusy, setFitBusy] = useState(false);
   const [tailored, setTailored] = useState<TailoredRow | null>(null);
   // v3.99.0 — required-but-not-evidenced skills the job asked for, shown as
   // an opt-in add, never applied automatically. Each carries its own
@@ -78,7 +100,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
   const openJob = async (j: JobRow) => {
     setSelected(j);
     setMatchData(null);
-    setFitAdvice(null);
     setShowDiff(false);
     setTailored(null);
     setCover(null);
@@ -150,19 +171,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
   };
 
   const dismissSuggestion = (idx: number) => setGapSuggestions(prev => prev.filter((_, i) => i !== idx));
-
-  const getFitAdvice = async () => {
-    if (!selected || !primaryResume || !selected.jd_text) return;
-    setFitBusy(true);
-    try {
-      const advice = await resumeHubApi.jobFitAdvice(selected.jd_text);
-      setFitAdvice(advice);
-    } catch (e) {
-      toast(isFeatureDisabled(e)
-        ? { title: "Under maintenance", description: e.message }
-        : { title: "Couldn't get a read on this one", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
-    } finally { setFitBusy(false); }
-  };
 
   const writeCover = async () => {
     if (!selected || !primaryResume || !selected.jd_text) return;
@@ -311,19 +319,29 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
                   )}
                 </div>
                 {matchData && (
-                  <Badge variant="outline" className="text-lg px-3 py-1" style={{ fontFamily: "JetBrains Mono, monospace" }}>
+                  <div
+                    className="text-lg px-3 py-1 rounded-full font-semibold"
+                    style={{ fontFamily: "JetBrains Mono, monospace", ...scoreBadgeStyle(matchData.score) }}
+                  >
                     {matchData.score}/100
-                  </Badge>
+                  </div>
                 )}
               </div>
 
               <MaintenanceNotice feature="tailoring" className="mt-4" />
 
               <div className="flex flex-wrap gap-2 mt-4">
-                <Button onClick={calcMatch} disabled={busy || !primaryResume}><Sparkles className="w-4 h-4 mr-2" />Score this job</Button>
+                <Button
+                  onClick={calcMatch}
+                  disabled={busy || !primaryResume}
+                  style={{ background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }}
+                  className="hover:opacity-90"
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />Score this job
+                </Button>
                 <Button onClick={tailorResume} disabled={busy || !primaryResume || !tailoring.enabled} variant="outline">Tailor resume</Button>
                 <Button onClick={writeCover} disabled={busy || !primaryResume || !tailoring.enabled} variant="outline">Write cover letter</Button>
-                
+
                 {selected.source_url && (
                   <Button
                     variant="outline"
@@ -357,8 +375,12 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
                 <p className="text-sm mb-3">{matchData.summary}</p>
                 <div className="grid grid-cols-3 gap-3 mb-3">
                   {Object.entries(matchData.breakdown).map(([k, v]) => (
-                    <div key={k} className="text-center p-3 rounded-lg bg-muted/40">
-                      <div className="text-2xl font-bold" style={{ fontFamily: "JetBrains Mono, monospace" }}>{v}</div>
+                    <div
+                      key={k}
+                      className="text-center p-3 rounded-lg border"
+                      style={{ background: "var(--rh-tint)", borderColor: "#f9731633" }}
+                    >
+                      <div className="text-2xl font-bold" style={{ fontFamily: "JetBrains Mono, monospace", color: "var(--rh-accent-2)" }}>{v}</div>
                       <div className="text-xs text-muted-foreground capitalize">{k.replace("_", " ")}</div>
                     </div>
                   ))}
@@ -369,28 +391,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
                     <div className="flex flex-wrap gap-1">
                       {matchData.missing_keywords.map((k, i) => <Badge key={i} variant="outline">{k}</Badge>)}
                     </div>
-                  </div>
-                )}
-
-                {!fitAdvice ? (
-                  <Button onClick={getFitAdvice} disabled={fitBusy} variant="outline" size="sm" className="mt-4">
-                    {fitBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    Should I apply?
-                  </Button>
-                ) : (
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge variant={fitAdvice.verdict === "strong_fit" ? "default" : "outline"}>
-                        {fitAdvice.verdict === "strong_fit" ? "Strong fit"
-                          : fitAdvice.verdict === "worth_trying" ? "Worth trying"
-                          : fitAdvice.verdict === "significant_gaps" ? "Real gaps here"
-                          : "No clear requirements to check"}
-                      </Badge>
-                      {fitAdvice.verdict !== "no_stated_requirements" && (
-                        <span className="text-xs text-muted-foreground">{fitAdvice.coverage}% of required items matched</span>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">{fitAdvice.advice}</p>
                   </div>
                 )}
               </Card>

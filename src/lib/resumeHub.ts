@@ -123,15 +123,6 @@ export const resumeHubApi = {
   coverLetter: (jdText: string, opts?: { tone?: string; company?: string }) =>
     call<{ body: string }>("resume-hub", { action: "cover_letter", jdText, ...opts }),
 
-  /** Free. A grounded "should I apply" read: the verdict category is decided
-   * in code from the same gap analysis tailor/match already compute — the
-   * AI only explains it, never chooses it. See CLAUDE.md v3.124.0. */
-  jobFitAdvice: (jdText: string) =>
-    call<{ verdict: "no_stated_requirements" | "strong_fit" | "worth_trying" | "significant_gaps"; coverage: number; advice: string }>(
-      "resume-hub", { action: "job_fit_advice", jdText },
-    ),
-
-
   listTokens: () => call<{ tokens: Array<{ id: string; token_prefix: string; device_label: string; last_used_at: string | null; revoked_at: string | null; created_at: string }> }>("resume-hub", { action: "token_list" }),
   revokeToken: (id: string) => call<{ ok: true }>("resume-hub", { action: "token_revoke", id }),
 

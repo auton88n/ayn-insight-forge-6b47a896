@@ -223,7 +223,13 @@ export default function BrowseJobs({ onAdd, onClose }: Props) {
       ) : filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground py-10 text-center">No jobs match your search. Try clearing a filter.</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        // v3.136.0 — reported directly against a live screenshot: a 3-wide
+        // card grid doesn't read as a job board, LinkedIn/Indeed both list
+        // one posting per row, vertically. Rebuilt as a single-column list,
+        // each row inline on desktop (logo, title/company/location, score,
+        // actions all on one line) and wrapping to a stacked layout on
+        // narrow widths so nothing gets cut off.
+        <Card className="divide-y divide-border/60 border-border/60 overflow-hidden p-0">
           {filtered.map((j) => {
             const isHot = Date.now() - new Date(j.posted_at).getTime() < HOT_WINDOW_MS;
             const score = scores[j.id];
@@ -231,36 +237,35 @@ export default function BrowseJobs({ onAdd, onClose }: Props) {
             const tier = score != null ? scoreTier(score) : null;
             const showLogo = !!j.company_logo_url && !logoFailed.has(j.id);
             return (
-              <Card key={j.id} className="p-4 space-y-3 border-border/60 hover:border-primary/40 hover:shadow-sm transition">
-                <div className="flex items-start gap-3">
-                  {showLogo ? (
-                    <img
-                      src={j.company_logo_url!}
-                      alt=""
-                      className="w-10 h-10 rounded-lg shrink-0 object-contain bg-muted p-1.5"
-                      onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
-                    />
-                  ) : (
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-semibold text-sm shrink-0 ${avatar.className}`}>
-                      {avatar.initial}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-medium text-sm leading-snug">{j.title}</p>
-                      {isHot && (
-                        <Badge className="shrink-0 bg-primary/10 text-primary border-primary/30 gap-1 hover:bg-primary/10">
-                          <Flame className="w-3 h-3" /> New
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">
-                      {j.company}{j.location ? ` • ${j.location}` : ""}
-                    </p>
+              <div key={j.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 hover:bg-muted/30 transition">
+                {showLogo ? (
+                  <img
+                    src={j.company_logo_url!}
+                    alt=""
+                    className="w-10 h-10 rounded-lg shrink-0 object-contain bg-muted p-1.5"
+                    onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
+                  />
+                ) : (
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-semibold text-sm shrink-0 ${avatar.className}`}>
+                    {avatar.initial}
                   </div>
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium text-sm">{j.title}</p>
+                    {isHot && (
+                      <Badge className="shrink-0 bg-primary/10 text-primary border-primary/30 gap-1 hover:bg-primary/10">
+                        <Flame className="w-3 h-3" /> New
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {j.company}{j.location ? ` • ${j.location}` : ""}
+                  </p>
                 </div>
 
-                <div>
+                <div className="shrink-0 sm:w-40">
                   {score != null ? (
                     <div
                       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${tier!.cls}`}
@@ -273,12 +278,12 @@ export default function BrowseJobs({ onAdd, onClose }: Props) {
                       Scoring…
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground">Add your resume for a match score</p>
+                    <p className="text-xs text-muted-foreground">No resume yet</p>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" className="flex-1" onClick={() => handleAdd(j)} disabled={addingId === j.id}>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button size="sm" variant="outline" onClick={() => handleAdd(j)} disabled={addingId === j.id}>
                     {addingId === j.id
                       ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       : <><Plus className="w-3.5 h-3.5 mr-1" /> Score & tailor</>}
@@ -289,10 +294,10 @@ export default function BrowseJobs({ onAdd, onClose }: Props) {
                     </a>
                   </Button>
                 </div>
-              </Card>
+              </div>
             );
           })}
-        </div>
+        </Card>
       )}
     </div>
   );
