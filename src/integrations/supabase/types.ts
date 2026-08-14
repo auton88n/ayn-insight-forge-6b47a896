@@ -1611,6 +1611,27 @@ export type Database = {
           },
         ]
       }
+      error_alert_state: {
+        Row: {
+          id: string
+          last_alert_count: number
+          last_alert_sent_at: string | null
+          last_checked_at: string
+        }
+        Insert: {
+          id?: string
+          last_alert_count?: number
+          last_alert_sent_at?: string | null
+          last_checked_at?: string
+        }
+        Update: {
+          id?: string
+          last_alert_count?: number
+          last_alert_sent_at?: string | null
+          last_checked_at?: string
+        }
+        Relationships: []
+      }
       error_group_resolutions: {
         Row: {
           created_at: string | null
@@ -2192,6 +2213,51 @@ export type Database = {
           resume_id?: string
           score?: number
           user_id?: string
+        }
+        Relationships: []
+      }
+      job_postings: {
+        Row: {
+          apply_url: string
+          company: string
+          company_logo_url: string | null
+          company_slug: string | null
+          created_at: string
+          description: string
+          external_id: string
+          id: string
+          location: string | null
+          posted_at: string
+          source: string
+          title: string
+        }
+        Insert: {
+          apply_url: string
+          company: string
+          company_logo_url?: string | null
+          company_slug?: string | null
+          created_at?: string
+          description: string
+          external_id: string
+          id?: string
+          location?: string | null
+          posted_at: string
+          source: string
+          title: string
+        }
+        Update: {
+          apply_url?: string
+          company?: string
+          company_logo_url?: string | null
+          company_slug?: string | null
+          created_at?: string
+          description?: string
+          external_id?: string
+          id?: string
+          location?: string | null
+          posted_at?: string
+          source?: string
+          title?: string
         }
         Relationships: []
       }
@@ -4412,6 +4478,14 @@ export type Database = {
       get_admin_overview: { Args: never; Returns: Json }
       get_admin_plans: { Args: never; Returns: Json }
       get_admin_rate_limit_stats: { Args: never; Returns: Json }
+      get_admin_security_definer_audit: {
+        Args: never
+        Returns: {
+          args: string
+          granted_to: string
+          proname: string
+        }[]
+      }
       get_admin_support_tickets: {
         Args: { p_limit?: number; p_offset?: number }
         Returns: Json
