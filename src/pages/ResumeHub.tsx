@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Home, User, Briefcase, Puzzle, Download, Mail, LogOut, ClipboardCheck, CreditCard, Settings } from "lucide-react";
+import { Home, User, Briefcase, Puzzle, Download, Mail, LogOut, ClipboardCheck, CreditCard, Settings, Compass } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -10,6 +10,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import HomeTab from "@/components/resume-hub/HomeTab";
 import JobsTab from "@/components/resume-hub/JobsTab";
+import BrowseJobs from "@/components/resume-hub/BrowseJobs";
 import ExtensionTab from "@/components/resume-hub/ExtensionTab";
 import ProfileTab from "@/components/resume-hub/ProfileTab";
 import ProposalsTab from "@/components/resume-hub/ProposalsTab";
@@ -24,7 +25,7 @@ import { useFeature } from "@/hooks/useFeatureFlags";
 import { PlatformMaintenanceScreen } from "@/components/shared/MaintenanceNotice";
 
 
-type TabKey = "home" | "profile" | "jobs" | "proposals" | "assessments" | "extension";
+type TabKey = "home" | "profile" | "browse" | "jobs" | "proposals" | "assessments" | "extension";
 
 // v3.6.0 — Proposals is its own page, between Jobs and Assessments.
 // v3.13.0 — Assessments sits right after it, badged the same way.
@@ -33,7 +34,8 @@ type TabKey = "home" | "profile" | "jobs" | "proposals" | "assessments" | "exten
 const NAV: { key: TabKey; label: string; icon: typeof Home; hint: string }[] = [
   { key: "home",        label: "Home",              icon: Home,           hint: "Start here" },
   { key: "profile",     label: "Profile",           icon: User,           hint: "You, your resume, your goals" },
-  { key: "jobs",        label: "Jobs",              icon: Briefcase,      hint: "Score and tailor" },
+  { key: "browse",      label: "Browse jobs",       icon: Compass,        hint: "Real postings, refreshed daily" },
+  { key: "jobs",        label: "Saved jobs",        icon: Briefcase,      hint: "Score and tailor" },
   { key: "proposals",   label: "Proposals",         icon: Mail,           hint: "Roles employers want you for" },
   { key: "assessments", label: "Assessments",       icon: ClipboardCheck, hint: "Questions about your own work" },
   { key: "extension",   label: "Browser extension", icon: Puzzle,         hint: "Score jobs as you browse" },
@@ -287,6 +289,7 @@ export default function ResumeHub() {
             {tab === "proposals" && <ProposalsTab onChanged={setPendingIntros} />}
             {tab === "assessments" && <AssessmentsTab onChanged={setPendingAssessments} />}
 
+            {tab === "browse"    && <BrowseJobs userId={userId!} onAdded={goJob} />}
             {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} onOpenProfile={() => setTab("profile")} onCreditsChanged={refreshCredits} />}
 
             {tab === "extension" && <ExtensionTab userId={userId!} />}
