@@ -27,12 +27,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { resumeHubApi, type ResumeContent, type JobPosting } from "@/lib/resumeHub";
-import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Wand2, Download, X, Compass } from "lucide-react";
+import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
+import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Wand2, Download, X } from "lucide-react";
 import { handoffUrl } from "@/lib/extension";
 import { resumeToText, buildResumePdfBlob, buildResumeDocxBlob, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import ResumeDiffViewer from "./ResumeDiffViewer";
-import BrowseJobs from "./BrowseJobs";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
@@ -70,12 +69,21 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
   const [showDiff, setShowDiff] = useState(false);
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [browsing, setBrowsing] = useState(false);
   const [newJob, setNewJob] = useState({ url: "", text: "" });
 
   const load = async () => {
     const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at").eq("user_id", userId).order("created_at", { ascending: false });
-    setJobs((data as JobRow[]) ?? []);
+    const rows = (data as JobRow[]) ?? [];
+    setJobs(rows);
+    // v3.137.0 — Browse jobs adds a posting then hands off here, naming the
+    // new job id. Nothing ever read this flag before, so a job added from
+    // the board landed in the list unselected and the person had to find it.
+    const focus = sessionStorage.getItem("ayn_focus_job");
+    if (focus) {
+      sessionStorage.removeItem("ayn_focus_job");
+      const hit = rows.find((r) => r.id === focus);
+      if (hit) openJob(hit);
+    }
   };
   useEffect(() => {
     load();
@@ -237,37 +245,9 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
     } finally { setBusy(false); }
   };
 
-  // v3.134.0 — a job picked from Browse Jobs lands in the exact same jobs
-  // table, same shape as a manual add, then flows through the unchanged
-  // score/tailor/cover-letter pipeline below. This function's only job is
-  // getting it into that table and opening it — no separate code path.
-  const addFromBoard = async (job: JobPosting) => {
-    const { data, error } = await supabase.from("jobs").insert({
-      user_id: userId,
-      source: "job_board",
-      source_url: job.apply_url,
-      jd_text: job.description,
-      company: job.company,
-      title: job.title,
-      location: job.location,
-    }).select("id, company, title, location, source_url, jd_text, created_at").single();
-    if (error) throw error;
-    setBrowsing(false);
-    await load();
-    if (data) openJob(data as JobRow);
-    toast({ title: "Job added", description: "Scoring and tailoring are ready below." });
-  };
-
-  if (browsing) {
-    return <BrowseJobs onAdd={addFromBoard} onClose={() => setBrowsing(false)} />;
-  }
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
       <aside className="space-y-2">
-        <Button onClick={() => setBrowsing(true)} className="w-full">
-          <Compass className="w-4 h-4 mr-2" />Browse jobs
-        </Button>
         <Button onClick={() => setAdding((a) => !a)} variant="outline" className="w-full">
           <Plus className="w-4 h-4 mr-2" />Add job manually
         </Button>
