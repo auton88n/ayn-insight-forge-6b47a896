@@ -1,51 +1,55 @@
 /**
- * BrowseJobs.tsx — v3.135.0
+ * BrowseJobs.tsx — v3.137.0
  *
  * Real job postings sourced from company career pages (never LinkedIn or
  * Indeed — job-board-sync's own header comment covers how that's enforced
  * and what got filtered out when it wasn't true in practice), refreshed
  * continuously, dropped after 7 days so Apply always points at something
- * still likely open. Each card shows a real match score against the
- * caller's own resume — computed the same deterministic way job_fit_advice
- * already does (no AI call), so scoring a whole page costs nothing.
+ * still likely open.
  *
- * v3.135.0 — reported directly against a live screenshot: no search or
- * filters, no company mark, and the automatic quick-match score read as
- * something you had to click for. The score has always computed on load
- * with zero clicks (jobBoardScore fires once for the whole page in the
- * effect below) — what was missing was making that visible: a colored pill
- * next to the title instead of a thin bar buried under the buttons, and a
- * "Scoring…" placeholder while it's in flight so it never looks blank or
- * broken. There is deliberately no per-company logo asset — job_postings
- * has no logo_url column, and this app has no license to hotlink a
- * third-party logo service — so companyAvatar() below renders the same
- * kind of deterministic colored-initial mark LinkedIn/Indeed themselves
- * fall back to whenever they don't have a real logo either.
+ * v3.137.0 — reported directly against a live screenshot: this needs to be
+ * its own page rather than a mode that takes over the saved-jobs tracker,
+ * the description was never shown at all even though every row stores one
+ * (about 5,400 characters on average), and the location filter only ever
+ * listed the locations of the 24 rows that happened to be loaded, out of
+ * 1,095 real distinct locations in the table. Rebuilt as a real job board:
  *
- * Picking a job here just adds it to the user's own jobs list (same table,
- * same shape as "Add job manually") and hands off to the exact same
- * score/tailor/cover-letter flow already built — this component's only
- * job is discovery, not a parallel pipeline.
+ *   - A split view. The result list on the left, the full posting on the
+ *     right (desktop) or in a full-height sheet (narrow screens), so the
+ *     description is always one click away and never truncates the list.
+ *   - Search, location and remote all filter server side, against the
+ *     whole table, not against whatever page is already in memory.
+ *   - Pagination, 25 at a time, with a real total count so the board
+ *     never looks like it holds two dozen postings.
+ *
+ * Picking a job still just adds it to the user's own jobs list (same
+ * table, same shape as "Add job manually") and hands off to the exact same
+ * score/tailor/cover-letter flow already built — this page's only job is
+ * discovery, not a parallel pipeline.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ExternalLink, Plus, Flame, X, Search, MapPin, Home } from "lucide-react";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Loader2, ExternalLink, Plus, Flame, Search, MapPin, Home, ChevronDown, X, Building2,
+} from "lucide-react";
 import { resumeHubApi, type JobPosting } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
 
 interface Props {
-  onAdd: (job: JobPosting) => Promise<void>;
-  onClose: () => void;
+  userId: string;
+  /** Adds the posting to the caller's own jobs list and opens it there. */
+  onAdded: (jobId: string) => void;
 }
 
-const PAGE_SIZE = 24;
+const PAGE_SIZE = 25;
 const HOT_WINDOW_MS = 24 * 60 * 60 * 1000;
-const ALL_LOCATIONS = "__all__";
+const COLS = "id, source, company, company_logo_url, title, description, location, apply_url, posted_at";
 
 // A small, deliberately warm palette that sits next to this app's own ember
 // accent without competing with it — each company gets one deterministically,
@@ -68,94 +72,180 @@ function companyAvatar(name: string) {
   return { initial, className: AVATAR_PALETTE[hash % AVATAR_PALETTE.length] };
 }
 
-// job_board_score is deliberately keyword-only (no AI call — see this
+// job_board_score is deliberately keyword-only (no AI call — see that
 // function's own header, and CLAUDE.md's disclosed accuracy gap versus the
-// full semantic pipeline), so 0% on a mismatched role is a correct, honest
-// answer, not a failure. Styled as a neutral tier rather than a red/failed
-// one so it never reads as "AYN broke."
+// full semantic pipeline), so a low number on a mismatched role is a
+// correct, honest answer, not a failure. Styled as a neutral tier rather
+// than a red/failed one so it never reads as "AYN broke."
 function scoreTier(score: number) {
   if (score >= 50) return { label: "Strong match", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" };
   if (score >= 20) return { label: "Some overlap", cls: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300" };
   return { label: "Quick match", cls: "bg-muted text-muted-foreground" };
 }
 
-export default function BrowseJobs({ onAdd, onClose }: Props) {
+function postedAge(iso: string) {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+/** Escapes the characters PostgREST treats as special inside an ilike filter. */
+function safeLike(s: string) {
+  return s.replace(/[%,()]/g, " ").trim();
+}
+
+export default function BrowseJobs({ userId, onAdded }: Props) {
   const { toast } = useToast();
+
   const [jobs, setJobs] = useState<JobPosting[]>([]);
-  const [scores, setScores] = useState<Record<string, number | null>>({});
+  const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  // v3.135.0 — job_board_score legitimately returns match_pct: null for
-  // every job when the caller has no resume/profile text to score against
-  // yet (bundle.chars < 60 server-side) — a real, honest "can't score this"
-  // answer, not a failed or pending fetch. `scores[id] == null` covers both
-  // "still in flight" and "backend says no profile," so a separate
-  // scoresLoaded flag is needed to tell them apart; without it, an account
-  // with no resume would show "Scoring…" forever instead of the real reason.
-  const [scoresLoaded, setScoresLoaded] = useState(false);
-  // v3.135.0 — a stored company_logo_url can still fail to load for a given
-  // viewer (network hiccup, a since-removed favicon) — this tracks which
-  // job ids have already failed once, so those cards render the monogram
-  // instead of retrying a known-bad image on every re-render.
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const [scores, setScores] = useState<Record<string, number | null>>({});
+  // job_board_score legitimately returns match_pct: null for every job when
+  // the caller has no resume/profile text to score against yet — a real,
+  // honest "can't score this" answer, not a pending fetch. This tracks which
+  // ids have already come back so a null reads as "no resume yet" instead of
+  // spinning on "Scoring…" forever.
+  const [scored, setScored] = useState<Set<string>>(new Set());
   const [logoFailed, setLogoFailed] = useState<Set<string>>(new Set());
-  const [addingId, setAddingId] = useState<string | null>(null);
+
+  const [rawQuery, setRawQuery] = useState("");
   const [query, setQuery] = useState("");
-  const [location, setLocation] = useState(ALL_LOCATIONS);
+  const [location, setLocation] = useState<string | null>(null);
   const [remoteOnly, setRemoteOnly] = useState(false);
 
+  const [locations, setLocations] = useState<string[]>([]);
+  const [locOpen, setLocOpen] = useState(false);
+  const [locFilter, setLocFilter] = useState("");
+  const locBoxRef = useRef<HTMLDivElement | null>(null);
+
+  const [selected, setSelected] = useState<JobPosting | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [addingId, setAddingId] = useState<string | null>(null);
+
+  const hasFilters = !!query || !!location || remoteOnly;
+
+  /* Debounce the search box so typing doesn't fire a query per keystroke. */
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(rawQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [rawQuery]);
+
+  /* Every distinct location in the table, not just the loaded page. One
+     lightweight single-column read, deduped here, cached for the page. */
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("job_postings")
-        .select("id, source, company, company_logo_url, title, description, location, apply_url, posted_at")
-        .order("posted_at", { ascending: false })
-        .limit(PAGE_SIZE);
-      if (cancelled) return;
-      if (error) {
-        toast({ title: "Couldn't load jobs", description: error.message, variant: "destructive" });
-        setLoading(false);
-        return;
-      }
-      const rows = (data as JobPosting[]) ?? [];
-      setJobs(rows);
-      setLoading(false);
-      if (rows.length) {
-        resumeHubApi.jobBoardScore(rows.map((r) => ({ id: r.id, description: r.description })))
-          .then((res) => {
-            if (cancelled) return;
-            const map: Record<string, number | null> = {};
-            for (const s of res.scores) map[s.id] = s.match_pct;
-            setScores(map);
-            setScoresLoaded(true);
-          })
-          .catch(() => { setScoresLoaded(true); /* cards still render fine with no score */ });
-      }
-    })();
+    supabase.from("job_postings").select("location").limit(5000).then(({ data }) => {
+      if (cancelled || !data) return;
+      const set = new Set<string>();
+      for (const r of data as { location: string | null }[]) if (r.location) set.add(r.location);
+      setLocations(Array.from(set).sort((a, b) => a.localeCompare(b)));
+    });
     return () => { cancelled = true; };
-    /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, []);
 
-  const locations = useMemo(() => {
-    const set = new Set<string>();
-    for (const j of jobs) if (j.location) set.add(j.location);
-    return Array.from(set).sort();
-  }, [jobs]);
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (locBoxRef.current && !locBoxRef.current.contains(e.target as Node)) setLocOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return jobs.filter((j) => {
-      if (q && !`${j.title} ${j.company}`.toLowerCase().includes(q)) return false;
-      if (location !== ALL_LOCATIONS && j.location !== location) return false;
-      if (remoteOnly && !/remote/i.test(j.location || "")) return false;
-      return true;
+  const scorePage = useCallback((rows: JobPosting[]) => {
+    if (!rows.length) return;
+    resumeHubApi.jobBoardScore(rows.map((r) => ({ id: r.id, description: r.description })))
+      .then((res) => {
+        setScores((prev) => {
+          const next = { ...prev };
+          for (const s of res.scores) next[s.id] = s.match_pct;
+          return next;
+        });
+        setScored((prev) => {
+          const next = new Set(prev);
+          for (const r of rows) next.add(r.id);
+          return next;
+        });
+      })
+      .catch(() => {
+        setScored((prev) => {
+          const next = new Set(prev);
+          for (const r of rows) next.add(r.id);
+          return next;
+        });
+      });
+  }, []);
+
+  const buildQuery = useCallback((withCount: boolean) => {
+    let q = supabase
+      .from("job_postings")
+      .select(COLS, withCount ? { count: "exact" } : undefined)
+      .order("posted_at", { ascending: false });
+    const term = safeLike(query);
+    if (term) q = q.or(`title.ilike.%${term}%,company.ilike.%${term}%`);
+    if (location) q = q.eq("location", location);
+    if (remoteOnly) q = q.ilike("location", "%remote%");
+    return q;
+  }, [query, location, remoteOnly]);
+
+  /* First page, and every filter change. */
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    buildQuery(true).range(0, PAGE_SIZE - 1).then(({ data, error, count }) => {
+      if (cancelled) return;
+      setLoading(false);
+      if (error) {
+        toast({ title: "Couldn't load jobs", description: error.message, variant: "destructive" });
+        return;
+      }
+      const rows = (data as unknown as JobPosting[]) ?? [];
+      setJobs(rows);
+      setTotal(count ?? rows.length);
+      setSelected((prev) => (prev && rows.some((r) => r.id === prev.id) ? prev : rows[0] ?? null));
+      scorePage(rows);
     });
-  }, [jobs, query, location, remoteOnly]);
+    return () => { cancelled = true; };
+  }, [buildQuery, scorePage, toast]);
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    const { data, error } = await buildQuery(false).range(jobs.length, jobs.length + PAGE_SIZE - 1);
+    setLoadingMore(false);
+    if (error) {
+      toast({ title: "Couldn't load more", description: error.message, variant: "destructive" });
+      return;
+    }
+    const rows = (data as unknown as JobPosting[]) ?? [];
+    setJobs((prev) => [...prev, ...rows]);
+    scorePage(rows);
+  };
+
+  const openJob = (j: JobPosting) => {
+    setSelected(j);
+    setSheetOpen(true);
+  };
 
   const handleAdd = async (job: JobPosting) => {
     setAddingId(job.id);
     try {
-      await onAdd(job);
+      const { data, error } = await supabase.from("jobs").insert({
+        user_id: userId,
+        source: "job_board",
+        source_url: job.apply_url,
+        jd_text: job.description,
+        company: job.company,
+        title: job.title,
+        location: job.location,
+      }).select("id").single();
+      if (error) throw error;
+      toast({ title: "Job added", description: "Scoring and tailoring are ready on the Jobs page." });
+      onAdded((data as { id: string }).id);
     } catch (e) {
       toast({ title: "Couldn't add that job", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally {
@@ -163,142 +253,285 @@ export default function BrowseJobs({ onAdd, onClose }: Props) {
     }
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold">Browse jobs</h3>
-          <p className="text-xs text-muted-foreground">Real postings from company career pages, refreshed continuously. Never LinkedIn or Indeed.</p>
-        </div>
-        <Button variant="ghost" size="sm" onClick={onClose}><X className="w-4 h-4" /></Button>
-      </div>
+  const visibleLocations = useMemo(() => {
+    const f = locFilter.trim().toLowerCase();
+    const list = f ? locations.filter((l) => l.toLowerCase().includes(f)) : locations;
+    return list.slice(0, 120);
+  }, [locations, locFilter]);
 
-      {!loading && jobs.length > 0 && (
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by title or company"
-              className="pl-9"
+  const clearFilters = () => {
+    setRawQuery("");
+    setQuery("");
+    setLocation(null);
+    setRemoteOnly(false);
+  };
+
+  const scorePill = (id: string) => {
+    const score = scores[id];
+    if (score != null) {
+      const tier = scoreTier(score);
+      return (
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${tier.cls}`}
+          title="A quick keyword estimate, computed automatically. Add the job for AYN's full match analysis."
+        >
+          {tier.label} · {score}%
+        </span>
+      );
+    }
+    if (!scored.has(id)) {
+      return <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground animate-pulse">Scoring…</span>;
+    }
+    return <span className="text-xs text-muted-foreground">No resume yet</span>;
+  };
+
+  const detail = selected && (
+    <div className="flex flex-col h-full">
+      <div className="p-5 border-b border-border/60 space-y-3">
+        <div className="flex items-start gap-3">
+          {selected.company_logo_url && !logoFailed.has(selected.id) ? (
+            <img
+              src={selected.company_logo_url}
+              alt=""
+              className="w-12 h-12 rounded-lg shrink-0 object-contain bg-muted p-1.5"
+              onError={() => setLogoFailed((prev) => new Set(prev).add(selected.id))}
             />
+          ) : (
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center font-semibold shrink-0 ${companyAvatar(selected.company).className}`}>
+              {companyAvatar(selected.company).initial}
+            </div>
+          )}
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold leading-snug">{selected.title}</h2>
+            <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5">
+              <Building2 className="w-3.5 h-3.5 shrink-0" />{selected.company}
+            </p>
+            {selected.location && (
+              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 shrink-0" />{selected.location}
+              </p>
+            )}
           </div>
-          <Select value={location} onValueChange={setLocation}>
-            <SelectTrigger className="w-full sm:w-56">
-              <MapPin className="w-4 h-4 mr-1.5 text-muted-foreground shrink-0" />
-              <SelectValue placeholder="All locations" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_LOCATIONS}>All locations</SelectItem>
-              {locations.map((loc) => (
-                <SelectItem key={loc} value={loc}>{loc}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            type="button"
-            variant={remoteOnly ? "default" : "outline"}
-            size="default"
-            onClick={() => setRemoteOnly((v) => !v)}
-            className="shrink-0"
-          >
-            <Home className="w-4 h-4 mr-1.5" />Remote
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {scorePill(selected.id)}
+          <span className="text-xs text-muted-foreground">Posted {postedAge(selected.posted_at)}</span>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap pt-1">
+          <Button onClick={() => handleAdd(selected)} disabled={addingId === selected.id}>
+            {addingId === selected.id
+              ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              : <Plus className="w-4 h-4 mr-2" />}
+            Score and tailor
+          </Button>
+          <Button variant="outline" asChild>
+            <a href={selected.apply_url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="w-4 h-4 mr-2" />Apply on company site
+            </a>
           </Button>
         </div>
-      )}
+      </div>
 
-      {!loading && jobs.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {filtered.length === jobs.length ? `${jobs.length} jobs` : `${filtered.length} of ${jobs.length} jobs`}
+      <div className="flex-1 overflow-y-auto p-5">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Job description</h3>
+        <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+          {selected.description?.trim() || "This posting did not include a description. Open it on the company site to read the full details."}
         </p>
-      )}
+      </div>
+    </div>
+  );
 
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold">Browse jobs</h3>
+        <p className="text-xs text-muted-foreground">
+          Real postings from company career pages, refreshed continuously. Never LinkedIn or Indeed.
+        </p>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col lg:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={rawQuery}
+            onChange={(e) => setRawQuery(e.target.value)}
+            placeholder="Search by title or company"
+            className="pl-9"
+          />
         </div>
-      ) : jobs.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-10 text-center">No fresh postings right now — check back soon.</p>
-      ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-10 text-center">No jobs match your search. Try clearing a filter.</p>
-      ) : (
-        // v3.136.0 — reported directly against a live screenshot: a 3-wide
-        // card grid doesn't read as a job board, LinkedIn/Indeed both list
-        // one posting per row, vertically. Rebuilt as a single-column list,
-        // each row inline on desktop (logo, title/company/location, score,
-        // actions all on one line) and wrapping to a stacked layout on
-        // narrow widths so nothing gets cut off.
-        <Card className="divide-y divide-border/60 border-border/60 overflow-hidden p-0">
-          {filtered.map((j) => {
-            const isHot = Date.now() - new Date(j.posted_at).getTime() < HOT_WINDOW_MS;
-            const score = scores[j.id];
-            const avatar = companyAvatar(j.company);
-            const tier = score != null ? scoreTier(score) : null;
-            const showLogo = !!j.company_logo_url && !logoFailed.has(j.id);
-            return (
-              <div key={j.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 hover:bg-muted/30 transition">
-                {showLogo ? (
-                  <img
-                    src={j.company_logo_url!}
-                    alt=""
-                    className="w-10 h-10 rounded-lg shrink-0 object-contain bg-muted p-1.5"
-                    onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
-                  />
-                ) : (
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-semibold text-sm shrink-0 ${avatar.className}`}>
-                    {avatar.initial}
-                  </div>
-                )}
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-medium text-sm">{j.title}</p>
-                    {isHot && (
-                      <Badge className="shrink-0 bg-primary/10 text-primary border-primary/30 gap-1 hover:bg-primary/10">
-                        <Flame className="w-3 h-3" /> New
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">
-                    {j.company}{j.location ? ` • ${j.location}` : ""}
-                  </p>
-                </div>
-
-                <div className="shrink-0 sm:w-40">
-                  {score != null ? (
-                    <div
-                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${tier!.cls}`}
-                      title="A quick keyword-based estimate, computed automatically. Open the job for AYN's full match analysis."
-                    >
-                      {tier!.label} · {score}%
-                    </div>
-                  ) : !scoresLoaded ? (
-                    <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground animate-pulse">
-                      Scoring…
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">No resume yet</p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button size="sm" variant="outline" onClick={() => handleAdd(j)} disabled={addingId === j.id}>
-                    {addingId === j.id
-                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      : <><Plus className="w-3.5 h-3.5 mr-1" /> Score & tailor</>}
-                  </Button>
-                  <Button size="sm" variant="ghost" asChild>
-                    <a href={j.apply_url} target="_blank" rel="noopener noreferrer" aria-label="Open real posting">
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  </Button>
-                </div>
+        <div className="relative w-full lg:w-64" ref={locBoxRef}>
+          <button
+            type="button"
+            onClick={() => { setLocOpen((v) => !v); setLocFilter(""); }}
+            className="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className={`flex-1 text-left truncate ${location ? "" : "text-muted-foreground"}`}>
+              {location ?? "All locations"}
+            </span>
+            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+          </button>
+          {locOpen && (
+            <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg">
+              <div className="p-2 border-b">
+                <Input
+                  autoFocus
+                  value={locFilter}
+                  onChange={(e) => setLocFilter(e.target.value)}
+                  placeholder={`Search ${locations.length} locations`}
+                  className="h-8"
+                />
               </div>
-            );
-          })}
+              <div className="max-h-64 overflow-y-auto py-1">
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted"
+                  onClick={() => { setLocation(null); setLocOpen(false); }}
+                >
+                  All locations
+                </button>
+                {visibleLocations.map((loc) => (
+                  <button
+                    key={loc}
+                    type="button"
+                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted ${loc === location ? "font-medium text-primary" : ""}`}
+                    onClick={() => { setLocation(loc); setLocOpen(false); }}
+                  >
+                    {loc}
+                  </button>
+                ))}
+                {visibleLocations.length === 0 && (
+                  <p className="px-3 py-2 text-sm text-muted-foreground">No location matches that.</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <Button
+          type="button"
+          variant={remoteOnly ? "default" : "outline"}
+          onClick={() => setRemoteOnly((v) => !v)}
+          className="shrink-0"
+        >
+          <Home className="w-4 h-4 mr-1.5" />Remote
+        </Button>
+
+        {hasFilters && (
+          <Button type="button" variant="ghost" onClick={clearFilters} className="shrink-0">
+            <X className="w-4 h-4 mr-1.5" />Clear
+          </Button>
+        )}
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        {loading
+          ? "Loading jobs…"
+          : total === null
+            ? ""
+            : hasFilters
+              ? `${total} job${total === 1 ? "" : "s"} match your search`
+              : `${total} jobs`}
+      </p>
+
+      {/* Split view: list on the left, the full posting on the right */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-4 items-start">
+        <div className="space-y-3">
+          {loading ? (
+            <Card className="divide-y divide-border/60 border-border/60 overflow-hidden p-0">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-4">
+                  <Skeleton className="w-10 h-10 rounded-lg shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-3 w-1/3" />
+                  </div>
+                </div>
+              ))}
+            </Card>
+          ) : jobs.length === 0 ? (
+            <Card className="p-10 text-center">
+              <p className="text-sm text-muted-foreground">
+                {hasFilters ? "No jobs match your search. Try clearing a filter." : "No fresh postings right now, check back soon."}
+              </p>
+            </Card>
+          ) : (
+            <>
+              <Card className="divide-y divide-border/60 border-border/60 overflow-hidden p-0">
+                {jobs.map((j) => {
+                  const isHot = Date.now() - new Date(j.posted_at).getTime() < HOT_WINDOW_MS;
+                  const avatar = companyAvatar(j.company);
+                  const showLogo = !!j.company_logo_url && !logoFailed.has(j.id);
+                  const active = selected?.id === j.id;
+                  return (
+                    <button
+                      key={j.id}
+                      type="button"
+                      onClick={() => openJob(j)}
+                      className={`w-full text-left flex items-start gap-3 p-4 transition ${active ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted/40 border-l-2 border-l-transparent"}`}
+                    >
+                      {showLogo ? (
+                        <img
+                          src={j.company_logo_url!}
+                          alt=""
+                          className="w-10 h-10 rounded-lg shrink-0 object-contain bg-muted p-1.5"
+                          onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
+                        />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-semibold text-sm shrink-0 ${avatar.className}`}>
+                          {avatar.initial}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-start gap-2">
+                          <p className="font-medium text-sm leading-snug">{j.title}</p>
+                          {isHot && (
+                            <Badge className="shrink-0 bg-primary/10 text-primary border-primary/30 gap-1 hover:bg-primary/10">
+                              <Flame className="w-3 h-3" /> New
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {j.company}{j.location ? ` • ${j.location}` : ""}
+                        </p>
+                        <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                          {scorePill(j.id)}
+                          <span className="text-[11px] text-muted-foreground">{postedAge(j.posted_at)}</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </Card>
+
+              {total !== null && jobs.length < total && (
+                <Button variant="outline" className="w-full" onClick={loadMore} disabled={loadingMore}>
+                  {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : `Load more (${total - jobs.length} left)`}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Desktop detail pane */}
+        <Card className="hidden lg:block border-border/60 overflow-hidden sticky top-4 h-[calc(100vh-8rem)] p-0">
+          {selected
+            ? detail
+            : <p className="p-10 text-sm text-muted-foreground text-center">Pick a job to read the full posting.</p>}
         </Card>
-      )}
+      </div>
+
+      {/* Narrow screens get the same detail as a full height sheet */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-lg p-0 lg:hidden">
+          <div className="h-full pt-6">{detail}</div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
