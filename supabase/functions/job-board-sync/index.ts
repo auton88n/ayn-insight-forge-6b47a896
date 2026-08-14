@@ -1,4 +1,15 @@
-// job-board-sync — v3.134.0
+// job-board-sync — v3.135.0
+//
+// v3.135.0 — real company logos for Browse Jobs. freehire's job listings
+// have no logo field (confirmed live); its separate /companies/{slug}
+// endpoint has a real company website, which resolves to a real favicon via
+// a domain-based lookup. See resolveCompanyLogo/resolveLogosForSlugs below
+// for how this stays cheap: memoized in job_postings.company_logo_url
+// across runs (a company is never re-queried against freehire once known,
+// success or genuine no-website miss alike), bounded concurrency per run,
+// and fully best-effort — a failed lookup only ever leaves a row's logo
+// null, never blocks the posting itself from saving. BrowseJobs.tsx falls
+// back to a colored-initial mark for a null company_logo_url.
 //
 // Cron-scheduled (see the job-board-sync pg_cron entry), same net.http_post
 // pattern as ayn-daily-report/error-alert-check. Pulls real job postings
@@ -108,10 +119,61 @@ interface FreehireJob {
   public_slug?: string;
   title?: string;
   company?: string;
+  company_slug?: string;
   location?: string;
   description?: string;
   url?: string;
   posted_at?: string;
+}
+
+// v3.135.0 — real company marks. freehire's job listings carry no logo
+// field at all (confirmed live against the raw API); its separate
+// /companies/{slug} endpoint does carry a real company website, which
+// resolves to a real favicon via Google's public, no-auth favicon-by-domain
+// service (also confirmed live). Failure anywhere in this chain — no slug,
+// the companies lookup 404s/errors, no website on file — returns null, and
+// BrowseJobs.tsx already falls back to a deterministic colored-initial mark
+// for a null company_logo_url, so a bad lookup never blocks a real posting.
+const FREEHIRE_COMPANY_BASE = "https://freehire.me/api/v1/companies";
+const FAVICON_CONCURRENCY = 8;
+
+async function resolveCompanyLogo(slug: string): Promise<string | null> {
+  try {
+    const r = await fetch(`${FREEHIRE_COMPANY_BASE}/${encodeURIComponent(slug)}`);
+    if (!r.ok) return null;
+    const body = await r.json().catch(() => null) as
+      { data?: { company?: { company_info?: { website?: string; homepage?: string } } } } | null;
+    const ci = body?.data?.company?.company_info;
+    // v3.135.0 — freehire's own schema is inconsistent across companies,
+    // confirmed live against a real sample, not assumed from one lucky
+    // test: some carry the domain under company_info.website (Apple, as a
+    // full URL), others only under company_info.homepage (Roku, Lyft,
+    // Stitch Fix, all as a bare domain, and all three had this while
+    // website was empty) — homepage is the more commonly populated of the
+    // two in that sample, so it's checked first. A company can genuinely
+    // have neither (confirmed for at least two real companies), which
+    // correctly returns null here, not an error.
+    const raw = ci?.homepage || ci?.website;
+    if (!raw || typeof raw !== "string") return null;
+    const domain = raw.replace(/^https?:\/\//i, "").replace(/\/.*$/, "").trim();
+    if (!domain) return null;
+    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolves every not-yet-known slug with bounded concurrency, mutating
+ * `known` in place (seeded from job_postings before any region runs, so a
+ * company already resolved in a prior sync run — success or genuine
+ * no-website miss alike — is never re-queried against freehire forever). */
+async function resolveLogosForSlugs(slugs: string[], known: Map<string, string | null>): Promise<void> {
+  const todo = Array.from(new Set(slugs)).filter((s) => s && !known.has(s));
+  for (let i = 0; i < todo.length; i += FAVICON_CONCURRENCY) {
+    const batch = todo.slice(i, i + FAVICON_CONCURRENCY);
+    const results = await Promise.all(batch.map((slug) => resolveCompanyLogo(slug)));
+    batch.forEach((slug, idx) => known.set(slug, results[idx]));
+  }
 }
 
 /** freehire's description field is HTML. AYN's own gap-matching and AI
@@ -156,6 +218,7 @@ async function syncRegion(
   admin: ReturnType<typeof createClient>,
   countries: string,
   maxPages: number,
+  knownLogos: Map<string, string | null>,
 ): Promise<{ fetched: number; upserted: number }> {
   let fetched = 0;
   let upserted = 0;
@@ -176,6 +239,7 @@ async function syncRegion(
         source: "freehire",
         external_id: j.public_slug!,
         company: String(j.company).slice(0, 300),
+        company_slug: j.company_slug ? String(j.company_slug).slice(0, 300) : null,
         title: String(j.title).slice(0, 300),
         description: stripHtml(j.description || "").slice(0, 20000),
         location: j.location ? String(j.location).slice(0, 300) : null,
@@ -185,10 +249,24 @@ async function syncRegion(
       .filter((row) => row.description.length >= 40) // skip anything too thin to score against
       .filter((row) => !looksNonLatinScript(row.description) && !looksNonLatinScript(row.title));
 
-    if (rows.length) {
-      const { error } = await admin.from("job_postings").upsert(rows, { onConflict: "source,external_id" });
+    // v3.135.0 — resolve this page's distinct companies before upserting,
+    // so company_logo_url lands in the same write as everything else
+    // rather than a second pass. Best-effort: a slow/failed freehire
+    // companies lookup only ever leaves a row's logo null, never blocks
+    // the posting itself from saving.
+    const slugs = rows.map((row) => row.company_slug).filter((s): s is string => !!s);
+    if (slugs.length) {
+      await resolveLogosForSlugs(slugs, knownLogos).catch(() => { /* individual lookups already fail soft */ });
+    }
+    const rowsWithLogos = rows.map((row) => ({
+      ...row,
+      company_logo_url: row.company_slug ? (knownLogos.get(row.company_slug) ?? null) : null,
+    }));
+
+    if (rowsWithLogos.length) {
+      const { error } = await admin.from("job_postings").upsert(rowsWithLogos, { onConflict: "source,external_id" });
       if (error) throw error;
-      upserted += rows.length;
+      upserted += rowsWithLogos.length;
     }
 
     if (jobs.length < PAGE_SIZE) break; // reached the last page for this region
@@ -205,9 +283,36 @@ Deno.serve(async (req: Request) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(supabaseUrl, serviceKey);
 
+    // v3.135.0 — seed the logo cache from what's already stored, so a
+    // company already resolved to a real logo in a past run is never
+    // re-queried against freehire. Deliberately seeds successes only, not
+    // nulls: freehire's own company_info shape is inconsistent across
+    // companies (some carry the domain under .website, others only under
+    // .homepage — confirmed live, not assumed), so a null here can mean
+    // either "genuinely no domain on file" or "resolveCompanyLogo's own
+    // logic has a gap this run's code doesn't have yet." Caching a null as
+    // final would let a fixable miss stay stuck forever the next time this
+    // function's resolution logic improves; the real cost of the safer
+    // choice is only a repeat freehire lookup, not a wrong answer. Distinct
+    // on company_slug isn't available in a single PostgREST call, so this
+    // reads every row with a resolved logo and de-dupes client side — real
+    // volume here is companies-with-a-logo, well inside one page.
+    const knownLogos = new Map<string, string | null>();
+    {
+      const { data: seedRows } = await admin
+        .from("job_postings")
+        .select("company_slug, company_logo_url")
+        .not("company_slug", "is", null)
+        .not("company_logo_url", "is", null)
+        .limit(5000);
+      for (const row of (seedRows ?? []) as Array<{ company_slug: string; company_logo_url: string | null }>) {
+        if (!knownLogos.has(row.company_slug)) knownLogos.set(row.company_slug, row.company_logo_url);
+      }
+    }
+
     const byRegion: Record<string, { fetched: number; upserted: number }> = {};
     for (const group of REGION_GROUPS) {
-      byRegion[group.name] = await syncRegion(admin, group.countries, group.maxPages);
+      byRegion[group.name] = await syncRegion(admin, group.countries, group.maxPages, knownLogos);
     }
     const fetched = Object.values(byRegion).reduce((n, r) => n + r.fetched, 0);
     const upserted = Object.values(byRegion).reduce((n, r) => n + r.upserted, 0);
@@ -219,7 +324,12 @@ Deno.serve(async (req: Request) => {
       .lt("posted_at", cutoff);
     if (pruneErr) throw pruneErr;
 
-    return new Response(JSON.stringify({ ok: true, fetched, upserted, pruned: count ?? 0, byRegion }), {
+    const companiesKnown = knownLogos.size;
+    const companiesWithLogo = Array.from(knownLogos.values()).filter((v) => v).length;
+
+    return new Response(JSON.stringify({
+      ok: true, fetched, upserted, pruned: count ?? 0, byRegion, companiesKnown, companiesWithLogo,
+    }), {
       headers: { ...corsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (e) {

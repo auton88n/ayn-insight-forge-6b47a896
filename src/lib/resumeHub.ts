@@ -166,6 +166,11 @@ export interface JobPosting {
   id: string;
   source: string;
   company: string;
+  // v3.135.0 — resolved by job-board-sync from freehire's own /companies
+  // endpoint (a favicon-by-domain lookup), null when no website is on file
+  // or the lookup hasn't happened yet — BrowseJobs.tsx falls back to a
+  // colored-initial mark either way.
+  company_logo_url?: string | null;
   title: string;
   description: string;
   location: string | null;
