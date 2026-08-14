@@ -73,7 +73,17 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
 
   const load = async () => {
     const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at").eq("user_id", userId).order("created_at", { ascending: false });
-    setJobs((data as JobRow[]) ?? []);
+    const rows = (data as JobRow[]) ?? [];
+    setJobs(rows);
+    // v3.137.0 — Browse jobs adds a posting then hands off here, naming the
+    // new job id. Nothing ever read this flag before, so a job added from
+    // the board landed in the list unselected and the person had to find it.
+    const focus = sessionStorage.getItem("ayn_focus_job");
+    if (focus) {
+      sessionStorage.removeItem("ayn_focus_job");
+      const hit = rows.find((r) => r.id === focus);
+      if (hit) openJob(hit);
+    }
   };
   useEffect(() => {
     load();
