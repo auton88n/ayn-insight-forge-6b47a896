@@ -81,7 +81,25 @@
       display: inline-flex; align-items: center; justify-content: center;
     }
     .logo-eye img { width: 100%; height: 100%; object-fit: contain; display: block; }
-    .hdr-right { display: flex; align-items: center; gap: 6px; position: relative; flex-shrink: 0; }
+    /* v3.4.6 — reported directly against a real screenshot: at the side
+       panel's actual default width there is nowhere near enough room for
+       "AYN Resume Tailor" plus the credit pill, the name pill and two
+       icon buttons on one line. The wordmark (a plain text node with no
+       wrap control) wrapped to three lines, and since .header centers
+       .hdr-right vertically against that now much taller row, the credit
+       pill landed centered on top of the middle line instead of beside
+       it. Fixed at the root: the wordmark can never wrap or grow the
+       header's height again, full stop, so nothing can ever be centered
+       against a multi-line height it isn't expecting. */
+    .logo-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 28px; }
+    /* v3.4.6 — .hdr-right's own flex-shrink:0 was the other half of the
+       collapse above: it forced 100% of any width deficit onto .logo,
+       which is why the wordmark had to disappear entirely just now
+       rather than merely truncate. Letting .hdr-right shrink as a unit
+       means the deficit lands on .user-email's own already-correct
+       ellipsis (min-width 28px reserved above keeps "AYN" itself intact
+       either way) instead of erasing the brand mark. */
+    .hdr-right { display: flex; align-items: center; gap: 6px; position: relative; min-width: 0; }
     /* v3.35.0 — credit balance, visible at all times instead of only on
        an insufficient-credits failure. Turns amber near zero. */
     .credit-pill {
@@ -100,7 +118,7 @@
       max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .icon-btn {
-      width: 30px; height: 30px; border-radius: 9px; border: 1px solid transparent;
+      width: 30px; height: 30px; flex-shrink: 0; border-radius: 9px; border: 1px solid transparent;
       background: transparent; color: var(--ayn-muted); cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: background .15s, color .15s, border-color .15s;
@@ -109,7 +127,7 @@
     .icon-btn i { font-size: 16px; }
 
     .sign-out {
-      width: 30px; height: 30px; border-radius: 9px;
+      width: 30px; height: 30px; flex-shrink: 0; border-radius: 9px;
       font-size: 0; color: var(--ayn-muted); background: transparent;
       border: 1px solid transparent; cursor: pointer;
       display: inline-flex; align-items: center; justify-content: center;
@@ -716,9 +734,9 @@
 <body>
 
 <div class="header">
-  <div class="logo">
+  <div class="logo" title="AYN Resume Tailor">
     <div class="logo-eye"><img src="icons/ayn-mark.svg" alt="AYN"/></div>
-    AYN Resume Tailor
+    <span class="logo-text">AYN</span>
   </div>
   <div class="hdr-right">
     <span class="credit-pill hidden" id="credit-pill" title="Credit balance"></span>
