@@ -82,6 +82,12 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   const [cover, setCover] = useState<CoverRow | null>(null);
   const [showDiff, setShowDiff] = useState(false);
   const [busy, setBusy] = useState(false);
+  // v3.146.0 — reported directly: clicking Score/Tailor/Write cover letter
+  // just disabled the buttons with no visible change, reading as a stuck
+  // page instead of AYN actually working on a real AI call that takes a
+  // few seconds. Tracks which one is running so that specific button can
+  // show a spinner and say so, instead of a shared, silent `busy` flag.
+  const [activeAction, setActiveAction] = useState<null | "score" | "tailor" | "cover">(null);
   const [adding, setAdding] = useState(false);
   const [newJob, setNewJob] = useState({ url: "", text: "" });
 
@@ -154,7 +160,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
 
   const calcMatch = async () => {
     if (!selected || !primaryResume || !selected.jd_text) return;
-    setBusy(true);
+    setActiveAction("score");
     try {
       const m = await resumeHubApi.match(selected.jd_text);
       setMatchData(m);
@@ -166,12 +172,12 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       toast(isFeatureDisabled(e)
         ? { title: "Under maintenance", description: e.message }
         : { title: "Match failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
-    } finally { setBusy(false); }
+    } finally { setActiveAction(null); }
   };
 
   const tailorResume = async () => {
     if (!selected || !primaryResume || !selected.jd_text) return;
-    setBusy(true);
+    setActiveAction("tailor");
     try {
       const { resume, gapAnalysis } = await resumeHubApi.tailor(selected.jd_text);
       // Regenerating replaces the stored copy for this job.
@@ -188,7 +194,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       toast(isFeatureDisabled(e)
         ? { title: "Under maintenance", description: e.message }
         : { title: "Tailor failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
-    } finally { setBusy(false); }
+    } finally { setActiveAction(null); }
   };
 
   // v3.99.0 — patches the already-generated, already-paid-for tailored
@@ -219,7 +225,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
 
   const writeCover = async () => {
     if (!selected || !primaryResume || !selected.jd_text) return;
-    setBusy(true);
+    setActiveAction("cover");
     try {
       const { body } = await resumeHubApi.coverLetter(selected.jd_text, { company: selected.company });
       await supabase.from("cover_letters").delete().eq("user_id", userId).eq("job_id", selected.id);
@@ -230,7 +236,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       toast(isFeatureDisabled(e)
         ? { title: "Under maintenance", description: e.message }
         : { title: "Cover letter failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
-    } finally { setBusy(false); }
+    } finally { setActiveAction(null); }
   };
 
   // v3.143.0 — asked directly to drop PDF for anything AYN itself writes
@@ -352,14 +358,24 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               <div className="flex flex-wrap gap-2">
                 <Button
                   onClick={calcMatch}
-                  disabled={busy || !primaryResume}
+                  disabled={activeAction !== null || !primaryResume}
                   style={{ background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }}
                   className="hover:opacity-90"
                 >
-                  <Sparkles className="w-4 h-4 mr-2" />Score this job
+                  {activeAction === "score"
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Scoring…</>
+                    : <><Sparkles className="w-4 h-4 mr-2" />Score this job</>}
                 </Button>
-                <Button onClick={tailorResume} disabled={busy || !primaryResume || !tailoring.enabled} variant="outline">Tailor resume</Button>
-                <Button onClick={writeCover} disabled={busy || !primaryResume || !tailoring.enabled} variant="outline">Write cover letter</Button>
+                <Button onClick={tailorResume} disabled={activeAction !== null || !primaryResume || !tailoring.enabled} variant="outline">
+                  {activeAction === "tailor"
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Tailoring…</>
+                    : "Tailor resume"}
+                </Button>
+                <Button onClick={writeCover} disabled={activeAction !== null || !primaryResume || !tailoring.enabled} variant="outline">
+                  {activeAction === "cover"
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Writing…</>
+                    : "Write cover letter"}
+                </Button>
               </div>
               {!primaryResume && (
                 <p className="text-xs text-amber-500 mt-3">Add your resume in Profile to enable AI actions.</p>

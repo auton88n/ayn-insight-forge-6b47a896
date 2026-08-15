@@ -82,9 +82,49 @@ export function companyAvatar(name: string) {
 // correct, honest answer, not a failure. Styled as a neutral tier rather
 // than a red/failed one so it never reads as "AYN broke."
 function scoreTier(score: number) {
-  if (score >= 50) return { label: "Strong match", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" };
-  if (score >= 20) return { label: "Some overlap", cls: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300" };
-  return { label: "Quick match", cls: "bg-muted text-muted-foreground" };
+  if (score >= 50) return { label: "Strong match", ring: "#10b981", text: "#047857" };
+  if (score >= 20) return { label: "Some overlap", ring: "#f59e0b", text: "#b45309" };
+  return { label: "Quick match", ring: "#9ca3af", text: "#6b7280" };
+}
+
+// v3.147.0 — asked directly for the auto-computed quick-match score to
+// read as a circular gauge instead of a flat text pill. Same tiering
+// scoreTier already used (emerald/amber/neutral), just drawn as a ring
+// instead of a background fill, with the number in the center. Used at
+// two sizes: small and unlabeled inline in the list row (25 of these on
+// a page, no room for a label), larger with its tier label in the detail
+// pane, where it is the one score on screen.
+function ScoreGauge({ score, size = 28, showLabel = false }: { score: number; size?: number; showLabel?: boolean }) {
+  const stroke = Math.max(3, Math.round(size * 0.12));
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(100, score));
+  const offset = c * (1 - pct / 100);
+  const tier = scoreTier(pct);
+  return (
+    <span
+      className="inline-flex items-center gap-2"
+      title="A quick keyword estimate, computed automatically. Add the job for AYN's full match analysis."
+    >
+      <span style={{ width: size, height: size, position: "relative" }} className="inline-block shrink-0">
+        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--rh-hair, #ececec)" strokeWidth={stroke} />
+          <circle
+            cx={size / 2} cy={size / 2} r={r} fill="none"
+            stroke={tier.ring} strokeWidth={stroke} strokeLinecap="round"
+            strokeDasharray={c} strokeDashoffset={offset}
+            style={{ transition: "stroke-dashoffset 0.6s ease" }}
+          />
+        </svg>
+        <span style={{ position: "absolute", inset: 0 }} className="flex items-center justify-center">
+          <span style={{ fontFamily: "JetBrains Mono, monospace", fontWeight: 700, fontSize: Math.max(9, size * 0.32), color: tier.text, lineHeight: 1 }}>
+            {Math.round(pct)}
+          </span>
+        </span>
+      </span>
+      {showLabel && <span className="text-xs font-medium" style={{ color: tier.text }}>{tier.label}</span>}
+    </span>
+  );
 }
 
 function postedAge(iso: string) {
@@ -475,19 +515,9 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     setMatchMode(true);
   };
 
-  const scorePill = (id: string) => {
+  const scorePill = (id: string, size = 28) => {
     const score = scores[id];
-    if (score != null) {
-      const tier = scoreTier(score);
-      return (
-        <span
-          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${tier.cls}`}
-          title="A quick keyword estimate, computed automatically. Add the job for AYN's full match analysis."
-        >
-          {tier.label} · {score}%
-        </span>
-      );
-    }
+    if (score != null) return <ScoreGauge score={score} size={size} showLabel={size >= 40} />;
     if (!scored.has(id)) {
       return <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground animate-pulse">Scoring…</span>;
     }
@@ -524,7 +554,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {scorePill(selected.id)}
+          {scorePill(selected.id, 44)}
           <span className="text-xs text-muted-foreground">Posted {postedAge(selected.posted_at)} · {postedDate(selected.posted_at)}</span>
         </div>
 
