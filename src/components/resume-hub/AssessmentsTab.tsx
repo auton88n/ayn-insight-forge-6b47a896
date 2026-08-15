@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Timer, CheckCircle2, Building2 } from "lucide-react";
+import { Loader2, Timer, CheckCircle2, Building2, Type } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { assessmentApi, type SeekerAssessment, type StartedAssessment } from "@/lib/assessments";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
@@ -20,6 +20,127 @@ import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 function mmss(total: number): string {
   const s = Math.max(0, total);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// v3.155.0 — a per-question budget on top of the existing overall clock.
+// Generous, not punishing: enough time to actually read and answer
+// honestly, tight enough that reading a full AI-relayed response and
+// retyping it by hand (paste is blocked below) costs something real.
+// Auto-advances on expiry the same lenient way the overall timer already
+// does -- whatever is drafted still gets submitted, nothing is discarded
+// for a slow connection or a moment's hesitation.
+const QUESTION_BUDGET_SECONDS: Record<string, number> = { mc: 120, short: 180 };
+
+// Not real cryptography -- a deliberately garbled, one-way-looking scramble
+// so a copied question reads as corrupted nonsense wherever it lands
+// (including inside an AI chat), instead of the real question text.
+function scrambleForClipboard(s: string): string {
+  const shifted = s
+    .split("")
+    .map((c) => {
+      const code = c.charCodeAt(0);
+      return code >= 33 && code <= 126 ? String.fromCharCode(((code - 33 + 13) % 94) + 33) : c;
+    })
+    .join("");
+  return `[AYN assessment content is protected] ${shifted.split("").reverse().join("")}`;
+}
+
+// v3.156.0 — asked directly: paste-block and copy-scramble only ever
+// touch the browser's clipboard events, and a DOM-reading browser AI
+// assistant (Claude for Chrome or similar, given page-read permission)
+// never fires those -- it reads document.body.innerText or the real text
+// nodes directly, seeing exactly what React rendered, no clipboard
+// involved at all. Rendering the question as canvas pixels removes the
+// DOM text node that kind of agent would read; it would need real OCR or
+// vision on the image instead, a meaningfully harder, slower path for a
+// generic, casual assistant a candidate points at the page.
+//
+// This closes ONE specific gap -- a zero-effort automated read -- not the
+// general problem. A person who reads the question with their own eyes
+// and retypes it into a chat window is untouched by this, same as by
+// everything else built so far; nothing closes that, and the timing and
+// no-paste mechanics elsewhere are the real, load-bearing defense against
+// it regardless of how the text was obtained.
+//
+// The accessible-text toggle below is not a loophole patched over --
+// it's the honest resolution to a real tension: an aria-label carrying
+// the same text would be exactly as machine-readable as a <p> tag, so
+// there is no version of "readable by a legitimate screen reader" that
+// isn't also "readable by automation using the same accessibility API."
+// Rather than silently ship something screen-reader users can't use, this
+// offers a real, unconditional switch to plain text -- no proof of need
+// required, since demanding one would be inappropriate and likely
+// unlawful. Choosing it is a deliberate human action, the same real cost
+// as reading the screen and retyping by hand; it does not reopen the
+// zero-effort automated case this exists to close.
+function CanvasQuestionText({ text, sampleClassName }: { text: string; sampleClassName: string }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const sampleRef = useRef<HTMLSpanElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const sample = sampleRef.current;
+    if (!canvas || !sample) return;
+
+    const draw = () => {
+      const parent = canvas.parentElement;
+      if (!parent) return;
+      const style = getComputedStyle(sample);
+      const color = style.color;
+      const fontSize = parseFloat(style.fontSize) || 14;
+      const fontWeight = style.fontWeight || "500";
+      const fontFamily = style.fontFamily || "sans-serif";
+      const lineHeight = Math.round(fontSize * 1.625);
+      const dpr = window.devicePixelRatio || 1;
+      const maxWidth = Math.max(200, parent.clientWidth);
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+
+      const words = text.split(/\s+/).filter(Boolean);
+      const lines: string[] = [];
+      let line = "";
+      for (const word of words) {
+        const test = line ? `${line} ${word}` : word;
+        if (line && ctx.measureText(test).width > maxWidth) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = test;
+        }
+      }
+      if (line) lines.push(line);
+      if (!lines.length) lines.push("");
+
+      const height = lines.length * lineHeight;
+      canvas.width = maxWidth * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${maxWidth}px`;
+      canvas.style.height = `${height}px`;
+      ctx.scale(dpr, dpr);
+      ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+      ctx.fillStyle = color;
+      ctx.textBaseline = "top";
+      lines.forEach((l, i) => ctx.fillText(l, 0, i * lineHeight));
+    };
+
+    draw();
+    window.addEventListener("resize", draw);
+    return () => window.removeEventListener("resize", draw);
+  }, [text]);
+
+  return (
+    <>
+      <span
+        ref={sampleRef}
+        className={sampleClassName}
+        aria-hidden="true"
+        style={{ position: "absolute", visibility: "hidden", height: 0, width: 0, overflow: "hidden", whiteSpace: "nowrap" }}
+      >x</span>
+      <canvas ref={canvasRef} aria-hidden="true" />
+    </>
+  );
 }
 
 export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: number) => void }) {
@@ -30,9 +151,13 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
   const [idx, setIdx] = useState(0);
   const [draft, setDraft] = useState("");
   const [left, setLeft] = useState(0);
+  const [qLeft, setQLeft] = useState(0);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const questionStart = useRef<number>(Date.now());
+  // v3.156.0 — off by default (questions render as canvas); once turned on
+  // it stays on for the rest of this assessment, not re-asked per question.
+  const [accessibleText, setAccessibleText] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,6 +207,12 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
     return () => clearInterval(t);
   }, [active, submit]);
 
+  // v3.155.0 — a draft ref so the per-question countdown below can read the
+  // latest typed text without re-subscribing its interval on every
+  // keystroke (which would reset the tick and never actually count down).
+  const draftRef = useRef("");
+  useEffect(() => { draftRef.current = draft; }, [draft]);
+
   const start = async (id: string) => {
     setBusy(true);
     try {
@@ -98,15 +229,28 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
   };
 
   const saveAndNext = async (value: string) => {
-    if (!active) return;
+    // v3.155.0 — the per-question timer below can fire in the same moment
+    // as a manual click; without this guard both could call
+    // assessment_answer for the same question a beat apart, same class of
+    // race the overall timer's own busy check (v3.41.0, above) already
+    // exists to prevent.
+    if (!active || busy) return;
     const q = active.questions[idx];
     if (!q) return;
     setBusy(true);
     try {
-      await assessmentApi.answer(active.id, q.id, value, Date.now() - questionStart.current);
-      if (idx + 1 >= active.questions.length) {
+      const r = await assessmentApi.answer(active.id, q.id, value, Date.now() - questionStart.current);
+      // v3.154.0 — a short answer can come back with one live follow-up:
+      // spliced in as the very next question, same running clock, same
+      // "no going back" rule. It did not exist until this answer was
+      // submitted, so there was nothing to prepare for it in advance.
+      const nextQuestions = r.follow_up
+        ? [...active.questions.slice(0, idx + 1), r.follow_up, ...active.questions.slice(idx + 1)]
+        : active.questions;
+      if (idx + 1 >= nextQuestions.length) {
         await submit(false);
       } else {
+        if (r.follow_up) setActive({ ...active, questions: nextQuestions });
         setIdx(idx + 1);
         setDraft("");
         questionStart.current = Date.now();
@@ -117,6 +261,29 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
       setActive(null);
     } finally { setBusy(false); }
   };
+
+  // v3.155.0 — a per-question budget on top of the overall one, mirroring
+  // the same server-timestamped clock (assessment_start /
+  // assessment_answer both re-stamp current_question_started_at, which is
+  // what the backend actually grades against — this is the felt half of
+  // it). Auto-advances the same lenient way: whatever is drafted still
+  // gets submitted, nothing is silently lost.
+  useEffect(() => {
+    if (!active) return;
+    const q = active.questions[idx];
+    if (!q) return;
+    const budget = QUESTION_BUDGET_SECONDS[q.type] || 90;
+    const anchor = questionStart.current;
+    const tick = () => {
+      const secs = budget - Math.round((Date.now() - anchor) / 1000);
+      setQLeft(secs);
+      if (secs <= 0) void saveAndNext(draftRef.current);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, idx]);
 
   if (done) {
     return (
@@ -140,39 +307,86 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{active.org_name}</p>
             <h2 className="text-sm font-semibold truncate">{active.job_title || "Assessment"}</h2>
           </div>
-          <Badge variant={left < 120 ? "destructive" : "outline"} className="gap-1 shrink-0">
-            <Timer className="w-3 h-3" /> {mmss(left)}
-          </Badge>
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge variant={qLeft < 20 ? "destructive" : "outline"} className="gap-1">
+              {mmss(qLeft)} <span className="hidden sm:inline">this question</span>
+            </Badge>
+            <Badge variant={left < 120 ? "destructive" : "outline"} className="gap-1">
+              <Timer className="w-3 h-3" /> {mmss(left)}
+            </Badge>
+          </div>
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          Question {idx + 1} of {active.questions.length}. You cannot go back.
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            Question {idx + 1} of {active.questions.length}. You cannot go back.
+          </p>
+          {/* v3.156.0 — a real, unconditional switch, not a hidden setting:
+              anyone who needs the question as plain text for a screen
+              reader gets it with one click, no reason required. This
+              control itself is always a normal, focusable button, never
+              canvas, so it can be found and used regardless of whether the
+              question content itself is currently readable. */}
+          <button
+            type="button"
+            onClick={() => setAccessibleText(v => !v)}
+            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground underline shrink-0"
+          >
+            <Type className="w-3 h-3" />
+            {accessibleText ? "Hide accessible text" : "Show as accessible text"}
+          </button>
+        </div>
 
         {q && (
           <div className="space-y-3">
-            <p className="text-sm leading-relaxed font-medium">{q.text}</p>
-            {q.type === "mc" ? (
-              <div className="space-y-2">
-                {(q.options || []).map((o, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    disabled={busy}
-                    onClick={() => saveAndNext(o)}
-                    className="w-full text-left rounded-lg border border-border px-3 py-2.5 text-sm leading-relaxed hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
-                  >{o}</button>
-                ))}
-              </div>
-            ) : (
+            {/* v3.155.0 — asked directly for something real against a
+                paste-in from another tab: copying any part of the prompt
+                (question or options) hands back scrambled text instead of
+                the real content. Selection and highlighting still look and
+                feel normal; only what actually lands in the clipboard is
+                garbled, so this reads as the page working, not broken.
+                Left active in accessible-text mode too -- it doesn't
+                interfere with how a screen reader itself reads the page. */}
+            <div onCopy={e => { e.preventDefault(); e.clipboardData.setData("text/plain", scrambleForClipboard(q.text)); }}>
+              {accessibleText ? (
+                <p className="text-sm leading-relaxed font-medium">{q.text}</p>
+              ) : (
+                <CanvasQuestionText text={q.text} sampleClassName="text-sm leading-relaxed font-medium" />
+              )}
+              {q.type === "mc" && (
+                <div className="space-y-2 mt-3">
+                  {(q.options || []).map((o, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => saveAndNext(o)}
+                      // v3.156.0 — a real accessible name even before the
+                      // toggle above is used, so a screen reader lands on
+                      // "Option 2", not a silent, unlabeled button. Not
+                      // the real option text -- that's still exactly what
+                      // the toggle exists to reveal.
+                      aria-label={accessibleText ? undefined : `Option ${i + 1}`}
+                      className="w-full text-left rounded-lg border border-border px-3 py-2.5 text-sm leading-relaxed hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
+                    >
+                      {accessibleText ? o : <CanvasQuestionText text={o} sampleClassName="text-sm leading-relaxed" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {q.type !== "mc" && (
               <>
                 <Textarea
                   value={draft}
                   onChange={e => setDraft(e.target.value)}
+                  onPaste={e => e.preventDefault()}
+                  onDrop={e => e.preventDefault()}
                   maxLength={3000}
                   className="min-h-[140px]"
-                  placeholder="Two to four sentences."
+                  placeholder="Two to four sentences, typed in your own words."
                 />
+                <p className="text-[11px] text-muted-foreground -mt-2">Pasting is turned off for this box. Type your answer directly.</p>
                 <Button onClick={() => saveAndNext(draft)} disabled={busy || !draft.trim()}>
                   {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                   {idx + 1 >= active.questions.length ? "Submit" : "Next question"}

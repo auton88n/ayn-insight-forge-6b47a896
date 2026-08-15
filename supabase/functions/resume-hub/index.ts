@@ -3292,7 +3292,15 @@ Write the assessment now.`,
         : all;
       if (keep.length < 3) return json({ error: "Keep at least three questions." }, 400);
 
-      const limit = Math.max(300, Math.min(7200, Math.round(Number(time_limit_seconds) || 1800)));
+      // v3.157.0 — fallback only: the real caller (AssessmentDialog.tsx)
+      // always sends an explicit value derived from the same per-question
+      // caps (2 min mc, 3 min short) the candidate actually sees. This
+      // mirrors that formula so a caller that omits it still gets a
+      // sensible number instead of a flat 30 minutes regardless of length.
+      const derivedDefault = keep.reduce(
+        (sum, q) => sum + (String((q as Record<string, unknown>).type) === "short" ? 180 : 120), 0,
+      );
+      const limit = Math.max(300, Math.min(7200, Math.round(Number(time_limit_seconds) || derivedDefault || 1800)));
       const days = Math.max(1, Math.min(30, Math.round(Number(expires_days) || 7)));
       const { error } = await adminForNew.from("assessments").update({
         questions: keep.map(publicQuestion),
@@ -3337,7 +3345,7 @@ Write the assessment now.`,
       const ids = (rows || []).map(r => r.id);
       const { data: results } = ids.length
         ? await adminForNew.from("assessment_results")
-          .select("assessment_id, overall_score, verification_verdict, per_question, strengths, concerns, employer_summary")
+          .select("assessment_id, overall_score, verification_verdict, per_question, strengths, concerns, employer_summary, writing_signal, writing_signal_note")
           .in("assessment_id", ids)
         : { data: [] };
       const byId = new Map((results || []).map(r => [r.assessment_id, r]));
@@ -3370,6 +3378,8 @@ Write the assessment now.`,
               strengths: res.strengths,
               concerns: res.concerns,
               employer_summary: res.employer_summary,
+              writing_signal: res.writing_signal || "unclear",
+              writing_signal_note: res.writing_signal_note || "",
             }
             : null,
         };
@@ -3428,6 +3438,12 @@ Write the assessment now.`,
         await finaliseAssessment(id);
         return json({ error: "Your time on this assessment ran out. It has been submitted." }, 409);
       }
+      // v3.155.0 — the moment a question is actually shown is the real
+      // start of thinking time for it, whether this is a fresh start or a
+      // resume after a reload. assessment_answer below reads this back to
+      // compute real elapsed time server side, closing a real integrity
+      // gap: seconds_spent used to be whatever the client chose to report.
+      await adminForNew.from("assessments").update({ current_question_started_at: new Date().toISOString() }).eq("id", id);
       const { data: org } = await adminForNew.from("orgs").select("name").eq("id", a.org_id).maybeSingle();
       return json({
         id: a.id,
@@ -3448,7 +3464,7 @@ Write the assessment now.`,
       };
       if (!id || !question_id) return json({ error: "id and question_id required" }, 400);
       const { data: a } = await adminForNew.from("assessments")
-        .select("id, status, answers, started_at, time_limit_seconds")
+        .select("id, status, answers, started_at, time_limit_seconds, questions, current_question_started_at")
         .eq("id", id).eq("candidate_user_id", userId).maybeSingle();
       if (!a) return json({ error: "assessment not found" }, 404);
       if (a.status !== "started") return json({ error: "This assessment is not open." }, 409);
@@ -3457,15 +3473,122 @@ Write the assessment now.`,
         await finaliseAssessment(id);
         return json({ error: "Time ran out. Your answers were submitted." }, 409);
       }
+      // v3.155.0 — seconds_spent used to be whatever ms the client chose to
+      // report, never checked against anything -- a self-timed exam.
+      // current_question_started_at was stamped server side the moment this
+      // question was actually shown (assessment_start, or the end of the
+      // previous assessment_answer call), so real elapsed time is now
+      // computed here instead of trusted from the payload. ms is still
+      // accepted and clamped as a defensive fallback for the edge case
+      // where that stamp is somehow missing, never as the primary source.
+      const questionStartedAt = a.current_question_started_at ? new Date(a.current_question_started_at as string).getTime() : null;
+      const realMs = questionStartedAt
+        ? Math.max(0, Date.now() - questionStartedAt)
+        : Math.max(0, Math.min(3600000, Math.round(Number(ms) || 0)));
       const answers = { ...((a.answers as Record<string, unknown>) || {}) };
+      const answerText = String(answer ?? "").slice(0, 3000);
       answers[String(question_id)] = {
-        answer: String(answer ?? "").slice(0, 3000),
-        ms: Math.max(0, Math.min(3600000, Math.round(Number(ms) || 0))),
+        answer: answerText,
+        ms: realMs,
         at: new Date().toISOString(),
       };
-      const { error } = await adminForNew.from("assessments").update({ answers }).eq("id", id);
+
+      // v3.154.0 — asked directly to build something that actually raises
+      // the bar against an AI-assisted answer, not a prompt tweak. Live
+      // tested first: given only the question and the candidate's own
+      // resume bullets (exactly what someone pasting into a chatbot would
+      // have), an AI scored 90/100 "consistent" against the original
+      // one-shot design -- a capable model reasons to the same
+      // textbook-correct MC choice a genuine engineer would, and invents
+      // plausible specifics on demand for short answers. A live follow-up,
+      // generated only after the first answer exists and graded below for
+      // consistency against it, closes part of that gap: it can't be
+      // pre-drafted, and a fabricated backstory has to stay coherent under
+      // a second, unplanned probe. Scoped to the two short-answer
+      // questions -- MC has no natural "dig deeper" shape -- and generated
+      // at most once per question, so the added AI cost is capped at 2
+      // calls per assessment regardless of how this action gets retried.
+      const questions = (a.questions as Array<Record<string, unknown>>) || [];
+      const thisQ = questions.find(q => String(q.id) === String(question_id));
+      const alreadyHasFollowUp = questions.some(q => String(q.parent_id || "") === String(question_id));
+      let followUp: { id: string; type: "short"; text: string } | null = null;
+
+      // v3.154.0 — reproduced live: a follow-up (itself type "short", no
+      // parent_id check here originally) could spawn a follow-up of its
+      // own, and that one another, an unbounded chain. A follow-up must
+      // never generate a follow-up -- one probe per original question.
+      const isItselfAFollowUp = !!thisQ?.parent_id;
+      // v3.157.0 — this call had no ceiling: a slow or congested AI gateway
+      // meant every short-answer submission blocked on however long that
+      // one request took, with no cap. Under real load (more concurrent
+      // candidates, gateway congestion) that tail has no bound, so it gets
+      // worse exactly when it matters most. Racing it against a fixed 3s
+      // timeout means a candidate is never held up past that regardless of
+      // gateway load; past it, this answer just skips the follow-up, the
+      // same honest "best effort, never blocks the real action" rule this
+      // file already applies to notification emails.
+      if (thisQ && String(thisQ.type) === "short" && !isItselfAFollowUp && !alreadyHasFollowUp && answerText.trim().length >= 20) {
+        try {
+          const canon = await loadCanonical(adminForNew, userId);
+          const claims = canon ? buildCandidateProfile(canon) : null;
+          const timeout = new Promise<null>(resolve => setTimeout(() => resolve(null), 3000));
+          const fr = await Promise.race([callAI({
+            model: DEFAULT_MODEL,
+            system: `You write ONE live follow-up question for a verification assessment, based on an answer someone just gave.
+
+GOAL: ask for a specific, concrete detail (a real number, a name, a precise mechanism) that a person who genuinely did the work would know without hesitation, and that was NOT already stated in their answer. Something a fabricated answer would have to invent on the spot, with no chance to have prepared it in advance.
+
+RULES:
+- Ask about something THEY just claimed in their own answer below. Never introduce a new unrelated topic.
+- Never ask something answerable from the job description or general knowledge alone.
+- One question only. Plain, direct, one or two sentences.
+- Do not explain why you are asking. Do not soften it. Just ask.
+${VOICE_RULES}`,
+            user: `THE ORIGINAL QUESTION: ${String(thisQ.text || "")}
+
+WHAT THEY JUST ANSWERED: ${answerText}
+
+WHAT THEY CLAIM ON THEIR PROFILE (for grounding only): ${JSON.stringify(claims)}
+
+Write the one follow-up question now.`,
+            toolName: "write_followup",
+            toolSchema: {
+              type: "object",
+              properties: {
+                question: { type: "string" },
+                rubric: { type: "string", description: "What a genuine, consistent answer looks like versus a vague or invented one, judged specifically against what they already said." },
+              },
+              required: ["question", "rubric"],
+            },
+          }), timeout]);
+          const parsedFollowUp = fr
+            ? ((fr.structured as { question?: string; rubric?: string } | undefined)
+              || parseJsonLoose<{ question?: string; rubric?: string }>(fr.text) || {})
+            : {};
+          const qText = cleanEmployerText(String(parsedFollowUp.question || "")).trim();
+          if (qText) {
+            const fid = `${question_id}f`;
+            followUp = { id: fid, type: "short", text: qText };
+            const nextQuestions = [...questions, { id: fid, type: "short", text: qText, parent_id: String(question_id) }];
+            await adminForNew.from("assessments").update({ questions: nextQuestions }).eq("id", id);
+            await adminForNew.from("assessment_rubrics").insert({
+              assessment_id: id, question_id: fid, rubric: String(parsedFollowUp.rubric || "").slice(0, 2000),
+            });
+          }
+        } catch (e) {
+          console.error("follow-up generation failed, continuing without one", e);
+        }
+      }
+
+      // Whatever question the candidate sees next -- the next fixed
+      // question, or the follow-up just generated above -- starts being
+      // shown right as this response goes out. That is the real, honest
+      // start-of-thinking-time marker for it, regardless of which one it
+      // turns out to be; the next assessment_answer call reads it back.
+      const { error } = await adminForNew.from("assessments")
+        .update({ answers, current_question_started_at: new Date().toISOString() }).eq("id", id);
       if (error) return json({ error: error.message }, 500);
-      return json({ ok: true });
+      return json({ ok: true, follow_up: followUp });
     }
 
     // ---- Candidate: submit. Returns a plain confirmation and nothing else ----
@@ -3532,6 +3655,9 @@ Write the assessment now.`,
           private_rubric: rubricById.get(id) || "",
           candidate_answer: String(ans.answer ?? ""),
           seconds_spent: Math.round(Number(ans.ms || 0) / 1000),
+          // v3.154.0 — set only on a live follow-up (see assessment_answer),
+          // pointing back at the id of the question it was generated from.
+          is_follow_up_to: q.parent_id ? String(q.parent_id) : null,
         };
       });
 
@@ -3540,7 +3666,11 @@ Write the assessment now.`,
 WHAT YOU ARE JUDGING: whether the answers read like someone who actually did the work they claim, or like someone reciting general knowledge.
 Use each question's private rubric. Reward specific constraints, real tradeoffs, named failure modes, and honest uncertainty about details. Penalise generic best practice prose, restated question text, and confident claims with no texture.
 
+Some questions carry is_follow_up_to, naming the id of the question they were generated from live, right after the candidate answered it -- these could not have been prepared in advance. Grade a follow-up two ways: does the specific detail it asked for sound genuine on its own, AND is it consistent with what they said in the question it follows up on. A real answer builds on itself naturally. A fabricated one often drifts, adds a detail that does not quite fit what was claimed a moment earlier, or turns vague exactly where it should now be most specific.
+
 Also note timing where it is informative: a long, flawless short answer written in under twenty seconds is worth mentioning as an observation. State it as an observation, never as an accusation.
+
+Separately from all of the above, judge writing_signal: does the ANSWER PROSE ITSELF read like it was generated by an AI rather than typed by a person under time pressure -- comprehensively structured, textbook-even phrasing, no false start, no rough edge, every clause perfectly balanced. This is a real but uncertain signal on its own, never proof by itself -- report "human", "ai_assisted", or "unclear", with one honest sentence, and never let it alone drive the verdict.
 
 Scores: overall_score 0 to 100. verification_verdict is exactly one of "consistent", "partly consistent", "inconsistent", judged against what the candidate claims on their profile.
 employer_summary: 2 to 4 sentences, plain prose, what the employer should take away.
@@ -3568,6 +3698,8 @@ ${VOICE_RULES}`;
           concerns: { type: "array", items: { type: "string" } },
           employer_summary: { type: "string" },
           seeker_growth_note: { type: "string" },
+          writing_signal: { type: "string", enum: ["human", "ai_assisted", "unclear"] },
+          writing_signal_note: { type: "string" },
         },
         required: ["overall_score", "verification_verdict", "per_question", "employer_summary"],
       };
@@ -3655,12 +3787,16 @@ Grade it now.`,
               seconds_spent: it.seconds_spent,
               score: Math.max(0, Math.min(100, Math.round(Number(p?.score) || 0))),
               observed: cleanEmployerText(String(p?.observed || "No observation available.")),
+              is_follow_up: !!it.is_follow_up_to,
             };
           }),
           strengths: (Array.isArray(out.strengths) ? out.strengths : []).map(s => cleanEmployerText(String(s))).slice(0, 5),
           concerns,
           employer_summary: employerSummary,
           seeker_growth_note: cleanEmployerText(String(out.seeker_growth_note || "")).slice(0, 300),
+          writing_signal: ["human", "ai_assisted", "unclear"].includes(String(out.writing_signal))
+            ? String(out.writing_signal) : "unclear",
+          writing_signal_note: cleanEmployerText(String(out.writing_signal_note || "")).slice(0, 400),
         }, { onConflict: "assessment_id" });
       }
 

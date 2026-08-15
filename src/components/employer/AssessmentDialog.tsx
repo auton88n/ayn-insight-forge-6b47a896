@@ -17,6 +17,13 @@ import { useToast } from "@/hooks/use-toast";
 import { AynLoader } from "@/components/shared/AynLoader";
 import { assessmentApi, ASSESSMENT_LIMIT_NOTE, type PubQuestion } from "@/lib/assessments";
 
+// v3.157.0 — the per-question caps a candidate actually sees (2 minutes for
+// a multiple-choice question, 3 for a short answer, AssessmentsTab.tsx's own
+// QUESTION_BUDGET_SECONDS) are the real source of truth for how long an
+// honest answer takes. A flat 30-minute default regardless of question count
+// read as arbitrarily long. The suggested limit below is computed from the
+// actual question mix instead; these fixed options stay as an override.
+const QUESTION_SECONDS: Record<string, number> = { mc: 120, short: 180 };
 const LIMITS = [
   { label: "15 minutes", value: 900 },
   { label: "30 minutes", value: 1800 },
@@ -46,6 +53,7 @@ export default function AssessmentDialog({
   const [questions, setQuestions] = useState<PubQuestion[]>([]);
   const [dropped, setDropped] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(1800);
+  const [suggestedLimit, setSuggestedLimit] = useState<number | null>(null);
   const [expiry, setExpiry] = useState(7);
 
   const generate = useCallback(async () => {
@@ -55,6 +63,12 @@ export default function AssessmentDialog({
       const r = await assessmentApi.generate(orgId, searchId, candidateRef);
       setAssessmentId(r.assessment_id);
       setQuestions(r.questions || []);
+      const suggested = (r.questions || []).reduce(
+        (sum, q) => sum + (QUESTION_SECONDS[q.type] || QUESTION_SECONDS.short), 0,
+      );
+      const clamped = Math.max(300, Math.min(7200, Math.ceil(suggested / 300) * 300));
+      setSuggestedLimit(clamped);
+      setLimit(clamped);
     } catch (e) {
       toast({ title: "Could not build an assessment", description: (e as Error).message, variant: "destructive" });
       onOpenChange(false);
@@ -63,7 +77,7 @@ export default function AssessmentDialog({
 
   useEffect(() => {
     if (open && !assessmentId && !busy) void generate();
-    if (!open) { setAssessmentId(null); setQuestions([]); }
+    if (!open) { setAssessmentId(null); setQuestions([]); setSuggestedLimit(null); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -113,6 +127,17 @@ export default function AssessmentDialog({
               <div className="space-y-1.5">
                 <Label className="text-xs">Time limit</Label>
                 <div className="flex flex-wrap gap-1.5">
+                  {suggestedLimit && !LIMITS.some(l => l.value === suggestedLimit) && (
+                    <button
+                      type="button"
+                      onClick={() => setLimit(suggestedLimit)}
+                      className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                        limit === suggestedLimit
+                          ? "border-primary bg-primary/10 text-primary font-medium"
+                          : "border-border text-muted-foreground hover:bg-muted"
+                      }`}
+                    >Suggested ({Math.round(suggestedLimit / 60)} min)</button>
+                  )}
                   {LIMITS.map(l => (
                     <button
                       key={l.value}
@@ -126,6 +151,9 @@ export default function AssessmentDialog({
                     >{l.label}</button>
                   ))}
                 </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Suggested from this question set: 2 minutes per multiple choice, 3 per short answer.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Expires in</Label>
