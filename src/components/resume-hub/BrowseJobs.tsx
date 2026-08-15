@@ -51,6 +51,9 @@ interface Props {
 const PAGE_SIZE = 25;
 const HOT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const COLS = "id, source, company, company_logo_url, title, description, location, apply_url, posted_at";
+// v3.145.0 — whatever's open in the detail pane, restored once on a
+// refresh via its own one-shot effect below.
+const BROWSE_LAST_OPEN_KEY = "ayn_browse_last_open";
 
 // A small, deliberately warm palette that sits next to this app's own ember
 // accent without competing with it — each company gets one deterministically,
@@ -298,6 +301,31 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     });
     return () => { cancelled = true; };
   }, [buildQuery, scorePage, toast]);
+
+  // v3.145.0 — reported directly: refreshing dropped whatever was open in
+  // the detail pane back to the page's first result. Deliberately its own
+  // one-shot effect (deps: []) rather than folded into the query effect
+  // above: that effect re-runs whenever buildQuery's identity changes
+  // (e.g. once desiredLocations finishes loading right after mount for
+  // Match me), and a first attempt at merging the two lost this restore to
+  // exactly that race — whichever run resolved first "won" and looked
+  // like a valid prev selection, discarding the real restore. This runs
+  // once, and always wins when it resolves, no merge to race against.
+  useEffect(() => {
+    const lastId = sessionStorage.getItem(BROWSE_LAST_OPEN_KEY);
+    if (!lastId) return;
+    let cancelled = false;
+    supabase.from("job_postings").select(COLS).eq("id", lastId).maybeSingle().then(({ data }) => {
+      if (cancelled || !data) return;
+      setSelected(data as unknown as JobPosting);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (selected) sessionStorage.setItem(BROWSE_LAST_OPEN_KEY, selected.id);
+    else sessionStorage.removeItem(BROWSE_LAST_OPEN_KEY);
+  }, [selected]);
 
   const loadMore = async () => {
     setLoadingMore(true);

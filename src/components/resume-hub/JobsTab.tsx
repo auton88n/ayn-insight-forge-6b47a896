@@ -37,7 +37,14 @@ import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
 import { companyAvatar } from "./BrowseJobs";
 
-interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile: () => void; onCreditsChanged?: () => void }
+interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile: () => void; onCreditsChanged?: () => void; onBackToBrowse: () => void }
+
+// v3.145.0 — reported directly: refreshing the page always dropped the
+// person on Home with nothing open, even if they'd been looking at a
+// specific saved job. Kept for the whole session (not one-shot like
+// ayn_focus_job below), so a refresh can restore it without a fresh
+// handoff from Browse jobs having just happened.
+const LAST_OPEN_KEY = "ayn_jobs_last_open";
 
 interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string }
 interface TailoredRow { id: string; created_at: string; content: ResumeContent }
@@ -53,10 +60,16 @@ function scoreBadgeStyle(score: number): CSSProperties {
   return { background: "var(--rh-raised)", color: "var(--rh-muted)" };
 }
 
-export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Props) {
+export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBackToBrowse }: Props) {
   const { toast } = useToast();
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [selected, setSelected] = useState<JobRow | null>(null);
+  // v3.145.0 — "list" means back returns to the Saved jobs list, the
+  // existing behavior; "browse" means this job was opened by a handoff
+  // from Browse jobs' "Score and tailor", so back should return there
+  // instead — a job opened from Browse was never reached through this
+  // list to begin with.
+  const [backTarget, setBackTarget] = useState<"list" | "browse">("list");
   const [primaryResume, setPrimaryResume] = useState<{ id: string; content: ResumeContent; ats_score: number | null } | null>(null);
   const [matchData, setMatchData] = useState<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string } | null>(null);
   const [tailored, setTailored] = useState<TailoredRow | null>(null);
@@ -79,10 +92,24 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
     // v3.137.0 — Browse jobs adds a posting then hands off here, naming the
     // new job id. Nothing ever read this flag before, so a job added from
     // the board landed in the list unselected and the person had to find it.
+    // v3.145.0 — ayn_focus_job_from rides alongside it now, so the back
+    // button on a job opened this way knows to return to Browse jobs
+    // instead of the Saved jobs list. When neither flag is set (a plain
+    // mount, not a fresh handoff), fall back to whatever job was open the
+    // last time this tab was looked at — a page refresh shouldn't lose it.
     const focus = sessionStorage.getItem("ayn_focus_job");
     if (focus) {
       sessionStorage.removeItem("ayn_focus_job");
+      const from = sessionStorage.getItem("ayn_focus_job_from");
+      sessionStorage.removeItem("ayn_focus_job_from");
+      setBackTarget(from === "browse" ? "browse" : "list");
       const hit = rows.find((r) => r.id === focus);
+      if (hit) openJob(hit);
+      return;
+    }
+    const lastOpen = sessionStorage.getItem(LAST_OPEN_KEY);
+    if (lastOpen) {
+      const hit = rows.find((r) => r.id === lastOpen);
       if (hit) openJob(hit);
     }
   };
@@ -91,6 +118,15 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
     supabase.from("resumes").select("id, content, ats_score").eq("user_id", userId).eq("is_primary", true).maybeSingle()
       .then(({ data }) => data && setPrimaryResume({ id: data.id, content: data.content as ResumeContent, ats_score: data.ats_score }));
   /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [userId]);
+
+  // v3.145.0 — keeps LAST_OPEN_KEY in sync with whatever's actually open,
+  // so a refresh restores it and going back to the list correctly forgets
+  // it (a refresh right after "Saved jobs" should show the list, not
+  // silently re-open the job that was last viewed before that).
+  useEffect(() => {
+    if (selected) sessionStorage.setItem(LAST_OPEN_KEY, selected.id);
+    else sessionStorage.removeItem(LAST_OPEN_KEY);
+  }, [selected]);
 
   /** Documents generated for this job, newest first. */
   const loadDocs = async (jobId: string) => {
@@ -265,10 +301,10 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
       <div className="space-y-4">
         <button
           type="button"
-          onClick={() => setSelected(null)}
+          onClick={() => (backTarget === "browse" ? onBackToBrowse() : setSelected(null))}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition"
         >
-          <ArrowLeft className="w-4 h-4" />Saved jobs
+          <ArrowLeft className="w-4 h-4" />{backTarget === "browse" ? "Browse jobs" : "Saved jobs"}
         </button>
 
         <Card className="p-5">

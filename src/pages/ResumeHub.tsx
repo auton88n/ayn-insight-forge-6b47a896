@@ -26,6 +26,19 @@ import { PlatformMaintenanceScreen } from "@/components/shared/MaintenanceNotice
 
 
 type TabKey = "home" | "profile" | "browse" | "jobs" | "proposals" | "assessments" | "extension";
+const TAB_KEYS: TabKey[] = ["home", "profile", "browse", "jobs", "proposals", "assessments", "extension"];
+
+// v3.145.0 — reported directly: refreshing the page always dropped the
+// person back on Home, no matter which section (or which job) they were
+// actually looking at. sessionStorage survives a reload but clears on a
+// real new session, which is the right scope here — a fresh sign-in
+// starting on Home is normal, an in-session refresh throwing the person's
+// place away is not.
+const TAB_STORAGE_KEY = "ayn_active_tab";
+function readStoredTab(): TabKey {
+  const v = sessionStorage.getItem(TAB_STORAGE_KEY);
+  return (TAB_KEYS as string[]).includes(v || "") ? (v as TabKey) : "home";
+}
 
 // v3.6.0 — Proposals is its own page, between Jobs and Assessments.
 // v3.13.0 — Assessments sits right after it, badged the same way.
@@ -46,7 +59,11 @@ const NAV: { key: TabKey; label: string; icon: typeof Home; hint: string }[] = [
 export default function ResumeHub() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [tab, setTab] = useState<TabKey>("home");
+  const [tab, setTabRaw] = useState<TabKey>(readStoredTab);
+  const setTab = useCallback((next: TabKey) => {
+    sessionStorage.setItem(TAB_STORAGE_KEY, next);
+    setTabRaw(next);
+  }, []);
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -136,10 +153,17 @@ export default function ResumeHub() {
   }, [navigate, toast]);
 
 
+  // v3.145.0 — reported directly: the back arrow on a job opened this way
+  // (from Browse jobs' "Score and tailor") took the person to the Saved
+  // jobs list instead of back to Browse, where they actually came from.
+  // ayn_focus_job_from is a second one-shot flag alongside the existing
+  // ayn_focus_job handoff, read once by JobsTab on the same mount so its
+  // back button can tell the two origins apart.
   const goJob = useCallback((jobId: string) => {
     setTab("jobs");
     sessionStorage.setItem("ayn_focus_job", jobId);
-  }, []);
+    sessionStorage.setItem("ayn_focus_job_from", "browse");
+  }, [setTab]);
 
   // v3.39.0 — a bare signOut() cleared the session but never navigated
   // anywhere, so this whole gated view stayed on screen looking untouched.
@@ -303,7 +327,7 @@ export default function ResumeHub() {
             {tab === "assessments" && <AssessmentsTab onChanged={setPendingAssessments} />}
 
             {tab === "browse"    && <BrowseJobs userId={userId!} onAdded={goJob} onOpenProfile={() => setTab("profile")} />}
-            {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} onOpenProfile={() => setTab("profile")} onCreditsChanged={refreshCredits} />}
+            {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} onOpenProfile={() => setTab("profile")} onCreditsChanged={refreshCredits} onBackToBrowse={() => setTab("browse")} />}
 
             {tab === "extension" && <ExtensionTab userId={userId!} />}
           </section>
