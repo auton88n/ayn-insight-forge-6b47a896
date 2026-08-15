@@ -41,7 +41,7 @@ import GapProbeDialog from "@/components/resume-hub/GapProbeDialog";
 import { classifyProbableIssue, type ProbeTarget } from "@/lib/gapProbe";
 import { resumeHubApi, type ResumeContent, type TalentPoolStatus, type GuidedIntakeExtraction, type GapProbeResult } from "@/lib/resumeHub";
 import { reindexTalentPool, setPoolOptInCache } from "@/lib/talentPoolSync";
-import { buildResumePdfBlob, buildResumeDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
+import { buildResumeDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import { computeReadiness } from "@/lib/profileGaps";
 
 /** v3.5.1 — bump whenever the consent wording changes. */
@@ -593,11 +593,13 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
     }
   };
 
-  const downloadResume = async (content: ResumeContent, name: string, kind: "pdf" | "docx") => {
+  // v3.143.0 — asked directly to drop PDF for anything AYN itself writes,
+  // since it's the harder format for an ATS or an AI reader to parse
+  // reliably. Word only, from here on.
+  const downloadResume = async (content: ResumeContent, name: string) => {
     try {
       const base = fileBase(name || "Resume");
-      if (kind === "pdf") downloadBlob(buildResumePdfBlob(content), `${base}.pdf`);
-      else downloadBlob(await buildResumeDocxBlob(content), `${base}.docx`);
+      downloadBlob(await buildResumeDocxBlob(content), `${base}.docx`);
     } catch (e) {
       toast({ title: "Download failed", description: (e as Error).message, variant: "destructive" });
     }
@@ -771,8 +773,8 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => downloadResume(resumeContent ?? {}, primaryResume.title, "pdf")}>
-                <Download className="w-4 h-4 mr-1.5" /> Download
+              <Button variant="outline" size="sm" onClick={() => downloadResume(resumeContent ?? {}, primaryResume.title)}>
+                <Download className="w-4 h-4 mr-1.5" /> Download (Word)
               </Button>
               <Button
                 variant="ghost"

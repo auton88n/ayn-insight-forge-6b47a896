@@ -26,7 +26,7 @@
  * already uses, so the same picked size fits the same real width in both.
  */
 import { jsPDF } from "jspdf";
-import { Document, Packer, Paragraph, TextRun, TabStopType } from "docx";
+import { Document, Packer, Paragraph, TextRun, TabStopType, AlignmentType } from "docx";
 import type { ResumeContent } from "@/lib/resumeHub";
 
 /** Flatten a structured resume into plain text — used by the diff viewer, not the downloads below. */
@@ -74,7 +74,7 @@ export function resumeToText(c: ResumeContent): string {
 // job title correctly, instead of the old approach of guessing "is this
 // line shouting in all caps" on a string that has already lost the
 // structure.
-type BlockKind = "name" | "contact" | "summary" | "header" | "title" | "bullet" | "plain";
+type BlockKind = "name" | "contact" | "summary" | "header" | "title" | "bullet" | "plain" | "label";
 // v3.137.0 — `meta` is the date range for a "title" block, kept separate
 // from `text` (title + company/school) so it can be drawn right-aligned on
 // the same line, the standard resume convention, instead of being
@@ -95,9 +95,18 @@ function buildResumeBlocks(c: ResumeContent): DocBlock[] {
 
   if ((c.skillGroups ?? []).length) {
     blocks.push({ kind: "header", text: "SKILLS", gapBefore: 12 });
-    (c.skillGroups ?? []).forEach((g, i) =>
-      blocks.push({ kind: "plain", text: `${g.category}: ${g.skills.join(", ")}`, gapBefore: i === 0 ? 7 : 3 })
-    );
+    // v3.143.0 — reported directly against a live download: the category
+    // label ("AI & Software Development:") rendered in the exact same
+    // plain weight as the skill list after it, so the two ran together
+    // and the section read as one dense block instead of scannable groups.
+    // The label now gets its own bold line (reusing "label"'s styling,
+    // deliberately not "title" — a category name isn't a job/school title
+    // and doesn't want that block's date-alignment behavior), with the
+    // skill list plain on the line right below it.
+    (c.skillGroups ?? []).forEach((g, i) => {
+      blocks.push({ kind: "label", text: g.category, gapBefore: i === 0 ? 7 : 5 });
+      blocks.push({ kind: "plain", text: g.skills.join(", "), gapBefore: 1 });
+    });
   } else if ((c.skills ?? []).length) {
     blocks.push({ kind: "header", text: "SKILLS", gapBefore: 12 });
     blocks.push({ kind: "plain", text: (c.skills ?? []).join(", "), gapBefore: 7 });
@@ -146,7 +155,13 @@ const STYLE: Record<BlockKind, { bold: boolean; sizeDelta: number; indent: numbe
   title: { bold: true, sizeDelta: 0, indent: 0 },
   bullet: { bold: false, sizeDelta: 0, indent: 12 },
   plain: { bold: false, sizeDelta: 0, indent: 0 },
+  label: { bold: true, sizeDelta: 0, indent: 0 },
 };
+
+// v3.143.0 — asked directly to center the name/contact block. Every other
+// block stays left-aligned; only the header identity block is centered,
+// the standard resume convention.
+const CENTERED_KINDS: BlockKind[] = ["name", "contact"];
 
 const PAGE_W = 612, PAGE_H = 792; // US letter, points
 const MARGIN = 54; // 0.75 inch
@@ -213,18 +228,29 @@ function layoutPdf(doc: jsPDF, blocks: DocBlock[], baseSize: number, draw: boole
     const prefix = block.kind === "bullet" ? "• " : "";
     const width = CONTENT_W - style.indent;
     const wrapped: string[] = block.text.trim() ? doc.splitTextToSize(prefix + block.text, width) : [""];
+    const centered = CENTERED_KINDS.includes(block.kind);
     for (const line of wrapped) {
       if (draw && y > PAGE_H - MARGIN) { doc.addPage(); y = MARGIN; }
-      if (draw) doc.text(line, MARGIN + style.indent, y);
+      if (draw) {
+        if (centered) doc.text(line, PAGE_W / 2, y, { align: "center" });
+        else doc.text(line, MARGIN + style.indent, y);
+      }
       y += lineH;
     }
   }
   return y - MARGIN;
 }
 
-function pickFontSize(doc: jsPDF, blocks: DocBlock[], allowTwoPages: boolean): number {
+// v3.143.0 — safetyMargin gives the picked size headroom below the exact
+// measured cap. The PDF path leaves it at 1 (its own measurement is
+// authoritative for itself, nothing to hedge against); the DOCX path below
+// passes a tighter margin, since Word renders the same size a little wider
+// than jsPDF's Helvetica-as-a-ruler estimate assumes, and DOCX no longer
+// has a PDF fallback sitting next to it once PDF is dropped for AYN's own
+// written documents — this is now the only copy the person downloads.
+function pickFontSize(doc: jsPDF, blocks: DocBlock[], allowTwoPages: boolean, safetyMargin = 1): number {
   const sizes = allowTwoPages ? EXEC_CANDIDATE_SIZES : CANDIDATE_SIZES;
-  const cap = allowTwoPages ? CONTENT_H * 2 : CONTENT_H;
+  const cap = (allowTwoPages ? CONTENT_H * 2 : CONTENT_H) * safetyMargin;
   for (const size of sizes) {
     if (layoutPdf(doc, blocks, size, false) <= cap) return size;
   }
@@ -244,17 +270,26 @@ export function buildResumePdfBlob(c: ResumeContent): Blob {
 // point-based constants the PDF builder uses.
 const TWIPS_PER_PT = 20;
 
+// v3.143.0 — Calibri was the docx library's own convenient default, never
+// a deliberate choice — asked directly for whatever's easiest for an ATS
+// or an AI reader to parse. Arial is the standard answer (it's a
+// metric-compatible clone of Helvetica, built for exactly this kind of
+// cross-renderer parity), and it's also what the PDF builder already
+// draws in, so both formats now genuinely match instead of two different
+// typefaces that happen to look similar.
+const DOCX_FONT = "Arial";
+
 export async function buildResumeDocxBlob(c: ResumeContent): Promise<Blob> {
   const blocks = buildResumeBlocks(c);
-  // jsPDF is used here purely as a text-measuring ruler (Helvetica metrics
-  // are close enough to Calibri for this) so the DOCX picks the same size
-  // the PDF settled on. Word does its own pagination — this cannot guarantee
-  // one page the way the PDF builder does, but starting from an already
-  // shrunk, already-fits-in-one-PDF-page size gets it there in practice —
-  // and only actually holds if the DOCX's own usable width matches what
-  // the size was picked against, which is why the page margins below are
-  // no longer left at the docx library's own default.
-  const size = pickFontSize(new jsPDF({ unit: "pt", format: "letter" }), blocks, isExecutiveResume(c));
+  // jsPDF is used here purely as a text-measuring ruler so the DOCX picks
+  // the same size the PDF settled on — now a closer estimate than before
+  // since both sides draw in Helvetica/Arial, real metric equivalents of
+  // each other, not just "close enough". Word still does its own
+  // pagination, so this can't be a hard guarantee the way the PDF builder
+  // is — the safety margin below is the hedge against that gap, which
+  // matters more now that DOCX is the only format AYN's own written
+  // documents download as.
+  const size = pickFontSize(new jsPDF({ unit: "pt", format: "letter" }), blocks, isExecutiveResume(c), 0.93);
   const rightTabPos = Math.round(CONTENT_W * TWIPS_PER_PT);
 
   const paragraphs = blocks.map(block => {
@@ -262,6 +297,7 @@ export async function buildResumeDocxBlob(c: ResumeContent): Promise<Blob> {
     const prefix = block.kind === "bullet" ? "• " : "";
     const baseSpacing = { before: (block.gapBefore ?? 0) * TWIPS_PER_PT, after: 60 };
     const indent = style.indent ? { left: style.indent * TWIPS_PER_PT } : undefined;
+    const alignment = CENTERED_KINDS.includes(block.kind) ? AlignmentType.CENTER : undefined;
 
     // Same right-aligned date treatment as layoutPdf: a real tab stop at
     // the page's own right margin, not a plain concatenated string.
@@ -269,10 +305,11 @@ export async function buildResumeDocxBlob(c: ResumeContent): Promise<Blob> {
       return new Paragraph({
         spacing: baseSpacing,
         indent,
+        alignment,
         tabStops: [{ type: TabStopType.RIGHT, position: rightTabPos }],
         children: [
-          new TextRun({ text: block.text, bold: true, font: "Calibri", size: Math.round((size + style.sizeDelta) * 2) }),
-          new TextRun({ text: `\t${block.meta}`, bold: false, font: "Calibri", size: Math.round((size + style.sizeDelta) * 2) }),
+          new TextRun({ text: block.text, bold: true, font: DOCX_FONT, size: Math.round((size + style.sizeDelta) * 2) }),
+          new TextRun({ text: `\t${block.meta}`, bold: false, font: DOCX_FONT, size: Math.round((size + style.sizeDelta) * 2) }),
         ],
       });
     }
@@ -280,10 +317,11 @@ export async function buildResumeDocxBlob(c: ResumeContent): Promise<Blob> {
     return new Paragraph({
       spacing: baseSpacing,
       indent,
+      alignment,
       children: [new TextRun({
         text: prefix + block.text,
         bold: style.bold,
-        font: "Calibri",
+        font: DOCX_FONT,
         size: Math.round((size + style.sizeDelta) * 2),
       })],
     });
@@ -335,7 +373,7 @@ export async function buildTextDocxBlob(text: string): Promise<Blob> {
   const paragraphs = String(text ?? "").split(/\n/).map(line =>
     new Paragraph({
       spacing: { after: 120 },
-      children: [new TextRun({ text: line, font: "Calibri", size: TEXT_SIZE * 2 })],
+      children: [new TextRun({ text: line, font: DOCX_FONT, size: TEXT_SIZE * 2 })],
     })
   );
   const doc = new Document({ sections: [{ children: paragraphs }] });

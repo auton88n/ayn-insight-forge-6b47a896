@@ -234,6 +234,18 @@ const STOP = new Set(("a an the and or of to in on for with as at by from is are
 // "missing skill" in the UI would read as nonsensical. Checked as a whole
 // line, not per term, since none of its individual words are unusual enough
 // to blocklist on their own without also blocking real requirements.
+// v3.143.0 — live-tested widening this to also catch "years of <domain>
+// experience" (e.g. "5+ years of product management experience", which
+// slipped through since the old pattern only matched the literal "years of
+// experience"). Reverted after checking the failure case: the same widened
+// pattern also swallows "3+ years of Kubernetes experience", silently
+// hiding a real, specific technology gap instead of a generic seniority
+// bar. Regex can't tell "product management" (a role descriptor) apart
+// from "Kubernetes" (a real skill) in that slot, and guessing which words
+// are "role-ish" is exactly the fragile semantic detection this file's own
+// design avoids. Left as the narrower, safer match; an occasional short
+// "N years of experience" line surviving is a much smaller problem than
+// silently dropping a genuine skill gap.
 const GENERIC_QUAL =
   /\b(years?\s+of\s+experience|degree\s*(preferred|required)?|bachelor'?s?|master'?s?(\s+degree)?|communication\s+skills?|team\s*player|problem[- ]solving|self[- ]starter|fast[- ]paced|detail[- ]oriented|work(ing)?\s+independently|interpersonal\s+skills?|time\s+management|organi[sz]ational\s+skills?|leadership\s+skills?|analytical\s+skills?|people\s+skills?|multi[- ]?task)\b/i;
 
@@ -324,7 +336,27 @@ function extractRequirements(jd: string): Array<{ text: string; kind: "required"
     const bulletish = /^[-*•·‣◦o]\s+|^\d+[.)]\s+/.test(raw);
     if (!bulletish && !inReqSection) continue;
     const text = raw.replace(/^[-*•·‣◦o]\s+|^\d+[.)]\s+/, "").trim();
-    if (text.length > 320) continue;
+    // v3.143.0 — reported directly against a live JD (Samsara): a "Who You
+    // Are" heading is a real requirements-section signal for many
+    // companies, but for this one it introduced a run of narrative
+    // culture/values bullets ("You want to impact the industries that run
+    // our world: Your efforts will result in real-world impact...") that
+    // the old 320-char cap happily let through as "requirements". Each one
+    // both rendered as an unreadable wall of text in the missing-skills UI
+    // and cost a real embedding call in applySemanticRecheck below (any
+    // 3+ word "requirement" gets one) for a sentence that was never a
+    // requirement to begin with. A real single requirement, even a wordy
+    // one, reads as one clause; a value-statement bullet reads as a
+    // sentence explaining itself, and is reliably longer. Tightened rather
+    // than trying to detect "culture vs skill" semantically, which is
+    // exactly the kind of fragile guess this file's own design avoids.
+    // Re-verified live against the actual Samsara posting that reported
+    // this: 180 still let a shorter values bullet through ("You want to
+    // be with the best: ...", 154 chars) while a real, if wordy, role
+    // responsibility a few lines later ("Discovery: Lead deep user
+    // research...", 136 chars) is exactly the kind of genuine item worth
+    // keeping. Tightened to sit between the two.
+    if (text.length > 140) continue;
     if (GENERIC_QUAL.test(text)) continue;
     // A bullet is already a deliberate, single item -- "- Kubernetes" or
     // "- AWS" is exactly as real a requirement as a full sentence, so it

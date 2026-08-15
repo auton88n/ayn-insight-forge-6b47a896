@@ -349,16 +349,17 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const saveJob = async (job: JobPosting, navigateAfter: boolean) => {
     setAddingId(job.id);
     try {
+      // v3.143.0 — reported directly: clicking "Score and tailor" on a job
+      // that was already saved (bookmarked earlier, or just a repeat
+      // click) yanked the person off Browse jobs to the Saved jobs page
+      // even though nothing new happened. Only a genuinely new save is
+      // worth leaving the page for now — an already-saved job just says
+      // so and stays right where the person was browsing.
       const { data: existing } = await supabase.from("jobs")
         .select("id").eq("user_id", userId).eq("source_url", job.apply_url).maybeSingle();
       if (existing) {
         setSavedUrls((prev) => new Set(prev).add(job.apply_url));
-        if (navigateAfter) {
-          toast({ title: "Already added", description: "You already saved this one — opening it on the Jobs page." });
-          onAdded((existing as { id: string }).id);
-        } else {
-          toast({ title: "Already saved" });
-        }
+        toast({ title: "Already saved", description: "Find it on the Saved jobs page whenever you're ready." });
         return;
       }
       const { data, error } = await supabase.from("jobs").insert({

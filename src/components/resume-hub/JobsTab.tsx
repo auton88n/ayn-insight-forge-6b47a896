@@ -30,7 +30,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Download, X, ArrowLeft } from "lucide-react";
-import { resumeToText, buildResumePdfBlob, buildResumeDocxBlob, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
+import { resumeToText, buildResumeDocxBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import ResumeDiffViewer from "./ResumeDiffViewer";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
@@ -197,19 +197,23 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
     } finally { setBusy(false); }
   };
 
-  const downloadDoc = async (content: ResumeContent, base: string, kind: "pdf" | "docx") => {
+  // v3.143.0 — asked directly to drop PDF for anything AYN itself writes
+  // (a tailored resume, a cover letter, a generated/optimized resume):
+  // PDF is widely reported as the harder format for an ATS or an AI reader
+  // to parse reliably, and there's nothing lost by dropping it here since
+  // AYN's own renderer is producing this file either way, not preserving
+  // an original upload's formatting. Word only, from here on.
+  const downloadDoc = async (content: ResumeContent, base: string) => {
     try {
-      if (kind === "pdf") downloadBlob(buildResumePdfBlob(content), `${base}.pdf`);
-      else downloadBlob(await buildResumeDocxBlob(content), `${base}.docx`);
+      downloadBlob(await buildResumeDocxBlob(content), `${base}.docx`);
     } catch (e) {
       toast({ title: "Download failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     }
   };
 
-  const downloadText = async (text: string, base: string, kind: "pdf" | "docx") => {
+  const downloadText = async (text: string, base: string) => {
     try {
-      if (kind === "pdf") downloadBlob(buildTextPdfBlob(text), `${base}.pdf`);
-      else downloadBlob(await buildTextDocxBlob(text), `${base}.docx`);
+      downloadBlob(await buildTextDocxBlob(text), `${base}.docx`);
     } catch (e) {
       toast({ title: "Download failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     }
@@ -355,7 +359,17 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
                   <div>
                     <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Missing keywords</p>
                     <div className="flex flex-wrap gap-1">
-                      {matchData.missing_keywords.map((k, i) => <Badge key={i} variant="outline">{k}</Badge>)}
+                      {/* v3.143.0 — a badge is meant to read as one short
+                          chip; a long-but-legitimate requirement line
+                          shouldn't blow that up into a wall of text, so it
+                          truncates here with the full line on hover, on top
+                          of the backend now being much stricter about what
+                          counts as a requirement at all. */}
+                      {matchData.missing_keywords.map((k, i) => (
+                        <Badge key={i} variant="outline" title={k.length > 64 ? k : undefined} className="max-w-[280px] truncate">
+                          {k.length > 64 ? `${k.slice(0, 64)}…` : k}
+                        </Badge>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -381,10 +395,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Button size="sm" variant="outline" onClick={() => downloadDoc(tailored.content, fileBase(selected.company, selected.title, "Resume"), "pdf")}>
-                          <Download className="w-4 h-4 mr-1.5" />PDF
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => downloadDoc(tailored.content, fileBase(selected.company, selected.title, "Resume"), "docx")}>
+                        <Button size="sm" variant="outline" onClick={() => downloadDoc(tailored.content, fileBase(selected.company, selected.title, "Resume"))}>
                           <Download className="w-4 h-4 mr-1.5" />Word
                         </Button>
                         {primaryResume && (
@@ -456,10 +467,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged }: Pro
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" onClick={() => downloadText(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "pdf")}>
-                          <Download className="w-4 h-4 mr-1.5" />PDF
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => downloadText(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "docx")}>
+                        <Button size="sm" variant="outline" onClick={() => downloadText(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"))}>
                           <Download className="w-4 h-4 mr-1.5" />Word
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(cover.body); toast({ title: "Copied" }); }}>Copy</Button>
