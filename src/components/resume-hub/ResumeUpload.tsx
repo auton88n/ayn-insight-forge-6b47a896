@@ -151,7 +151,7 @@ export function ResumeUpload({ onParsed, className, variant = "full" }: Props) {
           <>
             <CheckCircle2 className="w-8 h-8 text-emerald-500" />
             <p className="text-sm font-mono font-semibold text-emerald-700 dark:text-emerald-400">Resume loaded</p>
-            <p className="text-xs text-muted-foreground">{fileName} — click to upload a different file</p>
+            <p className="text-xs text-muted-foreground">{fileName} · click to upload a different file</p>
           </>
         ) : status === "error" ? (
           <>

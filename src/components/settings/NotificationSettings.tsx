@@ -44,7 +44,7 @@ export const NotificationSettings = ({ userId, accessToken }: NotificationSettin
         <div>
           <h2 className="text-xl font-semibold">Email preferences</h2>
           <p className="text-sm text-muted-foreground">
-            Account emails (receipts, proposals, assessments) always go out — they're how the product tells you something happened.
+            Account emails (receipts, proposals, assessments) always go out. They're how the product tells you something happened.
           </p>
         </div>
       </div>

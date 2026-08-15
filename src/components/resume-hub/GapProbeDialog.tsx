@@ -46,7 +46,7 @@ export default function GapProbeDialog({ open, onOpenChange, issue, question, on
       if (!result.applicable) {
         toast({
           title: "Didn't have enough to work with",
-          description: "That's alright — nothing was changed. AYN only adds what you tell it directly.",
+          description: "That's alright, nothing was changed. AYN only adds what you tell it directly.",
         });
         close(false);
       } else {
@@ -80,7 +80,7 @@ export default function GapProbeDialog({ open, onOpenChange, issue, question, on
               onChange={e => setAnswer(e.target.value)}
               rows={5}
               autoFocus
-              placeholder="Answer in your own words — nothing you don't say here gets added."
+              placeholder="Answer in your own words. Nothing you don't say here gets added."
             />
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="ghost" size="sm" onClick={() => close(false)}>Cancel</Button>

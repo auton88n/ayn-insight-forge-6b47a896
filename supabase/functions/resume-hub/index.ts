@@ -1833,7 +1833,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         loadCanonical(adminRoles, user.id),
       ]);
       const bundle = buildSections(identity, canonical);
-      if (!bundle.text || bundle.chars < 60) return json({ roles: [] });
+      if (!bundle.text || bundle.chars < 60) return json({ roles: [], has_profile: false });
 
       const profile = {
         skills: bundle.sections.skills,
@@ -1875,7 +1875,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         .sort((a, b) => b.match_pct - a.match_pct || b.openings - a.openings)
         .slice(0, 15);
 
-      return json({ roles });
+      return json({ roles, has_profile: true });
     }
 
     // ── NEW ACTIONS (JWT auth) ──

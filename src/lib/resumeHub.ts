@@ -157,7 +157,7 @@ export const resumeHubApi = {
   // grouped so "openings" is a real, current count, never a guessed
   // demand label.
   roleFinder: () =>
-    call<{ roles: Array<{ title: string; match_pct: number; openings: number; companies: string[]; sample_job_id: string }> }>(
+    call<{ roles: Array<{ title: string; match_pct: number; openings: number; companies: string[]; sample_job_id: string }>; has_profile: boolean }>(
       "resume-hub", { action: "role_finder" },
     ),
 };

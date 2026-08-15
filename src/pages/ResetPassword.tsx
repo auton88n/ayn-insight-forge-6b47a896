@@ -116,7 +116,7 @@ const ResetPassword = () => {
       const waitTime = (hasCode || hasHashToken) ? 8000 : 3000;
       fallbackTimer = setTimeout(() => {
         if (isMounted && isValidating) {
-          console.log('[ResetPassword] Timeout — no session established');
+          console.log('[ResetPassword] Timeout, no session established');
           setLinkExpired(true);
           setIsValidating(false);
         }

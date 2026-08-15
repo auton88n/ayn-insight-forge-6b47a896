@@ -123,7 +123,7 @@ export const AccountPreferences = ({ userId, userEmail }: AccountPreferencesProp
             <Sparkles className="w-4 h-4 text-primary shrink-0" />
             <span className="font-medium">{seekerBilling?.balance ?? 0} credits</span>
             <span className="text-muted-foreground">
-              — {seekerBilling?.costs?.tailored_resume ?? 2} for a tailored resume, {seekerBilling?.costs?.cover_letter ?? 1} for a cover letter.
+              : {seekerBilling?.costs?.tailored_resume ?? 2} for a tailored resume, {seekerBilling?.costs?.cover_letter ?? 1} for a cover letter.
             </span>
           </div>
         )}

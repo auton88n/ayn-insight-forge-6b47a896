@@ -158,7 +158,7 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
                     </p>
                     <p className="mt-1 text-muted-foreground">
                       {isEmployer
-                        ? 'Pausing turns off every email. Nothing else changes — your company profile and history stay exactly as they are.'
+                        ? 'Pausing turns off every email. Nothing else changes: your company profile and history stay exactly as they are.'
                         : 'Pausing hides you from employers and turns every email off. Your resume, profile and documents stay exactly where they are, and you can turn discovery back on at any time.'}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">

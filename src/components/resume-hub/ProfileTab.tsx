@@ -812,7 +812,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           <div className="mt-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
             <p className="text-xs text-muted-foreground max-w-sm">
               {primaryResume
-                ? "AYN can write a fresh resume from your profile below — this replaces your current one."
+                ? "AYN can write a fresh resume from your profile below. This replaces your current one."
                 : "AYN has enough to write a real, ATS-formatted resume from your profile below."}
             </p>
             <Button
@@ -1263,7 +1263,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
         />
         <ChipList
           label="Desired locations"
-          hint="Where you want to work — not the same as your legal work eligibility below."
+          hint="Where you want to work, not the same as your legal work eligibility below."
           values={career.preferences.desired_locations || []}
           onChange={v => { setPref("desired_locations", v); queueSave(); }}
           placeholder="Add a city or region"

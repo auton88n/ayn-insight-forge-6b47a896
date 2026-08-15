@@ -92,7 +92,7 @@ export const TermsModal = ({ open, onAccept }: TermsModalProps) => {
                   "AYN may produce inaccurate or incomplete responses",
                   "NOT professional advice (legal, medical, financial, engineering)",
                   "All engineering outputs require review by a licensed Professional Engineer (PE)",
-                  "Engineering tools are for reference only — not construction documents",
+                  "Engineering tools are for reference only, not construction documents",
                   "Users assume all risks from AI-generated information",
                   "AYN is provided \"as is\" without warranties of any kind"
                 ]} />

@@ -382,7 +382,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               )}
               {primaryResume && primaryResume.ats_score != null && primaryResume.ats_score < 70 && (
                 <p className="text-xs text-amber-500 mt-3">
-                  Your resume scores {primaryResume.ats_score}/100 for ATS readiness — tailoring still works,
+                  Your resume scores {primaryResume.ats_score}/100 for ATS readiness. Tailoring still works,
                   but a weak base resume means a weaker one for every job.{" "}
                   <button type="button" className="underline hover:text-foreground" onClick={onOpenProfile}>
                     Improve it in Profile
@@ -488,8 +488,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                 {tailored && gapSuggestions.length > 0 && (
                   <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2.5">
                     <p className="text-xs text-muted-foreground">
-                      This role also asks for a few things not on your resume. Only add one if it's genuinely true —
-                      edit the text first if your own wording fits better.
+                      This role also asks for a few things not on your resume. Only add one if it's genuinely true.
+                      Edit the text first if your own wording fits better.
                     </p>
                     {gapSuggestions.map((s, idx) => (
                       <div key={s.text} className="flex items-center gap-2">

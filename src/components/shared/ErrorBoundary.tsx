@@ -108,7 +108,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="space-y-1.5">
               <h1 className="text-xl font-bold tracking-tight text-foreground">Oops! AYN hit a snag</h1>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Something unexpected happened, but don't worry — we've got this. Let's get you back on track.
+                Something unexpected happened, but don't worry, we've got this. Let's get you back on track.
               </p>
             </div>
             {isDev && this.state.error && (

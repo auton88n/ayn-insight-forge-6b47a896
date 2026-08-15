@@ -150,7 +150,7 @@ function ScoreGauge({ score, size = 28, showLabel = false }: { score: number; si
         <span className="text-xs font-medium" style={{ color: tier.text }}>{tier.label}</span>
       </span>
       <span className="text-[11px] text-muted-foreground">
-        Rough estimate — click Score and tailor for the real match.
+        Rough estimate. Click Score and tailor for the real match.
       </span>
     </span>
   );
@@ -253,14 +253,20 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const [rolesOpen, setRolesOpen] = useState(false);
   const [rolesLoading, setRolesLoading] = useState(false);
   const [roles, setRoles] = useState<Array<{ title: string; match_pct: number; openings: number; companies: string[]; sample_job_id: string }> | null>(null);
+  // Distinguishes "you have no profile data yet" from "you have a real
+  // profile, nothing in today's postings scored well" -- these are
+  // different, both honest, and read very differently to the person.
+  const [rolesHasProfile, setRolesHasProfile] = useState(true);
+  const [rolesError, setRolesError] = useState(false);
 
   const openRoleFinder = () => {
     setRolesOpen(true);
     if (roles !== null || rolesLoading) return;
     setRolesLoading(true);
+    setRolesError(false);
     resumeHubApi.roleFinder()
-      .then((res) => setRoles(res.roles))
-      .catch(() => setRoles([]))
+      .then((res) => { setRoles(res.roles); setRolesHasProfile(res.has_profile); })
+      .catch(() => setRolesError(true))
       .finally(() => setRolesLoading(false));
   };
 
@@ -939,10 +945,26 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1 space-y-1.5">
             {rolesLoading ? (
               Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-md" />)
+            ) : rolesError ? (
+              <div className="py-6 text-center space-y-3">
+                <p className="text-sm text-muted-foreground">Couldn't load this right now.</p>
+                <Button type="button" variant="outline" size="sm" onClick={() => { setRoles(null); openRoleFinder(); }}>
+                  Try again
+                </Button>
+              </div>
             ) : !roles || roles.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-6 text-center">
-                Add a resume or a few skills to Profile first, then AYN can find roles that fit you.
-              </p>
+              <div className="py-6 text-center space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  {rolesHasProfile
+                    ? "Nothing in today's postings scored well against your profile yet. Check back as new jobs come in."
+                    : "Add a resume or a few skills to Profile first, then AYN can find roles that fit you."}
+                </p>
+                {!rolesHasProfile && (
+                  <Button type="button" size="sm" onClick={() => { setRolesOpen(false); onOpenProfile(); }}>
+                    Open Profile
+                  </Button>
+                )}
+              </div>
             ) : (
               roles.map((r) => (
                 <button

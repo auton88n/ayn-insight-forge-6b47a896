@@ -514,7 +514,7 @@ export function PlanEditor() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Edit plans</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Name, credits, and limits can be changed here. The price cannot — that's set in Stripe, so it has to change there
+          Name, credits, and limits can be changed here. The price cannot: that's set in Stripe, so it has to change there
           too or the app and what people are actually charged would disagree. Tell me directly if a price needs to change.
         </p>
       </CardHeader>

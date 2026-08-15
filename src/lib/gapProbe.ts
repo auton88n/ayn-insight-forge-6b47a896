@@ -34,14 +34,14 @@ export function classifyProbableIssue(issue: string, resume: ResumeContent): Pro
 
   if (lower.includes("gap")) {
     return {
-      question: "What were you doing during this time — freelance work, education, caregiving, a job search, something else? Tell me what's actually true; if there's nothing worth adding, that's fine too.",
+      question: "What were you doing during this time: freelance work, education, caregiving, a job search, something else? Tell me what's actually true; if there's nothing worth adding, that's fine too.",
       target: { kind: "gap" },
     };
   }
 
   if (lower.includes("generic") && lower.includes("summary")) {
     return {
-      question: "What's one specific, real thing about your career — an employer name, a number, or a skill you're actually known for?",
+      question: "What's one specific, real thing about your career: an employer name, a number, or a skill you're actually known for?",
       target: { kind: "generic_summary" },
     };
   }
@@ -57,7 +57,7 @@ export function classifyProbableIssue(issue: string, resume: ResumeContent): Pro
           const bulletText = bullets[b].trim();
           if (bulletText === text || bulletText.includes(text) || text.includes(bulletText)) {
             return {
-              question: "Did this have a measurable result — time saved, money saved or earned, a percentage, a team or volume size? What actually happened?",
+              question: "Did this have a measurable result: time saved, money saved or earned, a percentage, a team or volume size? What actually happened?",
               target: { kind: "weak_bullet", workIndex: w, bulletIndex: b },
             };
           }
