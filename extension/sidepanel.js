@@ -139,6 +139,17 @@ function syncRemoteResume(resp) {
   if (text) chrome.storage.local.set({ savedResume: text });
 }
 
+// v3.4.7 — asked directly for initials instead of the full name in the
+// header pill: "GA", not "Ghazi Aldhyaei". One word gets its first two
+// letters (there's no last name to pair it with); two or more words get
+// the first letter of the first and the first letter of the last.
+function initials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function displayUser(resp) {
   const p = resp?.profile || {};
   const email = resp?.user?.email || p.email || '';
@@ -149,8 +160,11 @@ function displayUser(resp) {
     name = local.split(/\s+/).map(s => s ? s[0].toUpperCase() + s.slice(1) : '').join(' ');
   }
   const el = $('user-email');
-  el.textContent = name || 'Signed in';
-  el.title = email ? `${email}${device ? `\nDevice: ${device}` : ''}` : (device || '');
+  el.textContent = name ? initials(name) : 'Signed in';
+  // The full name and email move into the tooltip since the pill itself
+  // no longer shows them — nothing is actually lost, just condensed.
+  const titleBits = [name, email].filter(Boolean).join(' · ');
+  el.title = `${titleBits}${device ? `\nDevice: ${device}` : ''}`;
   updateCreditPill(resp?.credits);
 }
 // Alias kept for any callers referencing the old name.
