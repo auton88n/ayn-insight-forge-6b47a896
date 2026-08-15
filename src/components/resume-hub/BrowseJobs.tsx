@@ -43,8 +43,6 @@ import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   userId: string;
-  /** Adds the posting to the caller's own jobs list and opens it there. */
-  onAdded: (jobId: string) => void;
   onOpenProfile: () => void;
 }
 
@@ -130,7 +128,7 @@ function groupLocations(locs: string[]) {
     .sort((a, b) => b.items.length - a.items.length || a.key.localeCompare(b.key));
 }
 
-export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
+export default function BrowseJobs({ userId, onOpenProfile }: Props) {
   const { toast } = useToast();
 
   const [jobs, setJobs] = useState<JobPosting[]>([]);
@@ -341,20 +339,18 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   // inserted a second row for the identical apply_url. Now checks for an
   // existing row on that exact URL first and opens it instead of
   // inserting a duplicate.
-  // v3.142.0 — split into a shared save plus two callers: "Score and
-  // tailor" in the detail pane still jumps straight to the Jobs page
-  // (someone choosing to work on this job right now); the row bookmark
-  // saves quietly and keeps browsing, which is the whole point of a
-  // bookmark icon instead of forcing a navigation on every save.
-  const saveJob = async (job: JobPosting, navigateAfter: boolean) => {
+  // v3.142.0 — a bookmark on each row saves without leaving the list.
+  // v3.143.0 — "Score and tailor" in the detail pane was still navigating
+  // to the Saved jobs page on a genuinely new save, which fixed the
+  // already-saved case but not the one actually reported: browsing (Match
+  // me included) kept getting interrupted the first time a job was saved
+  // too. Nothing on this page force-navigates anymore, first save or not —
+  // it saves, says so, and leaves the person exactly where they were.
+  // onAdded (a prop that used to carry the person over to Saved jobs) has
+  // no remaining caller and was removed along with it.
+  const saveJob = async (job: JobPosting) => {
     setAddingId(job.id);
     try {
-      // v3.143.0 — reported directly: clicking "Score and tailor" on a job
-      // that was already saved (bookmarked earlier, or just a repeat
-      // click) yanked the person off Browse jobs to the Saved jobs page
-      // even though nothing new happened. Only a genuinely new save is
-      // worth leaving the page for now — an already-saved job just says
-      // so and stays right where the person was browsing.
       const { data: existing } = await supabase.from("jobs")
         .select("id").eq("user_id", userId).eq("source_url", job.apply_url).maybeSingle();
       if (existing) {
@@ -362,7 +358,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         toast({ title: "Already saved", description: "Find it on the Saved jobs page whenever you're ready." });
         return;
       }
-      const { data, error } = await supabase.from("jobs").insert({
+      const { error } = await supabase.from("jobs").insert({
         user_id: userId,
         source: "job_board",
         source_url: job.apply_url,
@@ -370,15 +366,10 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         company: job.company,
         title: job.title,
         location: job.location,
-      }).select("id").single();
+      });
       if (error) throw error;
       setSavedUrls((prev) => new Set(prev).add(job.apply_url));
-      if (navigateAfter) {
-        toast({ title: "Job added", description: "Scoring and tailoring are ready on the Jobs page." });
-        onAdded((data as { id: string }).id);
-      } else {
-        toast({ title: "Saved", description: "Find it anytime on the Saved jobs page." });
-      }
+      toast({ title: "Saved", description: "Find it anytime on the Saved jobs page." });
     } catch (e) {
       toast({ title: "Couldn't add that job", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally {
@@ -386,14 +377,14 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     }
   };
 
-  const handleAdd = (job: JobPosting) => saveJob(job, true);
+  const handleAdd = (job: JobPosting) => saveJob(job);
   const toggleBookmark = (e: React.MouseEvent, job: JobPosting) => {
     e.stopPropagation();
     if (savedUrls.has(job.apply_url)) {
       toast({ title: "Already saved", description: "Find it on the Saved jobs page." });
       return;
     }
-    saveJob(job, false);
+    saveJob(job);
   };
 
   // v3.142.0 — flat while searching (a typed filter beats a category
