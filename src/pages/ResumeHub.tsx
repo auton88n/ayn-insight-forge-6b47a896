@@ -302,7 +302,7 @@ export default function ResumeHub() {
             {tab === "proposals" && <ProposalsTab onChanged={setPendingIntros} />}
             {tab === "assessments" && <AssessmentsTab onChanged={setPendingAssessments} />}
 
-            {tab === "browse"    && <BrowseJobs userId={userId!} onOpenProfile={() => setTab("profile")} />}
+            {tab === "browse"    && <BrowseJobs userId={userId!} onAdded={goJob} onOpenProfile={() => setTab("profile")} />}
             {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} onOpenProfile={() => setTab("profile")} onCreditsChanged={refreshCredits} />}
 
             {tab === "extension" && <ExtensionTab userId={userId!} />}

@@ -43,6 +43,8 @@ import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   userId: string;
+  /** Opens the posting on the caller's own Saved jobs page, where scoring, tailoring and the cover letter actually live. */
+  onAdded: (jobId: string) => void;
   onOpenProfile: () => void;
 }
 
@@ -128,7 +130,7 @@ function groupLocations(locs: string[]) {
     .sort((a, b) => b.items.length - a.items.length || a.key.localeCompare(b.key));
 }
 
-export default function BrowseJobs({ userId, onOpenProfile }: Props) {
+export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const { toast } = useToast();
 
   const [jobs, setJobs] = useState<JobPosting[]>([]);
@@ -340,25 +342,30 @@ export default function BrowseJobs({ userId, onOpenProfile }: Props) {
   // existing row on that exact URL first and opens it instead of
   // inserting a duplicate.
   // v3.142.0 — a bookmark on each row saves without leaving the list.
-  // v3.143.0 — "Score and tailor" in the detail pane was still navigating
-  // to the Saved jobs page on a genuinely new save, which fixed the
-  // already-saved case but not the one actually reported: browsing (Match
-  // me included) kept getting interrupted the first time a job was saved
-  // too. Nothing on this page force-navigates anymore, first save or not —
-  // it saves, says so, and leaves the person exactly where they were.
-  // onAdded (a prop that used to carry the person over to Saved jobs) has
-  // no remaining caller and was removed along with it.
-  const saveJob = async (job: JobPosting) => {
+  // v3.143.0 — "Score and tailor" was navigating even on an already-saved
+  // job with nothing new to do — fixed to stay put in that one case.
+  // v3.144.0 — that fix overshot: reported directly that clicking "Score
+  // and tailor" now saves the job but never takes the person to the one
+  // place scoring, tailoring and the cover letter actually happen (this
+  // page's own detail pane has neither). Landed on two distinct, honest
+  // affordances instead of one shared save path: the row bookmark saves
+  // or unsaves and never leaves the list, since that's the point of a
+  // bookmark; "Score and tailor" is a real navigation action and always
+  // takes the person to the Saved jobs page with this job open, whether
+  // it was already saved or just added — that's what the button says it
+  // does. `navigate` picks which behavior a given call gets.
+  const saveJob = async (job: JobPosting, navigate = false) => {
     setAddingId(job.id);
     try {
       const { data: existing } = await supabase.from("jobs")
         .select("id").eq("user_id", userId).eq("source_url", job.apply_url).maybeSingle();
       if (existing) {
         setSavedUrls((prev) => new Set(prev).add(job.apply_url));
-        toast({ title: "Already saved", description: "Find it on the Saved jobs page whenever you're ready." });
+        if (navigate) onAdded((existing as { id: string }).id);
+        else toast({ title: "Already saved", description: "Find it on the Saved jobs page whenever you're ready." });
         return;
       }
-      const { error } = await supabase.from("jobs").insert({
+      const { data, error } = await supabase.from("jobs").insert({
         user_id: userId,
         source: "job_board",
         source_url: job.apply_url,
@@ -366,10 +373,15 @@ export default function BrowseJobs({ userId, onOpenProfile }: Props) {
         company: job.company,
         title: job.title,
         location: job.location,
-      });
+      }).select("id").single();
       if (error) throw error;
       setSavedUrls((prev) => new Set(prev).add(job.apply_url));
-      toast({ title: "Saved", description: "Find it anytime on the Saved jobs page." });
+      if (navigate) {
+        toast({ title: "Job added", description: "Scoring and tailoring are ready on the Jobs page." });
+        onAdded((data as { id: string }).id);
+      } else {
+        toast({ title: "Saved", description: "Find it anytime on the Saved jobs page." });
+      }
     } catch (e) {
       toast({ title: "Couldn't add that job", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally {
@@ -377,14 +389,32 @@ export default function BrowseJobs({ userId, onOpenProfile }: Props) {
     }
   };
 
-  const handleAdd = (job: JobPosting) => saveJob(job);
+  // v3.144.0 — asked directly: the bookmark only ever saved, clicking it
+  // again on an already-saved job just said "already saved" instead of
+  // actually undoing it. It's a real toggle now — unsaving here deletes
+  // the same row "Remove" on the Saved jobs page deletes, not a separate
+  // soft state, so the two surfaces can never disagree about whether a job
+  // is saved.
+  const unsaveJob = async (job: JobPosting) => {
+    setAddingId(job.id);
+    try {
+      const { error } = await supabase.from("jobs")
+        .delete().eq("user_id", userId).eq("source_url", job.apply_url);
+      if (error) throw error;
+      setSavedUrls((prev) => { const next = new Set(prev); next.delete(job.apply_url); return next; });
+      toast({ title: "Removed", description: "Taken off your saved jobs." });
+    } catch (e) {
+      toast({ title: "Couldn't remove that job", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+    } finally {
+      setAddingId(null);
+    }
+  };
+
+  const handleAdd = (job: JobPosting) => saveJob(job, true);
   const toggleBookmark = (e: React.MouseEvent, job: JobPosting) => {
     e.stopPropagation();
-    if (savedUrls.has(job.apply_url)) {
-      toast({ title: "Already saved", description: "Find it on the Saved jobs page." });
-      return;
-    }
-    saveJob(job);
+    if (savedUrls.has(job.apply_url)) unsaveJob(job);
+    else saveJob(job);
   };
 
   // v3.142.0 — flat while searching (a typed filter beats a category
@@ -719,13 +749,15 @@ export default function BrowseJobs({ userId, onOpenProfile }: Props) {
                         )}
                         {/* v3.142.0 — asked directly for a bookmark-style
                             save so a job can be kept without leaving the
-                            list or reading the full posting first. */}
+                            list or reading the full posting first.
+                            v3.144.0 — and asked directly to make it a real
+                            toggle, not save-only. */}
                         <button
                           type="button"
                           onClick={(e) => toggleBookmark(e, j)}
                           disabled={addingId === j.id}
-                          aria-label={isSaved ? "Saved" : "Save job"}
-                          title={isSaved ? "Saved" : "Save job"}
+                          aria-label={isSaved ? "Remove from saved" : "Save job"}
+                          title={isSaved ? "Remove from saved" : "Save job"}
                           className="p-1 rounded hover:bg-muted transition"
                         >
                           <Bookmark
