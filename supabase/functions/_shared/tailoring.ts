@@ -281,6 +281,41 @@ const SYNONYM_GROUPS: string[][] = [
   ["business to consumer", "b2c"],
   ["structured query language", "sql"],
   ["continuous integration", "ci"],
+  // v3.150.0 — asked directly for a better zero-cost score: more of the
+  // same well-established, unambiguous pairs the block above already
+  // uses. Same bar as every entry above it: no abbreviation short enough,
+  // or common enough as an ordinary English word, to risk a false hit
+  // once space-bounded (excluded on purpose: "it" for information
+  // technology, "bi" for business intelligence, "rest" for REST APIs,
+  // "gm" for general manager — all real ordinary words or hyphen-prone
+  // enough to false-positive even with boundaries).
+  ["javascript", "js"],
+  ["artificial intelligence", "ai"],
+  ["natural language processing", "nlp"],
+  ["chief executive officer", "ceo"],
+  ["chief technology officer", "cto"],
+  ["chief financial officer", "cfo"],
+  ["chief operating officer", "coo"],
+  ["chief marketing officer", "cmo"],
+  ["chief product officer", "cpo"],
+  ["vice president", "vp"],
+  ["human resources", "hr"],
+  ["quality assurance", "qa"],
+  ["minimum viable product", "mvp"],
+  ["proof of concept", "poc"],
+  ["return on investment", "roi"],
+  ["key performance indicator", "kpi"],
+  ["service level agreement", "sla"],
+  ["software development kit", "sdk"],
+  ["extract transform load", "etl"],
+  ["single sign on", "sso"],
+  ["annual recurring revenue", "arr"],
+  ["monthly recurring revenue", "mrr"],
+  ["project management professional", "pmp"],
+  ["infrastructure as code", "iac"],
+  ["identity and access management", "iam"],
+  ["net promoter score", "nps"],
+  ["go to market", "gtm"],
 ];
 
 /**
@@ -345,18 +380,32 @@ function extractRequirements(jd: string): Array<{ text: string; kind: "required"
     // both rendered as an unreadable wall of text in the missing-skills UI
     // and cost a real embedding call in applySemanticRecheck below (any
     // 3+ word "requirement" gets one) for a sentence that was never a
-    // requirement to begin with. A real single requirement, even a wordy
-    // one, reads as one clause; a value-statement bullet reads as a
-    // sentence explaining itself, and is reliably longer. Tightened rather
-    // than trying to detect "culture vs skill" semantically, which is
-    // exactly the kind of fragile guess this file's own design avoids.
-    // Re-verified live against the actual Samsara posting that reported
-    // this: 180 still let a shorter values bullet through ("You want to
-    // be with the best: ...", 154 chars) while a real, if wordy, role
-    // responsibility a few lines later ("Discovery: Lead deep user
-    // research...", 136 chars) is exactly the kind of genuine item worth
-    // keeping. Tightened to sit between the two.
-    if (text.length > 140) continue;
+    // requirement to begin with. Tightened to 140, on the reasoning that a
+    // real single requirement, even a wordy one, reads as one clause,
+    // while a value-statement bullet reads as a sentence explaining
+    // itself and is reliably longer.
+    // v3.148.0 — that reasoning was wrong, caught by a live regression
+    // report ("the quick auto score isn't working") on a completely
+    // different, unrelated JD (Roku): a real, ordinary requirements
+    // section written in full sentences ("10+ years of product
+    // management experience, with a track record of building and
+    // launching net-new products or features from concept to market",
+    // 141 chars) got cut by a single character, along with two more
+    // genuine bullets at 147 and 148. On a resume that was a near-exact
+    // match for that posting, this alone dropped the quick score from a
+    // realistic ~60-80% down to 6%, confirmed live against the same JD
+    // through the real match action (which has no such cap and correctly
+    // scored it 80%). A wordy-but-real requirement and a narrative
+    // culture bullet turned out to sit far closer together in length,
+    // across different real companies' writing styles, than the Samsara
+    // case alone suggested — 148 genuine vs. 154 narrative, a 6-character
+    // gap nowhere near reliable. Raised to 200, which comfortably clears
+    // every genuine bullet found in either live JD while still excluding
+    // the two longest Samsara culture bullets (221 and 260 chars); the
+    // shortest one (154 chars) is a known, disclosed residual gap now,
+    // preferred over the alternative of silently breaking real
+    // requirement matching on ordinarily-written JDs like this one.
+    if (text.length > 200) continue;
     if (GENERIC_QUAL.test(text)) continue;
     // A bullet is already a deliberate, single item -- "- Kubernetes" or
     // "- AWS" is exactly as real a requirement as a full sentence, so it
@@ -431,6 +480,146 @@ export function computeGap(
   const missing = requirements.filter((r) => r.status === "missing" && r.kind === "required");
   const niceToHave = requirements.filter((r) => r.kind === "nice_to_have");
   return { requirements, matched, missing, niceToHave, method: "deterministic" };
+}
+
+// v3.149.0 — asked directly for something more systematic than the browse
+// list's one flat "matched JD lines" ratio: three separate, named signals
+// -- title fit, skill overlap, years of experience -- still zero AI calls,
+// still free at browse-list scale.
+//
+// The skills half deliberately runs the OPPOSITE direction from
+// computeGap above: instead of extracting "requirements" out of free JD
+// prose (fragile -- this file's own extractRequirements/GENERIC_QUAL
+// history, tuned three times this week alone, is proof of how easy that
+// is to get wrong on real, differently-formatted JDs) and testing each
+// against the resume, this checks each of the candidate's OWN skills (a
+// short, well-defined list, usually 5-20 items) against the JD text
+// directly. There is nothing on the JD side left to parse or
+// misclassify -- just "does this known phrase appear in this text",
+// the same hasTerm word-boundary check computeGap already uses.
+export interface QuickScoreInput {
+  skills: string[];
+  title: string;
+  yearsExperience: number;
+}
+export interface QuickScoreResult {
+  score: number;
+  titlePct: number;
+  skillsPct: number;
+  experiencePct: number;
+  matchedSkills: string[];
+  yearsNeeded: number | null;
+}
+
+const YEARS_RE = /(\d{1,2})\+?\s*(?:to\s*\d{1,2}\s*)?years?\s+(?:of\s+)?(?:relevant\s+|professional\s+|related\s+)?experience/i;
+
+// v3.150.0 — asked directly to close some of the free/paid accuracy gap
+// without ever calling an AI. computeQuickScore's skill and title checks
+// were exact-phrase-only, so a resume skill worded "Management" never
+// matched a JD that only ever wrote "manages" or "managing", and a title
+// word like "Engineer" never matched a job titled "...Engineering". stem()
+// is a small, conservative suffix stripper -- plurals, -ing, -ed, -ment --
+// used only as a fallback AFTER the existing exact/bounded check below, so
+// it can only turn a real miss into a real match, the same "additive
+// only" guarantee SYNONYM_GROUPS above already holds itself to.
+// Deliberately does not touch agent-noun suffixes ("-er"/"-or"/"-ist":
+// manager/manage, analyst/analyze) -- those need a real stem dictionary
+// to do safely; a naive strip there risks turning unrelated words into
+// false matches. Scoped to this free scorer only, not computeGap's
+// exact matching -- kept out of the paid match/tailor path on purpose,
+// so this can't regress anything already tested and relied on there.
+function stem(word: string): string {
+  const w = word;
+  if (w.length > 7 && /ment$/.test(w)) return w.slice(0, -4);
+  if (w.length > 4 && /ies$/.test(w)) return w.slice(0, -3) + "y";
+  if (w.length > 4 && /(sses|ches|shes|xes)$/.test(w)) return w.slice(0, -2);
+  if (w.length > 4 && /s$/.test(w) && !/(ss|us)$/.test(w)) return w.slice(0, -1);
+  if (w.length > 6 && /ing$/.test(w)) return w.slice(0, -3);
+  if (w.length > 5 && /ed$/.test(w) && !/eed$/.test(w)) return w.slice(0, -2);
+  return w;
+}
+
+// Stripping "-ing"/"-ed" doesn't restore the silent "e" English drops
+// before adding them ("manage" -> "managing" -> stem() alone gives
+// "manag", not "manage") -- there's no reliable way to tell from the
+// surface form alone whether an "e" was ever there. Rather than guess
+// (and risk a wrong guess turning into a wrong match), this treats two
+// stems as the same root when one is the other plus a single trailing
+// character, gated to stems of 4+ letters so it can't collapse short,
+// unrelated words that happen to share a prefix ("cat" vs "category").
+function stemsMatch(a: string, b: string): boolean {
+  if (a === b) return true;
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length <= b.length ? b : a;
+  return shorter.length >= 4 && longer.length - shorter.length <= 1 && longer.startsWith(shorter);
+}
+
+export function computeQuickScore(jdText: string, jobTitle: string, profile: QuickScoreInput): QuickScoreResult {
+  const jd = String(jdText || "");
+  const haystack = " " + expandWithSynonyms(norm(jd)) + " ";
+  const hasTerm = (t: string) => {
+    const n = norm(t);
+    if (!n) return false;
+    if (haystack.includes(` ${n} `)) return true;
+    return haystack.includes(n.length >= 4 ? n : ` ${n} `);
+  };
+  // Stemmed bag-of-words fallback, only reached when the exact/bounded
+  // phrase check above misses. Every real word (3+ chars) of the skill
+  // still has to be present -- just tense/plural-tolerant now, not a
+  // looser "any word matches" check.
+  const jdWordStems = norm(jd).split(" ").filter(Boolean).map(stem);
+  const hasTermStemmed = (t: string) => {
+    if (hasTerm(t)) return true;
+    const words = norm(t).split(" ").filter((w) => w.length >= 3);
+    if (!words.length) return false;
+    return words.every((w) => {
+      const ws = stem(w);
+      return jdWordStems.some((js) => stemsMatch(ws, js));
+    });
+  };
+
+  // 1. Title fit: how many of the candidate's own title words appear in
+  // this job's title (stemmed, so "Engineer" matches "...Engineering";
+  // synonym-expanded, so "CEO" matches "Chief Executive Officer" the
+  // same way SYNONYM_GROUPS already lets a skill match either wording).
+  // No title on file is genuinely unknown, not a penalty -- scored
+  // neutral rather than 0.
+  const profileTitleExpanded = expandWithSynonyms(" " + norm(profile.title || "") + " ");
+  const titleWords = terms(profileTitleExpanded, 2);
+  const jobTitleExpanded = expandWithSynonyms(" " + norm(jobTitle || "") + " ");
+  const jobTitleWordStems = jobTitleExpanded.split(" ").filter(Boolean).map(stem);
+  const titleHits = titleWords.filter((w) => {
+    const ws = stem(w);
+    return jobTitleWordStems.some((js) => stemsMatch(ws, js));
+  });
+  const titlePct = titleWords.length ? titleHits.length / titleWords.length : 0.5;
+
+  // 2. Skill fit: how many of the candidate's own skills this JD text
+  // actually mentions, exact phrase first, stemmed word-overlap fallback.
+  const skills = Array.from(new Set((profile.skills || []).filter(Boolean)));
+  const matchedSkills = skills.filter(hasTermStemmed);
+  const skillsPct = skills.length ? matchedSkills.length / skills.length : 0;
+
+  // 3. Experience fit: candidate's own years vs. this JD's own stated
+  // "N+ years", if it states one at all. No stated number is neutral
+  // rather than a penalty -- plenty of real postings never say.
+  const yearsMatch = jd.match(YEARS_RE);
+  const yearsNeeded = yearsMatch ? parseInt(yearsMatch[1], 10) : null;
+  const experiencePct = yearsNeeded == null
+    ? 0.75
+    : profile.yearsExperience >= yearsNeeded ? 1
+    : profile.yearsExperience >= yearsNeeded - 2 ? 0.5
+    : 0.15;
+
+  const score = Math.round(titlePct * 20 + skillsPct * 60 + experiencePct * 20);
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    titlePct: Math.round(titlePct * 100),
+    skillsPct: Math.round(skillsPct * 100),
+    experiencePct: Math.round(experiencePct * 100),
+    matchedSkills,
+    yearsNeeded,
+  };
 }
 
 export function renderGapBlock(gap: GapAnalysis): string {

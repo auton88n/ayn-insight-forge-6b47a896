@@ -34,9 +34,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Loader2, ExternalLink, Plus, Flame, Search, MapPin, Home, ChevronDown, X, Building2, Bookmark, Wand2,
+  Loader2, ExternalLink, Plus, Flame, Search, MapPin, Home, ChevronDown, X, Building2, Bookmark, Wand2, Compass,
 } from "lucide-react";
 import { resumeHubApi, type JobPosting } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
@@ -81,10 +82,15 @@ export function companyAvatar(name: string) {
 // full semantic pipeline), so a low number on a mismatched role is a
 // correct, honest answer, not a failure. Styled as a neutral tier rather
 // than a red/failed one so it never reads as "AYN broke."
+// v3.149.0 — bottom tier relabeled from "Quick match" to "Rough estimate":
+// that name was already doing double duty as this whole feature's own
+// section heading, which made the lowest, least-trustworthy tier read as
+// if it shared a name with the feature itself rather than flagging
+// itself as the one to be most skeptical of.
 function scoreTier(score: number) {
   if (score >= 50) return { label: "Strong match", ring: "#10b981", text: "#047857" };
   if (score >= 20) return { label: "Some overlap", ring: "#f59e0b", text: "#b45309" };
-  return { label: "Quick match", ring: "#9ca3af", text: "#6b7280" };
+  return { label: "Rough estimate", ring: "#9ca3af", text: "#6b7280" };
 }
 
 // v3.147.0 — asked directly for the auto-computed quick-match score to
@@ -94,6 +100,14 @@ function scoreTier(score: number) {
 // two sizes: small and unlabeled inline in the list row (25 of these on
 // a page, no room for a label), larger with its tier label in the detail
 // pane, where it is the one score on screen.
+// v3.149.0 — asked directly to never show a bare low percentage without
+// making the "this is an estimate, click through for the real one"
+// framing more prominent. A tooltip alone doesn't count as prominent —
+// nothing to hover on a touch device, and a hover target is easy to miss
+// even on desktop. showLabel's caller (the detail pane, the one place
+// with room) now gets a real, always-visible line under the gauge
+// whenever the score is below the top tier, since that's exactly the
+// range where a keyword-only number is most likely to undersell someone.
 function ScoreGauge({ score, size = 28, showLabel = false }: { score: number; size?: number; showLabel?: boolean }) {
   const stroke = Math.max(3, Math.round(size * 0.12));
   const r = (size - stroke) / 2;
@@ -101,28 +115,43 @@ function ScoreGauge({ score, size = 28, showLabel = false }: { score: number; si
   const pct = Math.max(0, Math.min(100, score));
   const offset = c * (1 - pct / 100);
   const tier = scoreTier(pct);
-  return (
-    <span
-      className="inline-flex items-center gap-2"
-      title="A quick keyword estimate, computed automatically. Add the job for AYN's full match analysis."
-    >
-      <span style={{ width: size, height: size, position: "relative" }} className="inline-block shrink-0">
-        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--rh-hair, #ececec)" strokeWidth={stroke} />
-          <circle
-            cx={size / 2} cy={size / 2} r={r} fill="none"
-            stroke={tier.ring} strokeWidth={stroke} strokeLinecap="round"
-            strokeDasharray={c} strokeDashoffset={offset}
-            style={{ transition: "stroke-dashoffset 0.6s ease" }}
-          />
-        </svg>
-        <span style={{ position: "absolute", inset: 0 }} className="flex items-center justify-center">
-          <span style={{ fontFamily: "JetBrains Mono, monospace", fontWeight: 700, fontSize: Math.max(9, size * 0.32), color: tier.text, lineHeight: 1 }}>
-            {Math.round(pct)}
-          </span>
+  const showHint = showLabel && pct < 50;
+  const ring = (
+    <span style={{ width: size, height: size, position: "relative" }} className="inline-block shrink-0">
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--rh-hair, #ececec)" strokeWidth={stroke} />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={tier.ring} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 0.6s ease" }}
+        />
+      </svg>
+      <span style={{ position: "absolute", inset: 0 }} className="flex items-center justify-center">
+        <span style={{ fontFamily: "JetBrains Mono, monospace", fontWeight: 700, fontSize: Math.max(9, size * 0.32), color: tier.text, lineHeight: 1 }}>
+          {Math.round(pct)}
         </span>
       </span>
-      {showLabel && <span className="text-xs font-medium" style={{ color: tier.text }}>{tier.label}</span>}
+    </span>
+  );
+  const title = "A quick keyword estimate, computed automatically from your title, skills and years of experience. Score and tailor for AYN's full match analysis.";
+  if (!showHint) {
+    return (
+      <span className="inline-flex items-center gap-2" title={title}>
+        {ring}
+        {showLabel && <span className="text-xs font-medium" style={{ color: tier.text }}>{tier.label}</span>}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex flex-col gap-1" title={title}>
+      <span className="inline-flex items-center gap-2">
+        {ring}
+        <span className="text-xs font-medium" style={{ color: tier.text }}>{tier.label}</span>
+      </span>
+      <span className="text-[11px] text-muted-foreground">
+        Rough estimate — click Score and tailor for the real match.
+      </span>
     </span>
   );
 }
@@ -217,6 +246,33 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const [matchMode, setMatchMode] = useState(false);
   const [desiredLocations, setDesiredLocations] = useState<string[] | null>(null);
 
+  // v3.151.0 — "Explore roles": real job titles from the live catalog that
+  // already score well against this resume, instead of asking an LLM to
+  // invent a list. Fetched once, lazily, the first time the dialog opens;
+  // cached in state so reopening it doesn't re-run the sweep.
+  const [rolesOpen, setRolesOpen] = useState(false);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [roles, setRoles] = useState<Array<{ title: string; match_pct: number; openings: number; companies: string[]; sample_job_id: string }> | null>(null);
+
+  const openRoleFinder = () => {
+    setRolesOpen(true);
+    if (roles !== null || rolesLoading) return;
+    setRolesLoading(true);
+    resumeHubApi.roleFinder()
+      .then((res) => setRoles(res.roles))
+      .catch(() => setRoles([]))
+      .finally(() => setRolesLoading(false));
+  };
+
+  const pickRole = (title: string) => {
+    setRolesOpen(false);
+    setMatchMode(false);
+    setLocation(null);
+    setRemoteOnly(false);
+    setRawQuery(title);
+    setQuery(title);
+  };
+
   const hasFilters = !!query || !!location || remoteOnly;
 
   /* Debounce the search box so typing doesn't fire a query per keystroke. */
@@ -270,7 +326,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
 
   const scorePage = useCallback((rows: JobPosting[]) => {
     if (!rows.length) return;
-    resumeHubApi.jobBoardScore(rows.map((r) => ({ id: r.id, description: r.description })))
+    resumeHubApi.jobBoardScore(rows.map((r) => ({ id: r.id, title: r.title, description: r.description })))
       .then((res) => {
         setScores((prev) => {
           const next = { ...prev };
@@ -565,7 +621,18 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
               : <Plus className="w-4 h-4 mr-2" />}
             Score and tailor
           </Button>
-          <Button variant="outline" asChild>
+          {/* v3.148.0 — reported directly against a live screenshot: this
+              rendered half-fixed — a plain white/black-bordered button at
+              rest that flipped to a solid black fill on hover, since it's
+              a Button with asChild wrapping a real <a> tag, and the
+              resume-hub.css ember retint below only ever targeted actual
+              <button> elements (button.border-foreground), never an
+              anchor carrying the same class. Rather than widen that CSS
+              to catch every possible tag, this one's asked to be solid
+              black outright — a secondary "leave AYN" action reads fine
+              as a plain dark button next to the ember "Score and tailor"
+              primary action, not fighting it for the same accent color. */}
+          <Button asChild style={{ background: "#0a0a0a", borderColor: "#0a0a0a", color: "#fff" }} className="hover:opacity-90">
             <a href={selected.apply_url} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="w-4 h-4 mr-2" />Apply on company site
             </a>
@@ -591,15 +658,20 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             Real postings from company career pages, refreshed continuously. Never LinkedIn or Indeed.
           </p>
         </div>
-        <Button
-          type="button"
-          onClick={() => (matchMode ? setMatchMode(false) : startMatchMode())}
-          style={matchMode ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" } : undefined}
-          variant={matchMode ? undefined : "outline"}
-          className={matchMode ? "hover:opacity-90" : ""}
-        >
-          <Wand2 className="w-4 h-4 mr-2" />{matchMode ? "Showing my matches" : "Match me"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" onClick={openRoleFinder}>
+            <Compass className="w-4 h-4 mr-2" />Explore roles
+          </Button>
+          <Button
+            type="button"
+            onClick={() => (matchMode ? setMatchMode(false) : startMatchMode())}
+            style={matchMode ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" } : undefined}
+            variant={matchMode ? undefined : "outline"}
+            className={matchMode ? "hover:opacity-90" : ""}
+          >
+            <Wand2 className="w-4 h-4 mr-2" />{matchMode ? "Showing my matches" : "Match me"}
+          </Button>
+        </div>
       </div>
 
       {matchMode && (
@@ -852,6 +924,51 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           <div className="h-full pt-6">{detail}</div>
         </SheetContent>
       </Sheet>
+
+      {/* v3.151.0 — real job titles, scored the same free way every card
+          already is, grouped from the live catalog instead of guessed by
+          an AI. Picking one filters the list to real postings under it. */}
+      <Dialog open={rolesOpen} onOpenChange={setRolesOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Roles that fit you</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-2">
+            Real job titles from postings open right now, ranked by the same quick match every card shows. Not a guess at demand, just a count of what's actually listed.
+          </p>
+          <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1 space-y-1.5">
+            {rolesLoading ? (
+              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-md" />)
+            ) : !roles || roles.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">
+                Add a resume or a few skills to Profile first, then AYN can find roles that fit you.
+              </p>
+            ) : (
+              roles.map((r) => (
+                <button
+                  key={r.title}
+                  type="button"
+                  onClick={() => pickRole(r.title)}
+                  className="w-full text-left rounded-md border border-border/60 px-3 py-2.5 hover:bg-muted transition flex items-center gap-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">{r.title}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {r.openings} open posting{r.openings === 1 ? "" : "s"}{r.companies.length ? ` · ${r.companies.slice(0, 2).join(", ")}${r.companies.length > 2 ? "…" : ""}` : ""}
+                    </p>
+                  </div>
+                  <span
+                    className="shrink-0 text-xs font-semibold rounded-full px-2 py-1"
+                    style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}
+                  >
+                    {r.match_pct}%
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

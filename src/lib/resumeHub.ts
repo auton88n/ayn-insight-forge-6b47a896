@@ -147,9 +147,18 @@ export const resumeHubApi = {
   // from job_postings via Supabase, not through this action — RLS already
   // allows any authenticated user to read that table, same as resumes/
   // user_profile_canonical are read directly elsewhere in this app.
-  jobBoardScore: (jobs: Array<{ id: string; description: string }>) =>
+  jobBoardScore: (jobs: Array<{ id: string; title: string; description: string }>) =>
     call<{ scores: Array<{ id: string; match_pct: number | null }> }>(
       "resume-hub", { action: "job_board_score", jobs },
+    ),
+
+  // v3.151.0 — free, zero-AI: real job titles from the live job_postings
+  // catalog that already score well against the caller's own profile,
+  // grouped so "openings" is a real, current count, never a guessed
+  // demand label.
+  roleFinder: () =>
+    call<{ roles: Array<{ title: string; match_pct: number; openings: number; companies: string[]; sample_job_id: string }> }>(
+      "resume-hub", { action: "role_finder" },
     ),
 };
 

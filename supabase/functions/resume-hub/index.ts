@@ -21,7 +21,7 @@ import {
   sha256 as sha256b, buildSections, computeGap, renderGapBlock, droppedFigures,
   cacheGet, cacheSet, logAiCall, fetchCompanyContext,
   verifyWriteQuality, verifyProseQuality, violationsToRetryNote, resumeContentUnchanged, inventedFigures, stripInstructionLikeSpans,
-  applySemanticRecheck, cosineSimilarity,
+  applySemanticRecheck, cosineSimilarity, computeQuickScore,
   type GapAnalysis, type SectionBundle,
 } from "../_shared/tailoring.ts";
 // v3.131.0 — stage 1 of the monolith reorganization: pure, self-contained
@@ -1758,17 +1758,22 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
     // ahead of time (job-board-sync) is that a browse list can show a real
     // match score per job, not just a list of titles. Running the full
     // match action's AI call for every job on a page would be slow and
-    // expensive at browse-list scale; this reuses only the deterministic
-    // half of that same pipeline (computeGap, no AI call) — the identical
-    // coverage formula job_fit_advice already uses (matched / (matched +
-    // missing) required items) — so scoring a whole page of jobs costs
-    // nothing but CPU.
+    // expensive at browse-list scale; this stays zero-AI-call so scoring a
+    // whole page of jobs costs nothing but CPU.
+    //
+    // v3.149.0 — asked directly for something more systematic than a
+    // single flat "matched JD lines" ratio: computeQuickScore weighs
+    // title fit, skill overlap, and years of experience as three
+    // separate, named signals (still deterministic, still free — see its
+    // own header comment in _shared/tailoring.ts for exactly how each is
+    // computed and why the skills check runs the opposite direction from
+    // computeGap's JD-parsing approach on purpose).
     //
     // Deliberately, honestly cruder than match/tailor/job_fit_advice: those
     // three all also run semanticGapRecheck (an embedding call per missing
     // requirement) so a paraphrased requirement can still count as matched.
     // Live-verified this actually matters, not just a theoretical gap: the
-    // identical real JD and profile scored 0% here but 15% coverage through
+    // identical real JD and profile scored far lower here than through
     // job_fit_advice, because semanticGapRecheck caught matches this
     // keyword-only pass couldn't. Adding it here would mean ~5-8 embedding
     // calls per job, times up to 50 jobs a page — real latency/cost this
@@ -1783,7 +1788,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       { const off = await featureGate(adminScore, "tailoring"); if (off) return off; }
       { const blocked = await accountGate(adminScore, user.id, action); if (blocked) return blocked; }
       { const limited = await rateLimitGate(adminScore, user.id, action, 60, 15); if (limited) return limited; }
-      const { jobs } = payload as { jobs?: Array<{ id: string; description: string }> };
+      const { jobs } = payload as { jobs?: Array<{ id: string; title?: string; description: string }> };
       if (!Array.isArray(jobs) || !jobs.length) return json({ error: "jobs required" }, 400);
       const capped = jobs.slice(0, 50);
 
@@ -1796,13 +1801,81 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         return json({ scores: capped.map((j) => ({ id: j.id, match_pct: null })) });
       }
 
+      const profile = {
+        skills: bundle.sections.skills,
+        title: identity?.current_title.value || "",
+        yearsExperience: identity?.computed_years_experience.value || 0,
+      };
       const scores = capped.map((j) => {
-        const gap = computeGap(String(j.description || ""), bundle);
-        const total = gap.matched.length + gap.missing.length;
-        const match_pct = total > 0 ? Math.round((gap.matched.length / total) * 100) : null;
-        return { id: j.id, match_pct };
+        const q = computeQuickScore(String(j.description || ""), String(j.title || ""), profile);
+        return { id: j.id, match_pct: q.score };
       });
       return json({ scores });
+    }
+
+    // ---------------- role_finder (free) ----------------
+    // v3.151.0 — the grounded answer to "what other real job titles fit
+    // me," instead of an LLM inventing 15 titles with guessed salary and
+    // demand numbers (the exact fabrication shape this app's own deleted
+    // free-form chat produced once already, v3.8.0). Same computeQuickScore
+    // job_board_score already uses, swept across the live job_postings
+    // catalog instead of one browse page, then grouped by real title —
+    // "openings" is a real count of currently-listed postings under that
+    // title, never a guessed demand label. Still zero AI calls.
+    if (action === "role_finder") {
+      const adminRoles = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminRoles, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminRoles, user.id, action); if (blocked) return blocked; }
+      { const limited = await rateLimitGate(adminRoles, user.id, action, 10, 15); if (limited) return limited; }
+
+      const [identity, canonical] = await Promise.all([
+        loadIdentity(adminRoles, user.id, {}).catch(() => null),
+        loadCanonical(adminRoles, user.id),
+      ]);
+      const bundle = buildSections(identity, canonical);
+      if (!bundle.text || bundle.chars < 60) return json({ roles: [] });
+
+      const profile = {
+        skills: bundle.sections.skills,
+        title: identity?.current_title.value || "",
+        yearsExperience: identity?.computed_years_experience.value || 0,
+      };
+
+      const { data: postings, error: postingsErr } = await adminRoles
+        .from("job_postings")
+        .select("id, title, company, description, posted_at")
+        .order("posted_at", { ascending: false })
+        .limit(6000);
+      if (postingsErr) return json({ error: postingsErr.message }, 500);
+
+      type Bucket = { title: string; sumScore: number; count: number; companies: Set<string>; bestId: string; bestScore: number };
+      const buckets = new Map<string, Bucket>();
+      for (const row of (postings || []) as Array<{ id: string; title: string | null; company: string | null; description: string | null }>) {
+        const title = String(row.title || "").trim();
+        if (!title) continue;
+        const q = computeQuickScore(String(row.description || ""), title, profile);
+        const key = title.toLowerCase();
+        let b = buckets.get(key);
+        if (!b) { b = { title, sumScore: 0, count: 0, companies: new Set(), bestId: row.id, bestScore: -1 }; buckets.set(key, b); }
+        b.sumScore += q.score;
+        b.count += 1;
+        if (row.company) b.companies.add(String(row.company));
+        if (q.score > b.bestScore) { b.bestScore = q.score; b.bestId = row.id; }
+      }
+
+      const roles = Array.from(buckets.values())
+        .map((b) => ({
+          title: b.title,
+          match_pct: Math.round(b.sumScore / b.count),
+          openings: b.count,
+          companies: Array.from(b.companies).slice(0, 3),
+          sample_job_id: b.bestId,
+        }))
+        .filter((r) => r.match_pct >= 30)
+        .sort((a, b) => b.match_pct - a.match_pct || b.openings - a.openings)
+        .slice(0, 15);
+
+      return json({ roles });
     }
 
     // ── NEW ACTIONS (JWT auth) ──
