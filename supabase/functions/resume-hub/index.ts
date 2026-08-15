@@ -3617,11 +3617,35 @@ Grade it now.`,
         const verdicts = ["consistent", "partly consistent", "inconsistent"];
         const perQ = out.per_question as Array<Record<string, unknown>>;
         const byQ = new Map(perQ.map(p => [String(p.id), p]));
+        const finalScore = Math.max(0, Math.min(100, Math.round(Number(out.overall_score) || 0)));
+        const finalVerdict = verdicts.includes(String(out.verification_verdict))
+          ? String(out.verification_verdict) : "partly consistent";
+        const concerns = (Array.isArray(out.concerns) ? out.concerns : []).map(s => cleanEmployerText(String(s))).slice(0, 5);
+
+        // v3.153.0 — reproduced live, side by side in the same test pass: a
+        // genuinely well-answered assessment (85/100, consistent) came back
+        // with a real, complete 2-4 sentence employer_summary; the identical
+        // call shape on a poorly-answered one (20/100, inconsistent) came
+        // back with employer_summary literally "This candidate" and nothing
+        // else, while that same response's per_question/concerns were fully
+        // intact. Rather than show a real employer a sentence that stops
+        // mid-thought, fall back to a plain line built only from numbers
+        // this same call already produced and this function already trusts
+        // enough to store -- same "never show a broken half-result" rule
+        // the ungraded-call branch just above already follows.
+        const rawSummary = cleanEmployerText(String(out.employer_summary || "")).slice(0, 1200);
+        const summaryLooksComplete = rawSummary.length >= 30 && /[.!?]$/.test(rawSummary);
+        const verdictPhrase = finalVerdict === "consistent" ? "consistent with"
+          : finalVerdict === "inconsistent" ? "inconsistent with"
+          : "partly consistent with";
+        const employerSummary = summaryLooksComplete
+          ? rawSummary
+          : `This candidate scored ${finalScore} out of 100. Their answers were ${verdictPhrase} what they claim on their profile.${concerns.length ? " See the concerns below for specifics." : ""}`;
+
         await adminForNew.from("assessment_results").upsert({
           assessment_id: assessmentId,
-          overall_score: Math.max(0, Math.min(100, Math.round(Number(out.overall_score) || 0))),
-          verification_verdict: verdicts.includes(String(out.verification_verdict))
-            ? String(out.verification_verdict) : "partly consistent",
+          overall_score: finalScore,
+          verification_verdict: finalVerdict,
           per_question: items.map(it => {
             const p = byQ.get(it.id);
             return {
@@ -3634,8 +3658,8 @@ Grade it now.`,
             };
           }),
           strengths: (Array.isArray(out.strengths) ? out.strengths : []).map(s => cleanEmployerText(String(s))).slice(0, 5),
-          concerns: (Array.isArray(out.concerns) ? out.concerns : []).map(s => cleanEmployerText(String(s))).slice(0, 5),
-          employer_summary: cleanEmployerText(String(out.employer_summary || "")).slice(0, 1200),
+          concerns,
+          employer_summary: employerSummary,
           seeker_growth_note: cleanEmployerText(String(out.seeker_growth_note || "")).slice(0, 300),
         }, { onConflict: "assessment_id" });
       }

@@ -103,6 +103,27 @@ const BLOCKED_AGGREGATOR_HOSTS = [
   "4dayweek.io", "powertofly.com", "himalayas.app", "djinni.co",
   "indeed.com", "linkedin.com", "ziprecruiter.com", "glassdoor.com", "monster.com",
   "careerjet.com", "jooble.org", "reed.co.uk", "jobs2careers.com", "juju.com",
+  // v3.153.0 — a live audit of every distinct apply_url host (asked
+  // directly to "test all the features and make sure they actually fix
+  // the problems we have") found five more aggregators hiding the same
+  // way the original WhatJobs/Adzuna/4dayweek batch was found: one
+  // third-party domain, many unrelated real companies routed through it.
+  // Confirmed by checking which companies actually shared each host
+  // before blocking it, not by name alone: echojobs.io (6 River Systems,
+  // Motorola Solutions, IKEA...), arbeitnow.com/.co.uk (EUSMS gGmbH,
+  // Vinteden, Zilch, Relationrx...), aijobs.net (American Airlines, Wix,
+  // Rewe Group...), jobicy.com (Canonical, Elavon), justjoin.it (emagine
+  // Polska, ITDS), thehub.io (Hours, HUURAY A/S). unjobs.org (UN agency
+  // jobs) and nofluffjobs.com are well-established commercial job boards
+  // blocked on the same basis even though the live sample only showed one
+  // company each. 650 of 7210 rows (~9%) matched one of these at the time
+  // this was found. Deliberately left out: government labour-exchange
+  // portals (usajobs.gov, mycareersfuture.gov.sg) and plausible ATS
+  // vendors (governmentjobs.com, careers-page.com, go-applied.com) --
+  // different in kind from a commercial scrape aggregator, not blocked
+  // without stronger evidence either way.
+  "echojobs.io", "arbeitnow.com", "arbeitnow.co.uk", "aijobs.net",
+  "unjobs.org", "jobicy.com", "justjoin.it", "nofluffjobs.com", "thehub.io",
 ];
 
 function isBlockedAggregatorUrl(rawUrl: string): boolean {

@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Download, X, ArrowLeft } from "lucide-react";
@@ -90,6 +90,18 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   const [activeAction, setActiveAction] = useState<null | "score" | "tailor" | "cover">(null);
   const [adding, setAdding] = useState(false);
   const [newJob, setNewJob] = useState({ url: "", text: "" });
+
+  // v3.152.0 — asked directly for informed consent before a tailor run, not
+  // just after it. The gap-suggestion cards below (title match, missing
+  // skills) already require a separate click per item before anything is
+  // added -- that part was already true. What was missing was telling the
+  // person, before they spend the credit, that tailoring rewrites their
+  // resume's wording for this one job and may afterward offer a title or
+  // skill change they still have to approve individually. Numbers and
+  // facts are never touched by any of this, tailor or otherwise -- that's
+  // enforced server side (figuresVerified) and stated here so the person
+  // knows it's not part of what they're being asked to decide on.
+  const [tailorConfirmOpen, setTailorConfirmOpen] = useState(false);
 
   const load = async () => {
     const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at").eq("user_id", userId).order("created_at", { ascending: false });
@@ -366,7 +378,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                     ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Scoring…</>
                     : <><Sparkles className="w-4 h-4 mr-2" />Score this job</>}
                 </Button>
-                <Button onClick={tailorResume} disabled={activeAction !== null || !primaryResume || !tailoring.enabled} variant="outline">
+                <Button onClick={() => setTailorConfirmOpen(true)} disabled={activeAction !== null || !primaryResume || !tailoring.enabled} variant="outline">
                   {activeAction === "tailor"
                     ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Tailoring…</>
                     : "Tailor resume"}
@@ -532,6 +544,37 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
             )}
           </div>
         </div>
+
+        {/* v3.152.0 — informed consent before the credit is spent and the AI
+            call runs, not just after. The per-item title/skill confirm cards
+            above this dialog already gate anything being added; this gate is
+            for the tailor run itself, so the person knows up front what
+            "tailor" changes before agreeing to it. */}
+        <Dialog open={tailorConfirmOpen} onOpenChange={setTailorConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Tailor this resume?</DialogTitle>
+              <DialogDescription>
+                AYN rewrites your resume's wording for this one job to improve your ATS match. It never invents a number, a skill, or an employer you don't have.
+              </DialogDescription>
+            </DialogHeader>
+            <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-5">
+              <li>If this job's title differs from yours, or it asks for a skill not on your resume, you'll see a suggestion afterward. Nothing is added or changed unless you approve it yourself, one item at a time.</li>
+              <li>Numbers, dates, and employers are never changed.</li>
+              <li>This uses 2 credits.</li>
+            </ul>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setTailorConfirmOpen(false)}>Cancel</Button>
+              <Button
+                onClick={() => { setTailorConfirmOpen(false); tailorResume(); }}
+                style={{ background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }}
+                className="hover:opacity-90"
+              >
+                Tailor my resume
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
