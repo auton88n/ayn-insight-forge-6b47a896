@@ -1,4 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.56.0";
+// v3.159.0 — npm: specifier, see job-board-sync's identical comment.
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
 
 

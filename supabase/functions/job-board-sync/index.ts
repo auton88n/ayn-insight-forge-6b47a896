@@ -34,7 +34,12 @@
 // SmartRecruiters, Workday, Breezy, Freshteam, Zoho Recruit, Rippling,
 // Oracle Cloud/Taleo) — all of which a company runs on its own subdomain,
 // the same shape as a direct career page for this purpose.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.56.0";
+// v3.159.0 — npm: specifier instead of esm.sh: the self-hosted Deno edge
+// runtime failed to boot this function under esm.sh's pinned 2.56.0 graph
+// ("Module not found ... StorageClient", a broken transitive resolution on
+// esm.sh's own CDN), while npm: (already proven working here by resume-hub)
+// resolves cleanly. Cloud's own deployment was unaffected either way.
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 
 // v3.134.0 — /jobs/search (the plain search endpoint) truncates description

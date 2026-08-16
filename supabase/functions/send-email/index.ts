@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+// v3.159.0 — npm: specifier, see job-board-sync's identical comment.
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
 import { escapeHtml, wrapEmail, heading, para, ctaButton } from '../_shared/emailTemplate.ts';
 
