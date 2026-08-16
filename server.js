@@ -16,7 +16,13 @@ const DIST = path.join(__dirname, 'dist');
 // class, so nothing in this app actually needs either exception. Verified
 // live against a real production build before shipping — see the CI/README
 // note for how to re-check after a template change.
-const SUPABASE_ORIGIN = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
+// v3.159.0 — self-hosted deployments point this app at a different
+// Supabase backend (a different origin entirely), so the CSP's own allow
+// list has to follow. SUPABASE_ORIGIN now reads from the same env var the
+// build itself uses (VITE_SUPABASE_URL), falling back to Cloud's URL so an
+// unconfigured deploy (still the normal case) behaves exactly as before.
+const SUPABASE_ORIGIN = process.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co';
+const SUPABASE_WS_ORIGIN = 'wss://' + SUPABASE_ORIGIN.replace(/^https?:\/\//, '');
 const CSP = [
   "default-src 'self'",
   `script-src 'self' https://www.googletagmanager.com`,
@@ -28,7 +34,7 @@ const CSP = [
   `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
   `font-src 'self' https://fonts.gstatic.com data:`,
   `img-src 'self' data: blob: https:`,
-  `connect-src 'self' ${SUPABASE_ORIGIN} wss://dfkoxuokfkttjhfjcecx.supabase.co https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com`,
+  `connect-src 'self' ${SUPABASE_ORIGIN} ${SUPABASE_WS_ORIGIN} https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
