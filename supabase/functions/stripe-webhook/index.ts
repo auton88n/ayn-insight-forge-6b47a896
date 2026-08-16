@@ -1,7 +1,12 @@
 // v3.18.0 — Stripe webhook. Activates the plan, grants seeker credits on
 // every paid period, and drops people back to free when a subscription ends.
 // Public endpoint: no JWT, the Stripe signature is the auth.
-import Stripe from "https://esm.sh/stripe@18.5.0";
+// v3.159.0 — npm: for both, same reasoning as job-board-sync's comment:
+// esm.sh's dependency graph resolution has already failed once on the
+// self-hosted Deno runtime for a sibling package; npm: is the proven-safe
+// specifier here, and this function is payment-critical enough not to
+// risk finding out about a second esm.sh breakage live.
+import Stripe from "npm:stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { wrapEmail, ctaButton, heading, para, receiptRow, escapeHtml, sendBrandedEmail } from "../_shared/emailTemplate.ts";
 

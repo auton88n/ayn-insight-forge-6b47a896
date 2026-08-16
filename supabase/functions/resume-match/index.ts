@@ -2,7 +2,8 @@
 // Auth: requires a valid Supabase JWT (Authorization: Bearer ...).
 // CORS: origin-validated, no wildcard.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// v3.159.0 — npm: specifier, see job-board-sync's identical comment.
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
 // ── CORS helpers ──────────────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
