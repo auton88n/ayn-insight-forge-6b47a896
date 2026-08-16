@@ -198,6 +198,12 @@
   padding: clamp(14px, 2.2vw, 24px);
   min-height: 480px;
 }
+.resume-hub-theme .rh-tab-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 440px;
+}
 .resume-hub-theme .rh-aside-section { margin-bottom: 14px; }
 .resume-hub-theme .rh-aside-section:last-child { margin-bottom: 0; }
 .resume-hub-theme .rh-aside-label {

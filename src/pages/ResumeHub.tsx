@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,13 +8,18 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import HomeTab from "@/components/resume-hub/HomeTab";
-import JobsTab from "@/components/resume-hub/JobsTab";
-import BrowseJobs from "@/components/resume-hub/BrowseJobs";
-import ExtensionTab from "@/components/resume-hub/ExtensionTab";
-import ProfileTab from "@/components/resume-hub/ProfileTab";
-import ProposalsTab from "@/components/resume-hub/ProposalsTab";
-import AssessmentsTab from "@/components/resume-hub/AssessmentsTab";
+import { AynLoader } from "@/components/shared/AynLoader";
+// v3.159.0 — lazy, not eager: these seven tabs were all bundled into one
+// ~880KB chunk regardless of which one is actually open, since none of
+// them were code-split. Now each tab's code only loads once its own
+// button is actually clicked.
+const HomeTab = lazy(() => import("@/components/resume-hub/HomeTab"));
+const JobsTab = lazy(() => import("@/components/resume-hub/JobsTab"));
+const BrowseJobs = lazy(() => import("@/components/resume-hub/BrowseJobs"));
+const ExtensionTab = lazy(() => import("@/components/resume-hub/ExtensionTab"));
+const ProfileTab = lazy(() => import("@/components/resume-hub/ProfileTab"));
+const ProposalsTab = lazy(() => import("@/components/resume-hub/ProposalsTab"));
+const AssessmentsTab = lazy(() => import("@/components/resume-hub/AssessmentsTab"));
 import { employerApi } from "@/lib/employer";
 import { assessmentApi } from "@/lib/assessments";
 import { billingApi } from "@/lib/billing";
@@ -314,22 +319,24 @@ export default function ResumeHub() {
 
           {/* Main panel */}
           <section className="rh-main">
-            {tab === "home"      && (
-              <HomeTab
-                userId={userId!}
-                onOpenProfile={() => setTab("profile")}
-                onOpenJobs={() => setTab("jobs")}
-                onOpenProposals={() => setTab("proposals")}
-              />
-            )}
-            {tab === "profile"   && <ProfileTab userId={userId!} onCreditsChanged={refreshCredits} />}
-            {tab === "proposals" && <ProposalsTab onChanged={setPendingIntros} />}
-            {tab === "assessments" && <AssessmentsTab onChanged={setPendingAssessments} />}
+            <Suspense fallback={<div className="rh-tab-loading"><AynLoader size="md" /></div>}>
+              {tab === "home"      && (
+                <HomeTab
+                  userId={userId!}
+                  onOpenProfile={() => setTab("profile")}
+                  onOpenJobs={() => setTab("jobs")}
+                  onOpenProposals={() => setTab("proposals")}
+                />
+              )}
+              {tab === "profile"   && <ProfileTab userId={userId!} onCreditsChanged={refreshCredits} />}
+              {tab === "proposals" && <ProposalsTab onChanged={setPendingIntros} />}
+              {tab === "assessments" && <AssessmentsTab onChanged={setPendingAssessments} />}
 
-            {tab === "browse"    && <BrowseJobs userId={userId!} onAdded={goJob} onOpenProfile={() => setTab("profile")} />}
-            {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} onOpenProfile={() => setTab("profile")} onCreditsChanged={refreshCredits} onBackToBrowse={() => setTab("browse")} />}
+              {tab === "browse"    && <BrowseJobs userId={userId!} onAdded={goJob} onOpenProfile={() => setTab("profile")} />}
+              {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} onOpenProfile={() => setTab("profile")} onCreditsChanged={refreshCredits} onBackToBrowse={() => setTab("browse")} />}
 
-            {tab === "extension" && <ExtensionTab userId={userId!} />}
+              {tab === "extension" && <ExtensionTab userId={userId!} />}
+            </Suspense>
           </section>
 
 
