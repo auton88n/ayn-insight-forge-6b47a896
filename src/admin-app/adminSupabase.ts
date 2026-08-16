@@ -4,12 +4,18 @@
 // due to missing env vars at build time.
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL =
+// v3.159.0 — exported so useAdminQuery.ts's adminRpc() (a raw fetch() that
+// bypasses the supabase-js client entirely, see its own comment for why)
+// reads the same self-hosted-or-Cloud value instead of carrying its own
+// second, hardcoded-to-Cloud copy. A self-hosted build's CSP only allows
+// its own Supabase origin, so a stale hardcoded Cloud URL there doesn't
+// just point at the wrong backend — the browser blocks the request outright.
+export const SUPABASE_URL =
   import.meta.env.VITE_SUPABASE_URL ||
   'https://dfkoxuokfkttjhfjcecx.supabase.co';
 
 // Fallback order: env var → hardcoded anon key (anon key is public/safe)
-const SUPABASE_ANON_KEY =
+export const SUPABASE_ANON_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';

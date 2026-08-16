@@ -11,7 +11,7 @@
  * - invalidateQueries replaces refreshKey unmount hack
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { adminSupabase as supabase } from '../adminSupabase';
+import { adminSupabase as supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../adminSupabase';
 import { toast } from 'sonner';
 
 // ─── Generic RPC wrapper ────────────────────────────────────
@@ -29,10 +29,10 @@ async function adminRpc<T = unknown>(
     throw new Error('Admin session expired. Please log in again.');
   }
 
-  // Use fetch directly with explicit Authorization header to bypass GoTrueClient conflicts
-  const SUPABASE_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
-
+  // Use fetch directly with explicit Authorization header to bypass GoTrueClient conflicts.
+  // SUPABASE_URL/SUPABASE_ANON_KEY come from adminSupabase.ts (env var first,
+  // Cloud as fallback) — this used to hardcode its own second copy pinned to
+  // Cloud, which a self-hosted build's CSP now blocks outright (v3.159.0).
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
     method: 'POST',
     headers: {
