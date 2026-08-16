@@ -45,7 +45,18 @@ export function logAiUsage(opts: {
   }, (e: unknown) => console.error("llm_usage_logs insert threw", e));
 }
 
-export const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+// v3.158.0 — self-hosted deployments have no LOVABLE_API_KEY of their own
+// (that credential is Lovable's, tied to the managed Cloud project). When
+// AI_RELAY_URL is set, calls go through ai-relay (a thin function that
+// stays on Cloud, still holding the real key) instead of Lovable directly,
+// authenticated with RELAY_SECRET, a value that is never the real Lovable
+// key. Both checks below key off AI_RELAY_URL specifically, not just
+// whether RELAY_SECRET happens to exist -- Supabase secrets are project
+// wide, so RELAY_SECRET is visible to Cloud's own resume-hub too once set;
+// without gating on AI_RELAY_URL, Cloud would wrongly try to send that
+// secret to Lovable's real gateway instead of LOVABLE_API_KEY.
+const AI_RELAY_URL = Deno.env.get("AI_RELAY_URL");
+export const GATEWAY_URL = AI_RELAY_URL || "https://ai.gateway.lovable.dev/v1/chat/completions";
 export const DEFAULT_MODEL = "google/gemini-2.5-flash";
 export const QUALITY_MODEL = "google/gemini-2.5-pro";
 
@@ -60,7 +71,7 @@ export async function callAI(opts: {
   /** Lower = more consistent/repeatable output. Omit to use the model's own default. */
   temperature?: number;
 }): Promise<{ text: string; structured?: unknown }> {
-  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  const apiKey = AI_RELAY_URL ? Deno.env.get("RELAY_SECRET") : Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
   const primary = opts.model ?? DEFAULT_MODEL;
