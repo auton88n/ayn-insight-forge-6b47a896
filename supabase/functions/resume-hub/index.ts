@@ -1553,10 +1553,13 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       // measured 176s, past this app's own 150s idle timeout. Flash tier.
       let r = await callAI({ model: DEFAULT_MODEL, temperature: 0.2, system, user: userMsg, toolName: "emit_resume", toolSchema: RESUME_SCHEMA });
 
-      // SELF-VERIFICATION — figures, banned phrases, pronouns, and dashes
-      // all checked in code, not just asked for. One retry naming every
-      // violation found in a single round trip.
-      let writeViolations = verifyWriteQuality(bundle.text, r.structured);
+      // SELF-VERIFICATION — figures, banned phrases, pronouns, dashes, and
+      // (v3.159.0) a summary echoing one of the JD's own genuinely missing
+      // requirements as if it were evidenced, all checked in code, not just
+      // asked for. One retry naming every violation found in a single round
+      // trip.
+      const missingReqTexts = gap.missing.map((req) => req.text);
+      let writeViolations = verifyWriteQuality(bundle.text, r.structured, missingReqTexts);
       if (writeViolations.length) {
         const retryNote = violationsToRetryNote(writeViolations);
         const retry = await callAI({
@@ -1564,7 +1567,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
           user: `${userMsg}\n\n${retryNote}`,
           toolName: "emit_resume", toolSchema: RESUME_SCHEMA,
         });
-        const retryViolations = verifyWriteQuality(bundle.text, retry.structured);
+        const retryViolations = verifyWriteQuality(bundle.text, retry.structured, missingReqTexts);
         if (retryViolations.length < writeViolations.length) { r = retry; writeViolations = retryViolations; }
       }
       const missingFigures = writeViolations.filter((v) => v.kind === "figure").map((v) => v.detail);
@@ -1658,9 +1661,14 @@ RULES:
 
       // SELF-VERIFICATION — figures must trace back to the sections, no
       // banned cliches, no em/en dash. Pronouns are fine here; a cover
-      // letter is legitimately first person.
+      // letter is legitimately first person. v3.159.0 — also code-checks
+      // the "don't claim a requirement not evidenced" rule above, not just
+      // prompt-asked (found live: tailor's summary echoed a genuinely
+      // missing requirement as claimed experience; this closes the same
+      // gap on the cover letter path before it can happen here too).
+      const missingReqTexts = gap.missing.map((req) => req.text);
       let coverMissingFigures = droppedFigures(coverBody, bundle.text).filter((f) => f.length > 1);
-      let coverProseViolations = verifyProseQuality(coverBody, false);
+      let coverProseViolations = verifyProseQuality(coverBody, false, missingReqTexts);
       if (coverMissingFigures.length || coverProseViolations.length) {
         const figureNote = coverMissingFigures.length
           ? `THE PREVIOUS DRAFT CITED FIGURES THAT DO NOT APPEAR IN THE SECTIONS: ${coverMissingFigures.slice(0, 20).join(", ")}\nRewrite the letter using only figures that appear verbatim in the sections, or no figures at all.\n`
@@ -1670,7 +1678,7 @@ RULES:
         const fixed = String(retry.text || "").trim();
         if (fixed) {
           const stillMissing = droppedFigures(fixed, bundle.text).filter((f) => f.length > 1);
-          const stillProse = verifyProseQuality(fixed, false);
+          const stillProse = verifyProseQuality(fixed, false, missingReqTexts);
           if (stillMissing.length + stillProse.length < coverMissingFigures.length + coverProseViolations.length) {
             coverBody = fixed; coverMissingFigures = stillMissing; coverProseViolations = stillProse;
           }

@@ -802,7 +802,29 @@ export const WRITE_BANNED_PHRASES = [
   "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "hard-working", "detail-oriented",
 ];
 
-export interface WriteViolation { kind: "figure" | "banned_phrase" | "pronoun" | "dash" | "generic_summary"; detail: string }
+export interface WriteViolation { kind: "figure" | "banned_phrase" | "pronoun" | "dash" | "generic_summary" | "gap_claim"; detail: string }
+
+// v3.159.0 — found live: tailor's own rule 5 ("echo 2-3 key phrases from the
+// job description") and rule 7 ("stay silent where no related experience
+// exists") can directly conflict, and nothing checked for it. A real test
+// resume with no GraphQL experience, tailored against a JD requiring it,
+// came back with gapAnalysis.missing correctly listing "GraphQL API design"
+// while that exact phrase also appeared in the summary as claimed
+// experience ("...including GraphQL API design") — an honest gap analysis
+// sitting next to a dishonest summary in the same response. A missing
+// requirement is by definition unevidenced, so an exact (word-boundary)
+// match of its own text inside the model's generated prose is close to
+// definitionally the violation, not a coincidence worth tolerating.
+function claimsUnevidencedGap(text: string, missingRequirements: string[]): string[] {
+  const hits: string[] = [];
+  for (const req of missingRequirements) {
+    const t = req.trim();
+    if (t.length < 4) continue; // avoid noisy short/generic matches
+    const escaped = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`\\b${escaped}\\b`, "i").test(text)) hits.push(t);
+  }
+  return hits;
+}
 
 // v3.133.0 — the rubric already deducts for "reads generic enough to apply
 // to any candidate" (resumeScoring.ts's ATS_RUBRIC), but that was only ever
@@ -853,7 +875,7 @@ function extractProse(resume: unknown): string {
 /** Deterministic checks only — no second AI call. Figures use the whole
  * output (a dropped number could hide in a title or a skill line too);
  * everything else is scoped to prose only. */
-export function verifyWriteQuality(inputText: string, outputResume: unknown): WriteViolation[] {
+export function verifyWriteQuality(inputText: string, outputResume: unknown, missingRequirements: string[] = []): WriteViolation[] {
   const violations: WriteViolation[] = [];
   const outputStr = JSON.stringify(outputResume ?? "");
   for (const f of droppedFigures(inputText, outputStr)) violations.push({ kind: "figure", detail: f });
@@ -864,6 +886,7 @@ export function verifyWriteQuality(inputText: string, outputResume: unknown): Wr
   if (/\b(I|me|my|we)\b/.test(prose)) violations.push({ kind: "pronoun", detail: "first-person pronoun present" });
   if (/[–—]/.test(prose)) violations.push({ kind: "dash", detail: "em or en dash present" });
   if (isGenericSummary(outputResume)) violations.push({ kind: "generic_summary", detail: "summary names no real number, employer, or skill from this resume" });
+  for (const g of claimsUnevidencedGap(prose, missingRequirements)) violations.push({ kind: "gap_claim", detail: g });
   return violations;
 }
 
@@ -876,13 +899,14 @@ export function verifyWriteQuality(inputText: string, outputResume: unknown): Wr
  * but a cover letter is legitimately first person — callers writing a
  * cover letter must pass false, or every real "I have experience with..."
  * would wrongly flag as a violation. */
-export function verifyProseQuality(text: string, checkPronouns = true): WriteViolation[] {
+export function verifyProseQuality(text: string, checkPronouns = true, missingRequirements: string[] = []): WriteViolation[] {
   const violations: WriteViolation[] = [];
   const s = String(text || "");
   const lower = s.toLowerCase();
   for (const p of WRITE_BANNED_PHRASES) if (lower.includes(p)) violations.push({ kind: "banned_phrase", detail: p });
   if (checkPronouns && /\b(I|me|my|we)\b/.test(s)) violations.push({ kind: "pronoun", detail: "first-person pronoun present" });
   if (/[–—]/.test(s)) violations.push({ kind: "dash", detail: "em or en dash present" });
+  for (const g of claimsUnevidencedGap(s, missingRequirements)) violations.push({ kind: "gap_claim", detail: g });
   return violations;
 }
 
@@ -894,12 +918,14 @@ export function violationsToRetryNote(violations: WriteViolation[]): string {
   const hasPronoun = violations.some((v) => v.kind === "pronoun");
   const hasDash = violations.some((v) => v.kind === "dash");
   const hasGenericSummary = violations.some((v) => v.kind === "generic_summary");
+  const gapClaims = Array.from(new Set(violations.filter((v) => v.kind === "gap_claim").map((v) => v.detail)));
   const notes: string[] = [];
   if (figures.length) notes.push(`- Dropped or altered these figures: ${figures.slice(0, 30).join(", ")}. Include every one of them, unchanged, in the bullet it belongs to.`);
   if (phrases.length) notes.push(`- Used a banned phrase: "${phrases.join('", "')}". Rewrite that line without it.`);
   if (hasPronoun) notes.push(`- Used a first-person pronoun ("I", "me", "my", or "we"). Rewrite in implied third person.`);
   if (hasDash) notes.push(`- Used an em dash or en dash. Remove it — use a period, a comma, or the word "to" for a range instead.`);
   if (hasGenericSummary) notes.push(`- The summary names no real number, employer, or skill from this specific person's own background, so it reads like it could apply to anyone. Rewrite it to reference at least one concrete detail already present elsewhere in the resume (a real employer name, a named skill, or a number), while staying 1 to 2 sentences.`);
+  if (gapClaims.length) notes.push(`- Claimed experience with "${gapClaims.join('", "')}" even though this is NOT evidenced anywhere in this person's real background — it is one of the job's own requirements they genuinely do not have. Remove every reference to it. Do not echo a job requirement's exact wording unless real related experience for it already exists in the applicant's own sections.`);
   return notes.length ? `PREVIOUS ATTEMPT HAD REAL PROBLEMS, FIX EVERY ONE:\n${notes.join("\n")}\nProduce the complete resume again, correcting these, changing nothing else.` : "";
 }
 

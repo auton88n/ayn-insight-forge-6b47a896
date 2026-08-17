@@ -242,10 +242,13 @@ Keep everything that was already correct. Do not add new claims to fix a gap.${T
     }
   }
 
-  // SELF-VERIFICATION — figures, banned phrases, pronouns, dashes, all
-  // checked in code, not asked for. One retry naming every violation found.
+  // SELF-VERIFICATION — figures, banned phrases, pronouns, dashes, and
+  // (v3.159.0) a summary echoing one of the JD's own genuinely missing
+  // requirements as if it were evidenced, all checked in code, not asked
+  // for. One retry naming every violation found.
+  const missingReqTexts = gap.missing.map((req) => req.text);
   let missingFigures = droppedFigures(bundle.text, out.tailoredText);
-  let proseViolations = verifyProseQuality(out.tailoredText);
+  let proseViolations = verifyProseQuality(out.tailoredText, true, missingReqTexts);
   if (missingFigures.length || proseViolations.length) {
     const figureNote = missingFigures.length
       ? `- Dropped or altered these figures: ${missingFigures.slice(0, 30).join(", ")}. Include every one of them, unchanged, in the bullet it belongs to.\n`
@@ -259,7 +262,7 @@ Keep everything that was already correct. Do not add new claims to fix a gap.${T
     const fixed = normalizeTailorOut(parseJsonLoose<TailorOut>(retry.text));
     if (fixed.tailoredText) {
       const stillMissing = droppedFigures(bundle.text, fixed.tailoredText);
-      const stillProse = verifyProseQuality(fixed.tailoredText);
+      const stillProse = verifyProseQuality(fixed.tailoredText, true, missingReqTexts);
       if (stillMissing.length + stillProse.length < missingFigures.length + proseViolations.length) {
         out = fixed; missingFigures = stillMissing; proseViolations = stillProse;
       }
@@ -399,9 +402,12 @@ RULES:
   // A cover letter only cites a handful of figures, so we verify the other
   // direction: every figure IN the letter must exist verbatim in the sections.
   // Banned phrases and dashes checked too; pronouns are NOT — a cover
-  // letter is legitimately first person, unlike a resume bullet.
+  // letter is legitimately first person, unlike a resume bullet. v3.159.0 —
+  // the prompt already says "do not claim a requirement not evidenced in
+  // the GAP ANALYSIS" (rule above), now also code-checked, not just asked.
+  const missingReqTexts = gap.missing.map((req) => req.text);
   let missingFigures = droppedFigures(body, bundle.text).filter((f) => f.length > 1);
-  let coverProseViolations = verifyProseQuality(body, false);
+  let coverProseViolations = verifyProseQuality(body, false, missingReqTexts);
   if (missingFigures.length || coverProseViolations.length) {
     const figureNote = missingFigures.length
       ? `THE PREVIOUS DRAFT CITED FIGURES THAT DO NOT APPEAR IN THE SECTIONS: ${missingFigures.slice(0, 20).join(", ")}\nRewrite the letter using only figures that appear verbatim in the sections, or no figures at all.\n`
@@ -415,7 +421,7 @@ RULES:
     const fixed = String(retry.text || "").trim();
     if (fixed) {
       const still = droppedFigures(fixed, bundle.text).filter((f) => f.length > 1);
-      const stillProse = verifyProseQuality(fixed, false);
+      const stillProse = verifyProseQuality(fixed, false, missingReqTexts);
       if (still.length + stillProse.length < missingFigures.length + coverProseViolations.length) {
         body = fixed; missingFigures = still; coverProseViolations = stillProse;
       }
