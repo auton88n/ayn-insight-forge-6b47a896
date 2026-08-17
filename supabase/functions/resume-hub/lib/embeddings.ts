@@ -12,7 +12,15 @@ import { applySemanticRecheck } from "../../_shared/tailoring.ts";
 const EMBED_DIMS = 768;
 const REAL_EMBED_MODEL = "openai/text-embedding-3-small";
 export const FALLBACK_EMBED_MODEL = "deterministic-v1";
-const EMBED_ENDPOINT = "https://ai.gateway.lovable.dev/v1/embeddings";
+// v3.159.0 — self-hosted has no LOVABLE_API_KEY of its own (see ai.ts's
+// identical AI_RELAY_URL comment). This call path was never wired to the
+// relay at all, so every self-hosted embedding call silently fell back to
+// the hash embedding — confirmed live, every candidate_index row on
+// self-hosted carried 'deterministic-v1', degrading semanticGapRecheck and
+// employer_match's vector recall with no visible error. ai-relay now
+// routes on this /embeddings suffix to Lovable's real embeddings endpoint.
+const AI_RELAY_URL = Deno.env.get("AI_RELAY_URL");
+const EMBED_ENDPOINT = AI_RELAY_URL ? `${AI_RELAY_URL}/embeddings` : "https://ai.gateway.lovable.dev/v1/embeddings";
 
 function tokenizeForEmbed(text: string): string[] {
   return (text || "").toLowerCase().match(/[a-z0-9+.#-]{2,}/g) || [];
@@ -48,10 +56,10 @@ async function deterministicEmbed(text: string): Promise<number[]> {
  * to mix these vectors with real ones.
  */
 export async function embedText(text: string): Promise<{ vector: number[]; model: string }> {
-  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  const apiKey = AI_RELAY_URL ? Deno.env.get("RELAY_SECRET") : Deno.env.get("LOVABLE_API_KEY");
   const input = (text || "").slice(0, 8000);
   if (!apiKey || !input) {
-    console.log(`[embedText] fallback path (${apiKey ? "empty input" : "no LOVABLE_API_KEY"})`);
+    console.log(`[embedText] fallback path (${apiKey ? "empty input" : AI_RELAY_URL ? "no RELAY_SECRET" : "no LOVABLE_API_KEY"})`);
     return { vector: await deterministicEmbed(input), model: FALLBACK_EMBED_MODEL };
   }
   try {

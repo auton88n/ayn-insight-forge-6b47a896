@@ -5,7 +5,20 @@
 // authenticated with RELAY_SECRET (a value only this function and the
 // self-hosted instance know, never the real Lovable credential). This
 // function is the only thing that ever touches LOVABLE_API_KEY.
-const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+//
+// v3.159.0 — this only ever relayed /v1/chat/completions. embedText()
+// (lib/embeddings.ts) is a completely separate call path that was never
+// wired to the relay at all and kept calling Lovable's gateway directly
+// with a LOVABLE_API_KEY that doesn't exist on self-hosted, silently
+// falling back to a hash embedding every time (confirmed live: every
+// self-hosted candidate_index row carried embedding_model
+// 'deterministic-v1', never the real model) — degrading semanticGapRecheck
+// and employer_match's vector recall on self-hosted specifically, with no
+// visible error anywhere. Routes on the request's own path suffix now, so
+// one relay serves both endpoints; the existing chat-completions caller
+// (lib/ai.ts) sends no suffix and is unaffected.
+const CHAT_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const EMBEDDINGS_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/embeddings";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,8 +59,10 @@ Deno.serve(async (req) => {
     });
   }
 
+  const targetUrl = new URL(req.url).pathname.endsWith("/embeddings") ? EMBEDDINGS_GATEWAY_URL : CHAT_GATEWAY_URL;
+
   try {
-    const upstream = await fetch(GATEWAY_URL, {
+    const upstream = await fetch(targetUrl, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: bodyText,
