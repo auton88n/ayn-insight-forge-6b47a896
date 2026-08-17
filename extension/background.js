@@ -2,9 +2,18 @@
 // Auth: device tokens via "Sign in with AYN" one-click flow.
 
 // v1.9.55: two-lane resolver. Load shared constants + resolver into the SW.
+// v3.4.8 — self-hosted cutover. The extension has always hardcoded these
+// two values with no build-time configurability at all (unlike the web
+// app's src/config.ts, which reads VITE_SUPABASE_URL with a Cloud
+// fallback) — found only because the web/admin/AI-relay cutover was
+// otherwise complete and this was the one surface still silently pointed
+// at Cloud. Since this is a sideloaded MV3 extension with no auto-update,
+// this fix only reaches an install once someone re-downloads and reloads
+// the unpacked extension; anyone still on an older build keeps talking to
+// Cloud, invisibly out of sync with the web app's own data.
 
-const SUPABASE_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
+const SUPABASE_URL = 'https://supabase.ayn.careers';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg2ODg5MDQyLCJleHAiOjIxMDIyNDkwNDJ9.AmUVtzKLnrXO_ubBNxSDCBDnI7jJyNkGfK9p7nrzkGI';
 const AYN_WEB = 'https://ayn.careers';
 
 // Open side panel when toolbar icon clicked
