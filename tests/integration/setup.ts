@@ -36,28 +36,29 @@ export type TestAccount = {
   accessToken: string;
 };
 
-/** Signs up a real throwaway account, confirms its email via the service role, signs in for a real JWT. */
+/** Creates a real throwaway account via the admin endpoint (pre-confirmed, no
+ * email ever sent — the public /signup endpoint requires a real confirmation
+ * email to send successfully before the account exists at all, which makes
+ * an unrelated test's account-creation step hostage to whatever the mail
+ * provider's own test-domain rules happen to be; this test suite has no
+ * reason to exercise that path, only the accounts it produces), signs in for
+ * a real JWT. */
 export async function createTestAccount(opts: { role?: "job_seeker" | "employer"; label: string }): Promise<TestAccount> {
   const { url, anonKey, serviceRoleKey } = requireTestEnv();
   const email = `ayn.itest.${opts.label}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}@example.com`;
   const password = "TestPass!2026integration";
 
-  const signupRes = await fetch(`${url}/auth/v1/signup`, {
+  const createRes = await fetch(`${url}/auth/v1/admin/users`, {
     method: "POST",
-    headers: { apikey: anonKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, data: { full_name: "Integration Test", role: opts.role || "job_seeker" } }),
-  });
-  if (!signupRes.ok) throw new Error(`signup failed: ${signupRes.status} ${await signupRes.text()}`);
-  const signupBody = await signupRes.json();
-  const userId = signupBody.id as string;
-
-  // Email confirmation is an admin-only write (auth.users), needs the service role.
-  const confirmRes = await fetch(`${url}/auth/v1/admin/users/${userId}`, {
-    method: "PUT",
     headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ email_confirm: true }),
+    body: JSON.stringify({
+      email, password, email_confirm: true,
+      user_metadata: { full_name: "Integration Test", role: opts.role || "job_seeker" },
+    }),
   });
-  if (!confirmRes.ok) throw new Error(`email confirm failed: ${confirmRes.status} ${await confirmRes.text()}`);
+  if (!createRes.ok) throw new Error(`account create failed: ${createRes.status} ${await createRes.text()}`);
+  const createBody = await createRes.json();
+  const userId = createBody.id as string;
 
   const tokenRes = await fetch(`${url}/auth/v1/token?grant_type=password`, {
     method: "POST",
@@ -89,6 +90,30 @@ export async function grantCredits(userId: string, amount: number, ref: string):
     body: JSON.stringify({ _user_id: userId, _amount: amount, _reason: "integration_test_topup", _ref: ref }),
   });
   if (!res.ok) throw new Error(`credit_grant failed: ${res.status} ${await res.text()}`);
+}
+
+/** Wipes every credit_ledger row for this account and seeds a single clean
+ * row at exactly `amount` — a true reset, not an addition. grantCredits
+ * alone can't produce a known small balance for a concurrency test: it
+ * only ever adds to whatever billing_ensure's own free-tier period_grant
+ * already put there (real, variable, plan-dependent), which is exactly
+ * the confound that made an earlier version of the concurrency test look
+ * like it had found a broken lock when the real cause was simply more
+ * real balance being available than the test accounted for. Call
+ * billing_ensure (e.g. via a billing_get callHub) before this, not after
+ * — otherwise that same grant lands after the reset and reintroduces the
+ * same confound. */
+export async function resetCreditsTo(userId: string, amount: number): Promise<void> {
+  const { url, serviceRoleKey } = requireTestEnv();
+  const headers = { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, "Content-Type": "application/json" };
+  const del = await fetch(`${url}/rest/v1/credit_ledger?user_id=eq.${userId}`, { method: "DELETE", headers });
+  if (!del.ok) throw new Error(`credit_ledger reset (delete) failed: ${del.status} ${await del.text()}`);
+  const ins = await fetch(`${url}/rest/v1/credit_ledger`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ user_id: userId, delta: amount, reason: "integration_test_reset", balance_after: amount }),
+  });
+  if (!ins.ok) throw new Error(`credit_ledger reset (insert) failed: ${ins.status} ${await ins.text()}`);
 }
 
 /** Calls resume-hub as a given real account, returns { status, body }. */
