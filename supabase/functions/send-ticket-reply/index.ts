@@ -93,7 +93,13 @@ Deno.serve(async (req) => {
     const sendRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: 'AYN Support <support@ayn.careers>', to: [ticket.guest_email], subject, html }),
+      body: JSON.stringify({
+        from: 'AYN Support <support@ayn.careers>',
+        reply_to: 'help@support.ayn.careers',
+        to: [ticket.guest_email],
+        subject,
+        html,
+      }),
     });
 
     await admin.from('email_logs').insert({
