@@ -10,8 +10,8 @@ const KEY = 'ayn_landing_audience';
 const EVENT = 'ayn:landing-audience-change';
 
 export function readAudience(): Audience {
-  if (typeof window === 'undefined') return 'job_seeker';
-  return localStorage.getItem(KEY) === 'employer' ? 'employer' : 'job_seeker';
+  if (typeof window === 'undefined') return 'employer';
+  return localStorage.getItem(KEY) === 'job_seeker' ? 'job_seeker' : 'employer';
 }
 
 export function writeAudience(next: Audience) {

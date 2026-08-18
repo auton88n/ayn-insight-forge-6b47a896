@@ -8,7 +8,7 @@ import { useState } from 'react';
 
 const LandingPage = memo(() => {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authRole, setAuthRole] = useState<'job_seeker' | 'employer'>('job_seeker');
+  const [authRole, setAuthRole] = useState<'job_seeker' | 'employer'>('employer');
   const { direction } = useLanguage();
 
   // The landing page owns a warm paper canvas, independent of app theme.
@@ -48,7 +48,7 @@ const LandingPage = memo(() => {
         <Header />
         <LandingSections
           onStartFree={(role) => {
-            setAuthRole(role || 'job_seeker');
+            setAuthRole(role || 'employer');
             setShowAuthModal(true);
           }}
         />

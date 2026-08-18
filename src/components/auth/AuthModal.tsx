@@ -43,7 +43,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
   const [companyName, setCompanyName] = useState('');
   // v2.10.0 — role picker on signup. job_seekers get instant access; employers
   // sit in pending_approval until the AYN team activates them.
-  const [signupRole, setSignupRole] = useState<'job_seeker' | 'employer'>(initialRole || 'job_seeker');
+  const [signupRole, setSignupRole] = useState<'job_seeker' | 'employer'>(initialRole || 'employer');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // Landing CTAs choose the side before the modal opens.
@@ -414,7 +414,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
         setFullName('');
         setCompanyName('');
         
-        setSignupRole('job_seeker');
+        setSignupRole('employer');
         setAcceptedTerms(false);
       }
     } catch (error) {
