@@ -684,7 +684,7 @@ async function runScoreFlow({ auto = false } = {}) {
       missing.forEach(kw => {
         const chip = document.createElement('span');
         chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid #fcd34d;background:#fff;color:#92400e;margin:2px;font-weight:600;';
-        chip.innerHTML = `<i class="ti ti-plus" style="font-size:10px"></i>${kw}`;
+        chip.innerHTML = `<i class="ti ti-plus" style="font-size:10px"></i>${esc(kw)}`;
         chipRow.appendChild(chip);
       });
       mkWrap.appendChild(chipRow);

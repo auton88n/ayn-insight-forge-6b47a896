@@ -16,7 +16,11 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .idea
+.claude/
 .DS_Store
+
+# Supabase CLI local state (project link cache, not app config)
+supabase/.temp/
 *.suo
 *.ntvs*
 *.njsproj

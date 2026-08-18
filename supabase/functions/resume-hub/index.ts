@@ -2932,43 +2932,39 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       const candidateUserId = (search.ref_map as Record<string, string> | null)?.[ref];
       if (!candidateUserId) return json({ error: "unknown ref" }, 400);
 
-      // Rate limit 1: one open proposal per (org, candidate) at a time.
-      const { data: openRow } = await adminForNew.from("reveal_requests")
-        .select("id").eq("org_id", search.org_id)
-        .eq("candidate_user_id", candidateUserId).eq("status", "pending").maybeSingle();
-      if (openRow) {
-        return json({ error: "You already have an open proposal with this candidate. Wait for a reply before sending another." }, 429);
-      }
-      // Rate limit 2: no new proposal within 30 days of a decline.
-      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const { data: recentDecline } = await adminForNew.from("reveal_requests")
-        .select("id, responded_at").eq("org_id", search.org_id)
-        .eq("candidate_user_id", candidateUserId).eq("status", "declined")
-        .gte("responded_at", cutoff).limit(1).maybeSingle();
-      if (recentDecline) {
-        return json({ error: "This candidate declined a proposal from you in the last 30 days. You can try again after that." }, 429);
-      }
-
       // v3.14.0 — proposals limit per billing period.
       const propBilling = await employerBilling(adminForNew, userId, search.org_id);
       const propGate = planLimitReached(propBilling, "proposal");
       if (propGate) return propGate;
 
-
-      const { error: iErr } = await adminForNew.from("reveal_requests").insert({
-        org_id: search.org_id,
-        candidate_user_id: candidateUserId,
-        search_id,
-        candidate_ref: ref,
-        job_title: title,
-        job_location: job_location?.trim() || null,
-        employment_type: employment_type?.trim() || null,
-        salary_range: salary_range?.trim() || null,
-        job_url: job_url?.trim() || null,
-        message: msg,
-        sent_at: new Date().toISOString(),
+      // Rate limits 1+2 (one open proposal per org/candidate; no new
+      // proposal within 30 days of a decline) plus the insert itself all
+      // run inside one atomic, advisory-locked Postgres function now — the
+      // three were previously separate unguarded round trips from here,
+      // a real TOCTOU race the blueprint-checklist backend audit found.
+      const { data: rr, error: rrErr } = await adminForNew.rpc("create_reveal_request_atomic", {
+        p_org_id: search.org_id,
+        p_candidate_user_id: candidateUserId,
+        p_search_id: search_id,
+        p_candidate_ref: ref,
+        p_job_title: title,
+        p_job_location: job_location?.trim() || null,
+        p_employment_type: employment_type?.trim() || null,
+        p_salary_range: salary_range?.trim() || null,
+        p_job_url: job_url?.trim() || null,
+        p_message: msg,
       });
-      if (iErr) return json({ error: iErr.message }, 500);
+      if (rrErr) return json({ error: rrErr.message }, 500);
+      const rrResult = rr as { ok: boolean; code?: string; id?: string };
+      if (!rrResult.ok) {
+        if (rrResult.code === "open_proposal_exists") {
+          return json({ error: "You already have an open proposal with this candidate. Wait for a reply before sending another." }, 429);
+        }
+        if (rrResult.code === "recent_decline_cooldown") {
+          return json({ error: "This candidate declined a proposal from you in the last 30 days. You can try again after that." }, 429);
+        }
+        return json({ error: "Could not create proposal." }, 500);
+      }
       // Awaited: a Deno edge function isolate can be torn down right after
       // the response is sent, so an un-awaited notify can silently never run.
       await notifyCandidate(

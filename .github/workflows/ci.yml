@@ -72,6 +72,19 @@ jobs:
         run: npm run test:unit
         continue-on-error: true
 
+      - name: Lint
+        # continue-on-error for the same reason as unit tests above: real,
+        # pre-existing debt (330 problems as of this pass, almost entirely
+        # @typescript-eslint/no-explicit-any across supabase/functions/ and
+        # tests/) that a mass mechanical fix would touch hundreds of lines
+        # to satisfy without any real per-callsite type understanding. This
+        # step's job is visibility (so a new violation shows up in the
+        # Actions log) and a stable baseline to work down over time, not an
+        # immediate hard gate on day one. Fixed command only, same as every
+        # other step in this file - no github.event.* interpolation.
+        run: npm run lint
+        continue-on-error: true
+
       - name: Build
         run: npm run build
 

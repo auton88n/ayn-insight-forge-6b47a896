@@ -210,6 +210,74 @@ export function SupportPane() {
 }
 
 /* ────────────────────────────── ERRORS ────────────────────────────── */
+// v3.162.0 — the GDPR breach notification procedure (written as its own
+// document during the compliance pass) had nowhere real to live once it
+// was written — it sat in a doc on the founder's laptop, not somewhere
+// he'd actually see it mid-incident. This is the exact same "explain
+// itself in plain English, collapsed by default" card SystemEmailsReference
+// already uses, placed on the Errors pane specifically because step 1
+// (Detection) is what this pane already shows live.
+const BREACH_STEPS: { title: string; body: string; when?: string }[] = [
+  {
+    title: '1. Detection',
+    body: 'A qualifying event is caught by the error-alert-check cron (fires on any critical error-log row or a burst of 3+ errors), by reviewing the errors below directly, or by direct discovery. Whichever happens first is the actual start of the 72-hour clock.',
+  },
+  {
+    title: '2. Triage — is this actually a personal data breach',
+    body: 'Unauthorized access, disclosure, alteration, or loss of personal data. Confirm which table(s) and how many real accounts are affected by querying the database directly — never assume scope from a log line alone.',
+    when: 'within hours of detection',
+  },
+  {
+    title: '3. Severity classification',
+    body: 'Does it pose a risk to the rights and freedoms of the affected people? If yes, the 72-hour regulator notification applies. If the risk is high, affected individuals must also be told directly, without undue delay.',
+  },
+  {
+    title: '4. Notify the supervisory authority',
+    body: 'AYN has no EU establishment today, so there is no single default authority — notification goes to the supervisory authority of the affected people’s own country, or to whichever authority a future EU representative is designated with.',
+    when: 'within 72 hours of awareness',
+  },
+  {
+    title: '5. Notify affected individuals, if high risk',
+    body: 'Plain language, no legal jargon: what happened, what data, what AYN is doing about it, what they can do. Sent through the same email infrastructure already in production.',
+    when: 'without undue delay',
+  },
+  {
+    title: '6. Document it, regardless of whether notification was required',
+    body: 'Every breach gets a short internal record even if it never crosses the notification threshold: what happened, when, scope, and the decision on notification and why.',
+  },
+];
+
+function BreachProcedureReference() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card className="border border-border/60 bg-card">
+      <CardContent className="p-5 space-y-3">
+        <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between text-left">
+          <div>
+            <p className="text-base font-medium">If this is a real data breach</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              The actual 72-hour procedure, not a link to a document. AYN is solo-founder run today — every step below is
+              something you personally do, not a handoff to a team.
+            </p>
+          </div>
+          <span className="text-sm text-muted-foreground shrink-0 ml-3">{open ? 'Hide' : 'Show'}</span>
+        </button>
+        {open && (
+          <div className="divide-y divide-border/60 pt-2">
+            {BREACH_STEPS.map(s => (
+              <div key={s.title} className="py-3 space-y-1">
+                <p className="text-sm font-medium">{s.title}</p>
+                <p className="text-xs text-muted-foreground">{s.body}</p>
+                {s.when && <p className="text-xs text-primary">{s.when}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ErrorsPane() {
   const query = useAdminErrorMonitoring();
   const errors: any[] = (query.data as any)?.errors || [];
@@ -226,13 +294,18 @@ export function ErrorsPane() {
     return [...m.values()].sort((a, b) => b.count - a.count);
   }, [errors]);
 
-  if (query.isLoading) return <LoadingBlock />;
-  if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
+  // Rendered ahead of the loading/error guards below on purpose — this is
+  // static reference content, not query-dependent, and the one moment it
+  // matters most is exactly when someone lands here mid-incident, possibly
+  // while the error query itself is slow or failing.
+  if (query.isLoading) return (<div className="space-y-5"><BreachProcedureReference /><LoadingBlock /></div>);
+  if (query.error) return (<div className="space-y-5"><BreachProcedureReference /><ErrorBlock error={query.error} onRetry={() => query.refetch()} /></div>);
 
   const last24 = errors.filter(e => Date.now() - new Date(e.created_at).getTime() < 86400000).length;
 
   return (
     <div className="space-y-5">
+      <BreachProcedureReference />
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Stat label="Errors captured" value={errors.length} />
         <Stat label="Last 24 hours" value={last24} accent />

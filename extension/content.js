@@ -12,7 +12,7 @@
   }
   window.__AYN_CONTENT_LOADED_V2__ = true;
   // AYN_BUILD is sourced from the manifest so the version lives in one place.
-  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '3.4.8'; } })();
+  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '3.4.9'; } })();
   // v2.11.2 — hard cap the JD payload we ship out to backend/scoring. Bigger
   // payloads were mostly boilerplate (nav/footer/cookie banners) and pushed
   // real role signal out of the model's window.
@@ -555,6 +555,8 @@
     return null;
   }
 
+  function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
   function injectScoreBadge(card, score, matchLabel, reasons, salaryEstimate) {
     card.querySelector(`.${AYN_BADGE_CLASS}`)?.remove();
 
@@ -575,11 +577,11 @@
       user-select: none; z-index: 100; position: relative;
       box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     `;
-    const salaryStr = salaryEstimate ? `<span style="font-weight:400;color:#888;margin-left:2px">· ${salaryEstimate}</span>` : '';
+    const salaryStr = salaryEstimate ? `<span style="font-weight:400;color:#888;margin-left:2px">· ${escHtml(salaryEstimate)}</span>` : '';
     badge.innerHTML = `
       <span style="font-size:9px;font-weight:700;letter-spacing:.02em">AYN</span>
-      <span style="font-size:12px;font-weight:700">${score}/10</span>
-      <span style="font-weight:500">${matchLabel}</span>
+      <span style="font-size:12px;font-weight:700">${escHtml(score)}/10</span>
+      <span style="font-weight:500">${escHtml(matchLabel)}</span>
       ${salaryStr}
     `;
 
@@ -595,7 +597,7 @@
         display: none; margin-top: 5px;
         font-weight: 400; line-height: 1.5;
       `;
-      tip.innerHTML = reasons.map(r => `<div style="padding:2px 0">· ${r}</div>`).join('');
+      tip.innerHTML = reasons.map(r => `<div style="padding:2px 0">· ${escHtml(r)}</div>`).join('');
       badge.appendChild(tip);
       badge.addEventListener('mouseenter', () => tip.style.display = 'block');
       badge.addEventListener('mouseleave', () => tip.style.display = 'none');
