@@ -1016,25 +1016,71 @@ const COMPANY_CTX_TTL = 7 * 24 * 60 * 60 * 1000;
 // "http://169.254.169.254/" or "http://127.0.0.1:PORT/..." would be handed
 // straight to fetch() below, a server-side-request-forgery primitive. This
 // blocks the direct, easy form (a literal internal/private/link-local IP or
-// well-known internal hostname) — it does not defend a genuine public
-// domain name that's been DNS-rebound to a private address, which would
-// need a resolve-then-check step this function doesn't do.
+// well-known internal hostname).
 function isBlockedHost(hostname: string): boolean {
   const h = hostname.toLowerCase();
   if (h === "localhost" || h.endsWith(".local")) return true;
   if (h === "0.0.0.0" || h === "::1" || h === "[::1]") return true;
-  // literal IPv4
   const ipv4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (ipv4) {
-    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
-    if (a === 127) return true; // loopback
-    if (a === 10) return true; // RFC1918
-    if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918
-    if (a === 192 && b === 168) return true; // RFC1918
-    if (a === 169 && b === 254) return true; // link-local, incl. cloud metadata
+  if (ipv4) return isBlockedIpv4(Number(ipv4[1]), Number(ipv4[2]));
+  return false;
+}
+
+function isBlockedIpv4(a: number, b: number): boolean {
+  if (a === 127) return true; // loopback
+  if (a === 10) return true; // RFC1918
+  if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918
+  if (a === 192 && b === 168) return true; // RFC1918
+  if (a === 169 && b === 254) return true; // link-local, incl. cloud metadata
+  return false;
+}
+
+function isBlockedIpv6(addr: string): boolean {
+  const a = addr.toLowerCase();
+  if (a === "::1") return true; // loopback
+  if (a.startsWith("fe80:") || a.startsWith("fe8") || a.startsWith("fe9") || a.startsWith("fea") || a.startsWith("feb")) return true; // link-local fe80::/10
+  if (a.startsWith("fc") || a.startsWith("fd")) return true; // unique local fc00::/7
+  // IPv4-mapped IPv6, e.g. ::ffff:127.0.0.1 — check the embedded IPv4 too.
+  const mapped = a.match(/::ffff:(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/);
+  if (mapped) return isBlockedIpv4(Number(mapped[1]), Number(mapped[2]));
+  return false;
+}
+
+// v3.160.0 — isBlockedHost alone only ever caught a literal IP typed
+// directly into the URL. fetch() resolves DNS itself, after this check has
+// already passed, so a domain name — including one of this function's own
+// deterministic https://www.{company-slug}.com guesses, which an attacker
+// can trivially aim by choosing what they name their fake employer profile
+// — that resolves to an internal address sailed straight through. Resolves
+// DNS once here and checks every returned address; still a real (if
+// narrow) gap against a live TTL-flipping rebinding attack specifically
+// timed to change the answer between this check and fetch()'s own
+// resolution moments later, since Deno's fetch has no public API to pin a
+// request to an address already resolved — but it closes the realistic
+// case this surface actually faces: a domain that consistently resolves
+// to a private address.
+async function hostResolvesToBlockedIp(hostname: string): Promise<boolean> {
+  try {
+    const results = await Promise.allSettled([
+      Deno.resolveDns(hostname, "A"),
+      Deno.resolveDns(hostname, "AAAA"),
+    ]);
+    for (const res of results) {
+      if (res.status !== "fulfilled") continue;
+      for (const addr of res.value) {
+        if (addr.includes(":")) { if (isBlockedIpv6(addr)) return true; }
+        else {
+          const m = addr.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/);
+          if (m && isBlockedIpv4(Number(m[1]), Number(m[2]))) return true;
+        }
+      }
+    }
+    return false;
+  } catch {
+    // Resolution failure isn't a block — the fetch itself will fail for
+    // the same reason moments later, same as any other unreachable host.
     return false;
   }
-  return false;
 }
 
 function companyCandidates(company: string, url?: string): string[] {
@@ -1099,6 +1145,11 @@ export async function fetchCompanyContext(
   for (const candidate of companyCandidates(name, jobUrl)) {
     try {
       const u = new URL(candidate);
+      // v3.160.0 — checked for every candidate, not just the jobUrl-derived
+      // one: the deterministic https://www.{slug}.com guess is also
+      // attacker-influenceable (whoever names their fake employer profile
+      // controls the slug), so both need the same resolve-then-check.
+      if (await hostResolvesToBlockedIp(u.hostname)) continue;
       if (!(await robotsAllows(u.origin, u.pathname))) continue;
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 3500);
