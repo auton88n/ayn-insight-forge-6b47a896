@@ -124,7 +124,14 @@ export async function sendBrandedEmail(
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: "AYN <noreply@ayn.careers>", to: [to], subject, html }),
+      // v3.160.0 — self-hosted's Resend account only has support.ayn.careers
+      // verified as a domain (the plan's 1-domain limit); ayn.careers itself
+      // was never registered there, so this send-from moved to the
+      // subdomain that's actually verified rather than pay for a second
+      // domain slot. Affects every caller of sendBrandedEmail: resume-hub's
+      // proposal/assessment notifications, stripe-webhook's receipts, and
+      // error-alert-check.
+      body: JSON.stringify({ from: "AYN <noreply@support.ayn.careers>", to: [to], subject, html }),
     });
     if (!res.ok) {
       const text = await res.text();

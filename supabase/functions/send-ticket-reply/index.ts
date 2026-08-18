@@ -94,7 +94,11 @@ Deno.serve(async (req) => {
       method: 'POST',
       headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'AYN Support <support@ayn.careers>',
+        // v3.160.0 — same self-hosted Resend domain-limit fix as
+        // admin-broadcast: support@ayn.careers isn't a verified sending
+        // address on this account, only the support.ayn.careers subdomain
+        // is, so from and reply_to both live there now.
+        from: 'AYN Support <support@support.ayn.careers>',
         reply_to: 'help@support.ayn.careers',
         to: [ticket.guest_email],
         subject,

@@ -103,7 +103,11 @@ const serve_handler = async (req: Request): Promise<Response> => {
 
     // Send the email
     const emailResponse = await resend.emails.send({
-      from: 'AYN <auth@ayn.careers>',
+      // v3.160.0 — self-hosted's Resend account only has support.ayn.careers
+      // verified; ayn.careers itself isn't, so this send-from moved there.
+      // This function has zero real callers in src/ regardless — fixed
+      // anyway for consistency.
+      from: 'AYN <auth@support.ayn.careers>',
       to: [email],
       subject: template.subject,
       html: htmlContent,

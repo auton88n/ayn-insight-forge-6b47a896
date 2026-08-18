@@ -247,7 +247,12 @@ Deno.serve(async (req) => {
     let emailResult;
     try {
       emailResult = await resend.emails.send({
-        from: 'AYN <noreply@ayn.careers>',
+        // v3.160.0 — self-hosted's Resend account only has support.ayn.careers
+        // verified; ayn.careers itself isn't, so this send-from moved there.
+        // Note: on self-hosted, GoTrue's send-email hook to this function is
+        // disabled in favor of its own native SMTP config, so this path is
+        // currently unreached — fixed anyway for consistency.
+        from: 'AYN <noreply@support.ayn.careers>',
         to: [user.email],
         subject,
         html

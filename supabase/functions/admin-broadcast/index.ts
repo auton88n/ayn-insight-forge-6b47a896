@@ -6,7 +6,12 @@ import { corsHeaders, handleCors } from '../_shared/cors.ts';
 
 type Audience = 'all' | 'seekers' | 'employers' | 'discoverable' | 'test';
 
-const FROM = 'AYN <hello@ayn.careers>';
+// v3.160.0 — self-hosted's Resend account only has support.ayn.careers
+// verified as a domain (plan's 1-domain limit); ayn.careers itself was
+// never registered there, so every send from an @ayn.careers address was
+// failing with a 403 "domain not verified". Moved to the subdomain that's
+// actually verified rather than pay for a second domain slot.
+const FROM = 'AYN <hello@support.ayn.careers>';
 
 // v3.40.0 — subject and message are admin-authored free text, inserted
 // straight into the outgoing HTML email with no escaping. An admin typing

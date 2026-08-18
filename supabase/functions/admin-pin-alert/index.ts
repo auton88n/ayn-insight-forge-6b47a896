@@ -21,7 +21,9 @@ Deno.serve(async (req) => {
     const ip = req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for') || 'Unknown';
 
     const { error } = await resend.emails.send({
-      from: 'AYN Security <info@ayn.careers>',
+      // v3.160.0 — self-hosted's Resend account only has support.ayn.careers
+      // verified; ayn.careers itself isn't, so this send-from moved there.
+      from: 'AYN Security <info@support.ayn.careers>',
       to: ['ghazi@ayn.careers'],
       subject: '⚠️ Admin Panel — Failed PIN Attempts',
       html: `

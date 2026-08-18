@@ -9,27 +9,32 @@ import { escapeHtml, wrapEmail, heading, para } from '../_shared/emailTemplate.t
 
 type IdentityKey = 'support' | 'hello' | 'ghazi' | 'admin';
 
+// v3.160.0 — self-hosted's Resend account only has support.ayn.careers
+// verified as a domain (the plan's 1-domain limit); ayn.careers itself was
+// never registered there, so every identity below was failing to send with
+// a 403 "domain not verified". Moved every from-address onto the subdomain
+// that's actually verified rather than pay for a second domain slot.
 const IDENTITIES: Record<IdentityKey, { label: string; from: string; signature: string[] }> = {
   support: {
     label: 'Support',
-    from: 'AYN Support <support@ayn.careers>',
+    from: 'AYN Support <support@support.ayn.careers>',
     signature: ['Sincerely,', 'The AYN Support Team'],
   },
   hello: {
     label: 'Hello / General',
-    from: 'AYN <hello@ayn.careers>',
+    from: 'AYN <hello@support.ayn.careers>',
     signature: ['Sincerely,', 'AYN'],
   },
   ghazi: {
     label: 'Ghazi (Founder)',
-    from: 'Ghazi at AYN <ghazi@ayn.careers>',
+    from: 'Ghazi at AYN <ghazi@support.ayn.careers>',
     // v3.116.0 — this identity's own requested sign-off, distinct from
     // every other identity's plain "Name / Role" pair.
     signature: ['Sincerely,', 'GHAZI ALDHYAEI', 'Founder & AI Engineer | AYN', 'Land your dream job, without the burnout.'],
   },
   admin: {
     label: 'Admin',
-    from: 'AYN Admin <admin@ayn.careers>',
+    from: 'AYN Admin <admin@support.ayn.careers>',
     signature: ['Sincerely,', 'AYN Admin Team'],
   },
 };

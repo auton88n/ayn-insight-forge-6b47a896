@@ -92,7 +92,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send email via Resend
     const emailResponse = await resend.emails.send({
-      from: "AYN <noreply@ayn.careers>",
+      // v3.160.0 — self-hosted's Resend account only has support.ayn.careers
+      // verified; ayn.careers itself isn't, so this send-from moved there.
+      from: "AYN <noreply@support.ayn.careers>",
       to: [to],
       subject: template.subject,
       html: template.html,

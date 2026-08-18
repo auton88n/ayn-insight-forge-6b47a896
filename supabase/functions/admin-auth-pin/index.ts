@@ -105,7 +105,9 @@ async function alertLockout(email: string | null, userId: string) {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'AYN <hello@ayn.careers>',
+        // v3.160.0 — self-hosted's Resend account only has support.ayn.careers
+        // verified; ayn.careers itself isn't, so this send-from moved there.
+        from: 'AYN <hello@support.ayn.careers>',
         to: [ALERT_TO],
         subject: 'AYN admin PIN locked out',
         html: `<p>An admin account was locked out of the AYN admin panel after ${MAX_ATTEMPTS} failed PIN attempts.</p>
