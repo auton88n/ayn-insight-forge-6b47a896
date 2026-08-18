@@ -19,7 +19,7 @@
  * pill) — this whole panel was rendering on shadcn's plain black default,
  * the one part of Resume Hub that hadn't been re-skinned.
  */
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -88,6 +88,14 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // few seconds. Tracks which one is running so that specific button can
   // show a spinner and say so, instead of a shared, silent `busy` flag.
   const [activeAction, setActiveAction] = useState<null | "score" | "tailor" | "cover">(null);
+  // v3.160.0 — a paid action (tailor/cover letter) that fails client side
+  // (network drop, gateway timeout) can leave the server-side charge
+  // already applied with the client never seeing the success response.
+  // The button re-enables and a retry click would otherwise be a genuinely
+  // new request, double-charging. Keyed by "action:jobId" so it survives a
+  // retry for the same job but a different job (or a later, separate
+  // attempt after real success) gets its own fresh key.
+  const pendingIdemKeys = useRef<Record<string, string>>({});
   const [adding, setAdding] = useState(false);
   const [newJob, setNewJob] = useState({ url: "", text: "" });
 
@@ -190,8 +198,12 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   const tailorResume = async () => {
     if (!selected || !primaryResume || !selected.jd_text) return;
     setActiveAction("tailor");
+    const idemMapKey = `tailor:${selected.id}`;
+    if (!pendingIdemKeys.current[idemMapKey]) pendingIdemKeys.current[idemMapKey] = crypto.randomUUID();
+    const idemKey = pendingIdemKeys.current[idemMapKey];
     try {
-      const { resume, gapAnalysis } = await resumeHubApi.tailor(selected.jd_text);
+      const { resume, gapAnalysis } = await resumeHubApi.tailor(selected.jd_text, idemKey);
+      delete pendingIdemKeys.current[idemMapKey]; // succeeded — next click is a genuinely new charge
       // Regenerating replaces the stored copy for this job.
       await supabase.from("resume_versions").delete().eq("user_id", userId).eq("created_for_job_id", selected.id);
       const { error } = await supabase.from("resume_versions").insert({
@@ -203,6 +215,9 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       onCreditsChanged?.();
       toast({ title: "Tailored resume ready", description: "Download it below." });
     } catch (e) {
+      // idemKey deliberately left in the ref — a retry click reuses it, so
+      // the server recognizes it as the same request if the earlier one
+      // actually went through server-side despite the client-side failure.
       toast(isFeatureDisabled(e)
         ? { title: "Under maintenance", description: e.message }
         : { title: "Tailor failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
@@ -238,13 +253,18 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   const writeCover = async () => {
     if (!selected || !primaryResume || !selected.jd_text) return;
     setActiveAction("cover");
+    const idemMapKey = `cover:${selected.id}`;
+    if (!pendingIdemKeys.current[idemMapKey]) pendingIdemKeys.current[idemMapKey] = crypto.randomUUID();
+    const idemKey = pendingIdemKeys.current[idemMapKey];
     try {
-      const { body } = await resumeHubApi.coverLetter(selected.jd_text, { company: selected.company });
+      const { body } = await resumeHubApi.coverLetter(selected.jd_text, { company: selected.company, idempotencyKey: idemKey });
+      delete pendingIdemKeys.current[idemMapKey]; // succeeded — next click is a genuinely new charge
       await supabase.from("cover_letters").delete().eq("user_id", userId).eq("job_id", selected.id);
       await supabase.from("cover_letters").insert({ user_id: userId, job_id: selected.id, resume_id: primaryResume.id, body });
       await loadDocs(selected.id);
       onCreditsChanged?.();
     } catch (e) {
+      // idemKey deliberately left in the ref — see tailorResume's comment.
       toast(isFeatureDisabled(e)
         ? { title: "Under maintenance", description: e.message }
         : { title: "Cover letter failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });

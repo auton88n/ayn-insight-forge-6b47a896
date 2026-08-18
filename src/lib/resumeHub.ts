@@ -86,10 +86,10 @@ export const resumeHubApi = {
     call<{ ats_score: number; verdict: "Poor" | "Fair" | "Good" | "Strong"; issues: string[] }>(
       "resume-hub", { action: "resume_diagnose", resume, resumeId },
     ),
-  /** Paid (15 credits): the actual rewrite. */
-  rewrite: (resume: ResumeContent, jdText?: string) =>
+  /** Paid (15 credits): the actual rewrite. idempotencyKey: see tailor's doc comment. */
+  rewrite: (resume: ResumeContent, jdText?: string, idempotencyKey?: string) =>
     call<{ resume: ResumeContent; ats_score: number; verdict: string; issues: string[]; suggestions: string[]; credits: { spent: number; balance: number } }>(
-      "resume-hub", { action: "rewrite", resume, jdText },
+      "resume-hub", { action: "rewrite", resume, jdText, idempotency_key: idempotencyKey },
     ),
 
   // v3.120.0 — for someone with no resume yet: a guided interview replaces
@@ -105,10 +105,10 @@ export const resumeHubApi = {
   /** Free: turns one honest answer about one flagged weak point into resume content, or declines if too vague to use honestly. */
   gapProbe: (issue: string, question: string, answer: string) =>
     call<GapProbeResult>("resume-hub", { action: "resume_gap_probe", issue, question, answer }),
-  /** Paid (15 credits): builds a full resume from the caller's own profile, server side — no upload required. */
-  generateResume: () =>
+  /** Paid (15 credits): builds a full resume from the caller's own profile, server side — no upload required. idempotencyKey: see tailor's doc comment. */
+  generateResume: (idempotencyKey?: string) =>
     call<{ resume: ResumeContent; ats_score: number; verdict: string; issues: string[]; suggestions: string[]; credits: { spent: number; balance: number } }>(
-      "resume-hub", { action: "resume_generate" },
+      "resume-hub", { action: "resume_generate", idempotency_key: idempotencyKey },
     ),
   // v3.72.0 — these three no longer take a resume blob from the client.
   // The backend resolves the caller's own primary resume plus their full
@@ -117,11 +117,14 @@ export const resumeHubApi = {
   // to keep in sync on this side.
   match: (jdText: string) =>
     call<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string }>("resume-hub", { action: "match", jdText }),
-  tailor: (jdText: string) =>
-    call<{ resume: ResumeContent; gapAnalysis?: { missing: string[] } }>("resume-hub", { action: "tailor", jdText }),
+  /** idempotencyKey: pass the same value on a retry of a failed attempt so
+   * the server recognizes it and doesn't charge twice if the first attempt
+   * actually succeeded server side despite the client never seeing it. */
+  tailor: (jdText: string, idempotencyKey?: string) =>
+    call<{ resume: ResumeContent; gapAnalysis?: { missing: string[] } }>("resume-hub", { action: "tailor", jdText, idempotency_key: idempotencyKey }),
 
-  coverLetter: (jdText: string, opts?: { tone?: string; company?: string }) =>
-    call<{ body: string }>("resume-hub", { action: "cover_letter", jdText, ...opts }),
+  coverLetter: (jdText: string, opts?: { tone?: string; company?: string; idempotencyKey?: string }) =>
+    call<{ body: string }>("resume-hub", { action: "cover_letter", jdText, tone: opts?.tone, company: opts?.company, idempotency_key: opts?.idempotencyKey }),
 
   listTokens: () => call<{ tokens: Array<{ id: string; token_prefix: string; device_label: string; last_used_at: string | null; revoked_at: string | null; created_at: string }> }>("resume-hub", { action: "token_list" }),
   revokeToken: (id: string) => call<{ ok: true }>("resume-hub", { action: "token_revoke", id }),

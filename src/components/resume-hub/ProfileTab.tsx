@@ -358,6 +358,10 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   const stateRef = useRef({ career, personal, personalTouched, fallback });
   stateRef.current = { career, personal, personalTouched, fallback };
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // v3.160.0 — see optimizeResume's own comment for why these persist a
+  // retry's idempotency key rather than generating a fresh one every call.
+  const optimizeIdemKey = useRef<string | null>(null);
+  const generateIdemKey = useRef<string | null>(null);
 
   const persist = useCallback(async () => {
     const { career: c, personal: p, personalTouched: t, fallback: fb } = stateRef.current;
@@ -502,8 +506,14 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
     if (!resumeContent || !primaryResume) return;
     setOptimizing(true);
     setOptimizeChanges(null);
+    // v3.160.0 — a paid action that fails client side (network drop, gateway
+    // timeout) can leave the server-side charge already applied with the
+    // client never seeing the success response. Reusing the same key across
+    // a retry lets the server recognize that and skip charging twice.
+    if (!optimizeIdemKey.current) optimizeIdemKey.current = crypto.randomUUID();
     try {
-      const r = await resumeHubApi.rewrite(resumeContent);
+      const r = await resumeHubApi.rewrite(resumeContent, undefined, optimizeIdemKey.current);
+      optimizeIdemKey.current = null; // succeeded — next click is a genuinely new charge
       await supabase.from("resumes").delete().eq("user_id", userId);
       const title = r.resume.basics?.name ? `${r.resume.basics.name} Resume (Optimized)` : "Optimized Resume";
       const { error } = await supabase.from("resumes").insert({
@@ -567,8 +577,10 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   // of an upload. Same delete-then-insert as upload/optimize. ──────────────
   const generateResume = async () => {
     setGenerating(true);
+    if (!generateIdemKey.current) generateIdemKey.current = crypto.randomUUID();
     try {
-      const r = await resumeHubApi.generateResume();
+      const r = await resumeHubApi.generateResume(generateIdemKey.current);
+      generateIdemKey.current = null; // succeeded — next click is a genuinely new charge
       await supabase.from("resumes").delete().eq("user_id", userId);
       const title = r.resume.basics?.name ? `${r.resume.basics.name} Resume` : "Your Resume";
       const { error } = await supabase.from("resumes").insert({

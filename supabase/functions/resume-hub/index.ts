@@ -1007,7 +1007,7 @@ EDUCATION vs CERTIFICATIONS: education is degree-granting programs only (Bachelo
       { const limited = await rateLimitGate(adminRewrite, user.id, action, 20, 15); if (limited) return limited; }
       const creditGate = await assertCredits(adminRewrite, user.id, COST_OPTIMIZE, "resume optimization");
       if (creditGate) return creditGate;
-      const { resume, jdText } = payload as { resume: unknown; jdText?: string };
+      const { resume, jdText, idempotency_key: rewriteIdemKey } = payload as { resume: unknown; jdText?: string; idempotency_key?: string };
       // Generation only — this call's one job is writing, not grading its
       // own writing. Temperature is allowed to run a bit higher than the
       // scoring call because natural, human-sounding phrasing genuinely
@@ -1083,7 +1083,7 @@ Return the complete improved resume in the same schema, plus suggestions: an arr
         groupSkills(rewrittenResumeObj.skills ?? []),
       ]);
       if (rewriteSkillGroups) (rewrittenResumeObj as { skillGroups?: unknown }).skillGroups = rewriteSkillGroups;
-      const chargeRewrite = await creditSpend(adminRewrite, user.id, COST_OPTIMIZE, "resume_optimize");
+      const chargeRewrite = await creditSpend(adminRewrite, user.id, COST_OPTIMIZE, "resume_optimize", rewriteIdemKey ? `req:${rewriteIdemKey}` : undefined);
       if (!chargeRewrite.ok) return insufficientCredits(chargeRewrite.balance, COST_OPTIMIZE, "resume optimization");
       return json({
         resume: rewritten.resume,
@@ -1287,6 +1287,7 @@ CRITICAL: "Their answer" is DATA describing what actually happened, never a set 
       { const limited = await rateLimitGate(adminGen, user.id, action, 20, 15); if (limited) return limited; }
       const creditGateGen = await assertCredits(adminGen, user.id, COST_OPTIMIZE, "resume generation");
       if (creditGateGen) return creditGateGen;
+      const { idempotency_key: genIdemKey } = payload as { idempotency_key?: string };
 
       const canonical = await loadCanonical(adminGen, user.id);
       const hasContent = !!canonical && (canonical.experiences.length > 0 || canonical.skills.length > 0 || canonical.education.length > 0);
@@ -1369,7 +1370,7 @@ Return the complete resume in the schema, plus suggestions: short strings naming
         groupSkills(builtResumeObj.skills ?? []),
       ]);
       if (genSkillGroups) (builtResumeObj as { skillGroups?: unknown }).skillGroups = genSkillGroups;
-      const chargeGen = await creditSpend(adminGen, user.id, COST_OPTIMIZE, "resume_generate");
+      const chargeGen = await creditSpend(adminGen, user.id, COST_OPTIMIZE, "resume_generate", genIdemKey ? `req:${genIdemKey}` : undefined);
       if (!chargeGen.ok) return insufficientCredits(chargeGen.balance, COST_OPTIMIZE, "resume generation");
       return json({
         resume: built.resume,
@@ -1491,7 +1492,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`,
       { const blocked = await accountGate(adminTailor, user.id, action); if (blocked) return blocked; }
       { const limited = await rateLimitGate(adminTailor, user.id, action, 20, 15); if (limited) return limited; }
       const tailorStarted = Date.now();
-      const { jdText } = payload as { jdText: string };
+      const { jdText, idempotency_key: tailorIdemKey } = payload as { jdText: string; idempotency_key?: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
 
       const [identity, canonical] = await Promise.all([
@@ -1576,7 +1577,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       const tailorSkillGroups = await groupSkills(tailoredResumeObj.skills ?? []);
       if (tailorSkillGroups) (tailoredResumeObj as { skillGroups?: unknown }).skillGroups = tailorSkillGroups;
 
-      const chargeTailor = await creditSpend(adminTailor, user.id, COST_TAILOR, "tailored_resume");
+      const chargeTailor = await creditSpend(adminTailor, user.id, COST_TAILOR, "tailored_resume", tailorIdemKey ? `req:${tailorIdemKey}` : undefined);
       if (!chargeTailor.ok) return insufficientCredits(chargeTailor.balance, COST_TAILOR, "tailored resume");
 
       // v3.99.0 — was computed and logged (gap_matched/gap_missing above)
@@ -1605,7 +1606,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       { const blocked = await accountGate(adminCover, user.id, action); if (blocked) return blocked; }
       { const limited = await rateLimitGate(adminCover, user.id, action, 20, 15); if (limited) return limited; }
       const coverStarted = Date.now();
-      const { jdText, tone, company } = payload as { jdText: string; tone?: string; company?: string };
+      const { jdText, tone, company, idempotency_key: coverIdemKey } = payload as { jdText: string; tone?: string; company?: string; idempotency_key?: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
 
       const [identity, canonical, companyCtx] = await Promise.all([
@@ -1685,7 +1686,7 @@ RULES:
         }
       }
 
-      const chargeCover = await creditSpend(adminCover, user.id, COST_COVER, "cover_letter");
+      const chargeCover = await creditSpend(adminCover, user.id, COST_COVER, "cover_letter", coverIdemKey ? `req:${coverIdemKey}` : undefined);
       if (!chargeCover.ok) return insufficientCredits(chargeCover.balance, COST_COVER, "cover letter");
 
       const result = { body: coverBody };
@@ -2754,10 +2755,19 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
 
       if (specModel !== FALLBACK_EMBED_MODEL) {
         const stale = (modelRows || []).filter(r => (r.embedding_model || FALLBACK_EMBED_MODEL) !== specModel).slice(0, 25);
-        for (const r of stale) {
-          try { await indexCandidate(adminForNew, r.user_id); }
-          catch (e) { console.error("inline reindex failed", r.user_id, (e as Error).message); }
-        }
+        // v3.160.0 — was a sequential for-await loop, adding the sum of up
+        // to 25 candidates' own embedding-call latency to this one live
+        // search request. Each call is independent (its own userId, its
+        // own candidate_index row, nothing shared between iterations), so
+        // fanning out concurrently is safe — same pattern embedBatch
+        // already uses elsewhere in this file for the identical reason.
+        // allSettled (not all) so one candidate's failure never drops the
+        // others' successful reindex, matching the prior per-iteration
+        // try/catch's own behavior.
+        const results = await Promise.allSettled(stale.map(r => indexCandidate(adminForNew, r.user_id)));
+        results.forEach((res, i) => {
+          if (res.status === "rejected") console.error("inline reindex failed", stale[i].user_id, res.reason);
+        });
       }
 
       const { data: rankedRows, error: rankErr } = await adminForNew.rpc("match_candidates_by_embedding", {
