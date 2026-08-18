@@ -29,6 +29,112 @@ function Loader() {
 const MAX_PIN_DIGITS = 6;
 const MIN_PIN_DIGITS = 4;
 
+// v3.161.0 — a correct PIN alone no longer mints a ticket once TOTP is
+// enrolled (see admin-auth-pin's own comment on why: a single shared PIN
+// hash isn't what an auditor means by MFA on privileged access). This
+// screen now has three real states instead of one: the PIN itself, a
+// one-time enrollment step the first time an admin ever gets here, and a
+// six-digit code step on every login after that.
+type PinPhase = 'pin' | 'enroll' | 'code';
+
+function CodeBoxes({ digits, onChange, onSubmit, disabled, error }: {
+  digits: string[]; onChange: (i: number, val: string) => void; onSubmit: () => void; disabled: boolean; error: string;
+}) {
+  const inputs = useRef<(HTMLInputElement | null)[]>([]);
+  useEffect(() => { setTimeout(() => inputs.current[0]?.focus(), 100); }, []);
+  return (
+    <div className="flex gap-2 justify-center mb-4">
+      {digits.map((digit, i) => (
+        <input key={i} ref={el => inputs.current[i] = el} type="text" inputMode="numeric" maxLength={1} value={digit}
+          onChange={e => {
+            if (!/^\d*$/.test(e.target.value)) return;
+            onChange(i, e.target.value.slice(-1));
+            if (e.target.value && i < digits.length - 1) inputs.current[i + 1]?.focus();
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Backspace' && !digit && i > 0) inputs.current[i - 1]?.focus();
+            if (e.key === 'Enter') onSubmit();
+          }}
+          disabled={disabled}
+          className={`w-10 h-14 text-center text-xl font-bold bg-white border rounded-xl text-foreground shadow-sm focus:outline-none transition-all disabled:opacity-50 ${
+            error ? 'border-destructive/60 bg-destructive/5' : digit ? 'border-[#f97316]' : 'border-black/10 focus:border-[#f97316]'}`} />
+      ))}
+    </div>
+  );
+}
+
+// Shown exactly once, the first time an admin ever passes the PIN with no
+// TOTP enrolled yet. verifiedPin travels with every call here since
+// mfa_enroll_start/confirm both re-check it server side, same as changing
+// the PIN itself does.
+function EnrollScreen({ verifiedPin, onEnrolled }: { verifiedPin: string; onEnrolled: () => void }) {
+  const [secret, setSecret] = useState('');
+  const [uri, setUri] = useState('');
+  const [code, setCode] = useState<string[]>(Array(6).fill(''));
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [starting, setStarting] = useState(true);
+
+  useEffect(() => {
+    adminSupabase.functions.invoke('admin-auth-pin', { body: { action: 'mfa_enroll_start', pin: verifiedPin } })
+      .then(({ data }) => {
+        if (data?.success) { setSecret(data.secret); setUri(data.otpauth_uri); }
+        else setError(data?.error || 'Could not start enrollment.');
+      })
+      .catch(() => setError('Could not start enrollment.'))
+      .finally(() => setStarting(false));
+  }, [verifiedPin]);
+
+  const submit = async (full: string) => {
+    if (busy || full.length !== 6) return;
+    setBusy(true);
+    try {
+      const { data } = await adminSupabase.functions.invoke('admin-auth-pin', {
+        body: { action: 'mfa_enroll_confirm', pin: verifiedPin, code: full },
+      });
+      if (data?.success) { onEnrolled(); return; }
+      setError(data?.error || 'That code did not match.');
+      setCode(Array(6).fill(''));
+    } catch {
+      setError('Could not confirm enrollment.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#faf7f2] flex items-center justify-center p-4">
+      <div className="w-full max-w-sm text-center">
+        <img src={aynMark} alt="AYN" className="h-10 w-10 mx-auto mb-6" />
+        <div className="text-foreground font-semibold mb-1">Set up two-factor login</div>
+        <div className="text-muted-foreground text-xs mb-6">This account has no authenticator app enrolled yet. Add one now &mdash; a PIN alone won't unlock the panel after this.</div>
+        {starting ? (
+          <div className="text-muted-foreground text-xs">Preparing...</div>
+        ) : secret ? (
+          <>
+            <div className="text-muted-foreground text-xs mb-2">1. Add this to Google Authenticator, 1Password, or Authy</div>
+            <div className="bg-white border border-black/10 rounded-xl p-3 mb-5 shadow-sm">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Manual entry key</div>
+              <div className="font-mono text-sm text-foreground break-all select-all">{secret}</div>
+            </div>
+            <div className="text-muted-foreground text-xs mb-3">2. Enter the 6-digit code it shows</div>
+            <CodeBoxes digits={code} disabled={busy}
+              onChange={(i, v) => { const n = [...code]; n[i] = v; setCode(n); setError(''); if (n.every(d => d)) submit(n.join('')); }}
+              onSubmit={() => submit(code.join(''))} error={error} />
+            {busy && <p className="text-muted-foreground text-xs">Confirming...</p>}
+            {error && !busy && <p className="text-destructive text-xs">{error}</p>}
+          </>
+        ) : (
+          <p className="text-destructive text-xs">{error || 'Something went wrong.'}</p>
+        )}
+        <button onClick={() => { adminSupabase.auth.signOut(); }} className="text-muted-foreground text-xs mt-6 underline">
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // PIN screen — shown AFTER login since admin-auth-pin requires a JWT.
 // Attempts and lockout are decided by the server, the browser only displays them.
 function PinScreen({ onSuccess }: { onSuccess: () => void }) {
@@ -37,6 +143,9 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
   const [checking, setChecking] = useState(false);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [countdown, setCountdown] = useState(0);
+  const [phase, setPhase] = useState<PinPhase>('pin');
+  const [verifiedPin, setVerifiedPin] = useState('');
+  const [code, setCode] = useState<string[]>(Array(6).fill(''));
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
@@ -82,6 +191,18 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
         return;
       }
 
+      // PIN was correct — the remaining two branches aren't a wrong-PIN
+      // error, they're "now do the second factor."
+      if (data?.success && data?.mfa_setup_required) {
+        setVerifiedPin(fullPin);
+        setPhase('enroll');
+        return;
+      }
+      if (data?.success && data?.mfa_code_required) {
+        setVerifiedPin(fullPin);
+        setPhase('code');
+        return;
+      }
 
       if (data?.locked) {
         const until = Date.now() + (data.lockoutRemaining || 900) * 1000;
@@ -103,6 +224,38 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
     }
   };
 
+  const checkCode = async (fullCode: string) => {
+    if (checking || fullCode.length !== 6) return;
+    setChecking(true);
+    try {
+      const { data } = await adminSupabase.functions.invoke('admin-auth-pin', {
+        body: { action: 'verify', pin: verifiedPin, code: fullCode },
+      });
+      if (data?.success && data?.ticket) {
+        localStorage.removeItem(LOCKOUT_KEY);
+        sessionStorage.setItem(ADMIN_TICKET_KEY, data.ticket);
+        onSuccess();
+        return;
+      }
+      if (data?.locked) {
+        const until = Date.now() + (data.lockoutRemaining || 900) * 1000;
+        localStorage.setItem(LOCKOUT_KEY, until.toString());
+        setLockedUntil(until);
+        setPhase('pin');
+        return;
+      }
+      const left = typeof data?.attemptsRemaining === 'number' ? data.attemptsRemaining : null;
+      setError(left === null
+        ? (data?.error || 'Incorrect code.')
+        : `Incorrect code. ${left} attempt${left === 1 ? '' : 's'} remaining.`);
+      setCode(Array(6).fill(''));
+    } catch {
+      setError('Unable to verify code. Please try again.');
+      setCode(Array(6).fill(''));
+    } finally {
+      setChecking(false);
+    }
+  };
 
   // The PIN entered so far is always the contiguous run from index 0 — typing
   // fills left to right, backspace empties right to left, so the first empty
@@ -127,6 +280,10 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
   const mins = Math.floor(countdown / 60);
   const secs = countdown % 60;
 
+  if (phase === 'enroll') {
+    return <EnrollScreen verifiedPin={verifiedPin} onEnrolled={() => { setPhase('code'); setError(''); }} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#faf7f2] flex items-center justify-center p-4">
       <div className="text-center">
@@ -137,6 +294,19 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
             <div className="text-4xl font-mono font-bold text-foreground mb-2">{mins}:{secs.toString().padStart(2,'0')}</div>
             <div className="text-muted-foreground text-xs mt-4">Try again later</div>
           </div>
+        ) : phase === 'code' ? (
+          <>
+            <div className="text-muted-foreground text-sm mb-8">Enter your 6-digit code</div>
+            <CodeBoxes digits={code} disabled={checking} error={error}
+              onChange={(i, v) => { const n = [...code]; n[i] = v; setCode(n); setError(''); if (n.every(d => d)) checkCode(n.join('')); }}
+              onSubmit={() => checkCode(code.join(''))} />
+            {checking && <p className="text-muted-foreground text-xs">Verifying...</p>}
+            {error && !checking && <p className="text-destructive text-xs">{error}</p>}
+            <button onClick={() => { setPhase('pin'); setPin(Array(MAX_PIN_DIGITS).fill('')); setCode(Array(6).fill('')); setError(''); }}
+              className="text-muted-foreground text-xs mt-6 underline block mx-auto">
+              Back
+            </button>
+          </>
         ) : (
           <>
             <div className="text-muted-foreground text-sm mb-8">Enter admin PIN</div>
