@@ -17,11 +17,10 @@ const SECTIONS: Section[] = [
   {
     title: 'Getting started',
     entries: [
-      { q: 'How do I start?', a: 'Create a free account, add your resume, and install the extension.' },
+      { q: 'How do I start?', a: 'Create a free account, add your resume, and either browse real postings or add one yourself by link or by pasting the text.' },
       { q: 'Do I need a card?', a: 'No, and the free plan does not expire.' },
-      { q: 'What does the extension do?', a: 'Reads the job posting you are on, shows your match and gaps, and can write a resume and cover letter for it.' },
-      { q: 'What does it not do?', a: 'It never fills forms, clicks, or submits. Read only, by design.' },
-      { q: 'Which sites work?', a: 'Greenhouse, Lever, Workday, Ashby, iCIMS, and most company career pages. It stays out of the way on anything else.' },
+      { q: 'Where do the postings come from?', a: 'Real company career pages, sourced automatically and refreshed every two hours. Never LinkedIn or Indeed. You can also add any posting yourself.' },
+      { q: 'Does it apply for me?', a: 'No. It writes the resume and the cover letter. You review them and submit the application yourself, on the company’s own site.' },
     ],
   },
   {

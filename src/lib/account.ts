@@ -32,7 +32,7 @@ export const DELETION_REMOVED_SEEKER = [
   'Your resume and every tailored version of it',
   'Your career profile, skills, work history and education',
   'Your cover letters and generated documents',
-  'Saved jobs, match scores and Ask AYN history',
+  'Saved jobs and match scores',
   'Your discovery listing, so employers can no longer find you',
   'Your settings, preferences and support tickets',
   'Every file you uploaded',
@@ -42,7 +42,6 @@ export const DELETION_REMOVED_EMPLOYER = [
   'Your own login and access to AYN',
   "Your company's profile, if you are the last person on the account",
   'Your settings, preferences and support tickets',
-  'Any browser extension access tied to your account',
 ];
 
 export type SelfDeleteResult = { ok: boolean; erased: boolean; candidate_ref: string; files_removed: number };

@@ -796,6 +796,33 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
           </section>
         )}
 
+        {/* ── EMPLOYER INBOX ──────────────────────────────────── */}
+        {!seeker && (
+          <section id="employer-inbox" className="lp-section" style={{ paddingBlockStart: 0 }}>
+            <div className="lp-shell">
+              <div className="lp-split lp-reveal">
+                <div>
+                  <p className="lp-eyebrow">Once they say yes</p>
+                  <h2 className="lp-display lp-h2">Talk to them without leaving AYN. <em>Screened both ways.</em></h2>
+                  <p className="lp-lead">
+                    A real inbox opens on every proposal, no personal email or phone number ever exchanged. It stays
+                    one way until you choose to open it up, and every message either side sends, yours and theirs,
+                    is screened before it's delivered: no links, no phone numbers, nothing routed off the platform.
+                  </p>
+                  <div className="lp-chips" style={{ marginTop: 22 }}>
+                    <span className="lp-chip"><Eye size={14} />You control two-way replies</span>
+                    <span className="lp-chip"><ShieldCheck size={14} />Every message screened</span>
+                    <span className="lp-chip"><Ban size={14} />No links or contact info, ever</span>
+                  </div>
+                </div>
+                <div className="lp-art lp-art-plain">
+                  <InboxMockup />
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* ── TRUST ──────────────────────────────────────────── */}
         <section id="trust" className="lp-section" style={{ paddingBlockStart: 0 }}>
           <div className="lp-shell lp-reveal">
