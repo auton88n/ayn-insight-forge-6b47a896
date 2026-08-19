@@ -432,7 +432,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                     <div
                       key={k}
                       className="text-center p-3 rounded-lg border"
-                      style={{ background: "var(--rh-tint)", borderColor: "#f9731633" }}
+                      style={{ background: "var(--rh-tint)", borderColor: "#e85d3a33" }}
                     >
                       <div className="text-2xl font-bold" style={{ fontFamily: "JetBrains Mono, monospace", color: "var(--rh-accent-2)" }}>{v}</div>
                       <div className="text-xs text-muted-foreground capitalize">{k.replace("_", " ")}</div>

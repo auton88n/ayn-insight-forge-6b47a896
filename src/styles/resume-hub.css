@@ -1,29 +1,63 @@
-/* Resume Hub — White + Orange (scoped) */
+/* Resume Hub — Charcoal & Ember (scoped)
+   v3.171.0 — asked directly why Browse Jobs reads as generic/"AI slop":
+   the landing page has run on a real, distinctive system since well
+   before this file existed (Outfit + Figtree typography, a real ember
+   gradient + glow, hover-lift motion — index.css's own --lp-ember tokens)
+   — Resume Hub just never inherited it, stuck on plain Inter, a flat
+   single-fill orange, and near-zero motion instead. This is that same
+   system, extended here rather than a new one invented from scratch, plus
+   two new accents used narrowly: a trust teal (only for "sourced
+   directly, no ghost jobs" signals — the #1 complaint researched against
+   real LinkedIn/Indeed criticism) and a salary gold (only for pay, so the
+   one fact research says candidates want most never blends into the
+   crowd). Warm paper replaces stark #ffffff for the same reason pure
+   white is a real, named AI-design tell: nobody actually chose it, it's
+   just what's left when nothing was decided. */
 .resume-hub-theme {
-  --rh-canvas: #ffffff;
+  --rh-canvas: #fbf6f0;
   --rh-surface: #ffffff;
-  --rh-raised: #f5f5f5;
-  --rh-ink: #0a0a0a;
-  --rh-muted: #6b7280;
-  --rh-faint: #9ca3af;
-  --rh-hair: #ececec;
-  --rh-accent: #f97316;
-  --rh-accent-2: #ea580c;
-  --rh-tint: #fff4ea;
+  --rh-raised: #f7f1ea;
+  --rh-ink: #1c1712;
+  --rh-muted: #6b6058;
+  --rh-faint: #a89c8f;
+  --rh-hair: #eae0d5;
+  --rh-accent: #e85d3a;
+  --rh-accent-2: #c8431f;
+  --rh-tint: #fdece5;
+  --rh-gradient: linear-gradient(135deg, #e85d3a 0%, #ff8a5c 100%);
+  --rh-glow: 0 6px 16px -6px rgba(232, 93, 58, 0.5);
+  --rh-shadow-card: 0 1px 2px rgba(28, 23, 18, 0.04), 0 8px 24px -12px rgba(28, 23, 18, 0.10);
+  --rh-shadow-lift: 0 4px 8px rgba(28, 23, 18, 0.06), 0 20px 40px -16px rgba(232, 93, 58, 0.28);
+  --rh-trust: #2f6f5e;
+  --rh-trust-tint: #e6f2ee;
+  --rh-gold: #b8862f;
+  --rh-gold-tint: #faf1e0;
 
   background: var(--rh-canvas);
   color: var(--rh-ink);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Figtree', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
 }
 .resume-hub-theme .rh-display {
-  font-family: 'Inter Tight', 'Inter', system-ui, sans-serif;
-  letter-spacing: -0.014em;
+  font-family: 'Outfit', 'Figtree', system-ui, sans-serif;
+  letter-spacing: -0.02em;
+  font-weight: 700;
 }
 .resume-hub-theme .rh-mono {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
+}
+/* v3.171.0 — a shared hover-lift utility, the one motion cue the earlier
+   research flagged this app as almost entirely missing. Any card can opt
+   in; nothing gets it applied automatically, so a list of 25 rows doesn't
+   turn into 25 things fighting for attention on scroll. */
+.resume-hub-theme .rh-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.resume-hub-theme .rh-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--rh-shadow-lift);
 }
 .resume-hub-theme .rh-shell {
   max-width: 1320px;
@@ -42,7 +76,7 @@
   margin-bottom: 16px;
 }
 .resume-hub-theme .rh-title {
-  font-family: 'Inter Tight', 'Inter', system-ui, sans-serif;
+  font-family: 'Outfit', 'Figtree', system-ui, sans-serif;
   font-size: clamp(18px, 2.2vw, 24px);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -83,10 +117,11 @@
 .resume-hub-theme .rh-rail-mark {
   width: 36px; height: 36px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--rh-accent), var(--rh-accent-2));
+  background: var(--rh-gradient);
+  box-shadow: var(--rh-glow);
   color: #fff;
   display: flex; align-items: center; justify-content: center;
-  font-family: 'Inter Tight', 'Inter', system-ui, sans-serif;
+  font-family: 'Outfit', 'Figtree', system-ui, sans-serif;
   font-weight: 800;
   letter-spacing: -.02em;
   font-size: 13px;
@@ -132,7 +167,7 @@
   transform: translateX(-50%) translateY(4px);
   background: #111;
   color: #fff;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Figtree', system-ui, sans-serif;
   font-size: 11.5px;
   font-weight: 500;
   letter-spacing: -0.005em;
@@ -199,7 +234,7 @@
   border-radius: 10px;
   font-size: 13px;
   font-weight: 600;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Figtree', system-ui, sans-serif;
   border: 1px solid var(--rh-hair);
   background: var(--rh-surface);
   color: var(--rh-ink);
@@ -235,7 +270,7 @@
   color: #fff;
 }
 .resume-hub-theme button.border-foreground {
-  border-color: #f9731673;
+  border-color: #e85d3a73;
   color: var(--rh-accent-2);
   background-color: transparent;
 }

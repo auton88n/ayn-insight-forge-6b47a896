@@ -39,7 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Loader2, ExternalLink, Plus, Flame, Search, MapPin, Home, ChevronDown, X, Building2, Bookmark, Wand2, Compass,
-  DollarSign, Clock, TrendingUp, SlidersHorizontal, ShieldCheck,
+  DollarSign, Clock, TrendingUp, SlidersHorizontal, ShieldCheck, List, Layers, Heart,
 } from "lucide-react";
 import { resumeHubApi, type JobPosting } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
@@ -202,18 +202,21 @@ function resolveSalary(job: JobPosting): { text: string; fromListingText: boolea
 // refresh via its own one-shot effect below.
 const BROWSE_LAST_OPEN_KEY = "ayn_browse_last_open";
 
-// A small, deliberately warm palette that sits next to this app's own ember
-// accent without competing with it — each company gets one deterministically,
-// so the same company always lands on the same color across a session.
+// v3.171.0 — was a flat pastel fill (bg-blue-100/text-blue-700, etc.), the
+// exact "safe, offends no one" default the AI-slop research flagged. Each
+// company still gets one deterministically, so the same company always
+// lands on the same color across a session — just a real two-stop
+// gradient with white text now, matching the weight the real ember logo
+// mark already carries, instead of reading like a placeholder next to it.
 export const AVATAR_PALETTE = [
-  "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300",
-  "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300",
-  "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
-  "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
-  "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-300",
-  "bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300",
-  "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950/50 dark:text-fuchsia-300",
-  "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  "bg-gradient-to-br from-blue-500 to-indigo-600 text-white",
+  "bg-gradient-to-br from-violet-500 to-purple-600 text-white",
+  "bg-gradient-to-br from-rose-500 to-pink-600 text-white",
+  "bg-gradient-to-br from-emerald-500 to-teal-600 text-white",
+  "bg-gradient-to-br from-cyan-500 to-sky-600 text-white",
+  "bg-gradient-to-br from-amber-500 to-yellow-600 text-white",
+  "bg-gradient-to-br from-fuchsia-500 to-pink-600 text-white",
+  "bg-gradient-to-br from-slate-500 to-slate-700 text-white",
 ];
 
 export function companyAvatar(name: string) {
@@ -568,11 +571,250 @@ function groupByCountry(locs: string[]) {
   return buckets.filter((b) => b.items.length > 0);
 }
 
+/** A small, non-interactive preview of a card sitting behind the active one
+ * in the deck -- just enough to read as "there's more," never real content
+ * someone could mistake for the actual next card (title/company only, no
+ * score, no buttons). */
+function SwipeCardPeek({ job, style }: { job: JobPosting; style: React.CSSProperties }) {
+  const avatar = companyAvatar(job.company);
+  const logoUrl = resolveLogoUrl(job);
+  return (
+    <div
+      className="absolute inset-0 rounded-2xl p-5 flex flex-col"
+      style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", ...style }}
+    >
+      {logoUrl ? (
+        <img src={logoUrl} alt="" className="w-12 h-12 rounded-xl object-contain bg-white p-1.5 border mb-3" style={{ borderColor: "var(--rh-hair)" }} />
+      ) : (
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold shrink-0 ${avatar.className}`}>{avatar.initial}</div>
+      )}
+      <p className="rh-display text-[15px] leading-snug truncate">{job.title}</p>
+      <p className="text-[12px] truncate" style={{ color: "var(--rh-muted)" }}>{job.company}</p>
+    </div>
+  );
+}
+
+// v3.171.0 — "swipe to decide," built for the approved Ember Discovery
+// mockup. One card at a time, drag or tap to move through the same
+// filtered/scored jobs the list already shows -- pass never writes
+// anything (session-local, resets on a fresh filter or a reload, the same
+// "not a permanent decision" framing the mockup itself disclosed), save
+// calls the exact same saveJob the list's own bookmark uses so the two
+// surfaces can never disagree about what's actually saved.
+function SwipeDeck({
+  jobs, index, onIndexChange, scores, scored, logoFailed, setLogoFailed, onSave, onOpenDetail, hasMore,
+}: {
+  jobs: JobPosting[];
+  index: number;
+  onIndexChange: (i: number) => void;
+  scores: Record<string, number | null>;
+  scored: Set<string>;
+  logoFailed: Set<string>;
+  setLogoFailed: React.Dispatch<React.SetStateAction<Set<string>>>;
+  onSave: (job: JobPosting) => void;
+  onOpenDetail: (job: JobPosting) => void;
+  hasMore: boolean;
+}) {
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [flying, setFlying] = useState<1 | -1 | null>(null);
+  const startXRef = useRef(0);
+
+  const current = jobs[index];
+  const upNext = jobs[index + 1];
+  const onDeck = jobs[index + 2];
+
+  const advance = (dir: 1 | -1) => {
+    if (!current || flying) return;
+    setFlying(dir);
+    setDragX(dir * 520);
+    setTimeout(() => {
+      setFlying(null);
+      setDragX(0);
+      onIndexChange(index + 1);
+    }, 260);
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (flying) return;
+    setDragging(true);
+    startXRef.current = e.clientX;
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragging) return;
+    setDragX(e.clientX - startXRef.current);
+  };
+  const onPointerUp = () => {
+    if (!dragging) return;
+    setDragging(false);
+    if (dragX > 100) { onSave(current); advance(1); }
+    else if (dragX < -100) advance(-1);
+    else setDragX(0);
+  };
+
+  if (!current) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-1" style={{ background: "var(--rh-gradient)", boxShadow: "var(--rh-glow)" }}>
+          <Layers className="w-6 h-6 text-white" />
+        </div>
+        <p className="rh-display text-lg">
+          {hasMore ? "Loading more…" : "That's every fresh posting for now."}
+        </p>
+        {!hasMore && (
+          <p className="text-sm max-w-xs" style={{ color: "var(--rh-muted)" }}>
+            Check back soon, or switch back to the list to see everything again.
+          </p>
+        )}
+        {hasMore && <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--rh-accent)" }} />}
+      </div>
+    );
+  }
+
+  const salary = resolveSalary(current);
+  const logoUrl = resolveLogoUrl(current);
+  const showLogo = !!logoUrl && !logoFailed.has(current.id);
+  const avatar = companyAvatar(current.company);
+  const score = scores[current.id];
+  const rot = dragX / 18;
+  const passOpacity = dragX < 0 ? Math.min(Math.abs(dragX) / 90, 1) : 0;
+  const saveOpacity = dragX > 0 ? Math.min(dragX / 90, 1) : 0;
+  const desc = (current.description || "").trim();
+
+  return (
+    <div className="flex flex-col items-center gap-5 py-2">
+      <div className="relative" style={{ width: "min(360px, 92vw)", height: 440 }}>
+        {onDeck && <SwipeCardPeek job={onDeck} style={{ transform: "translateY(16px) scale(0.94)", opacity: 0.5, zIndex: 1 }} />}
+        {upNext && <SwipeCardPeek job={upNext} style={{ transform: "translateY(8px) scale(0.97)", opacity: 0.8, zIndex: 2 }} />}
+        <div
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerLeave={onPointerUp}
+          className="absolute inset-0 rounded-2xl p-5 flex flex-col"
+          style={{
+            zIndex: 3,
+            background: "var(--rh-surface)",
+            border: "1px solid var(--rh-hair)",
+            boxShadow: "var(--rh-shadow-lift)",
+            transform: `translateX(${dragX}px) rotate(${rot}deg)`,
+            opacity: flying ? 0.3 : 1,
+            transition: dragging ? "none" : "transform .28s ease, opacity .28s ease",
+            touchAction: "none",
+            cursor: dragging ? "grabbing" : "grab",
+          }}
+        >
+          <span
+            className="absolute top-6 left-5 text-sm font-extrabold uppercase tracking-wide px-3 py-1.5 rounded-lg pointer-events-none"
+            style={{ color: "#b23b3b", border: "3px solid #b23b3b", opacity: passOpacity, transform: "rotate(-14deg)" }}
+          >
+            Pass
+          </span>
+          <span
+            className="absolute top-6 right-5 text-sm font-extrabold uppercase tracking-wide px-3 py-1.5 rounded-lg pointer-events-none"
+            style={{ color: "var(--rh-trust)", border: "3px solid var(--rh-trust)", opacity: saveOpacity, transform: "rotate(14deg)" }}
+          >
+            Save
+          </span>
+
+          {showLogo ? (
+            <img
+              src={logoUrl!}
+              alt=""
+              className="w-14 h-14 rounded-xl object-contain bg-white p-1.5 border mb-3"
+              style={{ borderColor: "var(--rh-hair)" }}
+              onError={() => setLogoFailed((prev) => new Set(prev).add(current.id))}
+            />
+          ) : (
+            <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg mb-3 ${avatar.className}`} style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}>
+              {avatar.initial}
+            </div>
+          )}
+          <p className="rh-display text-[18px] leading-snug mb-1">{current.title}</p>
+          <p className="text-[13px] mb-3" style={{ color: "var(--rh-muted)" }}>
+            {current.company}{current.location ? ` · ${current.location}` : ""}
+          </p>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {salary && (
+              <span className="text-[11px] font-bold rounded-full px-2.5 py-1" style={{ background: "var(--rh-gold-tint)", color: "var(--rh-gold)" }}>
+                {salary.text}
+              </span>
+            )}
+            {current.work_mode && (
+              <span className="text-[11px] font-semibold rounded-full px-2.5 py-1 capitalize" style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}>
+                {current.work_mode}
+              </span>
+            )}
+            {current.seniority && (
+              <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: "var(--rh-raised)", color: "var(--rh-muted)" }}>
+                {SENIORITY_LABELS[current.seniority] || humanizeSlug(current.seniority)}
+              </span>
+            )}
+          </div>
+          <p className="text-[13px] leading-relaxed flex-1 overflow-hidden" style={{ color: "var(--rh-muted)" }}>
+            {desc ? `${desc.slice(0, 200)}${desc.length > 200 ? "…" : ""}` : "No description on file for this one — open it to see more on the company's own site."}
+          </p>
+          <div className="flex items-center justify-between pt-3 mt-2 border-t" style={{ borderColor: "var(--rh-hair)" }}>
+            {score != null
+              ? <ScoreGauge score={score} size={30} />
+              : scored.has(current.id)
+                ? <span className="text-[11px]" style={{ color: "var(--rh-faint)" }}>No resume yet</span>
+                : <span className="text-[11px] animate-pulse" style={{ color: "var(--rh-faint)" }}>Scoring…</span>}
+            <button
+              type="button"
+              onClick={() => onOpenDetail(current)}
+              className="text-[11px] font-bold underline"
+              style={{ color: "var(--rh-accent-2)" }}
+            >
+              Read full posting
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-5">
+        <button
+          type="button"
+          onClick={() => advance(-1)}
+          aria-label="Pass"
+          className="w-14 h-14 rounded-full flex items-center justify-center transition hover:scale-105"
+          style={{ background: "var(--rh-surface)", border: "1.5px solid #e8c9c9", color: "#b23b3b", boxShadow: "var(--rh-shadow-card)" }}
+        >
+          <X className="w-6 h-6" />
+        </button>
+        <button
+          type="button"
+          onClick={() => { onSave(current); advance(1); }}
+          aria-label="Save"
+          className="w-14 h-14 rounded-full flex items-center justify-center transition hover:scale-105 text-white"
+          style={{ background: "var(--rh-gradient)", boxShadow: "var(--rh-glow)" }}
+        >
+          <Heart className="w-6 h-6" fill="currentColor" />
+        </button>
+      </div>
+      <p className="text-xs" style={{ color: "var(--rh-faint)" }}>
+        Drag the card, or use the buttons · {Math.max(0, jobs.length - index - 1)}{hasMore ? "+" : ""} more
+      </p>
+    </div>
+  );
+}
+
 export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const { toast } = useToast();
 
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [total, setTotal] = useState<number | null>(null);
+  // v3.171.0 — "swipe to decide," the second half of the approved Ember
+  // Discovery mockup. Real, growing pattern (one competitor alone reports
+  // 850K+ users and 30M+ swipes) built on the same real insight the
+  // research kept surfacing: applying is fundamentally a yes/no gut call,
+  // and swipe matches that decision speed better than reading down a
+  // list. Deliberately a second way to browse, not a replacement for the
+  // list -- reuses the exact same filtered/scored `jobs` this page
+  // already loads, so switching modes never changes what's actually being
+  // shown, only how.
+  const [viewMode, setViewMode] = useState<"list" | "swipe">("list");
+  const [swipeIndex, setSwipeIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -646,6 +888,12 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
 
   const [locations, setLocations] = useState<string[]>([]);
   const [locOpen, setLocOpen] = useState(false);
+  // v3.171.0 — moved up from where the Filters panel's own JSX lives,
+  // since the lazy-load effect below now needs it declared before that
+  // point in the function body -- referencing a const before its own
+  // declaration is a real temporal-dead-zone error in plain JS, not
+  // something TypeScript's own checker happened to catch here.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [locFilter, setLocFilter] = useState("");
   const locBoxRef = useRef<HTMLDivElement | null>(null);
 
@@ -716,9 +964,23 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     return () => clearTimeout(t);
   }, [rawQuery]);
 
-  /* Every distinct location in the table, not just the loaded page. One
-     lightweight single-column read, deduped here, cached for the page. */
+  // v3.171.0 — found live while looking into why the page "feels slow":
+  // these four dataset fetches (location, category/employmentType/
+  // seniority/city, title/company) each pull up to 5,000 raw text rows,
+  // and all four used to fire unconditionally the instant the page
+  // mounted -- before a person ever touched a filter, a search box, or
+  // the Trending dialog. That's a real, measurable amount of unnecessary
+  // data movement on first load, not a feeling. Each is now lazy: it
+  // fetches once, the first time the UI that actually needs it opens, and
+  // is cached afterward (the loaded ref guards against a duplicate fetch
+  // on every reopen). The location dropdown's own real distinct count is
+  // shown in its search placeholder ("Search N locations") whether or not
+  // it has loaded yet -- 0 while pending is honest and momentary, the
+  // real count replaces it within one round trip.
+  const locationsLoadedRef = useRef(false);
   useEffect(() => {
+    if (!locOpen || locationsLoadedRef.current) return;
+    locationsLoadedRef.current = true;
     let cancelled = false;
     supabase.from("job_postings").select("location").limit(5000).then(({ data }) => {
       if (cancelled || !data) return;
@@ -727,22 +989,21 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       setLocations(Array.from(set).sort((a, b) => a.localeCompare(b)));
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [locOpen]);
 
-  /* Same pattern for the three enrichment-backed filters — real distinct
-     values on file, never a hardcoded guess at freehire's own vocabulary.
-     Also seeds the Trending city picker with real, structured city values
-     (job_postings.city, freehire's own parsed city — a different, cleaner
-     field than the raw `location` text the location filter above groups by
-     last comma segment). */
+  /* Job type / seniority / category — real distinct values on file, never
+     a hardcoded guess at freehire's own vocabulary. Lazy: loads the first
+     time the Filters panel opens, not on mount. */
+  const filterOptionsLoadedRef = useRef(false);
   useEffect(() => {
+    if (!filtersOpen || filterOptionsLoadedRef.current) return;
+    filterOptionsLoadedRef.current = true;
     let cancelled = false;
     Promise.all([
       supabase.from("job_postings").select("category").not("category", "is", null).limit(5000),
       supabase.from("job_postings").select("employment_type").not("employment_type", "is", null).limit(5000),
       supabase.from("job_postings").select("seniority").not("seniority", "is", null).limit(5000),
-      supabase.from("job_postings").select("city").not("city", "is", null).limit(5000),
-    ]).then(([cat, et, sen, cty]) => {
+    ]).then(([cat, et, sen]) => {
       if (cancelled) return;
       const dedupe = (rows: { [k: string]: string | null }[] | null, key: string) => {
         const set = new Set<string>();
@@ -752,21 +1013,41 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       setCategories(dedupe(cat.data as { category: string | null }[], "category"));
       setEmploymentTypes(dedupe(et.data as { employment_type: string | null }[], "employment_type"));
       setSeniorities(dedupe(sen.data as { seniority: string | null }[], "seniority"));
-      setStructuredCities(dedupe(cty.data as { city: string | null }[], "city"));
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [filtersOpen]);
+
+  /* job_postings.city — freehire's own parsed city, a different, cleaner
+     field than the raw `location` text the location filter groups by.
+     Only the Trending dialog's city picker needs it, so it loads there,
+     not on mount. */
+  const citiesLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!trendingOpen || citiesLoadedRef.current) return;
+    citiesLoadedRef.current = true;
+    let cancelled = false;
+    supabase.from("job_postings").select("city").not("city", "is", null).limit(5000).then(({ data }) => {
+      if (cancelled || !data) return;
+      const set = new Set<string>();
+      for (const r of data as { city: string | null }[]) if (r.city) set.add(r.city);
+      setStructuredCities(Array.from(set).sort((a, b) => a.localeCompare(b)));
+    });
+    return () => { cancelled = true; };
+  }, [trendingOpen]);
 
   /* v3.166.0 — search autocomplete. Real distinct titles/companies already
      on file, same lightweight single-column-read pattern as locations
      above, filtered client side as the person types — no per-keystroke
-     query. */
+     query. Lazy: loads on the search box's first focus, not on mount. */
   const [titleOptions, setTitleOptions] = useState<string[]>([]);
   const [companyOptions, setCompanyOptions] = useState<string[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchBoxRef = useRef<HTMLDivElement | null>(null);
+  const searchOptionsLoadedRef = useRef(false);
 
   useEffect(() => {
+    if (!searchOpen || searchOptionsLoadedRef.current) return;
+    searchOptionsLoadedRef.current = true;
     let cancelled = false;
     Promise.all([
       supabase.from("job_postings").select("title").limit(5000),
@@ -782,7 +1063,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       setCompanyOptions(dedupe(c.data as { company: string | null }[], "company"));
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [searchOpen]);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -806,8 +1087,8 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   // read as cluttered rather than clean. Collapsed into a single
   // "Filters" button with an active-count badge that opens a panel — same
   // hand-rolled dropdown pattern as the location box right next to it,
-  // not a new primitive.
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  // not a new primitive. (filtersOpen itself now declared up near locOpen
+  // -- see that declaration's own v3.171.0 comment.)
   const filtersBoxRef = useRef<HTMLDivElement | null>(null);
   const activeFilterCount = [employmentType, seniority, category, postedWithin].filter(Boolean).length;
 
@@ -929,10 +1210,21 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       setJobs(rows);
       setTotal(count ?? rows.length);
       setSelected((prev) => (prev && rows.some((r) => r.id === prev.id) ? prev : rows[0] ?? null));
+      setSwipeIndex(0);
       scorePage(rows);
     });
     return () => { cancelled = true; };
   }, [buildQuery, scorePage, toast]);
+
+  // v3.171.0 — keeps the swipe deck feeling like a continuous stream
+  // instead of hitting a wall every 25 cards: loads the next page a few
+  // cards before the deck actually runs out, same loadMore the list's own
+  // "Load more jobs" button already calls.
+  useEffect(() => {
+    if (viewMode !== "swipe" || total === null || loadingMore) return;
+    if (jobs.length < total && swipeIndex >= jobs.length - 3) loadMore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, swipeIndex, jobs.length, total, loadingMore]);
 
   // v3.145.0 — reported directly: refreshing dropped whatever was open in
   // the detail pane back to the page's first result. Deliberately its own
@@ -1144,29 +1436,55 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
 
   const selectedSalary = selected ? resolveSalary(selected) : null;
 
+  // v3.171.0 — "read it in 5 seconds," the highlights strip from the
+  // approved Ember Discovery mockup. Recruiters skim a resume in 6-10
+  // seconds; the same courtesy was never extended back to a JD here, which
+  // meant opening the full formatted body was the only way to learn the
+  // basics. Every fact in this strip already lived in job_postings (real,
+  // freehire-tagged enrichment) or resolveSalary's own extraction — this
+  // only changes where it's shown, not what's shown. Skills shown here are
+  // the posting's own tagged requirements (job.skills), not a match/gap
+  // comparison against the candidate's profile -- that comparison already
+  // has a real, authoritative home (the deterministic gap analysis behind
+  // Score and tailor), and reimplementing a second version of it here
+  // client-side risked disagreeing with it, which would be worse than not
+  // showing one at all.
+  const highlightCells = selected
+    ? [
+        selectedSalary && { key: "salary", label: "Salary", value: selectedSalary.text, tone: "gold" as const },
+        selected.seniority && { key: "seniority", label: "Seniority", value: SENIORITY_LABELS[selected.seniority] || humanizeSlug(selected.seniority) },
+        selected.work_mode && { key: "mode", label: "Work mode", value: selected.work_mode.charAt(0).toUpperCase() + selected.work_mode.slice(1), tone: "trust" as const },
+        selected.employment_type && { key: "type", label: "Type", value: EMPLOYMENT_TYPE_LABELS[selected.employment_type] || humanizeSlug(selected.employment_type) },
+      ].filter((c): c is { key: string; label: string; value: string; tone?: "gold" | "trust" } => !!c)
+    : [];
+
   const detail = selected && (
     <div className="flex flex-col h-full">
-      <div className="p-5 border-b border-border/60 space-y-3">
+      <div className="p-5 border-b space-y-3" style={{ borderColor: "var(--rh-hair)" }}>
         <div className="flex items-start gap-3">
           {resolveLogoUrl(selected) && !logoFailed.has(selected.id) ? (
             <img
               src={resolveLogoUrl(selected)!}
               alt=""
-              className="w-12 h-12 rounded-lg shrink-0 object-contain bg-muted p-1.5"
+              className="w-14 h-14 rounded-xl shrink-0 object-contain bg-white p-1.5 border"
+              style={{ borderColor: "var(--rh-hair)" }}
               onError={() => setLogoFailed((prev) => new Set(prev).add(selected.id))}
             />
           ) : (
-            <div className={`w-12 h-12 rounded-lg flex items-center justify-center font-semibold shrink-0 ${companyAvatar(selected.company).className}`}>
+            <div
+              className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 ${companyAvatar(selected.company).className}`}
+              style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
+            >
               {companyAvatar(selected.company).initial}
             </div>
           )}
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold leading-snug">{selected.title}</h2>
-            <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5">
+            <h2 className="rh-display text-[19px] leading-snug">{selected.title}</h2>
+            <p className="text-sm flex items-center gap-1.5 mt-0.5" style={{ color: "var(--rh-muted)" }}>
               <Building2 className="w-3.5 h-3.5 shrink-0" />{selected.company}
             </p>
             {selected.location && (
-              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+              <p className="text-sm flex items-center gap-1.5" style={{ color: "var(--rh-muted)" }}>
                 <MapPin className="w-3.5 h-3.5 shrink-0" />{selected.location}
               </p>
             )}
@@ -1175,46 +1493,8 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
 
         <div className="flex items-center gap-2 flex-wrap">
           {scorePill(selected.id, 44)}
-          <span className="text-xs text-muted-foreground">Posted {postedAge(selected.posted_at)} · {postedDate(selected.posted_at)}</span>
+          <span className="text-xs" style={{ color: "var(--rh-faint)" }}>Posted {postedAge(selected.posted_at)} · {postedDate(selected.posted_at)}</span>
         </div>
-
-        {/* v3.166.0 — real, freehire-tagged facts about this specific
-            posting, shown wherever they're actually present, never a blank
-            placeholder for what's not on file.
-            v3.170.0 — the salary pill now also covers a real range read
-            straight out of the description text when the structured field
-            is empty (see resolveSalary's own header for why). Both read
-            identically -- the number is equally real either way, only the
-            extraction method differs -- but a title still discloses which
-            one this is, honest provenance without extra visual noise. */}
-        {(selectedSalary || selected.employment_type || selected.seniority || selected.work_mode) && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {selectedSalary && (
-              <span
-                className="inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1"
-                style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}
-                title={selectedSalary.fromListingText ? "Read directly from this posting's own text." : undefined}
-              >
-                <DollarSign className="w-3 h-3" />{selectedSalary.text}
-              </span>
-            )}
-            {selected.employment_type && (
-              <span className="text-xs rounded-full px-2.5 py-1 bg-muted text-muted-foreground">
-                {EMPLOYMENT_TYPE_LABELS[selected.employment_type] || humanizeSlug(selected.employment_type)}
-              </span>
-            )}
-            {selected.seniority && (
-              <span className="text-xs rounded-full px-2.5 py-1 bg-muted text-muted-foreground">
-                {SENIORITY_LABELS[selected.seniority] || humanizeSlug(selected.seniority)}
-              </span>
-            )}
-            {selected.work_mode && (
-              <span className="text-xs rounded-full px-2.5 py-1 bg-muted text-muted-foreground capitalize">
-                {selected.work_mode}
-              </span>
-            )}
-          </div>
-        )}
 
         {/* v3.169.0 — asked directly to research what job seekers actually
             complain about on LinkedIn/Indeed, then use it as an advantage.
@@ -1226,14 +1506,46 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             system, pruned the moment it's 7 days old) was already true and
             already stated once in this page's own subtitle, but never
             surfaced as its own trust signal where someone deciding whether
-            to trust THIS posting actually is. */}
-        <p className="text-xs text-muted-foreground flex items-center gap-1.5" title="Never a third-party aggregator, never LinkedIn or Indeed. Pulled straight from the company's own hiring system and dropped from AYN 7 days after it's posted, so nothing here goes stale.">
-          <ShieldCheck className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--rh-accent-2)" }} />
+            to trust THIS posting actually is.
+            v3.171.0 — recolored to the new trust teal, its own accent
+            reserved only for this class of signal, distinct from the
+            decorative ember used everywhere else on the page. */}
+        <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--rh-trust)" }} title="Never a third-party aggregator, never LinkedIn or Indeed. Pulled straight from the company's own hiring system and dropped from AYN 7 days after it's posted, so nothing here goes stale.">
+          <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
           Sourced directly from {selected.company}'s own hiring system
         </p>
 
+        {highlightCells.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {highlightCells.map((c) => (
+              <div key={c.key} className="rounded-lg px-3 py-2" style={{ background: "var(--rh-raised)", border: "1px solid var(--rh-hair)" }}>
+                <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--rh-faint)" }}>{c.label}</div>
+                <div
+                  className="text-[14px] font-bold truncate"
+                  style={{ color: c.tone === "gold" ? "var(--rh-gold)" : c.tone === "trust" ? "var(--rh-trust)" : "var(--rh-ink)" }}
+                >
+                  {c.value}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {selected.skills && selected.skills.length > 0 && (
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--rh-faint)" }}>Skills for this role</div>
+            <div className="flex flex-wrap gap-1.5">
+              {selected.skills.slice(0, 10).map((s) => (
+                <span key={s} className="text-xs font-semibold rounded-full px-2.5 py-1" style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}>
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {companyActivity && (
-          <p className="text-xs text-muted-foreground" title="How many roles this company has open right now, and how recently the newest one landed. Not how fast they reply to an application.">
+          <p className="text-xs" style={{ color: "var(--rh-faint)" }} title="How many roles this company has open right now, and how recently the newest one landed. Not how fast they reply to an application.">
             {companyActivity.count === 1
               ? `${selected.company}'s only open role right now`
               : `${companyActivity.count} open roles at ${selected.company} right now`}
@@ -1242,7 +1554,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         )}
 
         <div className="flex items-center gap-2 flex-wrap pt-1">
-          <Button onClick={() => handleAdd(selected)} disabled={addingId === selected.id}>
+          <Button onClick={() => handleAdd(selected)} disabled={addingId === selected.id} style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }} className="hover:opacity-90">
             {addingId === selected.id
               ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               : <Plus className="w-4 h-4 mr-2" />}
@@ -1259,7 +1571,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
               black outright — a secondary "leave AYN" action reads fine
               as a plain dark button next to the ember "Score and tailor"
               primary action, not fighting it for the same accent color. */}
-          <Button asChild style={{ background: "#0a0a0a", borderColor: "#0a0a0a", color: "#fff" }} className="hover:opacity-90">
+          <Button asChild style={{ background: "#1c1712", borderColor: "#1c1712", color: "#fff" }} className="hover:opacity-90">
             <a href={selected.apply_url} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="w-4 h-4 mr-2" />Apply on company site
             </a>
@@ -1268,7 +1580,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-5">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Job description</h3>
+        <h3 className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: "var(--rh-faint)" }}>Job description</h3>
         <JobDescriptionBody text={selected.description ?? ""} />
       </div>
     </div>
@@ -1287,7 +1599,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           also gets a fixed min-width so its own label change doesn't
           shift its neighbors horizontally either. */}
       <div>
-        <h3 className="text-2xl font-bold tracking-tight">Browse jobs</h3>
+        <h3 className="rh-display text-[26px]">Browse jobs</h3>
         {/* v3.169.0 — asked directly to research what people actually say
             about LinkedIn and Indeed, then use it as an advantage. Ghost
             and fake listings came back as the single most-repeated
@@ -1297,9 +1609,11 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             of trusting any one posting). This was already true and
             already stated as plain body text; given real weight instead —
             a shield icon and its own line — since research says this is
-            exactly the thing worth leading with, not burying. */}
-        <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5">
-          <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: "var(--rh-accent-2)" }} />
+            exactly the thing worth leading with, not burying.
+            v3.171.0 — recolored to the new trust teal, matching the same
+            signal repeated in the detail pane below. */}
+        <p className="text-sm mt-1.5 flex items-center gap-1.5 font-semibold" style={{ color: "var(--rh-trust)" }}>
+          <ShieldCheck className="w-4 h-4 shrink-0" />
           Every posting comes straight from a real company's own hiring system. Never LinkedIn, Indeed, or a third-party aggregator.
         </p>
       </div>
@@ -1329,6 +1643,29 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         >
           <Wand2 className="w-4 h-4 mr-1.5 shrink-0" />{matchMode ? "Showing my matches" : "Match me"}
         </Button>
+
+        {/* v3.171.0 — "swipe to decide," a genuinely second way to move
+            through the same filtered/scored jobs, not a reskin of the
+            list. A plain segmented toggle, not its own nav item, since
+            it's a view of the same data rather than a different page. */}
+        <div className="flex items-center rounded-lg p-0.5 ml-auto" style={{ background: "var(--rh-raised)" }}>
+          <button
+            type="button"
+            onClick={() => setViewMode("list")}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition"
+            style={viewMode === "list" ? { background: "var(--rh-surface)", color: "var(--rh-ink)", boxShadow: "var(--rh-shadow-card)" } : { color: "var(--rh-muted)" }}
+          >
+            <List className="w-3.5 h-3.5" />List
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("swipe")}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition"
+            style={viewMode === "swipe" ? { background: "var(--rh-gradient)", color: "#fff", boxShadow: "var(--rh-glow)" } : { color: "var(--rh-muted)" }}
+          >
+            <Layers className="w-3.5 h-3.5" />Swipe
+          </button>
+        </div>
       </div>
 
       {matchMode && (
@@ -1577,6 +1914,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       </p>
 
       {/* Split view: list on the left, the full posting on the right */}
+      {viewMode === "list" && (
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-4 items-start">
         <div className="space-y-3">
           {loading ? (
@@ -1599,7 +1937,14 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             </Card>
           ) : (
             <>
-              <Card className="divide-y divide-border/60 border-border/60 overflow-hidden p-0 rounded-xl shadow-sm">
+              {/* v3.171.0 — was one bordered Card with hairline-divided
+                  rows, the flat "safe" list-row pattern the earlier
+                  research flagged. Each posting is now its own card with
+                  the shared rh-lift hover treatment (translateY + a real
+                  ember-tinted shadow on hover), matching the approved
+                  Ember Discovery mockup — motion this page had almost none
+                  of before. */}
+              <div className="space-y-3">
                 {jobs.map((j) => {
                   const isHot = Date.now() - new Date(j.posted_at).getTime() < HOT_WINDOW_MS;
                   const avatar = companyAvatar(j.company);
@@ -1617,36 +1962,42 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                     // of a child.
                     <div
                       key={j.id}
-                      className="w-full flex items-start gap-2 p-4 transition-colors duration-150 border-l-2 hover:bg-muted/40"
-                      style={active
-                        ? { background: "var(--rh-tint)", borderLeftColor: "var(--rh-accent)" }
-                        : { borderLeftColor: "transparent" }}
+                      className="rh-lift w-full flex items-start gap-2 p-4 rounded-xl relative"
+                      style={{
+                        background: "var(--rh-surface)",
+                        border: active ? "1.5px solid var(--rh-accent)" : "1px solid var(--rh-hair)",
+                        boxShadow: active ? "var(--rh-shadow-lift)" : "var(--rh-shadow-card)",
+                      }}
                     >
                       <button type="button" onClick={() => openJob(j)} className="flex items-start gap-3 flex-1 min-w-0 text-left">
                         {showLogo ? (
                           <img
                             src={logoUrl!}
                             alt=""
-                            className="w-12 h-12 rounded-xl shrink-0 object-contain bg-muted p-1.5 border border-border/40"
+                            className="w-12 h-12 rounded-xl shrink-0 object-contain bg-white p-1.5 border"
+                            style={{ borderColor: "var(--rh-hair)" }}
                             onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
                           />
                         ) : (
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-semibold text-sm shrink-0 ${avatar.className}`}>
+                          <div
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-base shrink-0 ${avatar.className}`}
+                            style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
+                          >
                             {avatar.initial}
                           </div>
                         )}
                         <div className="min-w-0 flex-1 space-y-1">
-                          <p className="font-semibold text-[15px] leading-snug">{j.title}</p>
-                          <p className="text-[13px] text-muted-foreground truncate">
+                          <p className="rh-display text-[15.5px] leading-snug">{j.title}</p>
+                          <p className="text-[13px] truncate" style={{ color: "var(--rh-muted)" }}>
                             {j.company}{j.location ? ` • ${j.location}` : ""}
                           </p>
                           <div className="flex items-center gap-2 flex-wrap pt-0.5">
                             {scorePill(j.id)}
-                            <span className="text-[11px] text-muted-foreground">{postedAge(j.posted_at)} · {postedDate(j.posted_at)}</span>
+                            <span className="text-[11px]" style={{ color: "var(--rh-faint)" }}>{postedAge(j.posted_at)} · {postedDate(j.posted_at)}</span>
                             {salary && (
                               <span
-                                className="text-[11px] font-medium"
-                                style={{ color: "var(--rh-accent-2)" }}
+                                className="text-[11px] font-bold"
+                                style={{ color: "var(--rh-gold)" }}
                                 title={salary.fromListingText ? "Read directly from this posting's own text." : undefined}
                               >
                                 {salary.text}
@@ -1661,15 +2012,15 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                             and a two-line title left it in a different spot
                             on every card. Pulled out to its own column at the
                             end of the row instead, so it lands in the same
-                            place on every card regardless of title length —
-                            and given real AYN ember colors (var(--rh-accent)),
-                            since bg-primary/text-primary resolve to this
-                            app's near-black default here, not orange. */}
+                            place on every card regardless of title length.
+                            v3.171.0 — given the real ember gradient + glow
+                            instead of a flat tint pill, matching every other
+                            "real accent" moment on this page now. */}
                         {isHot && (
                           <Badge
                             variant="outline"
-                            className="shrink-0 gap-1 border"
-                            style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)", borderColor: "#f9731650" }}
+                            className="shrink-0 gap-1 border-0"
+                            style={{ background: "var(--rh-gradient)", color: "#fff", boxShadow: "var(--rh-glow)" }}
                           >
                             <Flame className="w-3 h-3" /> New
                           </Badge>
@@ -1696,7 +2047,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                     </div>
                   );
                 })}
-              </Card>
+              </div>
 
               {total !== null && jobs.length < total && (
                 <Button variant="outline" className="w-full" onClick={loadMore} disabled={loadingMore}>
@@ -1714,6 +2065,26 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             : <p className="p-10 text-sm text-muted-foreground text-center">Pick a job to read the full posting.</p>}
         </Card>
       </div>
+      )}
+
+      {viewMode === "swipe" && (loading ? (
+        <div className="flex justify-center py-24">
+          <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--rh-accent)" }} />
+        </div>
+      ) : (
+        <SwipeDeck
+          jobs={jobs}
+          index={swipeIndex}
+          onIndexChange={setSwipeIndex}
+          scores={scores}
+          scored={scored}
+          logoFailed={logoFailed}
+          setLogoFailed={setLogoFailed}
+          onSave={(job) => saveJob(job)}
+          onOpenDetail={(job) => { setViewMode("list"); openJob(job); }}
+          hasMore={total !== null && jobs.length < total}
+        />
+      ))}
 
       {/* Narrow screens get the same detail as a full height sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
