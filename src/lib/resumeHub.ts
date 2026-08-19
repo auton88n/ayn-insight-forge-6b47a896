@@ -181,6 +181,10 @@ export interface JobPosting {
   // or the lookup hasn't happened yet — BrowseJobs.tsx falls back to a
   // colored-initial mark either way.
   company_logo_url?: string | null;
+  // v3.169.0 — read by BrowseJobs.tsx's own client-side favicon fallback
+  // when company_logo_url is null, since Greenhouse/Lever/Ashby's own APIs
+  // (unlike freehire's) never return a logo at all.
+  company_slug?: string | null;
   title: string;
   description: string;
   location: string | null;
