@@ -1,17 +1,16 @@
 # Resume Hub map (web app + resume-hub backend)
 
 ## Surface
-src/pages/ResumeHub.tsx with seven tabs in src/components/resume-hub/ (Resumes removed in v3.4.0, Proposals added in v3.6.0, Get discovered removed in v3.69.0, Browse jobs promoted to its own tab in v3.137.0):
+src/pages/ResumeHub.tsx with six tabs in src/components/resume-hub/ (Resumes removed in v3.4.0, Proposals added in v3.6.0, Get discovered removed in v3.69.0, Browse jobs promoted to its own tab in v3.137.0, the Browser extension tab deleted outright in v3.164.0 — the extension itself is gone, not just this nav item):
 
 | key | label | hint | component |
 |---|---|---|---|
 | home | Home | Start here | HomeTab (next actions, replaced OverviewTab) |
 | profile | Profile | You, your resume, your goals | ProfileTab (resume group + four field groups + discoverability, see below) |
-| browse | Browse jobs | Real postings, refreshed daily | BrowseJobs (job board: server side search, location and remote filters over the whole job_postings table, paged 25 at a time, split list and full description view, quick match score per row) |
+| browse | Browse jobs | Real postings, refreshed daily | BrowseJobs (job board: server side search, location and remote filters over the whole job_postings table, paged 25 at a time, split list and full description view or a card-swipe deck (List/Swipe toggle, v3.171.0), quick match score per row, a JD highlights strip in the detail pane, real "Charcoal & Ember" branding — see CLAUDE.md's own v3.167.0-v3.171.0 entries for the full redesign story) |
 | jobs | Saved jobs | Score and tailor | JobsTab (saved jobs, score, tailor, cover letter, generated documents, handoff) |
 | proposals | Proposals | Roles employers want you for | ProposalsTab (pending proposal cards, accept or decline, collapsed history) |
 | assessments | Assessments | Questions about your own work | AssessmentsTab |
-| extension | Browser extension | Score jobs as you browse | ExtensionTab (zip download, version check, device tokens) |
 
 v3.137.0 — Browse jobs used to be a mode inside JobsTab that replaced the saved-jobs tracker while it was open. It is now its own top level tab, so discovery and the tracker never hide each other. Three things it did not do before: it never showed the stored job description at all (about 5,400 characters per row, sitting unread), its search and location filters only ever narrowed the 24 rows already in memory rather than the whole table (1,095 real distinct locations, 982 companies), and there was no pagination or total count. Adding a job still inserts one row into the caller's own `jobs` table, exactly as "Add job manually" does, then hands off to the unchanged score/tailor/cover letter pipeline through `sessionStorage.ayn_focus_job`, which JobsTab now reads on load and auto opens (nothing read that flag before this version).
 
