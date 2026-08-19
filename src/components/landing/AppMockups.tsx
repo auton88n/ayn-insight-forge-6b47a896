@@ -3,8 +3,8 @@
  *
  * Every one of these mirrors a surface that actually exists in the product:
  * a saved job scored against your real profile, the tailored documents
- * produced for one job, the employer candidate card, and a verification
- * assessment.
+ * produced for one job, the employer candidate card, a verification
+ * assessment, the auto-sourced Browse Jobs feed, and the in-app inbox.
  *
  * All static, no runtime fetch, so reduced motion is satisfied by
  * construction. Palette matches the landing tokens. One exception to the
@@ -321,6 +321,100 @@ export function ShortlistMockup({ style }: { style?: React.CSSProperties }) {
       })}
       <text x="338" y="360" fontFamily={F} fontSize="10.5" fill={T.inkSub}>Ranked on evidence in their own history.</text>
       <text x="338" y="378" fontFamily={F} fontSize="10.5" fill={T.inkSub}>Names and contact stay private until they accept.</text>
+    </svg>
+  );
+}
+
+/* ── 6. Browse jobs, sourced automatically ─────────────────── */
+export function BrowseJobsMockup({ style }: { style?: React.CSSProperties }) {
+  const W = 900, H = 420;
+  const jobs: { initial: string; title: string; meta: string; score: number; isNew: boolean }[] = [
+    { initial: 'A', title: 'Senior Frontend Engineer', meta: 'Acme · Toronto, hybrid', score: 88, isNew: true },
+    { initial: 'H', title: 'Product Designer', meta: 'Halcyon · Remote, Canada', score: 74, isNew: true },
+    { initial: 'N', title: 'Staff Backend Engineer', meta: 'Northline · Austin, hybrid', score: 65, isNew: false },
+    { initial: 'C', title: 'Engineering Manager', meta: 'Cobalt · New York, onsite', score: 52, isNew: false },
+  ];
+  return (
+    <svg {...a11y} aria-label="A feed of real job postings, sourced automatically, each with a quick match score" viewBox={`0 0 ${W} ${H}`} style={{ ...svgBase, ...style }} preserveAspectRatio="xMidYMid meet">
+      <rect x="0.5" y="0.5" width={W - 1} height={H - 1} rx="16" fill={T.paper} stroke={T.borderMd} />
+      <clipPath id="mk6"><rect x="0" y="0" width={W} height={H} rx="16" /></clipPath>
+      <g clipPath="url(#mk6)">
+        <AppChrome label="Browse jobs" w={W} />
+
+        <text x="30" y="66" fontFamily={FD} fontSize="17" fontWeight="700" fill={T.ink}>Real postings, refreshed automatically</text>
+        <text x="30" y="86" fontFamily={F} fontSize="11.5" fill={T.inkSub}>Company career pages only. Never LinkedIn or Indeed.</text>
+
+        {jobs.map((j, i) => {
+          const y = 110 + i * 74;
+          return (
+            <g key={j.title}>
+              <rect x="30" y={y} width={W - 60} height="62" rx="12" fill={i === 0 ? T.surface : '#fff'} stroke={T.border} />
+              <circle cx="66" cy={y + 31} r="18" fill="rgba(232,93,58,0.14)" stroke="rgba(232,93,58,0.3)" />
+              <text x="66" y={y + 36} textAnchor="middle" fontFamily={FD} fontSize="13" fontWeight="700" fill={T.emberDeep}>{j.initial}</text>
+
+              <text x="98" y={y + 26} fontFamily={FD} fontSize="14" fontWeight="700" fill={T.ink}>{j.title}</text>
+              {j.isNew && (
+                <>
+                  <rect x="98" y={y + 34} width="40" height="16" rx="8" fill="rgba(63,157,106,0.14)" stroke="rgba(63,157,106,0.35)" />
+                  <text x="118" y={y + 46} textAnchor="middle" fontFamily={F} fontSize="9" fontWeight="700" fill={T.green}>NEW</text>
+                  <text x="146" y={y + 46} fontFamily={F} fontSize="11" fill={T.inkSub}>{j.meta}</text>
+                </>
+              )}
+              {!j.isNew && (
+                <text x="98" y={y + 46} fontFamily={F} fontSize="11" fill={T.inkSub}>{j.meta}</text>
+              )}
+
+              <rect x={W - 130} y={y + 15} width="64" height="32" rx="10" fill="#fff" stroke={T.borderMd} />
+              <text x={W - 98} y={y + 36} textAnchor="middle" fontFamily={FD} fontSize="14" fontWeight="700" fill={T.ink}>{j.score}<tspan fontSize="9" fontWeight="600" fill={T.inkSub}>%</tspan></text>
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+}
+
+/* ── 7. The inbox: safe, screened, employer controlled ─────── */
+export function InboxMockup({ style }: { style?: React.CSSProperties }) {
+  const W = 760, H = 400;
+  return (
+    <svg {...a11y} aria-label="A message thread between an employer and a candidate, every message screened before delivery" viewBox={`0 0 ${W} ${H}`} style={{ ...svgBase, ...style }} preserveAspectRatio="xMidYMid meet">
+      <rect x="0.5" y="0.5" width={W - 1} height={H - 1} rx="16" fill={T.paper} stroke={T.borderMd} />
+      <clipPath id="mk7"><rect x="0" y="0" width={W} height={H} rx="16" /></clipPath>
+      <g clipPath="url(#mk7)">
+        <AppChrome label="Messages" w={W} />
+
+        {/* two-way control row */}
+        <rect x="26" y="50" width={W - 52} height="34" rx="10" fill={T.surface} stroke={T.border} />
+        <circle cx="46" cy="67" r="8" fill={T.ember} />
+        <circle cx="49" cy="67" r="5" fill="#fff" />
+        <text x="64" y="71" fontFamily={F} fontSize="11" fill={T.inkMid}>Candidate can reply</text>
+        <text x={W - 46} y="71" textAnchor="end" fontFamily={F} fontSize="10.5" fill={T.inkSub}>Off by default</text>
+
+        {/* employer message */}
+        <rect x="26" y="102" width="360" height="52" rx="14" fill={T.ink} />
+        <text x="44" y="124" fontFamily={F} fontSize="11.5" fill="#fff">Great, when works for a quick intro</text>
+        <text x="44" y="141" fontFamily={F} fontSize="11.5" fill="#fff">call this week?</text>
+
+        {/* candidate reply */}
+        <rect x={W - 386} y="168" width="360" height="52" rx="14" fill={T.surface} stroke={T.border} />
+        <text x={W - 368} y="190" fontFamily={F} fontSize="11.5" fill={T.inkMid}>Thursday afternoon works well for me.</text>
+        <text x={W - 368} y="207" fontFamily={F} fontSize="10.5" fill={T.inkSub}>Sent 2 minutes ago</text>
+
+        {/* a blocked attempt, employer-visible only */}
+        <rect x="26" y="234" width="420" height="46" rx="12" fill="none" stroke={T.ember} strokeDasharray="4 3" />
+        <text x="44" y="253" fontFamily={F} fontSize="11" fontWeight="600" fill={T.emberDeep}>Message blocked before delivery</text>
+        <text x="44" y="269" fontFamily={F} fontSize="10.5" fill={T.inkSub}>Contained a phone number. Only you can see this.</text>
+
+        {/* composer */}
+        <rect x="26" y="298" width={W - 52} height="46" rx="12" fill={T.surface} stroke={T.border} />
+        <text x="44" y="326" fontFamily={F} fontSize="11.5" fill={T.inkSub}>Write a message…</text>
+        <rect x={W - 122} y="308" width="70" height="26" rx="8" fill={T.ember} />
+        <text x={W - 87} y="325" textAnchor="middle" fontFamily={F} fontSize="11" fontWeight="700" fill="#fff">Send</text>
+
+        <text x="26" y="372" fontFamily={F} fontSize="11" fill={T.inkSub}>Every message is checked before it reaches either side.</text>
+        <text x="26" y="390" fontFamily={F} fontSize="11" fill={T.inkSub}>No links, no phone numbers, nothing routed off AYN.</text>
+      </g>
     </svg>
   );
 }

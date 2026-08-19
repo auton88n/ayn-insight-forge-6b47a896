@@ -22,6 +22,8 @@ import {
   CandidateCardMockup,
   AssessmentMockup,
   ShortlistMockup,
+  BrowseJobsMockup,
+  InboxMockup,
 } from './AppMockups';
 import { BeforeAfterProof } from './BeforeAfterProof';
 
@@ -40,11 +42,11 @@ const XIcon = () => (
   </svg>
 );
 
-const ATS = ['Greenhouse', 'Ashby', 'Lever', 'Workday', 'iCIMS', 'SmartRecruiters'];
+const SOURCING_MARKS = ['Real company career pages', 'Never LinkedIn or Indeed', 'Refreshed every 2 hours', 'Or paste any posting yourself'];
 const POOL_MARKS = ['Opted in candidates', 'Skill provenance', 'Match evidence', 'Verification assessments'];
 
 const STRIP: Record<Audience, { label: string; marks: string[] }> = {
-  job_seeker: { label: 'Reads job posts on', marks: ATS },
+  job_seeker: { label: 'Where jobs come from', marks: SOURCING_MARKS },
   employer: { label: 'Every candidate comes with', marks: POOL_MARKS },
 };
 
@@ -83,7 +85,7 @@ const PAIN: Record<Audience, { eyebrow: string; title: string; lead: string; who
 const AI_CONTRAST = [
   'Reads the actual job description, not a keyword list',
   'Writes from your real experience. Nothing invented, nothing generic',
-  'Read only. It never fills out a form or submits anything for you',
+  'You submit every application yourself. It never auto-applies for you',
 ];
 
 const EMPLOYER_AI_CONTRAST = [
@@ -117,9 +119,9 @@ const SEEKER_TILES = [
   {
     span: 'lp-span-6',
     icon: Search,
-    title: 'The posting, read for you',
-    desc: 'Open a job, open the panel, see where you stand out of 10.',
-    meta: ['LinkedIn', 'Indeed', 'Greenhouse', 'Lever'],
+    title: 'The posting, read in full',
+    desc: 'Browse real postings or add your own. See where you stand out of 10.',
+    meta: ['Browse jobs', 'Add a link', 'Paste the text'],
   },
   {
     span: 'lp-span-3',
@@ -210,7 +212,7 @@ const TRUST: Record<Audience, { title: string; lead: string; chips: string[] }> 
     title: 'It shows its work',
     lead: 'You see the posting it read, the resume it used and what it inferred.',
     chips: [
-      'Read only',
+      'Never auto-applies',
       'Grounded in the posting',
       'Nothing invented',
       'Your details stay yours',
@@ -232,15 +234,15 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
   job_seeker: [
     {
       q: 'What does AYN do for me?',
-      a: 'It reads the posting in front of you and scores you against it. Then it writes a one page resume and a cover letter from your own history.',
+      a: 'It reads the job description in full and scores you against it. Then it writes a one page resume and a cover letter from your own history.',
     },
     {
-      q: 'Which job sites does it work on?',
-      a: 'Greenhouse, Lever, Workday, Ashby, iCIMS, SmartRecruiters and most company career pages.',
+      q: 'Where do the jobs come from?',
+      a: 'Real company career pages, sourced automatically and refreshed every two hours, never LinkedIn or Indeed. You can also add any posting yourself, by link or by pasting the text.',
     },
     {
       q: 'Does it apply for me?',
-      a: 'No. It only reads the page.',
+      a: 'No. It writes the resume and the cover letter. You review them and submit the application yourself, on the company’s own site.',
     },
     {
       q: 'How do employers find me?',
@@ -249,6 +251,10 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
     {
       q: 'Can employers see my name and email?',
       a: 'Not until you accept their proposal. Before that they see your profile and your match evidence only.',
+    },
+    {
+      q: 'Is it really a real employer messaging me?',
+      a: 'Yes. Every employer account is checked at signup: their email has to match their company’s own website domain, and personal email addresses are refused outright. You can message back and forth right in AYN, never through your personal email or phone, and every message is screened before it reaches you.',
     },
     {
       q: 'Will it invent experience?',
@@ -283,6 +289,10 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
     {
       q: 'Can I message everyone at once?',
       a: 'No. One open proposal per candidate, and none for thirty days after a decline.',
+    },
+    {
+      q: 'How do I actually talk to a candidate?',
+      a: 'Once you send a proposal, a real inbox opens on it right inside AYN. It stays one way until you choose to open it up, and every message either side sends is screened before it’s delivered, no links, no phone numbers, nothing routed off the platform.',
     },
     {
       q: 'How do I get access?',
@@ -494,6 +504,32 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
           </div>
         </section>
 
+        {/* ── WHERE JOBS COME FROM ────────────────────────────── */}
+        {seeker && (
+          <section id="browse" className="lp-section" style={{ paddingBlockStart: 0 }}>
+            <div className="lp-shell">
+              <div className="lp-split lp-reveal">
+                <div className="lp-art lp-art-plain">
+                  <BrowseJobsMockup />
+                </div>
+                <div>
+                  <p className="lp-eyebrow">Where the jobs come from</p>
+                  <h2 className="lp-display lp-h2">Real postings, pulled straight from the company. <em>Never scraped from a job board.</em></h2>
+                  <p className="lp-lead">
+                    Company career pages only, sourced automatically and refreshed every two hours. Never LinkedIn,
+                    never Indeed. Do not see the role you are after? Add any posting yourself, by link or by pasting the text.
+                  </p>
+                  <div className="lp-cta-row" style={{ marginTop: 26 }}>
+                    <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('job_seeker')}>
+                      Start free <ArrowRight size={15} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* ── GET DISCOVERED ──────────────────────────────────── */}
         {seeker && (
           <section id="discover" className="lp-section" style={{ paddingBlockStart: 0 }}>
@@ -518,6 +554,34 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                 </div>
                 <div className="lp-art lp-art-plain">
                   <CandidateCardMockup />
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── THE INBOX ────────────────────────────────────────── */}
+        {seeker && (
+          <section id="inbox" className="lp-section" style={{ paddingBlockStart: 0 }}>
+            <div className="lp-shell">
+              <div className="lp-split lp-reveal">
+                <div>
+                  <p className="lp-eyebrow">When an employer reaches out</p>
+                  <h2 className="lp-display lp-h2">A real inbox, not your personal email. <em>Screened both ways.</em></h2>
+                  <p className="lp-lead">
+                    Every employer is checked before they can search or message anyone: their email has to match
+                    their own company's website, personal email addresses are refused. Once they reach out, you talk
+                    right inside AYN, one way until you choose to open it up, and every message either side sends is
+                    screened before it arrives, no links, no phone numbers, nothing routed off the platform.
+                  </p>
+                  <div className="lp-chips" style={{ marginTop: 22 }}>
+                    <span className="lp-chip"><ShieldCheck size={14} />Employer identity verified</span>
+                    <span className="lp-chip"><Eye size={14} />You control two-way replies</span>
+                    <span className="lp-chip"><Ban size={14} />No links or contact info, ever</span>
+                  </div>
+                </div>
+                <div className="lp-art lp-art-plain">
+                  <InboxMockup />
                 </div>
               </div>
             </div>
