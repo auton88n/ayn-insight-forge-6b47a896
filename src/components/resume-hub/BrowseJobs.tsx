@@ -39,7 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Loader2, ExternalLink, Plus, Flame, Search, MapPin, Home, ChevronDown, X, Building2, Bookmark, Wand2, Compass,
-  DollarSign, Clock, TrendingUp,
+  DollarSign, Clock, TrendingUp, SlidersHorizontal,
 } from "lucide-react";
 import { resumeHubApi, type JobPosting } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
@@ -466,6 +466,25 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     const companies = companyOptions.filter((c) => c.toLowerCase().includes(q)).slice(0, 3).map((v) => ({ v, kind: "company" as const }));
     return [...titles, ...companies];
   }, [rawQuery, titleOptions, companyOptions]);
+
+  // v3.167.0 — asked directly for a cleaner, more modern feel closer to
+  // LinkedIn/Indeed: the ~20 job type/seniority/category/posted-within
+  // chips used to sit permanently on screen as one wrapping wall, which
+  // read as cluttered rather than clean. Collapsed into a single
+  // "Filters" button with an active-count badge that opens a panel — same
+  // hand-rolled dropdown pattern as the location box right next to it,
+  // not a new primitive.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersBoxRef = useRef<HTMLDivElement | null>(null);
+  const activeFilterCount = [employmentType, seniority, category, postedWithin].filter(Boolean).length;
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (filtersBoxRef.current && !filtersBoxRef.current.contains(e.target as Node)) setFiltersOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -900,39 +919,42 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h3 className="text-sm font-semibold">Browse jobs</h3>
-          <p className="text-xs text-muted-foreground">
+          <h3 className="text-2xl font-bold tracking-tight">Browse jobs</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Real postings from company career pages, refreshed continuously. Never LinkedIn or Indeed.
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* v3.166.0 — real relevance ranking is the default now, so this
-              is an opt-out ("Newest") rather than the "Match me" opt-in
-              above, which is a separate, stronger action (it also narrows
-              to Profile's desired_locations). */}
+        {/* v3.167.0 — asked directly for something cleaner and more modern.
+            Four identically-weighted outlined buttons read as noisy; the
+            three secondary actions (sort toggle, Trending, Explore roles)
+            are now quiet ghost buttons, leaving exactly one button with
+            real visual weight — Match me, the one actually worth reaching
+            for first. */}
+        <div className="flex items-center gap-1 flex-wrap">
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => setNewestFirst((v) => !v)}
-            className="text-xs"
+            className="text-xs text-muted-foreground"
           >
-            <Clock className="w-3.5 h-3.5 mr-1.5" />{newestFirst ? "Sorted by newest" : "Sort: best match"}
+            <Clock className="w-3.5 h-3.5 mr-1.5" />{newestFirst ? "Newest" : "Best match"}
           </Button>
-          <Button type="button" variant="outline" onClick={openTrending}>
-            <TrendingUp className="w-4 h-4 mr-2" />Trending
+          <Button type="button" variant="ghost" size="sm" onClick={openTrending} className="text-xs text-muted-foreground">
+            <TrendingUp className="w-3.5 h-3.5 mr-1.5" />Trending
           </Button>
-          <Button type="button" variant="outline" onClick={openRoleFinder}>
-            <Compass className="w-4 h-4 mr-2" />Explore roles
+          <Button type="button" variant="ghost" size="sm" onClick={openRoleFinder} className="text-xs text-muted-foreground">
+            <Compass className="w-3.5 h-3.5 mr-1.5" />Explore roles
           </Button>
           <Button
             type="button"
+            size="sm"
             onClick={() => (matchMode ? setMatchMode(false) : startMatchMode())}
             style={matchMode ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" } : undefined}
             variant={matchMode ? undefined : "outline"}
-            className={matchMode ? "hover:opacity-90" : ""}
+            className={matchMode ? "hover:opacity-90 ml-1" : "ml-1"}
           >
-            <Wand2 className="w-4 h-4 mr-2" />{matchMode ? "Showing my matches" : "Match me"}
+            <Wand2 className="w-4 h-4 mr-1.5" />{matchMode ? "Showing my matches" : "Match me"}
           </Button>
         </div>
       </div>
@@ -1054,6 +1076,117 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           <Home className="w-4 h-4 mr-1.5" />Remote
         </Button>
 
+        {/* v3.167.0 — the job type/seniority/category/posted-within chips
+            used to sit permanently on screen, ~20 of them wrapping across
+            two lines — the single biggest thing making this page read as
+            cluttered rather than clean. Collapsed into one button with an
+            active-count badge; the panel it opens is the exact same
+            controls, just out of the way until wanted. Same hand-rolled
+            dropdown pattern as the location box, not a new primitive. */}
+        <div className="relative shrink-0" ref={filtersBoxRef}>
+          <Button
+            type="button"
+            variant={activeFilterCount > 0 ? "default" : "outline"}
+            onClick={() => setFiltersOpen((v) => !v)}
+            style={activeFilterCount > 0 ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" } : undefined}
+            className={activeFilterCount > 0 ? "hover:opacity-90" : ""}
+          >
+            <SlidersHorizontal className="w-4 h-4 mr-1.5" />Filters
+            {activeFilterCount > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-semibold bg-white/25 px-1">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
+          {filtersOpen && (
+            <div className="absolute z-50 mt-1 right-0 w-[300px] rounded-md border bg-popover shadow-lg p-3 space-y-3 max-h-[70vh] overflow-y-auto">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Posted within</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {POSTED_WITHIN_OPTIONS.map((o) => (
+                    <button
+                      key={o.key}
+                      type="button"
+                      onClick={() => setPostedWithin((v) => (v === o.key ? null : o.key))}
+                      className="text-xs px-2.5 py-1 rounded-full border transition"
+                      style={postedWithin === o.key
+                        ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
+                        : { borderColor: "var(--border, hsl(var(--border)))" }}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {employmentTypes.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Job type</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {employmentTypes.map((et) => (
+                      <button
+                        key={et}
+                        type="button"
+                        onClick={() => setEmploymentType((v) => (v === et ? null : et))}
+                        className="text-xs px-2.5 py-1 rounded-full border transition"
+                        style={employmentType === et
+                          ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
+                          : { borderColor: "var(--border, hsl(var(--border)))" }}
+                      >
+                        {EMPLOYMENT_TYPE_LABELS[et] || humanizeSlug(et)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {seniorities.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Seniority</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {seniorities.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setSeniority((v) => (v === s ? null : s))}
+                        className="text-xs px-2.5 py-1 rounded-full border transition"
+                        style={seniority === s
+                          ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
+                          : { borderColor: "var(--border, hsl(var(--border)))" }}
+                      >
+                        {SENIORITY_LABELS[s] || humanizeSlug(s)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {categories.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Category</p>
+                  <Select value={category ?? "__all"} onValueChange={(v) => setCategory(v === "__all" ? null : v)}>
+                    <SelectTrigger className="h-8 w-full text-xs">
+                      <SelectValue placeholder="All categories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all">All categories</SelectItem>
+                      {categories.map((c) => (
+                        <SelectItem key={c} value={c}>{c.replace(/_/g, " ")}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {activeFilterCount > 0 && (
+                <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => { setEmploymentType(null); setSeniority(null); setCategory(null); setPostedWithin(null); }}>
+                  Clear these filters
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
         {(hasFilters || matchMode) && (
           <Button type="button" variant="ghost" onClick={clearFilters} className="shrink-0">
             <X className="w-4 h-4 mr-1.5" />Clear
@@ -1061,86 +1194,21 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         )}
       </div>
 
-      {/* v3.166.0 — real filters on the enrichment columns job-board-sync
-          now captures. Job type and seniority as chips (a small, bounded
-          value set); category as a dropdown (freehire tags ~20 distinct
-          values); posted-within as chips too. */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {POSTED_WITHIN_OPTIONS.map((o) => (
-          <button
-            key={o.key}
-            type="button"
-            onClick={() => setPostedWithin((v) => (v === o.key ? null : o.key))}
-            className="text-xs px-2.5 py-1 rounded-full border transition"
-            style={postedWithin === o.key
-              ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
-              : { borderColor: "var(--border, hsl(var(--border)))" }}
-          >
-            {o.label}
-          </button>
-        ))}
-        {employmentTypes.length > 0 && (
-          <span className="w-px h-4 bg-border mx-0.5" aria-hidden="true" />
-        )}
-        {employmentTypes.map((et) => (
-          <button
-            key={et}
-            type="button"
-            onClick={() => setEmploymentType((v) => (v === et ? null : et))}
-            className="text-xs px-2.5 py-1 rounded-full border transition"
-            style={employmentType === et
-              ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
-              : { borderColor: "var(--border, hsl(var(--border)))" }}
-          >
-            {EMPLOYMENT_TYPE_LABELS[et] || humanizeSlug(et)}
-          </button>
-        ))}
-        {seniorities.length > 0 && (
-          <span className="w-px h-4 bg-border mx-0.5" aria-hidden="true" />
-        )}
-        {seniorities.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setSeniority((v) => (v === s ? null : s))}
-            className="text-xs px-2.5 py-1 rounded-full border transition"
-            style={seniority === s
-              ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
-              : { borderColor: "var(--border, hsl(var(--border)))" }}
-          >
-            {SENIORITY_LABELS[s] || humanizeSlug(s)}
-          </button>
-        ))}
-        {categories.length > 0 && (
-          <Select value={category ?? "__all"} onValueChange={(v) => setCategory(v === "__all" ? null : v)}>
-            <SelectTrigger className="h-7 w-auto text-xs gap-1.5 rounded-full px-2.5 py-1 border-input">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">All categories</SelectItem>
-              {categories.map((c) => (
-                <SelectItem key={c} value={c}>{c.replace(/_/g, " ")}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      <p className="text-xs text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         {loading
           ? "Loading jobs…"
           : total === null
             ? ""
             : hasFilters || matchMode
-              ? `${total} job${total === 1 ? "" : "s"} match your search`
-              : `${total} jobs`}
+              ? <><span className="font-semibold text-foreground">{total}</span> job{total === 1 ? "" : "s"} match your search</>
+              : <><span className="font-semibold text-foreground">{total}</span> jobs</>}
       </p>
 
       {/* Split view: list on the left, the full posting on the right */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-4 items-start">
         <div className="space-y-3">
           {loading ? (
-            <Card className="divide-y divide-border/60 border-border/60 overflow-hidden p-0">
+            <Card className="divide-y divide-border/60 border-border/60 overflow-hidden p-0 rounded-xl shadow-sm">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3 p-4">
                   <Skeleton className="w-10 h-10 rounded-lg shrink-0" />
@@ -1152,14 +1220,14 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
               ))}
             </Card>
           ) : jobs.length === 0 ? (
-            <Card className="p-10 text-center">
+            <Card className="p-10 text-center rounded-xl shadow-sm">
               <p className="text-sm text-muted-foreground">
                 {hasFilters ? "No jobs match your search. Try clearing a filter." : "No fresh postings right now, check back soon."}
               </p>
             </Card>
           ) : (
             <>
-              <Card className="divide-y divide-border/60 border-border/60 overflow-hidden p-0">
+              <Card className="divide-y divide-border/60 border-border/60 overflow-hidden p-0 rounded-xl shadow-sm">
                 {jobs.map((j) => {
                   const isHot = Date.now() - new Date(j.posted_at).getTime() < HOT_WINDOW_MS;
                   const avatar = companyAvatar(j.company);
@@ -1175,7 +1243,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                     // of a child.
                     <div
                       key={j.id}
-                      className="w-full flex items-start gap-2 p-4 transition border-l-2 hover:bg-muted/40"
+                      className="w-full flex items-start gap-2 p-4 transition-colors duration-150 border-l-2 hover:bg-muted/40"
                       style={active
                         ? { background: "var(--rh-tint)", borderLeftColor: "var(--rh-accent)" }
                         : { borderLeftColor: "transparent" }}
@@ -1185,17 +1253,17 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                           <img
                             src={j.company_logo_url!}
                             alt=""
-                            className="w-10 h-10 rounded-lg shrink-0 object-contain bg-muted p-1.5"
+                            className="w-11 h-11 rounded-xl shrink-0 object-contain bg-muted p-1.5"
                             onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
                           />
                         ) : (
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-semibold text-sm shrink-0 ${avatar.className}`}>
+                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-semibold text-sm shrink-0 ${avatar.className}`}>
                             {avatar.initial}
                           </div>
                         )}
                         <div className="min-w-0 flex-1 space-y-1">
-                          <p className="font-medium text-sm leading-snug">{j.title}</p>
-                          <p className="text-xs text-muted-foreground truncate">
+                          <p className="font-semibold text-[15px] leading-snug">{j.title}</p>
+                          <p className="text-[13px] text-muted-foreground truncate">
                             {j.company}{j.location ? ` • ${j.location}` : ""}
                           </p>
                           <div className="flex items-center gap-2 flex-wrap pt-0.5">
@@ -1262,7 +1330,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         </div>
 
         {/* Desktop detail pane */}
-        <Card className="hidden lg:block border-border/60 overflow-hidden sticky top-4 h-[calc(100vh-8rem)] p-0">
+        <Card className="hidden lg:block border-border/60 overflow-hidden sticky top-4 h-[calc(100vh-8rem)] p-0 rounded-xl shadow-sm">
           {selected
             ? detail
             : <p className="p-10 text-sm text-muted-foreground text-center">Pick a job to read the full posting.</p>}
