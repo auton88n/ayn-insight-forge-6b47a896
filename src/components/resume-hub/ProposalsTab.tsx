@@ -11,8 +11,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Inbox, MapPin, Briefcase, Banknote, ExternalLink, ChevronDown } from "lucide-react";
+import { Loader2, Inbox, MapPin, Briefcase, Banknote, ExternalLink, ChevronDown, MessageCircle } from "lucide-react";
 import { employerApi, type Proposal } from "@/lib/employer";
+import MessageThread from "@/components/shared/MessageThread";
 
 function when(iso: string | null): string {
   if (!iso) return "";
@@ -32,6 +33,7 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [openThread, setOpenThread] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -151,8 +153,24 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
               <Button size="sm" variant="outline" disabled={busy[p.id]} onClick={() => decide(p.id, false)}>
                 Not interested
               </Button>
+              <Button
+                size="sm" variant="ghost"
+                onClick={() => setOpenThread(o => o === p.id ? null : p.id)}
+              >
+                <MessageCircle className="w-3.5 h-3.5 mr-1.5" />
+                {openThread === p.id ? "Hide messages" : "Messages"}
+              </Button>
             </div>
           </div>
+
+          {openThread === p.id && (
+            <MessageThread
+              revealRequestId={p.id}
+              role="candidate"
+              twoWayEnabled={p.two_way_enabled}
+              candidateBlocked={p.candidate_blocked}
+            />
+          )}
         </Card>
       ))}
 

@@ -71,6 +71,7 @@ import {
 // v3.131.0 — stage 9: proposal/assessment notification emails. See
 // lib/notifications.ts's own header comment.
 import { notifyCandidate, notifyOrgMembers } from "./lib/notifications.ts";
+import { screenMessageBody } from "./lib/messageSafety.ts";
 // v3.131.0 — stage 10: billing and credits (seeker credit ledger, employer
 // per-period plan limits with override support). See lib/billing.ts's own
 // header comment.
@@ -1987,7 +1988,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
     if (action === "admin_employer_list") {
       if (!(await isPlatformAdmin())) return json({ error: "admin only" }, 403);
       const { data: accounts } = await adminForNew.from("employer_accounts")
-        .select("id, user_id, company_name, status, created_at, approved_at, package_notes")
+        .select("id, user_id, company_name, status, created_at, approved_at, package_notes, position_title, phone, company_website, company_address, company_country")
         .order("created_at", { ascending: false }).limit(200);
       const ids = (accounts || []).map(a => a.user_id);
       const [{ data: profiles }, { data: members }, { data: subs }] = await Promise.all([
@@ -2030,6 +2031,13 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
           requested_at: a.created_at, approved_at: a.approved_at,
           note: a.package_notes,
           subscription: sub, usage,
+          // v3.163.0 — collected and checked at signup (handle_new_user_profile),
+          // surfaced here so approval is an informed decision, not a blind one.
+          verification: {
+            position: a.position_title, phone: a.phone,
+            website: a.company_website, address: a.company_address,
+            country: a.company_country,
+          },
         });
       }
       return json({ employers: rows });
@@ -2981,7 +2989,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
 
     if (action === "reveal_list") {
       const { data: rows } = await adminForNew.from("reveal_requests")
-        .select("id, org_id, search_id, status, created_at, decided_at, job_title, job_location, employment_type, salary_range, job_url, message, sent_at, responded_at")
+        .select("id, org_id, search_id, status, created_at, decided_at, job_title, job_location, employment_type, salary_range, job_url, message, sent_at, responded_at, two_way_enabled, candidate_blocked")
         .eq("candidate_user_id", userId)
         .order("sent_at", { ascending: false });
       const enriched: Array<Record<string, unknown>> = [];
@@ -3016,9 +3024,190 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
           created_at: r.created_at,
           responded_at: r.responded_at || r.decided_at,
           decided_at: r.decided_at,
+          two_way_enabled: !!r.two_way_enabled,
+          candidate_blocked: !!r.candidate_blocked,
         });
       }
       return json({ requests: enriched });
+    }
+
+    // ──────────────────────────── INBOX ────────────────────────────
+    // v3.163.0 — real in-app messaging, attached to the existing proposal
+    // relationship (reveal_requests) rather than a freestanding thread
+    // system, so anonymity-until-accepted stays enforced the same way it
+    // already is everywhere else. Message *reads* deliberately do NOT go
+    // through an action here — the frontend queries inbox_messages
+    // directly, so the "candidate never sees a blocked message" rule is
+    // enforced by the database's own RLS policy, not by remembering to
+    // filter correctly in application code.
+
+    if (action === "inbox_send") {
+      const { reveal_request_ids, body } = payload as { reveal_request_ids?: string[]; body?: string };
+      const ids = Array.isArray(reveal_request_ids) ? reveal_request_ids.filter(Boolean) : [];
+      const text = String(body || "").trim();
+      if (!ids.length) return json({ error: "reveal_request_ids required" }, 400);
+      if (!text) return json({ error: "message body required" }, 400);
+      if (text.length > 2000) return json({ error: "message must be 2000 characters or fewer" }, 400);
+
+      const { data: rows } = await adminForNew.from("reveal_requests")
+        .select("id, org_id, candidate_user_id, two_way_enabled, candidate_blocked")
+        .in("id", ids);
+      if (!rows || rows.length !== ids.length) return json({ error: "one or more threads not found" }, 404);
+
+      // Every targeted thread must belong to the same side of the same
+      // relationship as the caller — an employer can only message threads
+      // in orgs they belong to, a candidate can only reply on their own,
+      // single thread, and only when the employer has opened it two-way.
+      const isCandidateSender = rows.every(r => r.candidate_user_id === userId);
+      let senderRole: "employer" | "candidate";
+      if (isCandidateSender) {
+        if (ids.length !== 1) return json({ error: "candidates can only reply on one thread at a time" }, 400);
+        const r = rows[0];
+        if (r.candidate_blocked) return json({ error: "This employer has blocked further messages on this thread." }, 403);
+        if (!r.two_way_enabled) return json({ error: "This employer hasn't opened this conversation to replies." }, 403);
+        senderRole = "candidate";
+      } else {
+        for (const r of rows) {
+          if (!(await assertOrgMember(r.org_id))) return json({ error: "not an org member for one or more threads" }, 403);
+        }
+        senderRole = "employer";
+      }
+
+      const screen = screenMessageBody(text);
+      const insertRows = rows.map(r => ({
+        reveal_request_id: r.id,
+        sender_role: senderRole,
+        sender_user_id: userId,
+        kind: "text",
+        body: text,
+        status: screen.ok ? "sent" : "blocked",
+        block_reason: screen.ok ? null : screen.reason,
+      }));
+      const { error: iErr } = await adminForNew.from("inbox_messages").insert(insertRows);
+      if (iErr) return json({ error: iErr.message }, 500);
+
+      if (!screen.ok) {
+        return json({ ok: false, blocked: true, reason: screen.reason, sent_count: 0 }, 200);
+      }
+
+      // Best-effort nudge only — the message itself lives in AYN, never in
+      // the notification email body (blueprint.md's own established
+      // pattern for proposal/assessment notifications, reused here).
+      if (senderRole === "employer") {
+        for (const r of rows) {
+          await notifyCandidate(
+            adminForNew, r.candidate_user_id,
+            "You have a new message | AYN",
+            `${heading("New message")}${para("An employer sent you a message. Sign in to AYN to read it.")}`,
+            "inbox_message", ctaButton("https://ayn.careers/", "View message"),
+          );
+        }
+      } else {
+        const { data: org } = await adminForNew.from("orgs").select("id").eq("id", rows[0].org_id).maybeSingle();
+        if (org) {
+          await notifyOrgMembers(
+            adminForNew, String(org.id),
+            "You have a new message | AYN",
+            `${heading("New message")}${para("A candidate replied to your message. Sign in to AYN to read it.")}`,
+            "inbox_message", ctaButton("https://ayn.careers/", "View message"),
+          );
+        }
+      }
+
+      return json({ ok: true, blocked: false, sent_count: rows.length });
+    }
+
+    if (action === "inbox_list_threads") {
+      const { as } = payload as { as?: "employer" | "candidate" };
+      const mode = as === "employer" ? "employer" : "candidate";
+
+      let threadRows: Array<{ id: string; org_id: string; candidate_user_id: string; job_title: string | null; two_way_enabled: boolean; candidate_blocked: boolean }> = [];
+      if (mode === "candidate") {
+        const { data } = await adminForNew.from("reveal_requests")
+          .select("id, org_id, candidate_user_id, job_title, two_way_enabled, candidate_blocked")
+          .eq("candidate_user_id", userId);
+        threadRows = data || [];
+      } else {
+        const { data: memberships } = await adminForNew.from("org_members").select("org_id").eq("user_id", userId);
+        const orgIds = [...new Set((memberships || []).map(m => m.org_id))];
+        if (orgIds.length) {
+          const { data } = await adminForNew.from("reveal_requests")
+            .select("id, org_id, candidate_user_id, job_title, two_way_enabled, candidate_blocked")
+            .in("org_id", orgIds);
+          threadRows = data || [];
+        }
+      }
+      if (!threadRows.length) return json({ threads: [] });
+
+      const threadIds = threadRows.map(t => t.id);
+      const { data: msgs } = await adminForNew.from("inbox_messages")
+        .select("reveal_request_id, sender_role, body, status, read_at, created_at")
+        .in("reveal_request_id", threadIds)
+        .eq("status", "sent")
+        .order("created_at", { ascending: false });
+
+      const orgIds2 = mode === "candidate" ? [...new Set(threadRows.map(t => t.org_id))] : [];
+      const { data: orgs } = orgIds2.length
+        ? await adminForNew.from("orgs").select("id, name").in("id", orgIds2)
+        : { data: [] as { id: string; name: string }[] };
+      const orgNameById = new Map((orgs || []).map(o => [o.id, o.name]));
+
+      const threads = threadRows.map(t => {
+        const tMsgs = (msgs || []).filter(m => m.reveal_request_id === t.id);
+        const last = tMsgs[0] || null;
+        const otherRole = mode === "employer" ? "candidate" : "employer";
+        const unread = tMsgs.filter(m => m.sender_role === otherRole && !m.read_at).length;
+        return {
+          reveal_request_id: t.id,
+          job_title: t.job_title,
+          org_name: mode === "candidate" ? (orgNameById.get(t.org_id) || "A company") : undefined,
+          candidate_ref: mode === "employer" ? `c-${t.candidate_user_id.slice(0, 8)}` : undefined,
+          two_way_enabled: t.two_way_enabled,
+          candidate_blocked: t.candidate_blocked,
+          last_message: last?.body || null,
+          last_message_at: last?.created_at || null,
+          unread_count: unread,
+        };
+      }).sort((a, b) => (b.last_message_at || "").localeCompare(a.last_message_at || ""));
+
+      return json({ threads });
+    }
+
+    if (action === "inbox_mark_read") {
+      const { reveal_request_id, as } = payload as { reveal_request_id?: string; as?: "employer" | "candidate" };
+      if (!reveal_request_id) return json({ error: "reveal_request_id required" }, 400);
+      const { data: r } = await adminForNew.from("reveal_requests")
+        .select("id, org_id, candidate_user_id").eq("id", reveal_request_id).maybeSingle();
+      if (!r) return json({ error: "thread not found" }, 404);
+      const isCandidate = r.candidate_user_id === userId;
+      if (!isCandidate && !(await assertOrgMember(r.org_id))) return json({ error: "not a participant" }, 403);
+      const theirRole = isCandidate ? "employer" : "candidate";
+      await adminForNew.from("inbox_messages")
+        .update({ read_at: new Date().toISOString() })
+        .eq("reveal_request_id", reveal_request_id)
+        .eq("sender_role", theirRole)
+        .is("read_at", null);
+      return json({ ok: true });
+    }
+
+    if (action === "inbox_set_two_way") {
+      const { reveal_request_id, enabled } = payload as { reveal_request_id?: string; enabled?: boolean };
+      if (!reveal_request_id || typeof enabled !== "boolean") return json({ error: "reveal_request_id and enabled required" }, 400);
+      const { data: r } = await adminForNew.from("reveal_requests").select("org_id").eq("id", reveal_request_id).maybeSingle();
+      if (!r) return json({ error: "thread not found" }, 404);
+      if (!(await assertOrgMember(r.org_id))) return json({ error: "not an org member" }, 403);
+      await adminForNew.from("reveal_requests").update({ two_way_enabled: enabled }).eq("id", reveal_request_id);
+      return json({ ok: true, two_way_enabled: enabled });
+    }
+
+    if (action === "inbox_block_candidate") {
+      const { reveal_request_id, blocked } = payload as { reveal_request_id?: string; blocked?: boolean };
+      if (!reveal_request_id || typeof blocked !== "boolean") return json({ error: "reveal_request_id and blocked required" }, 400);
+      const { data: r } = await adminForNew.from("reveal_requests").select("org_id").eq("id", reveal_request_id).maybeSingle();
+      if (!r) return json({ error: "thread not found" }, 404);
+      if (!(await assertOrgMember(r.org_id))) return json({ error: "not an org member" }, 403);
+      await adminForNew.from("reveal_requests").update({ candidate_blocked: blocked }).eq("id", reveal_request_id);
+      return json({ ok: true, candidate_blocked: blocked });
     }
 
     if (action === "reveal_decide") {
@@ -3067,7 +3256,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       if (orgIds.length === 0) return json({ requests: [] });
 
       let q = adminForNew.from("reveal_requests")
-        .select("id, org_id, candidate_user_id, candidate_ref, status, job_title, job_location, employment_type, salary_range, job_url, message, sent_at, responded_at, created_at, decided_at")
+        .select("id, org_id, candidate_user_id, candidate_ref, status, job_title, job_location, employment_type, salary_range, job_url, message, sent_at, responded_at, created_at, decided_at, two_way_enabled, candidate_blocked")
         .in("org_id", orgIds)
         .order("sent_at", { ascending: false });
 
@@ -3098,6 +3287,8 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
           created_at: r.created_at,
           responded_at: r.responded_at || r.decided_at,
           decided_at: r.decided_at,
+          two_way_enabled: !!r.two_way_enabled,
+          candidate_blocked: !!r.candidate_blocked,
         };
         // First name only, so a list of proposals for one role is readable.
         // Last name, email and phone are released ONLY on an accepted proposal.

@@ -60,46 +60,27 @@ const FRESHNESS_DAYS = 7;
 // posting is miscategorized, not as the primary check anymore.
 const LANGUAGE_FILTER = "en";
 
-// v3.134.0 — region restriction, requested directly: Canada, US, Europe,
-// and the Middle East only, named explicitly rather than left as an
-// inferred region (Jordan, Lebanon, Iraq, Yemen, Turkey, and Egypt were
-// asked out by name). Russia and Belarus are excluded too (grouped under
-// CIS, not Europe).
+// v3.163.0 — narrowed to US and Canada only, requested directly: the
+// founder chose to concentrate the whole product on these two markets
+// deliberately (simpler data-residency/privacy posture — no GDPR
+// extraterritorial exposure once EU/Middle East users are no longer being
+// targeted at all — plus richer, easier-to-verify public data in both
+// countries) rather than spread thin across four regions pre-launch, with
+// Europe and the Middle East explicitly left as a later expansion, not a
+// permanent exclusion. Superseded v3.134.0's four-region restriction; the
+// REGION_GROUPS structure itself (separate query + page budget per group,
+// so a smaller region can't be starved by a larger one) is kept as-is
+// since it's still the right shape for exactly one region today and for
+// whichever region gets added back first later.
 //
-// REGION_GROUPS, not one combined list — found live, not assumed: a single
-// query across all target countries sorted by recency starved the Middle
-// East down to ~2 rows out of 386, not because supply was low (a direct
-// check found 16,819 real Middle East postings available in the same
-// 7-day window) but because US/Canada alone had 541,029 available in the
-// same window — 32x more, so the "most recent 500 across everything"
-// was almost entirely US/Canada by simple volume. Each group below now
-// runs its own separate query with its own page budget, so the Middle
-// East (or any smaller region) gets guaranteed real representation
-// instead of being crowded out by a larger one.
-//
-// maxPages bumped 3 to 8 (300 to 800 per region per run) alongside the
-// cron moving from every 4 hours to every 2 (see the job-board-sync
-// pg_cron entry) — discussed directly first: a higher-volume region like
-// North America (~77,000 new postings/day, measured live) generates far
-// more in a single window than any one run can capture, so the real lever
-// for catching more of that moving stream is checking MORE often with a
-// meaningful page budget each time, not less often with a single bigger
-// pull — a once-daily run, no matter how large, would structurally miss
-// postings that appear and get buried by newer ones before the next check,
-// the exact failure mode a bigger MAX_PAGES alone can't fix without also
-// tightening the interval.
+// maxPages raised 8 to 20 for the one remaining group — removing two
+// groups frees real budget in the same per-run window (previously split
+// three ways), and North America's own measured volume (~77,000 new
+// postings/day) is the region that benefits most from a bigger pull per
+// run, per the same "check more often, pull more each time" reasoning
+// v3.134.0 already established.
 const REGION_GROUPS: Array<{ name: string; countries: string; maxPages: number }> = [
-  { name: "north_america", countries: "ca,us", maxPages: 8 },
-  {
-    name: "europe",
-    countries: [
-      "gb", "ie", "fr", "de", "nl", "be", "lu", "ch", "at", "it", "es", "pt",
-      "se", "no", "dk", "fi", "is", "pl", "cz", "sk", "hu", "ro", "bg", "gr",
-      "hr", "si", "ee", "lv", "lt", "mt", "cy", "li", "ad", "mc", "sm",
-    ].join(","),
-    maxPages: 8,
-  },
-  { name: "middle_east", countries: "ae,sa,il,qa,kw,bh,om", maxPages: 8 },
+  { name: "north_america", countries: "ca,us", maxPages: 20 },
 ];
 
 const BLOCKED_AGGREGATOR_HOSTS = [

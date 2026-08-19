@@ -198,6 +198,9 @@ export type Proposal = {
   status: "pending" | "approved" | "declined";
   sent_at: string;
   responded_at: string | null;
+  /** v3.163.0 — inbox controls, employer-set only. */
+  two_way_enabled: boolean;
+  candidate_blocked: boolean;
 };
 
 /** Employer view. Contact fields only ever arrive when status is approved. */
@@ -215,6 +218,9 @@ export type SentProposal = {
   responded_at: string | null;
   first_name?: string | null;
   name?: string | null;
+  /** v3.163.0 — inbox controls, employer-set only. */
+  two_way_enabled: boolean;
+  candidate_blocked: boolean;
 
   email?: string | null;
   phone?: string | null;
@@ -262,5 +268,65 @@ export const employerApi = {
   proposalList: () => call<{ requests: Proposal[] }>({ action: "reveal_list" }),
   proposalDecide: (id: string, approve: boolean) =>
     call<{ ok: true; status: string }>({ action: "reveal_decide", id, approve }),
+
+  // v3.163.0 — inbox. Sends and thread listing go through resume-hub (they
+  // need the safety screen and cross-thread permission checks); reading
+  // the actual messages in a thread is a direct, RLS-protected query
+  // instead (see inboxMessages below) — that's what actually guarantees a
+  // candidate can never see a blocked message, not application code
+  // remembering to filter correctly.
+  inboxSend: (reveal_request_ids: string[], body: string) =>
+    call<{ ok: boolean; blocked: boolean; reason?: string; sent_count: number }>({
+      action: "inbox_send", reveal_request_ids, body,
+    }),
+  inboxThreads: (as: "employer" | "candidate") =>
+    call<{ threads: InboxThread[] }>({ action: "inbox_list_threads", as }),
+  inboxMarkRead: (reveal_request_id: string, as: "employer" | "candidate") =>
+    call<{ ok: true }>({ action: "inbox_mark_read", reveal_request_id, as }),
+  inboxSetTwoWay: (reveal_request_id: string, enabled: boolean) =>
+    call<{ ok: true; two_way_enabled: boolean }>({ action: "inbox_set_two_way", reveal_request_id, enabled }),
+  inboxBlockCandidate: (reveal_request_id: string, blocked: boolean) =>
+    call<{ ok: true; candidate_blocked: boolean }>({ action: "inbox_block_candidate", reveal_request_id, blocked }),
 };
+
+export type InboxThread = {
+  reveal_request_id: string;
+  job_title: string | null;
+  org_name?: string;
+  candidate_ref?: string;
+  two_way_enabled: boolean;
+  candidate_blocked: boolean;
+  last_message: string | null;
+  last_message_at: string | null;
+  unread_count: number;
+};
+
+export type InboxMessage = {
+  id: string;
+  reveal_request_id: string;
+  sender_role: "employer" | "candidate";
+  body: string | null;
+  kind: "text" | "call_invite";
+  call_url: string | null;
+  call_scheduled_at: string | null;
+  status: "sent" | "blocked";
+  read_at: string | null;
+  created_at: string;
+};
+
+/**
+ * Direct, RLS-protected read — deliberately not a resume-hub action. This
+ * is the one query where the database's own policy, not application code,
+ * is what guarantees a candidate never sees a message AYN blocked.
+ */
+export async function inboxMessages(reveal_request_id: string): Promise<InboxMessage[]> {
+  const { supabase } = await import("@/integrations/supabase/client");
+  const { data, error } = await supabase
+    .from("inbox_messages")
+    .select("id, reveal_request_id, sender_role, body, kind, call_url, call_scheduled_at, status, read_at, created_at")
+    .eq("reveal_request_id", reveal_request_id)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data || []) as InboxMessage[];
+}
 

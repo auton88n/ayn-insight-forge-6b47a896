@@ -1,9 +1,11 @@
 # AYN Data Processing Agreement
 
-Version: 1.0
-Effective: 1 August 2026
+Version: 2.0
+Effective: 18 August 2026
 
-This Agreement forms part of the AYN Terms of Service between AYN AI ("AYN") and the Employer named in the account ("Employer", "you"). It applies where you process personal data of individuals located in the United Kingdom, the European Economic Area, Switzerland, or any other jurisdiction with comparable data protection law.
+This Agreement forms part of the AYN Terms of Service between AYN AI ("AYN") and the Employer named in the account ("Employer", "you"). AYN currently operates only in the United States and Canada, and this Agreement is written against US and Canadian data protection law. It applies to your processing of personal data of individuals located in the United States or Canada in connection with your use of the Platform.
+
+**Version 2.0 change note.** AYN narrowed its operating scope to the United States and Canada only. Provisions in the prior version of this Agreement addressing the United Kingdom, the European Economic Area, and Switzerland — including the Standard Contractual Clauses and International Data Transfer Addendum previously incorporated — no longer apply and have been removed, since AYN does not process personal data of individuals located in those jurisdictions.
 
 ---
 
@@ -21,7 +23,7 @@ Section 3 governs the first and third of these. Sections 4 to 12 govern the seco
 
 ## 2. Definitions
 
-"Data Protection Law" means the UK GDPR, the EU GDPR, the Swiss FADP, PIPEDA, Quebec Law 25, the CCPA and CPRA, and any other applicable law governing the processing of personal data.
+"Data Protection Law" means PIPEDA, Quebec Law 25, the CCPA and CPRA, and any other applicable US state or Canadian law governing the processing of personal data.
 
 "Candidate Data" means personal data relating to a job seeker.
 
@@ -29,7 +31,7 @@ Section 3 governs the first and third of these. Sections 4 to 12 govern the seco
 
 "Sub-processor" means a third party engaged by AYN to process Employer Data.
 
-Controller, processor, personal data, processing, data subject, and personal data breach carry the meanings given in the UK and EU GDPR.
+Controller, processor, personal data, processing, data subject, and personal data breach carry meanings consistent with applicable Canadian and US data protection law.
 
 ## 3. Controller to controller terms for Candidate Data
 
@@ -94,13 +96,11 @@ This list describes AYN's measures as at the date of this Agreement. It is not a
 
 **7.3 Change notice.** AYN will give at least fifteen days' notice before adding or replacing a sub-processor, by updating the Subprocessors page. You are responsible for checking that page. You may object on reasonable data protection grounds within that period. If AYN cannot reasonably accommodate the objection, your sole remedy is to terminate the affected subscription at the end of the then current period. No refund is payable.
 
-## 8. International transfers
+## 8. Where data is processed
 
-AYN stores Employer Data in the United Kingdom. Generation and evaluation of text, payment processing, and analytics involve transfers to the United States.
+AYN stores Employer Data on servers we operate in the United States. Generation and evaluation of text, payment processing, and analytics also take place in the United States. AYN's own administration takes place in Canada.
 
-For transfers from the United Kingdom, the parties incorporate the UK International Data Transfer Addendum. For transfers from the EEA, the parties incorporate the European Commission Standard Contractual Clauses, module one where both parties act as controllers under section 3, and module two where AYN acts as processor under sections 4 to 12. Where the Clauses require an option to be selected: docking clause applies, the audit and sub-processor provisions in this Agreement apply, governing law is Ireland, and the supervisory authority is that of the Member State in which you are established.
-
-In the event of conflict, the Clauses prevail over this Agreement.
+Because AYN does not process personal data of individuals located outside the United States and Canada, this Agreement does not incorporate the UK International Data Transfer Addendum or the EU Standard Contractual Clauses. If AYN expands its operating scope in the future, this Agreement will be updated first.
 
 ## 9. Data subject requests
 
@@ -112,7 +112,7 @@ AYN will provide reasonable assistance with data protection impact assessments a
 
 ## 11. Breach notification
 
-AYN will notify you without undue delay after becoming aware of a personal data breach affecting Employer Data, and will provide the information required by Article 33(3) of the UK and EU GDPR so far as it is available to AYN at the time.
+AYN will notify you without undue delay after becoming aware of a personal data breach affecting Employer Data, and will provide the information reasonably necessary for you to meet your own breach notification obligations under applicable Canadian and US law, so far as it is available to AYN at the time.
 
 AYN is not required to provide information it does not hold, to investigate beyond its own systems, or to notify your data subjects or any supervisory authority on your behalf. Those are your responsibilities as controller. Notification is not an admission of fault or liability.
 

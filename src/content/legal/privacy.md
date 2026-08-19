@@ -1,8 +1,8 @@
 # AYN Privacy Policy
 
-Version: 1.0
-Last updated: 1 August 2026
-Effective: 1 August 2026
+Version: 2.0
+Last updated: 18 August 2026
+Effective: 18 August 2026
 
 ---
 
@@ -10,6 +10,7 @@ Effective: 1 August 2026
 
 AYN helps job seekers apply for roles and helps approved employers find candidates who have chosen to be found. That means handling career information, so this policy is written to be read.
 
+- **AYN currently operates only in the United States and Canada.** We do not target, market to, or knowingly collect information from individuals located in the European Union, the United Kingdom, or elsewhere outside the US and Canada. If that changes, we will update this policy first.
 - We do not sell your personal information and we do not share it for cross-context behavioural advertising.
 - You are not visible to employers unless you switch discoverability on yourself.
 - Employers never see your name, email address, or telephone number until you accept their proposal.
@@ -48,7 +49,7 @@ AYN helps job seekers apply for roles and helps approved employers find candidat
 
 ## 3. Purposes and legal bases
 
-| Purpose | Legal basis (GDPR / UK GDPR) |
+| Purpose | Legal basis |
 |---|---|
 | Creating and operating your account | Performance of a contract |
 | Assessing fit, generating documents, answering questions about a role | Performance of a contract |
@@ -59,7 +60,7 @@ AYN helps job seekers apply for roles and helps approved employers find candidat
 | Service improvement and diagnostics | Legitimate interests |
 | Service and legal notices | Contract, and legal obligation |
 
-Under Canadian law we rely on your consent, express or implied by the circumstances, and on the exceptions permitted by PIPEDA and, for Quebec residents, Law 25.
+Under Canadian law we rely on your consent, express or implied by the circumstances, and on the exceptions permitted by PIPEDA and, for Quebec residents, Law 25. Under US state privacy law we rely on the same contractual and legitimate-interest bases described above, consistent with applicable state requirements.
 
 Where we rely on consent, you may withdraw it at any time. Withdrawal does not affect processing already carried out.
 
@@ -73,12 +74,15 @@ Where we rely on consent, you may withdraw it at any time. Withdrawal does not a
 
 | Provider | Purpose | Location |
 |---|---|---|
-| Supabase | Database, authentication, file storage, serverless functions | **London, United Kingdom** |
+| Hostinger | Infrastructure hosting for our servers and database, which we operate ourselves | United States |
 | Stripe | Payments and subscription billing | United States and globally |
-| Lovable | AI gateway routing our model requests, and application hosting | United States and globally |
+| Lovable | AI gateway routing our model requests | United States and globally |
 | Google | Language models used for assessment, generation, and ranking, reached through the gateway above | United States and globally |
 | OpenAI | Text embedding model used to represent profiles, reached through the gateway above | United States and globally |
+| Resend | Transactional and support email delivery | United States |
 | Google Analytics | Aggregate usage measurement | United States and globally |
+
+Unlike a managed database provider, our database and application servers run on infrastructure we lease from Hostinger but administer ourselves. Hostinger provides the physical and network infrastructure; it does not have its own access to your data.
 
 **We do not sell personal information** and we do not share it for cross-context behavioural advertising, as those terms are defined under California law.
 
@@ -96,17 +100,13 @@ We transmit the minimum necessary.
 
 We do not hold agreements directly with the model providers. Our position on training therefore rests on the gateway operator's terms rather than on a contract between us and the provider. We say so plainly rather than implying a direct commitment we do not have.
 
-## 6. International transfers
+## 6. Where your data is stored
 
-AYN is operated from Canada by a Canadian company.
+AYN is operated from Canada by a Canadian company. **Your account data, profile, resume, and assessment records are stored on servers we operate in the United States.**
 
-**Your account data, profile, resume, and assessment records are stored in the United Kingdom**, in our database provider's London region.
+When we generate or evaluate text, the relevant content is processed in the United States by our AI gateway and the underlying model providers. Payment processing also takes place in the United States. Our own administration takes place in Canada.
 
-When we generate or evaluate text, the relevant content leaves the United Kingdom and is processed in the United States by our AI gateway and the underlying model providers. Payment processing also takes place in the United States. Our own administration takes place in Canada.
-
-So a single request may involve the United Kingdom, the United States, and Canada.
-
-For transfers out of the United Kingdom and the European Economic Area we rely on the UK International Data Transfer Addendum and the European Commission's Standard Contractual Clauses respectively, together with supplementary measures where required, and on the adequacy decisions in respect of Canada where they apply. You may request details of the safeguards applying to a specific transfer from support@ayn.careers.
+So a single request may involve the United States and Canada — both countries this policy already covers. Because AYN does not target users outside the US and Canada, we do not currently rely on the cross-border transfer mechanisms (such as the UK International Data Transfer Addendum or the EU Standard Contractual Clauses) that would apply if we did.
 
 ## 7. Retention
 
@@ -136,9 +136,9 @@ AYN uses automated systems, including machine learning models, in four places:
 
 **What this means.** These systems affect which candidates an employer sees and in what order. **They do not make hiring decisions.** A human employer decides who to contact, who to assess, and who to hire. AYN is not a party to that decision.
 
-**Your rights.** Where the law affords you rights over automated processing, including Article 22 of the GDPR and UK GDPR and the automated decision provisions of Quebec's Law 25, you may:
+**Your rights.** You may:
 
-- Request meaningful information about the logic involved and its likely consequences for you;
+- Request meaningful information about how these systems work and what they mean for you;
 - Request human review of an outcome that significantly affects you;
 - Express your point of view and contest an outcome;
 - Object to profiling on grounds relating to your particular situation; and
@@ -156,19 +156,19 @@ We respond within thirty days, or sooner where the law requires. We verify ident
 
 **Canada.** We comply with PIPEDA, and for Quebec residents with Law 25, including its requirements on consent, automated decision-making, portability, and de-indexing. You may complain to the Office of the Privacy Commissioner of Canada, or to the Commission d'accès à l'information du Québec.
 
-**European Economic Area and United Kingdom.** You hold the rights above and may complain to your supervisory authority. Because our records are held in the United Kingdom, we apply UK GDPR standards to all users by default rather than only to those who happen to live there.
-
 **California.** You may know, delete, correct, opt out, and limit the use of sensitive personal information. We neither sell nor share personal information as defined by the CCPA and CPRA. We provide a "Do Not Sell or Share My Personal Information" link regardless.
+
+**Other US states.** Where a state privacy law applicable to you grants comparable rights, we honour them on the same basis described above.
 
 ## 10. Security
 
 We use encryption in transit and at rest, database-level access controls restricting each account to its own records, scoped and revocable extension tokens rather than stored passwords, administrative access behind both a role check and a second factor, and audit logging of privileged actions.
 
-No system is entirely secure. Where a breach creates a real risk of significant harm we will notify affected individuals and the relevant regulators within the periods the law requires, including seventy-two hours under the GDPR, and will maintain a breach register as required under PIPEDA.
+No system is entirely secure. Where a breach creates a real risk of significant harm we will notify affected individuals and the relevant regulators within the periods the law requires, and will maintain a breach register as required under PIPEDA.
 
 ## 11. Children
 
-AYN is not directed to children. You must be at least 16, or the age of digital consent where you live if higher. We do not knowingly collect information from children and will delete it if we learn we have.
+AYN is not directed to children. You must be at least 16, or the age of consent where you live if higher. We do not knowingly collect information from children and will delete it if we learn we have.
 
 ## 12. Cookies
 
@@ -179,6 +179,8 @@ We honour Global Privacy Control signals where technically feasible.
 ## 13. Changes
 
 We will post any change here with a new version number and date. For changes materially affecting your rights we will notify you in the Platform before they take effect and, where required, seek your consent again.
+
+**Version 2.0 (18 August 2026):** AYN narrowed its operating scope to the United States and Canada only, and stopped targeting users in the European Union, United Kingdom, or Middle East. This version also corrects prior descriptions of where account data is stored — it has always been on servers we operate ourselves, and this version accurately describes that infrastructure as US-based rather than referencing a third-party UK-based database provider.
 
 ## 14. Contact
 

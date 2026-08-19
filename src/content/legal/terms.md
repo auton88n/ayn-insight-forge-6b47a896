@@ -1,8 +1,8 @@
 # AYN Terms of Service
 
-Version: 1.0
-Last updated: 1 August 2026
-Effective: 1 August 2026
+Version: 1.1
+Last updated: 18 August 2026
+Effective: 18 August 2026
 
 ---
 
@@ -48,13 +48,15 @@ You acknowledge and agree that:
 
 **(a) No outcome is promised.** AYN does not guarantee any interview, response, offer, hire, retention, quality of hire, or any commercial result whatsoever.
 
-**(b) We verify nothing.** AYN does not verify the identity, credentials, qualifications, employment history, criminal record, immigration status, or right to work of any Job Seeker. AYN does not verify the existence, legitimacy, solvency, licensing, or conduct of any Employer, nor the genuineness of any role described. Users deal with one another at their own risk and are responsible for their own due diligence.
+**(b) We do not verify identity, credentials, or backgrounds.** AYN does not verify the identity, credentials, qualifications, employment history, criminal record, immigration status, or right to work of any Job Seeker. For Employers, AYN performs limited automated checks at signup, including confirming that the signup email address belongs to a business domain matching the stated company website, and that the stated company address is within a country AYN operates in. **These checks confirm consistency of the information provided. They are not identity verification, background checks, or confirmation that any individual, company, or role is genuine, solvent, or lawfully operating.** Users deal with one another at their own risk and are responsible for their own due diligence.
 
 **(c) AYN does not apply on your behalf.** The browser extension operates in read-only mode. It does not enter data into, interact with, or submit any form on any website. Any application submitted to any employer is submitted by the User personally.
 
 **(d) Automated output is probabilistic and may be wrong.** Match scores, Generated Output, assessment evaluations, inferred attributes, and candidate rankings are produced by machine learning systems. They may contain errors, omissions, or inaccurate characterisations. You must review all output before relying on or transmitting it. **You bear sole responsibility for anything you send to a third party.**
 
 **(e) Assessments measure what they measure.** Verification assessments indicate depth of stated experience. They do not establish that an individual answered without assistance, and must not be treated as a proctored or conclusive examination.
+
+**(f) Communicating outside the Platform is at your own risk.** AYN screens messages and links sent through the Platform to reduce common risks. That protection only covers communication that happens within AYN. If you choose to continue a conversation by phone, text, personal email, or any channel outside the Platform, AYN has no visibility into it and no responsibility for what happens there. You do so entirely at your own risk.
 
 ## 5. Eligibility and accounts
 

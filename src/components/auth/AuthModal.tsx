@@ -41,6 +41,15 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
+  // v3.163.0 — employer verification fields, requested directly. Checked
+  // server side by handle_new_user_profile (email domain vs personal-email
+  // providers, email domain vs company website, country vs US/CA) — these
+  // are collected here but the trigger is the actual enforcement.
+  const [positionTitle, setPositionTitle] = useState('');
+  const [phone, setPhone] = useState('');
+  const [companyWebsite, setCompanyWebsite] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [companyCountry, setCompanyCountry] = useState<'US' | 'CA' | ''>('');
   // v2.10.0 — role picker on signup. job_seekers get instant access; employers
   // sit in pending_approval until the AYN team activates them.
   const [signupRole, setSignupRole] = useState<'job_seeker' | 'employer'>(initialRole || 'employer');
@@ -311,7 +320,10 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !fullName || (signupRole === 'employer' && !companyName)) {
+    const employerFieldsMissing = signupRole === 'employer' && (
+      !companyName || !positionTitle || !phone || !companyWebsite || !companyAddress || !companyCountry
+    );
+    if (!email || !password || !fullName || employerFieldsMissing) {
       toast({
         title: t('auth.missingInfo'),
         description: t('auth.missingInfoDesc'),
@@ -353,6 +365,13 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
             full_name: fullName,
             company_name: companyName,
             role: signupRole,
+            ...(signupRole === 'employer' ? {
+              position_title: positionTitle,
+              phone,
+              company_website: companyWebsite,
+              company_address: companyAddress,
+              company_country: companyCountry,
+            } : {}),
             ...consent,
           }
         }
@@ -413,7 +432,12 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
         setPassword('');
         setFullName('');
         setCompanyName('');
-        
+        setPositionTitle('');
+        setPhone('');
+        setCompanyWebsite('');
+        setCompanyAddress('');
+        setCompanyCountry('');
+
         setSignupRole('employer');
         setAcceptedTerms(false);
       }
@@ -666,6 +690,89 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                   </div>
                 )}
               </div>
+
+              {signupRole === 'employer' && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-position" className="ayn-auth-label">Your position *</Label>
+                      <Input
+                        id="signup-position"
+                        type="text"
+                        placeholder="e.g. HR Manager"
+                        value={positionTitle}
+                        onChange={(e) => setPositionTitle(e.target.value)}
+                        disabled={isLoading}
+                        className="ayn-auth-input"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-phone" className="ayn-auth-label">Phone number *</Label>
+                      <Input
+                        id="signup-phone"
+                        type="tel"
+                        placeholder="+1 555 123 4567"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        disabled={isLoading}
+                        className="ayn-auth-input"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-company-website" className="ayn-auth-label">Company website *</Label>
+                    <Input
+                      id="signup-company-website"
+                      type="text"
+                      placeholder="company.com"
+                      value={companyWebsite}
+                      onChange={(e) => setCompanyWebsite(e.target.value)}
+                      disabled={isLoading}
+                      className="ayn-auth-input"
+                    />
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      Your email must match this domain, so we can confirm you're really with this company.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-company-address" className="ayn-auth-label">Company address *</Label>
+                    <Input
+                      id="signup-company-address"
+                      type="text"
+                      placeholder="Street, city, state or province"
+                      value={companyAddress}
+                      onChange={(e) => setCompanyAddress(e.target.value)}
+                      disabled={isLoading}
+                      className="ayn-auth-input"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="ayn-auth-label">Country *</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCompanyCountry('US')}
+                        className={`rounded-lg border p-2.5 text-sm font-medium transition-all ${companyCountry === 'US' ? 'ayn-auth-role-active' : 'border-border bg-muted/40 hover:border-foreground/25'}`}
+                      >
+                        United States
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCompanyCountry('CA')}
+                        className={`rounded-lg border p-2.5 text-sm font-medium transition-all ${companyCountry === 'CA' ? 'ayn-auth-role-active' : 'border-border bg-muted/40 hover:border-foreground/25'}`}
+                      >
+                        Canada
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      AYN currently operates only in the United States and Canada.
+                    </p>
+                  </div>
+                </>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="signup-email" className="ayn-auth-label">

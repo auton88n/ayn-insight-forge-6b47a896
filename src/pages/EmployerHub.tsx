@@ -34,6 +34,7 @@ import CandidateResultCard from "@/components/employer/CandidateResultCard";
 import CandidateProfile from "@/components/employer/CandidateProfile";
 import AssessmentDialog from "@/components/employer/AssessmentDialog";
 import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
+import MessageThread from "@/components/shared/MessageThread";
 import { AynLoader } from "@/components/shared/AynLoader";
 import aynLogo from "@/assets/ayn-logo.png";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
@@ -113,6 +114,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   const [form, setForm] = useState({ job_title: "", job_location: "", employment_type: "", salary_range: "", job_url: "", message: "" });
 
   const [sent, setSent] = useState<SentProposal[]>([]);
+  const [openThread, setOpenThread] = useState<string | null>(null);
 
   // v3.13.0 — the assessment dialog and a reload key for the sent list.
   const [assessFor, setAssessFor] = useState<CandidateCard | null>(null);
@@ -505,6 +507,23 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                     )}
                     {s.status === "declined" && (
                       <p className="text-xs text-muted-foreground">They passed on this role.</p>
+                    )}
+                    <Button
+                      size="sm" variant="ghost" className="h-7 px-2 text-xs"
+                      onClick={() => setOpenThread(o => o === s.id ? null : s.id)}
+                    >
+                      <Mail className="w-3.5 h-3.5 mr-1.5" />
+                      {openThread === s.id ? "Hide messages" : "Messages"}
+                    </Button>
+                    {openThread === s.id && (
+                      <MessageThread
+                        revealRequestId={s.id}
+                        role="employer"
+                        twoWayEnabled={s.two_way_enabled}
+                        candidateBlocked={s.candidate_blocked}
+                        onTwoWayChange={(enabled) => setSent(prev => prev.map(x => x.id === s.id ? { ...x, two_way_enabled: enabled } : x))}
+                        onBlockChange={(blocked) => setSent(prev => prev.map(x => x.id === s.id ? { ...x, candidate_blocked: blocked } : x))}
+                      />
                     )}
                   </div>
                 ))}

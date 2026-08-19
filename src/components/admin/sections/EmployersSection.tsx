@@ -59,6 +59,19 @@ export default function EmployersSection() {
                     )}
                   </div>
                   {e.about && <p className="text-xs text-muted-foreground mt-2 max-w-2xl leading-relaxed">{e.about}</p>}
+                  {e.verification && (
+                    <div className="text-xs mt-3 pt-3 border-t border-border/60 space-y-0.5">
+                      <p className="font-medium text-foreground">Verification, checked at signup</p>
+                      {e.verification.position && <p className="text-muted-foreground">Signer's position: {e.verification.position}</p>}
+                      {e.verification.phone && <p className="text-muted-foreground">Phone: {e.verification.phone}</p>}
+                      {e.verification.website && <p className="text-muted-foreground">Claimed website: {e.verification.website}</p>}
+                      {e.verification.address && <p className="text-muted-foreground">Address: {e.verification.address}</p>}
+                      {e.verification.country && <p className="text-muted-foreground">Country: {e.verification.country === 'US' ? 'United States' : e.verification.country === 'CA' ? 'Canada' : e.verification.country}</p>}
+                      {!e.verification.position && !e.verification.phone && (
+                        <p className="text-muted-foreground italic">No verification data — account predates the verification requirement.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <Button size="sm" disabled={act.isPending}
