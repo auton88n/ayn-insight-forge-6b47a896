@@ -77,7 +77,7 @@ app.use(express.static(DIST, {
 const ROUTES = [
   '/', '/pricing', '/resume-hub', '/contact', '/support', '/help', '/about',
   '/terms', '/privacy', '/settings', '/billing',
-  '/handoff', '/extension/approve', '/employer/pending', '/reset-password',
+  '/employer/pending', '/reset-password',
   '/approval-result', '/subscription-success', '/subscription-canceled',
   '/dashboard', '/admin',
 ];

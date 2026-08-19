@@ -17,7 +17,7 @@ import {
   Search, ClipboardCheck, MailCheck, Building2, Eye, Mail, Ban, Clock, Users,
 } from 'lucide-react';
 import {
-  ExtensionOnPostingMockup,
+  JobMatchMockup,
   TailoredDocsMockup,
   CandidateCardMockup,
   AssessmentMockup,
@@ -81,7 +81,7 @@ const PAIN: Record<Audience, { eyebrow: string; title: string; lead: string; who
 // generic, AI-written resumes, which is why the answer here is verification,
 // not just matching. Two different competitor shapes, kept as two lists.
 const AI_CONTRAST = [
-  'Reads the actual posting in front of you, not a keyword list',
+  'Reads the actual job description, not a keyword list',
   'Writes from your real experience. Nothing invented, nothing generic',
   'Read only. It never fills out a form or submits anything for you',
 ];
@@ -302,8 +302,8 @@ const HERO: Record<Audience, {
     headline: <>Employers can find you <em>before you even apply.</em></>,
     lead: "AI-powered job search built by engineers, for modern job seekers.",
     cta: 'Start free',
-    note: 'Read only. It never types or submits for you.',
-    art: <ExtensionOnPostingMockup />,
+    note: 'You review and send every application yourself. AYN never auto-applies for you.',
+    art: <JobMatchMockup />,
   },
   employer: {
     headline: <>AI-powered hiring built by engineers, <em>for modern employers.</em></>,

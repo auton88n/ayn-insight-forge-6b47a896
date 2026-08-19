@@ -26,9 +26,7 @@ const PLANS = [
 ];
 
 const FREE_FOREVER = [
-  'Match scoring on any job page',
-  'Ask AYN about the role you are reading',
-  'The Chrome extension',
+  'Match scoring on any job you add',
   'Your profile and your resume',
   'Being discovered by employers',
   'Receiving and answering proposals',
@@ -70,7 +68,7 @@ const Pricing = () => {
     <div className="min-h-screen bg-background flex flex-col">
       <SEO
         title="Pricing for job seekers | AYN"
-        description="AYN credits pay for tailored resumes and cover letters. Match scoring, Ask AYN, the extension and being discovered by employers are free on every plan."
+        description="AYN credits pay for tailored resumes and cover letters. Match scoring and being discovered by employers are free on every plan."
       />
       <Header />
 

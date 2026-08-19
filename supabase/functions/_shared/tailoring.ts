@@ -891,10 +891,9 @@ export function verifyWriteQuality(inputText: string, outputResume: unknown, mis
 }
 
 /** Same checks as verifyWriteQuality, for a flat prose string instead of a
- * structured resume — the extension's smart_tailor and both cover-letter
- * paths (web and extension) produce plain text, not RESUME_SCHEMA. No
- * figure check here; each of those call sites already runs its own
- * droppedFigures check against the right before/after text.
+ * structured resume — the cover-letter path produces plain text, not
+ * RESUME_SCHEMA. No figure check here; that call site already runs its
+ * own droppedFigures check against the right before/after text.
  * checkPronouns defaults on for resume-shaped prose (implied third person)
  * but a cover letter is legitimately first person — callers writing a
  * cover letter must pass false, or every real "I have experience with..."

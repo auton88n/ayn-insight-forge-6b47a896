@@ -1,8 +1,7 @@
 // _shared/identity.ts — v2.13.0 (Slice 2 of "Reliable by construction")
 //
 // Single Source of Truth for applicant identity across every edge action
-// that needs it (ext_bootstrap, ext_profile, ext_job_score, smart_tailor,
-// ext_cover_letter_text).
+// that needs it (tailor, cover_letter, match, job_fit_advice, and more).
 //
 // WHY THIS EXISTS: per action inline merges used to return an empty
 // identity when the user had a resume but no profile row, and never

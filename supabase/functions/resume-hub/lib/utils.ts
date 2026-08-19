@@ -92,14 +92,16 @@ export async function resolveResumeContent(
   return { id: null, content: null, source: "none" };
 }
 
-export const EXT_ACTIONS = new Set([
-  "ext_bootstrap", "ext_cover_letter_text",
-  "ext_job_score", "ext_suggest_roles", "ext_find_contacts",
-  "ext_download_resume_text", "smart_tailor", "ext_ask",
-  // v1.5.0: canonical profile read for extension
-  "ext_profile_canonical_get",
-  // v2.8.0: JD resolver — fetch previously-ingested JD by host+path
-  "ext_job_lookup",
-]);
+// Chrome extension retired — every capability it offered now lives in the
+// web app. TAILOR_TTL/parseJsonLoose moved here from the now-deleted
+// lib/smartTailor.ts since the web lane's own tailor/cover_letter/
+// assessment-grading code still uses both.
+export const TAILOR_TTL = 7 * 24 * 60 * 60 * 1000;
 
-export const LINK_PUBLIC_ACTIONS = new Set(["link_start", "link_poll"]);
+export function parseJsonLoose<T>(text: string): T | null {
+  try {
+    const raw = String(text || "").replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+    const s = raw.indexOf("{"), e = raw.lastIndexOf("}");
+    return JSON.parse(s !== -1 ? raw.slice(s, e + 1) : raw) as T;
+  } catch { return null; }
+}

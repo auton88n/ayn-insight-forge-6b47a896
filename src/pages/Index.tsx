@@ -101,8 +101,9 @@ const Index = () => {
 // v2.10.0 — Route employers through the pending gate until an admin approves.
 // v3.6.0 — an APPROVED employer lands in the hiring surface.
 // v3.8.0 — a job seeker lands in Resume Hub. The open ended dashboard chat is
-// gone; Ask AYN in the extension, grounded in a real job description, is where
-// a seeker talks to AYN now.
+// gone in favor of grounded, per-job actions (score, tailor, cover letter).
+// v3.164.0 — the Chrome extension that later carried "Ask AYN" is retired too;
+// every seeker-facing capability now lives in Resume Hub itself.
 const AuthedShell = ({ user, session: _session }: { user: User; session: Session }) => {
   const { loading, role, employerStatus, companyName } = useUserRole(user.id);
   const platform = useFeature('platform');

@@ -632,7 +632,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
         {jobs.length === 0 && (
           <Card className="p-10 text-center text-muted-foreground">
             <FileText className="w-10 h-10 mx-auto mb-3 opacity-50" />
-            No saved jobs yet. Install the Chrome extension to save jobs from LinkedIn, Indeed, or any career page.
+            No saved jobs yet. Browse jobs or add one manually to get started.
           </Card>
         )}
 

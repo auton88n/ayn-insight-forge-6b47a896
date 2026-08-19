@@ -126,9 +126,6 @@ export const resumeHubApi = {
   coverLetter: (jdText: string, opts?: { tone?: string; company?: string; idempotencyKey?: string }) =>
     call<{ body: string }>("resume-hub", { action: "cover_letter", jdText, tone: opts?.tone, company: opts?.company, idempotency_key: opts?.idempotencyKey }),
 
-  listTokens: () => call<{ tokens: Array<{ id: string; token_prefix: string; device_label: string; last_used_at: string | null; revoked_at: string | null; created_at: string }> }>("resume-hub", { action: "token_list" }),
-  revokeToken: (id: string) => call<{ ok: true }>("resume-hub", { action: "token_revoke", id }),
-
   // v2.9.0-A — Talent pool consent + status.
   // v3.2.0 — also returns the employer preview, skills with provenance, and
   // the freshness timestamps the Hub shows.

@@ -10,8 +10,8 @@ name: CI
 #     supabase/functions/ has never been in its scope, so this catches
 #     frontend type errors, not edge-function ones.
 #   - check-wiring.mjs catches exactly the class of bug this app has hit
-#     more than once: the extension, sidepanel, and backend action names
-#     drifting out of sync.
+#     more than once: src/lib/resumeHub.ts and the edge function's own
+#     action names drifting out of sync.
 #   - test:unit is the real jsdom/vitest suite under src/. Marked
 #     continue-on-error below: verified live (real Node 22, not this
 #     sandbox's 20.12) that useFileUpload.test.ts has 12 pre-existing
@@ -65,7 +65,7 @@ jobs:
       - name: Type check (src/)
         run: npx tsc --noEmit
 
-      - name: Wiring check (extension/sidepanel/hub actions in sync)
+      - name: Wiring check (hub actions in sync)
         run: node scripts/check-wiring.mjs
 
       - name: Unit tests

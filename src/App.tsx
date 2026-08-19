@@ -75,7 +75,6 @@ const EmployerPending = lazy(() => import("./pages/EmployerPending"));
 // const SolutionsPage = lazy(() => import("./pages/Solutions"));
 const ContactPage = lazy(() => import("./pages/Contact"));
 const ResumeHub = lazy(() => import("./pages/ResumeHub"));
-const Handoff = lazy(() => import("./pages/Handoff"));
 // const AIAgents = lazy(() => import("./pages/services/AIAgents"));
 // const AIAgentsApply = lazy(() => import("./pages/services/AIAgentsApply"));
 // const Automation = lazy(() => import("./pages/services/Automation"));
@@ -95,7 +94,6 @@ const DoNotSell = lazy(() => import("./pages/DoNotSell"));
 const LegalIndex = lazy(() => import("./pages/LegalIndex"));
 const LegalDoc = lazy(() => import("./components/legal/LegalPage"));
 import { CookieConsent } from "@/components/shared/CookieConsent";
-const ExtensionApprove = lazy(() => import("./pages/ExtensionApprove"));
 
 // Admin — lazy loaded so 3D/globe/main app code never loads for admin users
 const AdminApp = lazy(() => import('./admin-app/AdminApp'));
@@ -141,7 +139,6 @@ const AnimatedRoutes = () => {
       <Route path="/contact" element={<Suspense fallback={<PageLoader />}><ContactPage /></Suspense>} />
       <Route path="/resume-hub" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
-      <Route path="/handoff" element={<Suspense fallback={<PageLoader />}><Handoff /></Suspense>} />
       <Route path="/employer/pending" element={<Suspense fallback={<PageLoader />}><EmployerPending /></Suspense>} />
       <Route path="/help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
       <Route path="/support" element={<Navigate to="/help" replace />} />
@@ -160,7 +157,6 @@ const AnimatedRoutes = () => {
       <Route path="/sla" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="sla" /></Suspense>} />
       <Route path="/copyright" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="copyright" /></Suspense>} />
 
-      <Route path="/extension/approve" element={<Suspense fallback={<PageLoader />}><ExtensionApprove /></Suspense>} />
       <Route path="/manage-bae76e99d97e188b" element={<Suspense fallback={<PageLoader />}><AdminApp /></Suspense>} />
       <Route path="/manage-bae76e99d97e188b/*" element={<Suspense fallback={<PageLoader />}><AdminApp /></Suspense>} />
       <Route path="/admin" element={<Navigate to="/404" replace />} />

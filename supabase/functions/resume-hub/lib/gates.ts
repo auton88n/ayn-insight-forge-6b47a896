@@ -79,74 +79,6 @@ export async function featureGate(
   return null;
 }
 
-// ─────────────────────────────────────────────────────────────
-// v3.31.0 MINIMUM EXTENSION VERSION
-// The extension is sideloaded, so an old build keeps running whatever code
-// it shipped with. Every extension lane request carries x-ayn-ext-version.
-// Anything below the configured minimum is refused with the same answer
-// shape as the v3.25.0 maintenance gate, so the sidepanel can show the
-// message plainly instead of failing silently. The minimum lives in
-// system_config.extension_min_version, so raising it needs no redeploy.
-// ─────────────────────────────────────────────────────────────
-export const EXT_MIN_VERSION_FALLBACK = "3.3.0";
-
-let minVerCache: { at: number; version: string } | null = null;
-
-export async function readMinExtVersion(admin: SupabaseClient<any, any, any>): Promise<string> {
-  if (minVerCache && Date.now() - minVerCache.at < 30_000) return minVerCache.version;
-  let version = EXT_MIN_VERSION_FALLBACK;
-  try {
-    const { data } = await admin
-      .from("system_config")
-      .select("value")
-      .eq("key", "extension_min_version")
-      .maybeSingle();
-    const v = (data?.value as { version?: string } | string | null) ?? null;
-    const raw = typeof v === "string" ? v : (v?.version || "");
-    if (/^\d+(\.\d+)*$/.test(String(raw))) version = String(raw);
-  } catch {
-    // A read failure must never lock every extension out.
-    version = EXT_MIN_VERSION_FALLBACK;
-  }
-  minVerCache = { at: Date.now(), version };
-  return version;
-}
-
-/** Compares dotted numeric versions. Returns true when a is older than b. */
-export function versionOlder(a: string, b: string): boolean {
-  const pa = String(a || "0").split(".").map((n) => parseInt(n, 10) || 0);
-  const pb = String(b || "0").split(".").map((n) => parseInt(n, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const x = pa[i] || 0, y = pb[i] || 0;
-    if (x !== y) return x < y;
-  }
-  return false;
-}
-
-/**
- * Returns a 426 Response when the calling extension build is too old,
- * otherwise null. A build that sends no version header at all predates the
- * header, so it is treated as 0.0.0 and refused.
- */
-export async function extVersionGate(
-  admin: SupabaseClient<any, any, any>,
-  req: Request,
-): Promise<Response | null> {
-  const min = await readMinExtVersion(admin);
-  const reported = (req.headers.get("x-ayn-ext-version") || "").trim();
-  const client = /^\d+(\.\d+)*$/.test(reported) ? reported : "0.0.0";
-  if (!versionOlder(client, min)) return null;
-  return json({
-    code: "extension_outdated",
-    error: "extension_outdated",
-    feature: "extension",
-    min_version: min,
-    your_version: client === "0.0.0" ? null : client,
-    message: `This AYN extension build is out of date and no longer works. Download the current version from ayn.careers and reinstall it. Minimum supported version is ${min}.`,
-  }, 426);
-}
-
-
 
 // ─────────────────────────────────────────────────────────────
 // v3.28.0 ACCOUNT MODERATION
@@ -165,11 +97,6 @@ export const ACTION_CAPABILITY: Record<string, AccountCapability> = {
   tailor: "ai",
   cover_letter: "ai",
   score: "ai",
-  ext_ask: "ai",
-  ext_job_score: "ai",
-  ext_cover_letter_text: "ai",
-  ext_suggest_roles: "ai",
-  smart_tailor: "ai",
 };
 
 export const RESTRICTION_MESSAGE: Record<AccountCapability, string> = {

@@ -380,7 +380,7 @@ export function AccountDetailDialog({
                       <>
                         <p className="text-xs text-muted-foreground">
                           Erase removes the person from the product: resume, profile, saved jobs, tailored documents,
-                          talent pool entry, extension tokens and learned answers are deleted, and the login is disabled.
+                          talent pool entry and learned answers are deleted, and the login is disabled.
                           What is kept, and why: the credit ledger and the subscription record for accounting, and the
                           proposals and assessments an employer sent them so the employer's own history stays intact,
                           with the candidate reduced to an opaque reference carrying no name, email or phone.
@@ -550,7 +550,7 @@ export function AccountDetailDialog({
               {danger === 'purge'
                 ? 'The login record itself is removed. This cannot be undone and there is nothing to restore afterwards.'
                 : dangerStep === 1
-                  ? 'Deleted: resume, profile, saved jobs, tailored documents, talent pool entry, extension tokens and learned answers. Kept: the credit ledger and subscription for accounting, and the proposals and assessments the person received so the employer history stays whole, with the candidate reduced to an opaque reference. The login is disabled.'
+                  ? 'Deleted: resume, profile, saved jobs, tailored documents, talent pool entry and learned answers. Kept: the credit ledger and subscription for accounting, and the proposals and assessments the person received so the employer history stays whole, with the candidate reduced to an opaque reference. The login is disabled.'
                   : 'Type the account email exactly as it appears on the account. Nothing is filled in for you.'}
             </AlertDialogDescription>
           </AlertDialogHeader>

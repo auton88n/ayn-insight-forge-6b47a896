@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Home, User, Briefcase, Puzzle, Download, Mail, LogOut, ClipboardCheck, CreditCard, Settings, Compass } from "lucide-react";
+import { Home, User, Briefcase, Mail, LogOut, ClipboardCheck, CreditCard, Settings, Compass } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -16,22 +16,20 @@ import { AynLoader } from "@/components/shared/AynLoader";
 const HomeTab = lazy(() => import("@/components/resume-hub/HomeTab"));
 const JobsTab = lazy(() => import("@/components/resume-hub/JobsTab"));
 const BrowseJobs = lazy(() => import("@/components/resume-hub/BrowseJobs"));
-const ExtensionTab = lazy(() => import("@/components/resume-hub/ExtensionTab"));
 const ProfileTab = lazy(() => import("@/components/resume-hub/ProfileTab"));
 const ProposalsTab = lazy(() => import("@/components/resume-hub/ProposalsTab"));
 const AssessmentsTab = lazy(() => import("@/components/resume-hub/AssessmentsTab"));
 import { employerApi } from "@/lib/employer";
 import { assessmentApi } from "@/lib/assessments";
 import { billingApi } from "@/lib/billing";
-import manifest from "../../extension/manifest.json";
 import "@/styles/resume-hub.css";
 import aynLogo from "@/assets/ayn-logo.png";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { PlatformMaintenanceScreen } from "@/components/shared/MaintenanceNotice";
 
 
-type TabKey = "home" | "profile" | "browse" | "jobs" | "proposals" | "assessments" | "extension";
-const TAB_KEYS: TabKey[] = ["home", "profile", "browse", "jobs", "proposals", "assessments", "extension"];
+type TabKey = "home" | "profile" | "browse" | "jobs" | "proposals" | "assessments";
+const TAB_KEYS: TabKey[] = ["home", "profile", "browse", "jobs", "proposals", "assessments"];
 
 // v3.145.0 — reported directly: refreshing the page always dropped the
 // person back on Home, no matter which section (or which job) they were
@@ -49,6 +47,7 @@ function readStoredTab(): TabKey {
 // v3.13.0 — Assessments sits right after it, badged the same way.
 // v3.69.0 — Get discovered removed: "Let employers find me" and everything
 // it powers moved into Profile, so this nav item had nothing left to hold.
+// v3.164.0 — Browser extension removed: everything it did now lives here.
 const NAV: { key: TabKey; label: string; icon: typeof Home; hint: string }[] = [
   { key: "home",        label: "Home",              icon: Home,           hint: "Start here" },
   { key: "profile",     label: "Profile",           icon: User,           hint: "You, your resume, your goals" },
@@ -56,7 +55,6 @@ const NAV: { key: TabKey; label: string; icon: typeof Home; hint: string }[] = [
   { key: "jobs",        label: "Saved jobs",        icon: Briefcase,      hint: "Score and tailor" },
   { key: "proposals",   label: "Proposals",         icon: Mail,           hint: "Roles employers want you for" },
   { key: "assessments", label: "Assessments",       icon: ClipboardCheck, hint: "Questions about your own work" },
-  { key: "extension",   label: "Browser extension", icon: Puzzle,         hint: "Score jobs as you browse" },
 ];
 
 
@@ -195,19 +193,6 @@ export default function ResumeHub() {
     );
   }
 
-  const downloadExtension = () => {
-    fetch("/ayn-extension.zip")
-      .then((r) => { if (!r.ok) throw new Error(`Download failed: ${r.status}`); return r.blob(); })
-      .then((blob) => {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = "ayn-extension.zip";
-        a.click();
-        URL.revokeObjectURL(a.href);
-      })
-      .catch((err) => toast({ title: "Download failed", description: err.message, variant: "destructive" }));
-  };
-
   if (platform.loaded && !platform.enabled) return <PlatformMaintenanceScreen />;
 
   return (
@@ -334,8 +319,6 @@ export default function ResumeHub() {
 
               {tab === "browse"    && <BrowseJobs userId={userId!} onAdded={goJob} onOpenProfile={() => setTab("profile")} />}
               {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} onOpenProfile={() => setTab("profile")} onCreditsChanged={refreshCredits} onBackToBrowse={() => setTab("browse")} />}
-
-              {tab === "extension" && <ExtensionTab userId={userId!} />}
             </Suspense>
           </section>
 
@@ -352,16 +335,6 @@ export default function ResumeHub() {
               <div className="rh-aside-label">Section</div>
               <div className="rh-stat"><span>Active view</span><b>{NAV.find(n => n.key === tab)?.label}</b></div>
               <div className="rh-stat"><span>Mode</span><b>{NAV.find(n => n.key === tab)?.hint}</b></div>
-            </div>
-            <div className="rh-aside-section">
-              <div className="rh-aside-label">Chrome extension</div>
-              <p className="text-[13px] text-[color:var(--rh-muted)] leading-relaxed mb-2">
-                Score and tailor on any job board. AYN only reads the page.
-              </p>
-
-              <button className="rh-btn w-full justify-center" onClick={downloadExtension}>
-                <Download className="w-4 h-4" /> Download v{manifest.version}
-              </button>
             </div>
           </aside>
         </div>

@@ -34,7 +34,6 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { notifyProfileUpdated } from "@/lib/extension";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import GuidedIntake from "@/components/resume-hub/GuidedIntake";
 import GapProbeDialog from "@/components/resume-hub/GapProbeDialog";
@@ -393,7 +392,6 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       ]);
       if (cErr) throw new Error(cErr.message);
       if (pErr) throw new Error(pErr.message);
-      void notifyProfileUpdated();
       reindexTalentPool("profile_save");
       setSaveState("saved");
     } catch (e) {

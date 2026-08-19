@@ -2,8 +2,9 @@
  * AppMockups — inline SVG renditions of the real AYN screens.
  *
  * Every one of these mirrors a surface that actually exists in the product:
- * the extension panel on a live posting, the tailored documents produced for
- * one job, the employer candidate card, and a verification assessment.
+ * a saved job scored against your real profile, the tailored documents
+ * produced for one job, the employer candidate card, and a verification
+ * assessment.
  *
  * All static, no runtime fetch, so reduced motion is satisfied by
  * construction. Palette matches the landing tokens. One exception to the
@@ -32,43 +33,40 @@ const FD = "'Outfit', system-ui, sans-serif";
 const svgBase: React.CSSProperties = { width: '100%', height: 'auto', display: 'block' };
 const a11y = { role: 'img' as const, focusable: 'false' as const };
 
-function Chrome({ url, w }: { url: string; w: number }) {
+function AppChrome({ label, w }: { label: string; w: number }) {
   return (
     <g>
       <rect x="0" y="0" width={w} height="34" rx="0" fill={T.surface} />
       <circle cx="20" cy="17" r="4.5" fill="rgba(0,0,0,0.12)" />
       <circle cx="36" cy="17" r="4.5" fill="rgba(0,0,0,0.12)" />
       <circle cx="52" cy="17" r="4.5" fill="rgba(0,0,0,0.12)" />
-      <rect x="70" y="7" width={w - 150} height="20" rx="10" fill="#fff" stroke={T.border} />
-      <text x="84" y="21" fontFamily={F} fontSize="10.5" fill={T.inkSub}>{url}</text>
-      <rect x={w - 68} y="7" width="52" height="20" rx="10" fill={T.ember} />
-      <text x={w - 42} y="21" textAnchor="middle" fontFamily={FD} fontSize="10" fontWeight="700" fill="#fff" letterSpacing="0.6">AYN</text>
+      <text x={w / 2} y="21" fontFamily={F} fontSize="11" fill={T.inkSub} textAnchor="middle">{label}</text>
     </g>
   );
 }
 
-/* ── 1. The extension reading a real posting ───────────────── */
-export function ExtensionOnPostingMockup({ style }: { style?: React.CSSProperties }) {
+/* ── 1. A saved job scored against your real profile ───────── */
+export function JobMatchMockup({ style }: { style?: React.CSSProperties }) {
   const W = 900, H = 430;
   const matched = ['React and TypeScript', 'Design systems at scale', 'Mentoring engineers'];
   const missing = ['Kubernetes', 'Terraform'];
   return (
-    <svg {...a11y} aria-label="The AYN panel open beside a job posting, showing a match score, matched skills and real gaps" viewBox={`0 0 ${W} ${H}`} style={{ ...svgBase, ...style }} preserveAspectRatio="xMidYMid meet">
+    <svg {...a11y} aria-label="A saved job in AYN showing a match score, matched skills and real gaps" viewBox={`0 0 ${W} ${H}`} style={{ ...svgBase, ...style }} preserveAspectRatio="xMidYMid meet">
       <rect x="0.5" y="0.5" width={W - 1} height={H - 1} rx="16" fill={T.paper} stroke={T.borderMd} />
       <clipPath id="mk1"><rect x="0" y="0" width={W} height={H} rx="16" /></clipPath>
       <g clipPath="url(#mk1)">
-        <Chrome url="boards.greenhouse.io/acme/jobs/senior-frontend-engineer" w={W} />
+        <AppChrome label="Saved jobs" w={W} />
 
         {/* posting */}
         <text x="30" y="72" fontFamily={FD} fontSize="19" fontWeight="700" fill={T.ink}>Senior Frontend Engineer</text>
         <text x="30" y="93" fontFamily={F} fontSize="12" fill={T.inkSub}>Acme · Toronto, hybrid · Full time</text>
         <rect x="30" y="108" width="118" height="20" rx="10" fill="rgba(232,93,58,0.12)" stroke="rgba(232,93,58,0.3)" />
-        <text x="89" y="122" textAnchor="middle" fontFamily={F} fontSize="10.5" fontWeight="600" fill={T.emberDeep}>1,240 words read</text>
+        <text x="89" y="122" textAnchor="middle" fontFamily={F} fontSize="10.5" fontWeight="600" fill={T.emberDeep}>Full description saved</text>
 
         {[148, 168, 188, 208, 228, 248, 268, 288, 308, 328, 348, 368].map((y, i) => (
           <rect key={y} x="30" y={y} width={i % 3 === 2 ? 300 : i % 2 ? 470 : 520} height="7" rx="3.5" fill={T.inkSub} opacity={0.18} />
         ))}
-        <text x="30" y="400" fontFamily={F} fontSize="11" fill={T.inkSub} opacity="0.8">The full posting, not the nav bar.</text>
+        <text x="30" y="400" fontFamily={F} fontSize="11" fill={T.inkSub} opacity="0.8">The full posting, not a summary.</text>
 
         {/* panel */}
         <rect x="596" y="34" width={W - 596} height={H - 34} fill={T.surface} />
@@ -98,7 +96,7 @@ export function ExtensionOnPostingMockup({ style }: { style?: React.CSSPropertie
         ))}
 
         <rect x="614" y="384" width="262" height="30" rx="9" fill="rgba(232,93,58,0.12)" stroke="rgba(232,93,58,0.3)" />
-        <text x="745" y="403" textAnchor="middle" fontFamily={F} fontSize="11" fontWeight="600" fill={T.emberDeep}>Grounded on the posting you are reading</text>
+        <text x="745" y="403" textAnchor="middle" fontFamily={F} fontSize="11" fontWeight="600" fill={T.emberDeep}>Grounded on the actual job description</text>
       </g>
     </svg>
   );
