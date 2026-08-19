@@ -38,9 +38,13 @@ const TAB_KEYS: TabKey[] = ["home", "profile", "browse", "jobs", "proposals", "a
 // starting on Home is normal, an in-session refresh throwing the person's
 // place away is not.
 const TAB_STORAGE_KEY = "ayn_active_tab";
+// v3.166.0 — asked directly for Browse Jobs to be the first thing a job
+// seeker sees. Only the fallback changes: a real stored tab (this session,
+// or mid-session after switching) still wins, so nobody gets yanked away
+// from wherever they actually are.
 function readStoredTab(): TabKey {
   const v = sessionStorage.getItem(TAB_STORAGE_KEY);
-  return (TAB_KEYS as string[]).includes(v || "") ? (v as TabKey) : "home";
+  return (TAB_KEYS as string[]).includes(v || "") ? (v as TabKey) : "browse";
 }
 
 // v3.6.0 — Proposals is its own page, between Jobs and Assessments.

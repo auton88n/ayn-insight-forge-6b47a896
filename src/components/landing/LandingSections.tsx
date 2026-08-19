@@ -308,10 +308,11 @@ const HERO: Record<Audience, {
   art?: JSX.Element;
 }> = {
   job_seeker: {
-    headline: <>Employers can find you <em>before you even apply.</em></>,
-    lead: "AI-powered job search built by engineers, for modern job seekers.",
+    headline: <>Every real job, scored against you. <em>Before you write a word.</em></>,
+    lead: "Company career pages only, refreshed continuously. Never LinkedIn or Indeed.",
     cta: 'Start free',
     note: 'You review and send every application yourself. AYN never auto-applies for you.',
+    art: <BrowseJobsMockup />,
   },
   employer: {
     headline: <>AI-powered hiring built by engineers, <em>for modern employers.</em></>,
