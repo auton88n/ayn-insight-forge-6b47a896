@@ -238,7 +238,21 @@ Deno.serve(async (req) => {
       const baseUrl = redirectTo.replace(/\/$/, '');
       redirectTo = `${baseUrl}/reset-password`;
     }
-    const confirmationUrl = `https://dfkoxuokfkttjhfjcecx.supabase.co/auth/v1/verify?token=${email_data.token_hash}&type=${email_data.email_action_type}&redirect_to=${encodeURIComponent(redirectTo)}`;
+    // v3.165.0 — this used to hardcode the old Lovable Cloud project's
+    // *.supabase.co domain here. It went unnoticed for a long time because
+    // GoTrue's Send Email hook was disabled on self-hosted (native SMTP sent
+    // GoTrue's own unbranded template instead), so this code path was never
+    // actually reached. Enabling the hook made it live, and it would have
+    // sent every real confirmation/recovery email with a broken link to a
+    // domain this deployment doesn't control. Derived from the hook's own
+    // site_url instead of a literal, so it can never drift out of sync with
+    // wherever the app actually lives. Confirmed live (logged the real hook
+    // payload once, removed after): GoTrue's email_data.site_url is already
+    // the auth API base (e.g. https://ayn.careers/auth/v1, == API_EXTERNAL_URL),
+    // not the bare site root — appending /auth/v1/verify a second time on
+    // top of it, the first attempt at this fix, produced a doubled path.
+    const apiBase = (email_data.site_url || "").replace(/\/$/, "");
+    const confirmationUrl = `${apiBase}/verify?token=${email_data.token_hash}&type=${email_data.email_action_type}&redirect_to=${encodeURIComponent(redirectTo)}`;
 
     // Get the appropriate template
     const { subject, html } = getTemplate(email_data.email_action_type, user, confirmationUrl);

@@ -12,13 +12,13 @@ import { createClient } from '@supabase/supabase-js';
 // just point at the wrong backend — the browser blocks the request outright.
 export const SUPABASE_URL =
   import.meta.env.VITE_SUPABASE_URL ||
-  'https://dfkoxuokfkttjhfjcecx.supabase.co';
+  'https://ayn.careers';
 
 // Fallback order: env var → hardcoded anon key (anon key is public/safe)
 export const SUPABASE_ANON_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg2ODg5MDQyLCJleHAiOjIxMDIyNDkwNDJ9.AmUVtzKLnrXO_ubBNxSDCBDnI7jJyNkGfK9p7nrzkGI';
 
 // storageKey 'ayn-admin-auth' is completely separate from the main app's storage
 export const adminSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

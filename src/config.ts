@@ -6,8 +6,8 @@
  */
 export const SUPABASE_URL =
   (import.meta.env?.VITE_SUPABASE_URL as string | undefined) ||
-  'https://dfkoxuokfkttjhfjcecx.supabase.co';
+  'https://ayn.careers';
 
 export const SUPABASE_ANON_KEY =
   (import.meta.env?.VITE_SUPABASE_ANON_KEY as string | undefined) ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg2ODg5MDQyLCJleHAiOjIxMDIyNDkwNDJ9.AmUVtzKLnrXO_ubBNxSDCBDnI7jJyNkGfK9p7nrzkGI';
