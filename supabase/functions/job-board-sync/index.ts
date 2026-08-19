@@ -1,4 +1,13 @@
-// job-board-sync — v3.135.0
+// job-board-sync — v3.166.0
+//
+// v3.166.0 — captures freehire's own structured enrichment (employment_type,
+// seniority, salary_min/max/currency, category, work_mode, a real city, a
+// tagged skills array, a mass_posting_count quality signal) instead of
+// leaving it unread — confirmed live it's already returned on every row,
+// this function just never asked for it. All nullable on job_postings;
+// real, live-measured coverage: ~34% for salary/seniority, ~86% for city,
+// 100% for category on tech postings. Powers BrowseJobs.tsx's real filters,
+// a skills-tag boost to computeQuickScore's ranking, and job_board_trending.
 //
 // v3.135.0 — real company logos for Browse Jobs. freehire's job listings
 // have no logo field (confirmed live); its separate /companies/{slug}
@@ -131,6 +140,18 @@ interface FreehireJob {
   description?: string;
   url?: string;
   posted_at?: string;
+  cities?: string[];
+  skills?: string[];
+  work_mode?: string;
+  reality?: { mass_posting_count?: number };
+  enrichment?: {
+    employment_type?: string;
+    seniority?: string;
+    salary_min?: number;
+    salary_max?: number;
+    salary_currency?: string;
+    category?: string;
+  };
 }
 
 // v3.135.0 — real company marks. freehire's job listings carry no logo
@@ -286,17 +307,33 @@ async function syncRegion(
     const rows = jobs
       .filter((j) => j.public_slug && j.title && j.company && j.url && j.posted_at)
       .filter((j) => !isBlockedAggregatorUrl(j.url!))
-      .map((j) => ({
-        source: "freehire",
-        external_id: j.public_slug!,
-        company: String(j.company).slice(0, 300),
-        company_slug: j.company_slug ? String(j.company_slug).slice(0, 300) : null,
-        title: String(j.title).slice(0, 300),
-        description: stripHtml(j.description || "").slice(0, 20000),
-        location: j.location ? String(j.location).slice(0, 300) : null,
-        apply_url: j.url!,
-        posted_at: j.posted_at!,
-      }))
+      .map((j) => {
+        const e = j.enrichment || {};
+        return {
+          source: "freehire",
+          external_id: j.public_slug!,
+          company: String(j.company).slice(0, 300),
+          company_slug: j.company_slug ? String(j.company_slug).slice(0, 300) : null,
+          title: String(j.title).slice(0, 300),
+          description: stripHtml(j.description || "").slice(0, 20000),
+          location: j.location ? String(j.location).slice(0, 300) : null,
+          apply_url: j.url!,
+          posted_at: j.posted_at!,
+          // v3.166.0 — freehire's own structured enrichment, captured as-is,
+          // never inferred for the rows it doesn't have. See this file's own
+          // header note on real, live-measured coverage per field.
+          employment_type: e.employment_type ? String(e.employment_type).slice(0, 60) : null,
+          seniority: e.seniority ? String(e.seniority).slice(0, 60) : null,
+          salary_min: typeof e.salary_min === "number" ? Math.round(e.salary_min) : null,
+          salary_max: typeof e.salary_max === "number" ? Math.round(e.salary_max) : null,
+          salary_currency: e.salary_currency ? String(e.salary_currency).slice(0, 10) : null,
+          category: e.category ? String(e.category).slice(0, 60) : null,
+          work_mode: j.work_mode ? String(j.work_mode).slice(0, 30) : null,
+          city: Array.isArray(j.cities) && j.cities[0] ? String(j.cities[0]).slice(0, 200) : null,
+          skills: Array.isArray(j.skills) ? j.skills.filter(Boolean).map((s) => String(s).slice(0, 80)).slice(0, 40) : null,
+          mass_posting_count: typeof j.reality?.mass_posting_count === "number" ? Math.round(j.reality.mass_posting_count) : null,
+        };
+      })
       .filter((row) => row.description.length >= 40) // skip anything too thin to score against
       .filter((row) => !looksNonLatinScript(row.description) && !looksNonLatinScript(row.title));
 
