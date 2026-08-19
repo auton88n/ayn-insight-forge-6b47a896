@@ -146,6 +146,81 @@ function toSlug(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
 
+// v3.167.0 — job-board-sync's own freehire feed is explicitly scoped to
+// US/Canada only (a deliberate, founder-set policy: "no you cant group we
+// need names of countries no regions" — job-board-sync's own header),
+// enforced there via freehire's countries=ca,us query param. Direct ATS
+// polling has no equivalent — Greenhouse/Lever/Ashby return whatever a
+// company has posted, anywhere. Confirmed live before writing this: real
+// Paris, São Paulo, London, Bengaluru, Ho Chi Minh City, and Brussels
+// postings were already being ingested unfiltered, a real violation of
+// the same standing policy. None of the three vendors expose a clean,
+// structured country field on a job — only a free-text location string —
+// so this is an allowlist (a real US state/Canadian province marker, the
+// country named outright, or a name from a curated list of major US/
+// Canada cities that show up bare with no country suffix in practice,
+// e.g. Ashby's own "New York City") plus a denylist of the non-US/Canada
+// countries and cities actually observed live. A location this can't
+// positively confirm is excluded, not guessed at — a bare "Remote" with
+// nothing else to go on included, since that's this app's own default
+// audience and excluding every unlabeled remote role would be its own
+// kind of wrong; anything crossed with a real foreign country/city name
+// stays excluded regardless.
+const US_STATE_ABBR = new Set(["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"]);
+const CA_PROVINCE_ABBR = new Set(["ON","QC","BC","AB","MB","SK","NS","NB","NL","PE","NT","YT","NU"]);
+const US_CA_CITY_ALLOWLIST = [
+  "new york city", "new york", "san francisco", "los angeles", "chicago", "boston", "seattle",
+  "austin", "denver", "atlanta", "miami", "toronto", "montreal", "vancouver", "ottawa", "calgary",
+  "edmonton", "winnipeg", "palo alto", "mountain view", "san jose", "cambridge", "washington",
+  "san diego", "portland", "philadelphia", "dallas", "houston", "phoenix", "detroit", "minneapolis",
+  "charlotte", "nashville", "salt lake city", "pittsburgh", "raleigh", "durham", "columbus",
+  "indianapolis", "kansas city", "st. louis", "cincinnati", "cleveland", "milwaukee", "sacramento",
+  "san antonio", "orlando", "tampa", "las vegas", "baltimore", "jacksonville", "fremont", "oakland",
+  "berkeley", "santa monica", "santa clara", "sunnyvale", "redwood city", "menlo park", "irvine",
+  "brooklyn", "jersey city", "hoboken", "quebec city", "halifax", "victoria", "regina", "waterloo",
+  "kitchener", "mississauga", "burnaby", "richmond", "surrey",
+];
+const NON_US_CA_DENYLIST = [
+  "france", "paris", "united kingdom", "london", "germany", "berlin", "munich",
+  "spain", "madrid", "barcelona", "italy", "rome", "milan", "netherlands", "amsterdam", "belgium",
+  "brussels", "switzerland", "zurich", "geneva", "ireland", "dublin", "portugal", "lisbon",
+  "poland", "warsaw", "sweden", "stockholm", "norway", "oslo", "denmark", "copenhagen", "austria",
+  "vienna", "brazil", "sao paulo", "são paulo", "rio de janeiro", "mexico", "mexico city",
+  "argentina", "buenos aires", "colombia", "bogota", "chile", "santiago", "india", "bengaluru",
+  "bangalore", "mumbai", "delhi", "hyderabad", "pune", "chennai", "vietnam", "ho chi minh",
+  "hanoi", "philippines", "manila", "singapore", "malaysia", "kuala lumpur", "indonesia", "jakarta",
+  "thailand", "bangkok", "china", "shanghai", "beijing", "shenzhen", "hong kong", "taiwan", "taipei",
+  "japan", "tokyo", "osaka", "korea", "seoul", "australia", "sydney", "melbourne", "brisbane",
+  "new zealand", "auckland", "south africa", "cairo", "egypt", "israel", "tel aviv", "tlv", "uae",
+  "dubai", "abu dhabi", "saudi arabia", "riyadh", "turkey", "istanbul", "russia", "moscow",
+  "ukraine", "kyiv", "romania", "bucharest", "greece", "athens", "finland", "helsinki", "amer,",
+  // v3.167.0 — found live in a real cleanup pass, not anticipated up front:
+  // Budapest/Hungary, Casablanca/Morocco, and the Spanish name for Mexico
+  "hungary", "budapest", "casablanca", "morocco", "maroc", "ciudad de méxico", "ciudad de mexico",
+  "nigeria", "lagos", "kenya", "nairobi", "pakistan", "karachi", "lahore", "bangladesh", "dhaka",
+  "sri lanka", "colombo",
+];
+function isUsOrCanadaLocation(location: string | null): boolean {
+  // No location at all can't be positively confirmed either -- same "when
+  // unsure, leave it out" rule as everything else here, not a special case.
+  if (!location) return false;
+  const loc = location.toLowerCase().trim();
+  if (loc === "remote") return true;
+  // "uk" needs a real word-boundary check, not a substring one -- a plain
+  // .includes("uk") would wrongly flag Milwaukee as foreign. JS regex \b
+  // is safe here (unlike the Postgres cleanup pass this mirrors, where
+  // \b is a no-op and \y is the real word-boundary token -- found live
+  // the hard way, re-run once already after that mismatch let real UK/
+  // India/China/Dubai rows survive a first SQL pass).
+  if (/\buk\b/.test(loc)) return false;
+  for (const bad of NON_US_CA_DENYLIST) if (loc.includes(bad)) return false;
+  if (/\b(united states|u\.s\.a?\.?|canada)\b/.test(loc)) return true;
+  const abbrevMatch = location.match(/,\s*([A-Z]{2})\b/);
+  if (abbrevMatch && (US_STATE_ABBR.has(abbrevMatch[1]) || CA_PROVINCE_ABBR.has(abbrevMatch[1]))) return true;
+  for (const city of US_CA_CITY_ALLOWLIST) if (loc.includes(city)) return true;
+  return false;
+}
+
 interface Row {
   source: string;
   external_id: string;
@@ -202,7 +277,7 @@ async function pollGreenhouse(slug: string, companyInfo: Map<string, { company: 
         salary_min: null, salary_max: null, salary_currency: null,
         skills: null, mass_posting_count: null,
       } as Row;
-    }).filter((r): r is Row => r !== null && r.description.length >= 40);
+    }).filter((r): r is Row => r !== null && r.description.length >= 40 && isUsOrCanadaLocation(r.location));
   } catch {
     return [];
   }
@@ -244,7 +319,7 @@ async function pollLever(slug: string, companyInfo: Map<string, { company: strin
         salary_currency: j.salaryRange?.currency || null,
         skills: null, mass_posting_count: null,
       } as Row;
-    }).filter((r): r is Row => r !== null && r.description.length >= 40);
+    }).filter((r): r is Row => r !== null && r.description.length >= 40 && isUsOrCanadaLocation(r.location));
   } catch {
     return [];
   }
@@ -285,7 +360,7 @@ async function pollAshby(slug: string, companyInfo: Map<string, { company: strin
         salary_min: null, salary_max: null, salary_currency: null,
         skills: null, mass_posting_count: null,
       } as Row;
-    }).filter((r): r is Row => r !== null && r.description.length >= 40);
+    }).filter((r): r is Row => r !== null && r.description.length >= 40 && isUsOrCanadaLocation(r.location));
   } catch {
     return [];
   }

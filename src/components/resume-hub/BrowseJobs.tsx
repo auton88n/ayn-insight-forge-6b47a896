@@ -78,6 +78,19 @@ function humanizeSlug(s: string) {
   return s.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
+// v3.167.0 — asked directly not to expose the raw catalog size. A precise
+// count is genuinely useful feedback when it's small (a filtered search
+// telling you "3 jobs match" is actionable), but a bare five-digit number
+// on the unfiltered view reads as a scale figure, not a feature. Capped at
+// the same "1,000+" convention real job boards already use for this exact
+// reason -- honest (never claims a smaller number than what's real,
+// per this app's own "never say less than true" rule) without stating
+// the real figure once it's past the point where the exact count adds
+// anything.
+function displayCount(n: number): string {
+  return n > 999 ? "1,000+" : String(n);
+}
+
 function formatSalary(min: number | null | undefined, max: number | null | undefined, currency: string | null | undefined) {
   if (min == null && max == null) return null;
   const cur = currency || "USD";
@@ -222,17 +235,44 @@ function safeLike(s: string) {
 // which is honest about what the data actually is rather than pretending
 // to a precision it doesn't have. Search still works as a flat filter
 // across everything; grouping is only for browsing with no query typed.
-function groupLocations(locs: string[]) {
-  const groups = new Map<string, string[]>();
+// v3.167.0 — asked directly for a better city/country filter. The old
+// grouping (by whatever the last comma-separated segment happened to be)
+// produced inconsistent, sometimes meaningless buckets since job-board-
+// sync's own location text varies wildly by source. AYN is scoped to US/
+// Canada only (a standing product policy, enforced at ingestion) — so a
+// real two-level Country > City structure is both more useful and just
+// two buckets to build, not an open-ended geocoding problem.
+const CA_PROVINCE_ABBR_SET = new Set(["ON", "QC", "BC", "AB", "MB", "SK", "NS", "NB", "NL", "PE", "NT", "YT", "NU"]);
+const CA_CITY_HINTS = [
+  "toronto", "montreal", "vancouver", "ottawa", "calgary", "edmonton", "winnipeg", "quebec city",
+  "halifax", "victoria", "regina", "waterloo", "kitchener", "mississauga", "burnaby", "richmond",
+  "surrey", "canada",
+];
+function classifyCountry(loc: string): "Canada" | "United States" {
+  const l = loc.toLowerCase();
+  // An explicit "United States" beats a city-name guess -- found live: a
+  // multi-location string ("...Vancouver, Washington, United States...")
+  // matched the Vancouver hint below and got misfiled as Canada even
+  // though it names the US outright. City names alone are ambiguous
+  // (Vancouver, WA is real); an explicit country name isn't.
+  if (/\bunited states\b/.test(l)) return "United States";
+  if (/\bcanada\b/.test(l)) return "Canada";
+  for (const hint of CA_CITY_HINTS) if (l.includes(hint)) return "Canada";
+  const abbrevMatch = loc.match(/,\s*([A-Z]{2})\b/);
+  if (abbrevMatch && CA_PROVINCE_ABBR_SET.has(abbrevMatch[1])) return "Canada";
+  return "United States";
+}
+function groupByCountry(locs: string[]) {
+  const buckets: { country: "United States" | "Canada"; items: string[] }[] = [
+    { country: "United States", items: [] },
+    { country: "Canada", items: [] },
+  ];
   for (const loc of locs) {
-    const parts = loc.split(",").map((s) => s.trim()).filter(Boolean);
-    const key = parts.length > 1 ? parts[parts.length - 1] : loc;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(loc);
+    const bucket = buckets.find((b) => b.country === classifyCountry(loc))!;
+    bucket.items.push(loc);
   }
-  return Array.from(groups.entries())
-    .map(([key, items]) => ({ key, items: items.sort((a, b) => a.localeCompare(b)) }))
-    .sort((a, b) => b.items.length - a.items.length || a.key.localeCompare(b.key));
+  for (const b of buckets) b.items.sort((a, b2) => a.localeCompare(b2));
+  return buckets.filter((b) => b.items.length > 0);
 }
 
 export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
@@ -771,8 +811,8 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   // raw strings aren't one undifferentiated alphabetical wall.
   const visibleLocations = useMemo(() => {
     const f = locFilter.trim().toLowerCase();
-    if (f) return { flat: locations.filter((l) => l.toLowerCase().includes(f)).slice(0, 120), groups: null as ReturnType<typeof groupLocations> | null };
-    return { flat: null as string[] | null, groups: groupLocations(locations).slice(0, 60) };
+    if (f) return { flat: locations.filter((l) => l.toLowerCase().includes(f)).slice(0, 120), byCountry: null as ReturnType<typeof groupByCountry> | null };
+    return { flat: null as string[] | null, byCountry: groupByCountry(locations) };
   }, [locations, locFilter]);
 
   const clearFilters = () => {
@@ -917,46 +957,48 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h3 className="text-2xl font-bold tracking-tight">Browse jobs</h3>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Real postings from company career pages, refreshed continuously. Never LinkedIn or Indeed.
-          </p>
-        </div>
-        {/* v3.167.0 — asked directly for something cleaner and more modern.
-            Four identically-weighted outlined buttons read as noisy; the
-            three secondary actions (sort toggle, Trending, Explore roles)
-            are now quiet ghost buttons, leaving exactly one button with
-            real visual weight — Match me, the one actually worth reaching
-            for first. */}
-        <div className="flex items-center gap-1 flex-wrap">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setNewestFirst((v) => !v)}
-            className="text-xs text-muted-foreground"
-          >
-            <Clock className="w-3.5 h-3.5 mr-1.5" />{newestFirst ? "Newest" : "Best match"}
-          </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={openTrending} className="text-xs text-muted-foreground">
-            <TrendingUp className="w-3.5 h-3.5 mr-1.5" />Trending
-          </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={openRoleFinder} className="text-xs text-muted-foreground">
-            <Compass className="w-3.5 h-3.5 mr-1.5" />Explore roles
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => (matchMode ? setMatchMode(false) : startMatchMode())}
-            style={matchMode ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" } : undefined}
-            variant={matchMode ? undefined : "outline"}
-            className={matchMode ? "hover:opacity-90 ml-1" : "ml-1"}
-          >
-            <Wand2 className="w-4 h-4 mr-1.5" />{matchMode ? "Showing my matches" : "Match me"}
-          </Button>
-        </div>
+      {/* v3.167.0 — reported directly: the toolbar visibly jumped up and
+          down. Real cause: title and toolbar shared one flex-wrap row, so
+          whenever a button's own label changed length ("Best match" <->
+          "Newest", "Match me" <-> "Showing my matches") the row's total
+          width crossed the wrap threshold and the toolbar jumped between
+          sharing the title's line and wrapping below it. Stacked into two
+          always-separate rows instead -- the toolbar's vertical position
+          can no longer depend on any button's text length. Each button
+          also gets a fixed min-width so its own label change doesn't
+          shift its neighbors horizontally either. */}
+      <div>
+        <h3 className="text-2xl font-bold tracking-tight">Browse jobs</h3>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Real postings from company career pages, refreshed continuously. Never LinkedIn or Indeed.
+        </p>
+      </div>
+      <div className="flex items-center gap-1 flex-wrap">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setNewestFirst((v) => !v)}
+          className="text-xs text-muted-foreground min-w-[104px] justify-start"
+        >
+          <Clock className="w-3.5 h-3.5 mr-1.5 shrink-0" />{newestFirst ? "Newest" : "Best match"}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={openTrending} className="text-xs text-muted-foreground">
+          <TrendingUp className="w-3.5 h-3.5 mr-1.5" />Trending
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={openRoleFinder} className="text-xs text-muted-foreground">
+          <Compass className="w-3.5 h-3.5 mr-1.5" />Explore roles
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => (matchMode ? setMatchMode(false) : startMatchMode())}
+          style={matchMode ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" } : undefined}
+          variant={matchMode ? undefined : "outline"}
+          className={matchMode ? "hover:opacity-90 ml-1 min-w-[132px] justify-start" : "ml-1 min-w-[132px] justify-start"}
+        >
+          <Wand2 className="w-4 h-4 mr-1.5 shrink-0" />{matchMode ? "Showing my matches" : "Match me"}
+        </Button>
       </div>
 
       {matchMode && (
@@ -1040,12 +1082,12 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                       {loc}
                     </button>
                   ))
-                  : visibleLocations.groups?.map((g) => (
-                    <div key={g.key}>
+                  : visibleLocations.byCountry?.map((g) => (
+                    <div key={g.country}>
                       <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {g.key} <span className="font-normal normal-case">· {g.items.length}</span>
+                        {g.country} <span className="font-normal normal-case">· {g.items.length}</span>
                       </p>
-                      {g.items.slice(0, 8).map((loc) => (
+                      {g.items.slice(0, 14).map((loc) => (
                         <button
                           key={loc}
                           type="button"
@@ -1200,8 +1242,8 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           : total === null
             ? ""
             : hasFilters || matchMode
-              ? <><span className="font-semibold text-foreground">{total}</span> job{total === 1 ? "" : "s"} match your search</>
-              : <><span className="font-semibold text-foreground">{total}</span> jobs</>}
+              ? <><span className="font-semibold text-foreground">{displayCount(total)}</span> job{total === 1 ? "" : "s"} match your search</>
+              : <><span className="font-semibold text-foreground">{displayCount(total)}</span> jobs</>}
       </p>
 
       {/* Split view: list on the left, the full posting on the right */}
@@ -1322,7 +1364,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
 
               {total !== null && jobs.length < total && (
                 <Button variant="outline" className="w-full" onClick={loadMore} disabled={loadingMore}>
-                  {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : `Load more (${total - jobs.length} left)`}
+                  {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : "Load more jobs"}
                 </Button>
               )}
             </>
