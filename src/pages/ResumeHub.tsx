@@ -52,13 +52,13 @@ function readStoredTab(): TabKey {
 // v3.69.0 — Get discovered removed: "Let employers find me" and everything
 // it powers moved into Profile, so this nav item had nothing left to hold.
 // v3.164.0 — Browser extension removed: everything it did now lives here.
-const NAV: { key: TabKey; label: string; icon: typeof Home; hint: string }[] = [
-  { key: "home",        label: "Home",              icon: Home,           hint: "Start here" },
-  { key: "profile",     label: "Profile",           icon: User,           hint: "You, your resume, your goals" },
-  { key: "browse",      label: "Browse jobs",       icon: Compass,        hint: "Real postings, refreshed daily" },
-  { key: "jobs",        label: "Saved jobs",        icon: Briefcase,      hint: "Score and tailor" },
-  { key: "proposals",   label: "Proposals",         icon: Mail,           hint: "Roles employers want you for" },
-  { key: "assessments", label: "Assessments",       icon: ClipboardCheck, hint: "Questions about your own work" },
+const NAV: { key: TabKey; label: string; icon: typeof Home }[] = [
+  { key: "home",        label: "Home",              icon: Home },
+  { key: "profile",     label: "Profile",           icon: User },
+  { key: "browse",      label: "Browse jobs",       icon: Compass },
+  { key: "jobs",        label: "Saved jobs",        icon: Briefcase },
+  { key: "proposals",   label: "Proposals",         icon: Mail },
+  { key: "assessments", label: "Assessments",       icon: ClipboardCheck },
 ];
 
 
@@ -325,22 +325,6 @@ export default function ResumeHub() {
               {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} onOpenProfile={() => setTab("profile")} onCreditsChanged={refreshCredits} onBackToBrowse={() => setTab("browse")} />}
             </Suspense>
           </section>
-
-
-          {/* Right rail */}
-          <aside className="rh-aside-right">
-            <div className="rh-aside-section">
-              <div className="rh-aside-label">Privacy</div>
-              <p className="text-[13px] text-[color:var(--rh-muted)] leading-relaxed">
-                Private to your account. AYN never mixes data between users.
-              </p>
-            </div>
-            <div className="rh-aside-section">
-              <div className="rh-aside-label">Section</div>
-              <div className="rh-stat"><span>Active view</span><b>{NAV.find(n => n.key === tab)?.label}</b></div>
-              <div className="rh-stat"><span>Mode</span><b>{NAV.find(n => n.key === tab)?.hint}</b></div>
-            </div>
-          </aside>
         </div>
       </div>
     </div>
