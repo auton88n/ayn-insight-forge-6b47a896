@@ -320,6 +320,15 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
 
+  // v3.166.0 — "posting freshness" as the honest, measurable stand-in for
+  // "how responsive is this company": job_postings prunes anything past 7
+  // days regardless of source, so every row already on file is a currently
+  // open posting — how many of them a company has right now, and how
+  // recently the newest one landed, is a real signal AYN already has data
+  // for. Never framed as "reply speed" (Browse Jobs applications happen on
+  // the company's own site, outside anything AYN can observe).
+  const [companyActivity, setCompanyActivity] = useState<{ count: number; mostRecent: string } | null>(null);
+
   // v3.142.0 — a bookmark on each row saves without leaving the list or
   // opening detail, separate from "Score and tailor" in the detail pane
   // (which deliberately still jumps to the Jobs page — that's someone
@@ -598,6 +607,28 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     else sessionStorage.removeItem(BROWSE_LAST_OPEN_KEY);
   }, [selected]);
 
+  /* v3.166.0 — posting freshness for the currently open job's company.
+     job_postings prunes past 7 days regardless of source, so every row
+     already on file is a currently open posting -- this is a real count of
+     how many that company has right now, not an estimate. */
+  useEffect(() => {
+    if (!selected) { setCompanyActivity(null); return; }
+    let cancelled = false;
+    supabase
+      .from("job_postings")
+      .select("posted_at", { count: "exact" })
+      .eq("company", selected.company)
+      .order("posted_at", { ascending: false })
+      .limit(1)
+      .then(({ data, count }) => {
+        if (cancelled) return;
+        const mostRecent = (data as { posted_at: string }[] | null)?.[0]?.posted_at;
+        if (count && mostRecent) setCompanyActivity({ count, mostRecent });
+        else setCompanyActivity(null);
+      });
+    return () => { cancelled = true; };
+  }, [selected]);
+
   const loadMore = async () => {
     setLoadingMore(true);
     const { data, error } = await buildQuery(false).range(jobs.length, jobs.length + PAGE_SIZE - 1);
@@ -819,6 +850,15 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
               </span>
             )}
           </div>
+        )}
+
+        {companyActivity && (
+          <p className="text-xs text-muted-foreground" title="How many roles this company has open right now, and how recently the newest one landed. Not how fast they reply to an application.">
+            {companyActivity.count === 1
+              ? `${selected.company}'s only open role right now`
+              : `${companyActivity.count} open roles at ${selected.company} right now`}
+            {" · newest posted "}{postedAge(companyActivity.mostRecent)}
+          </p>
         )}
 
         <div className="flex items-center gap-2 flex-wrap pt-1">
