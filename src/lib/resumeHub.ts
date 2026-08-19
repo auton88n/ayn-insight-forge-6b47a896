@@ -160,6 +160,16 @@ export const resumeHubApi = {
     call<{ roles: Array<{ title: string; match_pct: number; openings: number; companies: string[]; sample_job_id: string }>; has_profile: boolean }>(
       "resume-hub", { action: "role_finder" },
     ),
+
+  // v3.166.0 — free, zero-AI: real posting volume over the last 3 days,
+  // nationally and (when a city is passed) scoped to it too. Never
+  // freehire's own view/applied counts (confirmed almost always zero in a
+  // live sample), just a real count of what's actually landing.
+  jobBoardTrending: (city?: string | null) =>
+    call<{
+      national: { byCategory: Array<{ category: string; count: number }>; byCompany: Array<{ company: string; count: number }> };
+      city: { name: string; byCategory: Array<{ category: string; count: number }>; byCompany: Array<{ company: string; count: number }> } | null;
+    }>("resume-hub", { action: "job_board_trending", city: city || undefined }),
 };
 
 export interface JobPosting {

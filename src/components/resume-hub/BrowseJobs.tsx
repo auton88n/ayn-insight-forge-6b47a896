@@ -269,6 +269,37 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const [categories, setCategories] = useState<string[]>([]);
   const [employmentTypes, setEmploymentTypes] = useState<string[]>([]);
   const [seniorities, setSeniorities] = useState<string[]>([]);
+  const [structuredCities, setStructuredCities] = useState<string[]>([]);
+
+  // v3.166.0 — "Trending": real posting volume, nationally and (optionally)
+  // scoped to a chosen city, over the last 3 days. Fetched lazily the first
+  // time the dialog opens, same pattern openRoleFinder already uses; a city
+  // change re-fetches since that's a real, different query server side, not
+  // something to slice out of an already-loaded national result.
+  const [trendingOpen, setTrendingOpen] = useState(false);
+  const [trendingLoading, setTrendingLoading] = useState(false);
+  const [trendingCity, setTrendingCity] = useState<string | null>(null);
+  const [trendingData, setTrendingData] = useState<Awaited<ReturnType<typeof resumeHubApi.jobBoardTrending>> | null>(null);
+  const [trendingError, setTrendingError] = useState(false);
+
+  const loadTrending = useCallback((city: string | null) => {
+    setTrendingLoading(true);
+    setTrendingError(false);
+    resumeHubApi.jobBoardTrending(city)
+      .then((res) => setTrendingData(res))
+      .catch(() => setTrendingError(true))
+      .finally(() => setTrendingLoading(false));
+  }, []);
+
+  const openTrending = () => {
+    setTrendingOpen(true);
+    if (trendingData === null && !trendingLoading) loadTrending(trendingCity);
+  };
+
+  const pickTrendingCity = (city: string | null) => {
+    setTrendingCity(city);
+    loadTrending(city);
+  };
 
   // v3.166.0 — "real relevance ranking" is now the default, not opt-in.
   // Independent of matchMode (which additionally narrows to Profile's
@@ -357,14 +388,19 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   }, []);
 
   /* Same pattern for the three enrichment-backed filters — real distinct
-     values on file, never a hardcoded guess at freehire's own vocabulary. */
+     values on file, never a hardcoded guess at freehire's own vocabulary.
+     Also seeds the Trending city picker with real, structured city values
+     (job_postings.city, freehire's own parsed city — a different, cleaner
+     field than the raw `location` text the location filter above groups by
+     last comma segment). */
   useEffect(() => {
     let cancelled = false;
     Promise.all([
       supabase.from("job_postings").select("category").not("category", "is", null).limit(5000),
       supabase.from("job_postings").select("employment_type").not("employment_type", "is", null).limit(5000),
       supabase.from("job_postings").select("seniority").not("seniority", "is", null).limit(5000),
-    ]).then(([cat, et, sen]) => {
+      supabase.from("job_postings").select("city").not("city", "is", null).limit(5000),
+    ]).then(([cat, et, sen, cty]) => {
       if (cancelled) return;
       const dedupe = (rows: { [k: string]: string | null }[] | null, key: string) => {
         const set = new Set<string>();
@@ -374,6 +410,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       setCategories(dedupe(cat.data as { category: string | null }[], "category"));
       setEmploymentTypes(dedupe(et.data as { employment_type: string | null }[], "employment_type"));
       setSeniorities(dedupe(sen.data as { seniority: string | null }[], "seniority"));
+      setStructuredCities(dedupe(cty.data as { city: string | null }[], "city"));
     });
     return () => { cancelled = true; };
   }, []);
@@ -842,6 +879,9 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           >
             <Clock className="w-3.5 h-3.5 mr-1.5" />{newestFirst ? "Sorted by newest" : "Sort: best match"}
           </Button>
+          <Button type="button" variant="outline" onClick={openTrending}>
+            <TrendingUp className="w-4 h-4 mr-2" />Trending
+          </Button>
           <Button type="button" variant="outline" onClick={openRoleFinder}>
             <Compass className="w-4 h-4 mr-2" />Explore roles
           </Button>
@@ -1254,6 +1294,81 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
               ))
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* v3.166.0 — real posting volume, nationally and by chosen city, over
+          the last 3 days. Never a guessed demand number, always a real count
+          of what's actually landing on file right now. */}
+      <Dialog open={trendingOpen} onOpenChange={setTrendingOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Trending right now</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-2">
+            Real posting volume from the last 3 days. Not a guess at demand, just a count of what's actually landing.
+          </p>
+
+          {structuredCities.length > 0 && (
+            <Select
+              value={trendingCity ?? "__national"}
+              onValueChange={(v) => pickTrendingCity(v === "__national" ? null : v)}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="Nationally" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__national">Nationally</SelectItem>
+                {structuredCities.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {trendingLoading ? (
+            <div className="space-y-1.5">
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-md" />)}
+            </div>
+          ) : trendingError ? (
+            <div className="py-6 text-center space-y-3">
+              <p className="text-sm text-muted-foreground">Couldn't load this right now.</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => loadTrending(trendingCity)}>Try again</Button>
+            </div>
+          ) : (() => {
+            const scope = trendingCity && trendingData?.city ? trendingData.city : trendingData?.national;
+            const byCategory = scope && "byCategory" in scope ? scope.byCategory : [];
+            const byCompany = scope && "byCompany" in scope ? scope.byCompany : [];
+            if (!byCategory.length && !byCompany.length) {
+              return <p className="py-6 text-center text-sm text-muted-foreground">Nothing landed here in the last 3 days.</p>;
+            }
+            return (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">By role</p>
+                  <div className="space-y-1">
+                    {byCategory.map((r) => (
+                      <div key={r.category} className="flex items-center justify-between gap-2 text-sm py-1">
+                        <span className="truncate capitalize">{humanizeSlug(r.category)}</span>
+                        <span className="shrink-0 text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}>{r.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">By company</p>
+                  <div className="space-y-1">
+                    {byCompany.map((r) => (
+                      <div key={r.company} className="flex items-center justify-between gap-2 text-sm py-1">
+                        <span className="truncate">{r.company}</span>
+                        <span className="shrink-0 text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}>{r.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

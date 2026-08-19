@@ -1191,6 +1191,61 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       return json({ roles, has_profile: true });
     }
 
+    // ---------------- job_board_trending (free) ----------------
+    // v3.166.0 — real posting volume, nationally and scoped to a chosen
+    // city, over the last 3 days. Deliberately NOT freehire's own view/
+    // applied counts: a live sample of real postings confirmed those are
+    // almost always zero, not a usable signal. This counts what's actually
+    // landing instead -- same "code decides facts, never invents a demand
+    // number" rule role_finder right above already follows, same
+    // fetch-then-aggregate-in-JS shape too (job_postings is a few thousand
+    // rows; a live GROUP BY here would cost nothing, but staying consistent
+    // with the one pattern already proven at this table's scale beats
+    // introducing a second one for no real benefit).
+    if (action === "job_board_trending") {
+      const adminTrend = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminTrend, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminTrend, user.id, action); if (blocked) return blocked; }
+      { const limited = await rateLimitGate(adminTrend, user.id, action, 30, 15); if (limited) return limited; }
+
+      const { city } = payload as { city?: string };
+      const cutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data: postings, error: postingsErr } = await adminTrend
+        .from("job_postings")
+        .select("category, company, city")
+        .gte("posted_at", cutoff)
+        .not("category", "is", null)
+        .limit(8000);
+      if (postingsErr) return json({ error: postingsErr.message }, 500);
+
+      type Row = { category: string | null; company: string | null; city: string | null };
+      const rows = (postings || []) as Row[];
+
+      const countBy = (rs: Row[], key: "category" | "company") => {
+        const counts = new Map<string, number>();
+        for (const r of rs) {
+          const v = r[key];
+          if (!v) continue;
+          counts.set(v, (counts.get(v) || 0) + 1);
+        }
+        return Array.from(counts.entries())
+          .map(([k, count]) => ({ [key]: k, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 10);
+      };
+
+      const national = { byCategory: countBy(rows, "category"), byCompany: countBy(rows, "company") };
+
+      let cityResult: { name: string; byCategory: unknown[]; byCompany: unknown[] } | null = null;
+      if (city && String(city).trim()) {
+        const cityRows = rows.filter((r) => r.city === city);
+        cityResult = { name: city, byCategory: countBy(cityRows, "category"), byCompany: countBy(cityRows, "company") };
+      }
+
+      return json({ national, city: cityResult });
+    }
+
     // ── NEW ACTIONS (JWT auth) ──
     // These run after JWT validation using supa client with RLS
     const userId = user.id;
