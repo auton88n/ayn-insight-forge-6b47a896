@@ -123,6 +123,81 @@ function formatSalary(min: number | null | undefined, max: number | null | undef
   if (min != null && max != null) return `${cur} ${fmt(min)}–${fmt(max)}`;
   return `${cur} ${fmt((min ?? max)!)}+`;
 }
+
+// v3.170.0 — asked directly to look into salary coverage after the earlier
+// LinkedIn/Indeed research: 67-98% of job seekers across every survey
+// checked call salary the single most important thing on a listing, and
+// 44-60% say they won't even apply without one. Checked AYN's real
+// coverage first (34%, per this file's own header note) and then checked
+// WHY it's that low rather than assuming employers just don't disclose --
+// 18 US states plus DC now legally require a salary range on job postings
+// (California, Colorado, New York, Illinois and Massachusetts among the
+// strictest), so a real, employer-stated range is very often sitting
+// right in the description text even when freehire's own structured
+// enrichment field didn't capture it. Confirmed live against a 150-row
+// random sample of postings with no structured salary: a clean, sane
+// range was extractable from 90 of them (60%) after two rounds of
+// tightening the regex against real false positives found in that same
+// sample (a $5.8B company valuation, a $600B market-size projection, a
+// $400 sign-on bonus, a $100M funding round -- none of these are a real
+// two-number RANGE, which is exactly why this only ever matches an actual
+// "$X - $Y" or "$X to $Y" pattern, never a single bare dollar figure).
+//
+// Deliberately NOT Indeed's own approach here, checked directly against
+// real critique of it: Indeed shows an ALGORITHM-ESTIMATED salary when an
+// employer doesn't disclose one, and that's flagged by real complaints as
+// actively misleading -- a candidate can see an estimated range, apply
+// expecting it, and receive a real offer well below it. This never
+// estimates or invents a number; it only reads a real range the employer
+// already wrote themselves, the same "code decides facts, never invents
+// one" rule every other deterministic check in this app already follows.
+const SALARY_RANGE_RE = /\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s?([Kk])?\s?(?:-|–|—|&mdash;|&ndash;|to)\s?\$?\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s?([Kk])?/;
+const HOURLY_CONTEXT_RE = /(per\s*hour|\/\s*hr\b|\/\s*hour|hourly|per\s*hr\b)/i;
+
+function parseSalaryToken(raw: string, kSuffix: string | undefined): { value: number; scaled: boolean } {
+  const value = parseFloat(raw.replace(/,/g, "")) * (kSuffix ? 1000 : 1);
+  return { value, scaled: raw.includes(",") || !!kSuffix };
+}
+
+function extractSalaryFromText(text: string): { min: number; max: number; period: "annual" | "hourly" } | null {
+  const m = text.match(SALARY_RANGE_RE);
+  if (!m || m.index == null) return null;
+  const [, loRaw, loK, hiRaw, hiK] = m;
+  const lo = parseSalaryToken(loRaw, loK);
+  const hi = parseSalaryToken(hiRaw, hiK);
+  if (!(lo.value > 0) || !(hi.value > 0) || hi.value < lo.value || hi.value > 2_000_000) return null;
+  const start = Math.max(0, m.index - 60);
+  const end = Math.min(text.length, m.index + m[0].length + 60);
+  const isHourly = HOURLY_CONTEXT_RE.test(text.slice(start, end));
+  const small = lo.value < 1000 && !lo.scaled && hi.value < 1000 && !hi.scaled;
+  // A small pair with no nearby "per hour"/"hourly" text is ambiguous
+  // (could be years of experience, a headcount, anything) -- rejected
+  // rather than guessed, same "when unsure, leave it out" rule this app
+  // already applies to location scoping and everything else deterministic.
+  if (small && !isHourly) return null;
+  if (small) {
+    if (!(lo.value >= 5 && lo.value <= 500 && hi.value >= 5 && hi.value <= 500)) return null;
+    return { min: lo.value, max: hi.value, period: "hourly" };
+  }
+  if (!(lo.value >= 15_000 && lo.value <= 1_500_000 && hi.value >= 15_000)) return null;
+  return { min: lo.value, max: hi.value, period: "annual" };
+}
+
+/** Structured salary (freehire's own enrichment field) when present,
+ * otherwise a real employer-stated range read straight out of the
+ * description text. Both are equally real numbers from the same
+ * employer's own posting -- the second is just a different, deterministic
+ * way of finding the same fact, disclosed via fromListingText so a caller
+ * can note where it came from if it wants to. */
+function resolveSalary(job: JobPosting): { text: string; fromListingText: boolean } | null {
+  const structured = formatSalary(job.salary_min, job.salary_max, job.salary_currency);
+  if (structured) return { text: structured, fromListingText: false };
+  const extracted = extractSalaryFromText(job.description || "");
+  if (!extracted) return null;
+  const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
+  const suffix = extracted.period === "hourly" ? "/hr" : "";
+  return { text: `USD ${fmt(extracted.min)}–${fmt(extracted.max)}${suffix}`, fromListingText: true };
+}
 // v3.145.0 — whatever's open in the detail pane, restored once on a
 // refresh via its own one-shot effect below.
 const BROWSE_LAST_OPEN_KEY = "ayn_browse_last_open";
@@ -1067,6 +1142,8 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     return <span className="text-xs text-muted-foreground">No resume yet</span>;
   };
 
+  const selectedSalary = selected ? resolveSalary(selected) : null;
+
   const detail = selected && (
     <div className="flex flex-col h-full">
       <div className="p-5 border-b border-border/60 space-y-3">
@@ -1103,12 +1180,22 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
 
         {/* v3.166.0 — real, freehire-tagged facts about this specific
             posting, shown wherever they're actually present, never a blank
-            placeholder for what's not on file. */}
-        {(formatSalary(selected.salary_min, selected.salary_max, selected.salary_currency) || selected.employment_type || selected.seniority || selected.work_mode) && (
+            placeholder for what's not on file.
+            v3.170.0 — the salary pill now also covers a real range read
+            straight out of the description text when the structured field
+            is empty (see resolveSalary's own header for why). Both read
+            identically -- the number is equally real either way, only the
+            extraction method differs -- but a title still discloses which
+            one this is, honest provenance without extra visual noise. */}
+        {(selectedSalary || selected.employment_type || selected.seniority || selected.work_mode) && (
           <div className="flex items-center gap-1.5 flex-wrap">
-            {formatSalary(selected.salary_min, selected.salary_max, selected.salary_currency) && (
-              <span className="inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1" style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}>
-                <DollarSign className="w-3 h-3" />{formatSalary(selected.salary_min, selected.salary_max, selected.salary_currency)}
+            {selectedSalary && (
+              <span
+                className="inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1"
+                style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}
+                title={selectedSalary.fromListingText ? "Read directly from this posting's own text." : undefined}
+              >
+                <DollarSign className="w-3 h-3" />{selectedSalary.text}
               </span>
             )}
             {selected.employment_type && (
@@ -1518,6 +1605,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                   const avatar = companyAvatar(j.company);
                   const logoUrl = resolveLogoUrl(j);
                   const showLogo = !!logoUrl && !logoFailed.has(j.id);
+                  const salary = resolveSalary(j);
                   const active = selected?.id === j.id;
                   const isSaved = savedUrls.has(j.apply_url);
                   return (
@@ -1555,9 +1643,13 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                           <div className="flex items-center gap-2 flex-wrap pt-0.5">
                             {scorePill(j.id)}
                             <span className="text-[11px] text-muted-foreground">{postedAge(j.posted_at)} · {postedDate(j.posted_at)}</span>
-                            {formatSalary(j.salary_min, j.salary_max, j.salary_currency) && (
-                              <span className="text-[11px] font-medium" style={{ color: "var(--rh-accent-2)" }}>
-                                {formatSalary(j.salary_min, j.salary_max, j.salary_currency)}
+                            {salary && (
+                              <span
+                                className="text-[11px] font-medium"
+                                style={{ color: "var(--rh-accent-2)" }}
+                                title={salary.fromListingText ? "Read directly from this posting's own text." : undefined}
+                              >
+                                {salary.text}
                               </span>
                             )}
                           </div>

@@ -51,6 +51,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { isUsOrCanadaLocation } from "../_shared/geoScope.ts";
+import { stripHtml } from "../_shared/htmlText.ts";
 
 // v3.134.0 — /jobs/search (the plain search endpoint) truncates description
 // to a ~1000-char preview, confirmed live (999 chars, cut off mid-sentence).
@@ -249,25 +250,10 @@ async function resolveLogosForSlugs(slugs: string[], known: Map<string, string |
   }
 }
 
-/** freehire's description field is HTML. AYN's own gap-matching and AI
- * calls expect readable plain text, same as every other JD source in this
- * app (parsed uploads, pasted text, the extension's own extraction). */
-function stripHtml(html: string): string {
-  return String(html || "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<\/li>/gi, "\n")
-    .replace(/<li[^>]*>/gi, "- ")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/gi, '"')
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
+// v3.170.0 — stripHtml moved to ../_shared/htmlText.ts, shared with
+// ats-direct-sync now (found live: this function's own copy only ever
+// handled six entities, missing real, common ones like &mdash; and the
+// numeric &#34; -- see that file's own header for the full story).
 
 // v3.134.0 — a real Korean-language posting turned up in the first live
 // ingestion test. Every write prompt and every deterministic gap-matcher in

@@ -53,6 +53,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { isUsOrCanadaLocation } from "../_shared/geoScope.ts";
+import { stripHtml } from "../_shared/htmlText.ts";
 
 const CRON_INTERVAL_MS = 2 * 60 * 60 * 1000; // matches this function's own cron registration
 // v3.166.0 — tuned down from an initial 150/120/150 (which hit the
@@ -112,23 +113,10 @@ function slugFrom(rawUrl: string, hostRe: RegExp, pathRe: RegExp): string | null
   }
 }
 
-// Greenhouse's own /content=true field, and Ashby/Lever's plain-text
-// fields when they're not actually plain (defensive, cheap either way).
-function decodeEntities(s: string): string {
-  return s
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ");
-}
-function stripHtml(html: string): string {
-  return decodeEntities(String(html || ""))
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<\/li>/gi, "\n")
-    .replace(/<li[^>]*>/gi, "- ")
-    .replace(/<[^>]+>/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
+// v3.170.0 — decodeEntities/stripHtml moved to ../_shared/htmlText.ts,
+// shared with job-board-sync now (found live: both functions' own copies
+// only ever handled six entities, missing real, common ones like &mdash;
+// and the numeric &#34; -- see that file's own header for the full story).
 
 // For genuinely camelCase API enum values only (Ashby's employmentType:
 // "FullTime"). Free-text fields (a department name, a commitment string
