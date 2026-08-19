@@ -2,9 +2,9 @@
  * AppMockups — inline SVG renditions of the real AYN screens.
  *
  * Every one of these mirrors a surface that actually exists in the product:
- * a saved job scored against your real profile, the tailored documents
- * produced for one job, the employer candidate card, a verification
- * assessment, the auto-sourced Browse Jobs feed, and the in-app inbox.
+ * the tailored documents produced for one job, the employer candidate card,
+ * a verification assessment, the auto-sourced Browse Jobs feed, and the
+ * in-app inbox.
  *
  * All static, no runtime fetch, so reduced motion is satisfied by
  * construction. Palette matches the landing tokens. One exception to the
@@ -42,63 +42,6 @@ function AppChrome({ label, w }: { label: string; w: number }) {
       <circle cx="52" cy="17" r="4.5" fill="rgba(0,0,0,0.12)" />
       <text x={w / 2} y="21" fontFamily={F} fontSize="11" fill={T.inkSub} textAnchor="middle">{label}</text>
     </g>
-  );
-}
-
-/* ── 1. A saved job scored against your real profile ───────── */
-export function JobMatchMockup({ style }: { style?: React.CSSProperties }) {
-  const W = 900, H = 430;
-  const matched = ['React and TypeScript', 'Design systems at scale', 'Mentoring engineers'];
-  const missing = ['Kubernetes', 'Terraform'];
-  return (
-    <svg {...a11y} aria-label="A saved job in AYN showing a match score, matched skills and real gaps" viewBox={`0 0 ${W} ${H}`} style={{ ...svgBase, ...style }} preserveAspectRatio="xMidYMid meet">
-      <rect x="0.5" y="0.5" width={W - 1} height={H - 1} rx="16" fill={T.paper} stroke={T.borderMd} />
-      <clipPath id="mk1"><rect x="0" y="0" width={W} height={H} rx="16" /></clipPath>
-      <g clipPath="url(#mk1)">
-        <AppChrome label="Saved jobs" w={W} />
-
-        {/* posting */}
-        <text x="30" y="72" fontFamily={FD} fontSize="19" fontWeight="700" fill={T.ink}>Senior Frontend Engineer</text>
-        <text x="30" y="93" fontFamily={F} fontSize="12" fill={T.inkSub}>Acme · Toronto, hybrid · Full time</text>
-        <rect x="30" y="108" width="118" height="20" rx="10" fill="rgba(232,93,58,0.12)" stroke="rgba(232,93,58,0.3)" />
-        <text x="89" y="122" textAnchor="middle" fontFamily={F} fontSize="10.5" fontWeight="600" fill={T.emberDeep}>Full description saved</text>
-
-        {[148, 168, 188, 208, 228, 248, 268, 288, 308, 328, 348, 368].map((y, i) => (
-          <rect key={y} x="30" y={y} width={i % 3 === 2 ? 300 : i % 2 ? 470 : 520} height="7" rx="3.5" fill={T.inkSub} opacity={0.18} />
-        ))}
-        <text x="30" y="400" fontFamily={F} fontSize="11" fill={T.inkSub} opacity="0.8">The full posting, not a summary.</text>
-
-        {/* panel */}
-        <rect x="596" y="34" width={W - 596} height={H - 34} fill={T.surface} />
-        <line x1="596" y1="34" x2="596" y2={H} stroke={T.border} />
-        <image href={aynLogo} x="607" y="53" width="52" height="18" preserveAspectRatio="xMinYMid meet" />
-
-        <circle cx="748" cy="132" r="42" fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth="9" />
-        <circle cx="748" cy="132" r="42" fill="none" stroke={T.ember} strokeWidth="9" strokeLinecap="round"
-          strokeDasharray={`${2 * Math.PI * 42 * 0.8} ${2 * Math.PI * 42}`} transform="rotate(-90 748 132)" />
-        <text x="748" y="139" textAnchor="middle" fontFamily={FD} fontSize="26" fontWeight="700" fill={T.ink}>8<tspan fontSize="14" fontWeight="600" fill={T.inkSub}>/10</tspan></text>
-        <text x="748" y="192" textAnchor="middle" fontFamily={F} fontSize="11" fill={T.inkSub}>match for this role</text>
-
-        <text x="620" y="224" fontFamily={F} fontSize="10" fontWeight="700" fill={T.inkSub} letterSpacing="1">WHAT LINES UP</text>
-        {matched.map((m, i) => (
-          <g key={m}>
-            <path d={`M622 ${240 + i * 22} l4 5 8 -10`} fill="none" stroke={T.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <text x="640" y={244 + i * 22} fontFamily={F} fontSize="11.5" fill={T.inkMid}>{m}</text>
-          </g>
-        ))}
-
-        <text x="620" y="326" fontFamily={F} fontSize="10" fontWeight="700" fill={T.inkSub} letterSpacing="1">WHAT IS MISSING</text>
-        {missing.map((m, i) => (
-          <g key={m}>
-            <circle cx="626" cy={340 + i * 22} r="4.5" fill="none" stroke={T.ember} strokeWidth="1.8" />
-            <text x="640" y={344 + i * 22} fontFamily={F} fontSize="11.5" fill={T.inkMid}>{m}</text>
-          </g>
-        ))}
-
-        <rect x="614" y="384" width="262" height="30" rx="9" fill="rgba(232,93,58,0.12)" stroke="rgba(232,93,58,0.3)" />
-        <text x="745" y="403" textAnchor="middle" fontFamily={F} fontSize="11" fontWeight="600" fill={T.emberDeep}>Grounded on the actual job description</text>
-      </g>
-    </svg>
   );
 }
 

@@ -17,7 +17,6 @@ import {
   Search, ClipboardCheck, MailCheck, Building2, Eye, Mail, Ban, Clock, Users,
 } from 'lucide-react';
 import {
-  JobMatchMockup,
   TailoredDocsMockup,
   CandidateCardMockup,
   AssessmentMockup,
@@ -306,14 +305,13 @@ const HERO: Record<Audience, {
   lead: string;
   cta: string;
   note: string;
-  art: JSX.Element;
+  art?: JSX.Element;
 }> = {
   job_seeker: {
     headline: <>Employers can find you <em>before you even apply.</em></>,
     lead: "AI-powered job search built by engineers, for modern job seekers.",
     cta: 'Start free',
     note: 'You review and send every application yourself. AYN never auto-applies for you.',
-    art: <JobMatchMockup />,
   },
   employer: {
     headline: <>AI-powered hiring built by engineers, <em>for modern employers.</em></>,
@@ -461,9 +459,11 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
             </div>
           </div>
 
-          <div className="lp-hero-art lp-audience" key={`art-${audience}`}>
-            {hero.art}
-          </div>
+          {hero.art && (
+            <div className="lp-hero-art lp-audience" key={`art-${audience}`}>
+              {hero.art}
+            </div>
+          )}
         </div>
       </header>
 
