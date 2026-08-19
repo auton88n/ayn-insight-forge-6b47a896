@@ -78,6 +78,31 @@ function humanizeSlug(s: string) {
   return s.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
+// v3.167.0 — category values (job_postings.category) come from two
+// different sources that don't share a formatting convention: freehire's
+// own enrichment field (sometimes carries raw punctuation, confirmed live
+// -- "starlink_enterprise_sales&account_management") and ats-direct-
+// sync's own toSlug() of a company's free-text department name.
+// humanizeSlug alone left "&" glued to the next word ("Sales&Account").
+// This normalizes any stray punctuation to a space first, not just
+// underscores. One real, disclosed limit that stays unfixed: a department
+// name with no separator at all between two real words in the source data
+// ("AIInfrastructure" with no space) can't be split back apart without
+// knowing "AI" is an acronym -- confirmed live as "Aiinfrastructure
+// Operations," a genuine quirk of one company's own internal naming, not
+// something guessable from the slug alone.
+function humanizeCategory(s: string) {
+  return s
+    .replace(/_/g, " ")
+    .replace(/&/g, " and ")
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
 // v3.167.0 — asked directly not to expose the raw catalog size. A precise
 // count is genuinely useful feedback when it's small (a filtered search
 // telling you "3 jobs match" is actionable), but a bare five-digit number
@@ -223,6 +248,148 @@ function postedDate(iso: string) {
 /** Escapes the characters PostgREST treats as special inside an ilike filter. */
 function safeLike(s: string) {
   return s.replace(/[%,()]/g, " ").trim();
+}
+
+// v3.168.0 — asked directly for "better formatting for JD". The detail pane
+// rendered the raw description as one whitespace-pre-wrap block, so a real
+// JD with distinct sections (Responsibilities / Requirements / Benefits)
+// and bulleted lists read as a wall of text with no visual structure. This
+// is a deterministic, code-only parser -- it never rewrites, summarizes or
+// invents a single word of the source text, only groups the SAME lines
+// into headings / bullet lists / paragraphs so the existing structure most
+// JDs already carry (a "- " bullet, an ALL CAPS section label, a line
+// ending in ":") actually renders as one. A JD with no such structure at
+// all (rare -- most freehire/ATS-direct-sourced descriptions have at least
+// bullets) still renders correctly, just as plain paragraphs, same as
+// before this change.
+const JD_HEADER_KEYWORDS = new Set([
+  "responsibilities", "requirements", "qualifications", "about the role", "about the team",
+  "about us", "about the company", "who you are", "what you'll do", "what you will do",
+  "what we offer", "why join", "benefits", "perks", "compensation", "duties", "overview",
+  "summary", "role summary", "job summary", "skills", "experience", "education",
+  "nice to have", "preferred qualifications", "must have", "minimum qualifications",
+  "equal opportunity", "eeo statement", "how to apply", "the role", "the team",
+  "key responsibilities", "essential functions", "physical requirements",
+]);
+
+function isJdHeading(line: string): boolean {
+  const trimmed = line.trim();
+  if (trimmed.length < 3 || trimmed.length > 70) return false;
+  if (/[.;,]$/.test(trimmed)) return false; // a real sentence ends in punctuation, a header doesn't
+  const bare = trimmed.replace(/:$/, "").trim().toLowerCase();
+  if (JD_HEADER_KEYWORDS.has(bare)) return true;
+  if (trimmed.endsWith(":") && trimmed.length <= 50 && !/[.!?]/.test(trimmed)) return true;
+  const hasLower = /[a-z]/.test(trimmed);
+  const hasUpper = /[A-Z]/.test(trimmed);
+  return !hasLower && hasUpper && trimmed.split(/\s+/).length >= 2;
+}
+
+function jdBulletText(line: string): string | null {
+  const m = line.match(/^\s*(?:[-•*●▪◦‣]|\d+[.)])\s+(.*)$/);
+  return m ? m[1].trim() : null;
+}
+
+type JdBlock =
+  | { kind: "heading"; text: string }
+  | { kind: "bullets"; items: string[] }
+  | { kind: "para"; text: string };
+
+/** Drops a blank line sitting between two bullet lines -- found live: many
+ * real postings (e.g. state-of-Ohio, NCSS listings) put one blank line
+ * between every "- " item, which without this would flush and restart a
+ * one-item bullet list per line instead of one real list. */
+function collapseBulletGaps(lines: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) {
+      const prevWasBullet = out.length > 0 && jdBulletText(out[out.length - 1].trim()) !== null;
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trim()) j++;
+      const nextIsBullet = j < lines.length && jdBulletText(lines[j].trim()) !== null;
+      if (prevWasBullet && nextIsBullet) continue;
+    }
+    out.push(lines[i]);
+  }
+  return out;
+}
+
+function parseJobDescription(text: string): JdBlock[] {
+  const lines = collapseBulletGaps(text.replace(/\r\n/g, "\n").split("\n"));
+  const blocks: JdBlock[] = [];
+  let paraBuf: string[] = [];
+  let bulletBuf: string[] = [];
+  const flushPara = () => {
+    if (paraBuf.length) blocks.push({ kind: "para", text: paraBuf.join(" ") });
+    paraBuf = [];
+  };
+  const flushBullets = () => {
+    if (bulletBuf.length) blocks.push({ kind: "bullets", items: bulletBuf });
+    bulletBuf = [];
+  };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) {
+      flushPara();
+      flushBullets();
+      continue;
+    }
+    const bulletText = jdBulletText(line);
+    if (bulletText !== null) {
+      flushPara();
+      bulletBuf.push(bulletText);
+      continue;
+    }
+    if (isJdHeading(line)) {
+      flushPara();
+      flushBullets();
+      blocks.push({ kind: "heading", text: line.replace(/:$/, "") });
+      continue;
+    }
+    flushBullets();
+    paraBuf.push(line);
+  }
+  flushPara();
+  flushBullets();
+  return blocks;
+}
+
+function JobDescriptionBody({ text }: { text: string }) {
+  const blocks = useMemo(() => parseJobDescription(text.trim()), [text]);
+  if (!blocks.length) {
+    return (
+      <p className="text-sm leading-relaxed text-foreground/90">
+        This posting did not include a description. Open it on the company site to read the full details.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {blocks.map((b, i) => {
+        if (b.kind === "heading") {
+          return (
+            <h4 key={i} className="text-sm font-semibold text-foreground mt-4 mb-1 first:mt-0">
+              {b.text}
+            </h4>
+          );
+        }
+        if (b.kind === "bullets") {
+          return (
+            <ul key={i} className="list-disc pl-5 space-y-1 text-sm leading-relaxed text-foreground/90">
+              {b.items.map((item, j) => (
+                <li key={j}>{item}</li>
+              ))}
+            </ul>
+          );
+        }
+        return (
+          <p key={i} className="text-sm leading-relaxed text-foreground/90">
+            {b.text}
+          </p>
+        );
+      })}
+    </div>
+  );
 }
 
 // v3.142.0 — asked directly for "a better way to organize locations": the
@@ -948,9 +1115,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
 
       <div className="flex-1 overflow-y-auto p-5">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Job description</h3>
-        <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-          {selected.description?.trim() || "This posting did not include a description. Open it on the company site to read the full details."}
-        </p>
+        <JobDescriptionBody text={selected.description ?? ""} />
       </div>
     </div>
   );
@@ -1213,7 +1378,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                     <SelectContent>
                       <SelectItem value="__all">All categories</SelectItem>
                       {categories.map((c) => (
-                        <SelectItem key={c} value={c}>{c.replace(/_/g, " ")}</SelectItem>
+                        <SelectItem key={c} value={c}>{humanizeCategory(c)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1451,12 +1616,12 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           the last 3 days. Never a guessed demand number, always a real count
           of what's actually landing on file right now. */}
       <Dialog open={trendingOpen} onOpenChange={setTrendingOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Trending right now</DialogTitle>
           </DialogHeader>
           <p className="text-xs text-muted-foreground -mt-2">
-            Real posting volume from the last 3 days. Not a guess at demand, just a count of what's actually landing.
+            Real posting volume from the last 3 days, across the US and Canada. Not a guess at demand, just a count of what's actually landing.
           </p>
 
           {structuredCities.length > 0 && (
@@ -1465,10 +1630,10 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
               onValueChange={(v) => pickTrendingCity(v === "__national" ? null : v)}
             >
               <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Nationally" />
+                <SelectValue placeholder="US & Canada" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__national">Nationally</SelectItem>
+                <SelectItem value="__national">US &amp; Canada</SelectItem>
                 {structuredCities.map((c) => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
@@ -1498,8 +1663,8 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">By role</p>
                   <div className="space-y-1">
                     {byCategory.map((r) => (
-                      <div key={r.category} className="flex items-center justify-between gap-2 text-sm py-1">
-                        <span className="truncate capitalize">{humanizeSlug(r.category)}</span>
+                      <div key={r.category} className="flex items-start justify-between gap-2 text-sm py-1">
+                        <span>{humanizeCategory(r.category)}</span>
                         <span className="shrink-0 text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}>{r.count}</span>
                       </div>
                     ))}
@@ -1509,8 +1674,8 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">By company</p>
                   <div className="space-y-1">
                     {byCompany.map((r) => (
-                      <div key={r.company} className="flex items-center justify-between gap-2 text-sm py-1">
-                        <span className="truncate">{r.company}</span>
+                      <div key={r.company} className="flex items-start justify-between gap-2 text-sm py-1">
+                        <span>{r.company}</span>
                         <span className="shrink-0 text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}>{r.count}</span>
                       </div>
                     ))}

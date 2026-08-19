@@ -1197,11 +1197,18 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
     // applied counts: a live sample of real postings confirmed those are
     // almost always zero, not a usable signal. This counts what's actually
     // landing instead -- same "code decides facts, never invents a demand
-    // number" rule role_finder right above already follows, same
-    // fetch-then-aggregate-in-JS shape too (job_postings is a few thousand
-    // rows; a live GROUP BY here would cost nothing, but staying consistent
-    // with the one pattern already proven at this table's scale beats
-    // introducing a second one for no real benefit).
+    // number" rule role_finder right above already follows.
+    // v3.169.0 — the original fetch-then-aggregate-in-JS approach capped
+    // at .limit(8000) with no .order(), assuming the 3-day window would
+    // stay comfortably under that. It didn't: found live during a
+    // verification sweep that the real window already holds 9,449+ rows,
+    // so the hand-aggregated "top 10" was being computed from an
+    // arbitrary, unordered ~84% slice, not the true totals (confirmed:
+    // direct SQL put SpaceX at 2,131 in-window postings, the old code
+    // reported 373). Moved the aggregation into Postgres itself
+    // (job_board_trending_counts, a real GROUP BY) -- correct at any
+    // table size, not a bigger guess at a limit that will just be wrong
+    // again once the table grows past it.
     if (action === "job_board_trending") {
       const adminTrend = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminTrend, "tailoring"); if (off) return off; }
@@ -1210,37 +1217,26 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
 
       const { city } = payload as { city?: string };
       const cutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+      const cityArg = city && String(city).trim() ? String(city).trim() : null;
 
-      const { data: postings, error: postingsErr } = await adminTrend
-        .from("job_postings")
-        .select("category, company, city")
-        .gte("posted_at", cutoff)
-        .not("category", "is", null)
-        .limit(8000);
-      if (postingsErr) return json({ error: postingsErr.message }, 500);
+      const { data: rows, error: rpcErr } = await adminTrend.rpc("job_board_trending_counts", {
+        p_since: cutoff,
+        p_city: cityArg,
+      });
+      if (rpcErr) return json({ error: rpcErr.message }, 500);
 
-      type Row = { category: string | null; company: string | null; city: string | null };
-      const rows = (postings || []) as Row[];
+      type Row = { scope: string; metric: string; label: string; cnt: number };
+      const all = (rows || []) as Row[];
+      const pick = (scope: string, metric: "category" | "company") =>
+        all
+          .filter((r) => r.scope === scope && r.metric === metric)
+          .map((r) => ({ [metric]: r.label, count: Number(r.cnt) }));
 
-      const countBy = (rs: Row[], key: "category" | "company") => {
-        const counts = new Map<string, number>();
-        for (const r of rs) {
-          const v = r[key];
-          if (!v) continue;
-          counts.set(v, (counts.get(v) || 0) + 1);
-        }
-        return Array.from(counts.entries())
-          .map(([k, count]) => ({ [key]: k, count }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 10);
-      };
-
-      const national = { byCategory: countBy(rows, "category"), byCompany: countBy(rows, "company") };
+      const national = { byCategory: pick("national", "category"), byCompany: pick("national", "company") };
 
       let cityResult: { name: string; byCategory: unknown[]; byCompany: unknown[] } | null = null;
-      if (city && String(city).trim()) {
-        const cityRows = rows.filter((r) => r.city === city);
-        cityResult = { name: city, byCategory: countBy(cityRows, "category"), byCompany: countBy(cityRows, "company") };
+      if (cityArg) {
+        cityResult = { name: cityArg, byCategory: pick("city", "category"), byCompany: pick("city", "company") };
       }
 
       return json({ national, city: cityResult });

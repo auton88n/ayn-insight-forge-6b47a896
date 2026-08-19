@@ -50,6 +50,7 @@
 // resolves cleanly. Cloud's own deployment was unaffected either way.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { isUsOrCanadaLocation } from "../_shared/geoScope.ts";
 
 // v3.134.0 — /jobs/search (the plain search endpoint) truncates description
 // to a ~1000-char preview, confirmed live (999 chars, cut off mid-sentence).
@@ -335,7 +336,14 @@ async function syncRegion(
         };
       })
       .filter((row) => row.description.length >= 40) // skip anything too thin to score against
-      .filter((row) => !looksNonLatinScript(row.description) && !looksNonLatinScript(row.title));
+      .filter((row) => !looksNonLatinScript(row.description) && !looksNonLatinScript(row.title))
+      // v3.169.0 — found live during a verification sweep: freehire's own
+      // countries=ca,us param (the only scoping this function had) is
+      // leaky -- real UK/Peru/Australia/Dubai/India/Turkey/Brazil/
+      // Philippines/Italy postings were confirmed live in the table
+      // despite it. The same local backstop ats-direct-sync already
+      // proved out is the real fix, not trusting freehire's own filter.
+      .filter((row) => isUsOrCanadaLocation(row.location));
 
     // v3.135.0 — resolve this page's distinct companies before upserting,
     // so company_logo_url lands in the same write as everything else
