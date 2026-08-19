@@ -554,7 +554,7 @@ function stemsMatch(a: string, b: string): boolean {
   return shorter.length >= 4 && longer.length - shorter.length <= 1 && longer.startsWith(shorter);
 }
 
-export function computeQuickScore(jdText: string, jobTitle: string, profile: QuickScoreInput): QuickScoreResult {
+export function computeQuickScore(jdText: string, jobTitle: string, profile: QuickScoreInput, jobTags?: string[]): QuickScoreResult {
   const jd = String(jdText || "");
   const haystack = " " + expandWithSynonyms(norm(jd)) + " ";
   const hasTerm = (t: string) => {
@@ -568,13 +568,28 @@ export function computeQuickScore(jdText: string, jobTitle: string, profile: Qui
   // still has to be present -- just tense/plural-tolerant now, not a
   // looser "any word matches" check.
   const jdWordStems = norm(jd).split(" ").filter(Boolean).map(stem);
+  // v3.166.0 — freehire's own tagged skills[] (job_postings.skills), when
+  // present, checked the same stemmed way as the JD text itself. Strictly
+  // additive: a candidate skill that already matched the JD text is
+  // unaffected, this can only turn a miss into a match for a job whose real
+  // JD phrasing differs from the tag ("React.js" tagged, "front-end
+  // JavaScript framework" in the prose). Never present for a job freehire
+  // didn't tag (~most rows, per this file's own live coverage numbers) --
+  // an empty jobTags array degrades to exactly today's JD-text-only check.
+  const tagWordStems = (jobTags || []).flatMap((t) => norm(t).split(" ").filter(Boolean).map(stem));
   const hasTermStemmed = (t: string) => {
     if (hasTerm(t)) return true;
     const words = norm(t).split(" ").filter((w) => w.length >= 3);
     if (!words.length) return false;
-    return words.every((w) => {
+    const jdHit = words.every((w) => {
       const ws = stem(w);
       return jdWordStems.some((js) => stemsMatch(ws, js));
+    });
+    if (jdHit) return true;
+    if (!tagWordStems.length) return false;
+    return words.every((w) => {
+      const ws = stem(w);
+      return tagWordStems.some((js) => stemsMatch(ws, js));
     });
   };
 

@@ -1101,7 +1101,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       { const off = await featureGate(adminScore, "tailoring"); if (off) return off; }
       { const blocked = await accountGate(adminScore, user.id, action); if (blocked) return blocked; }
       { const limited = await rateLimitGate(adminScore, user.id, action, 60, 15); if (limited) return limited; }
-      const { jobs } = payload as { jobs?: Array<{ id: string; title?: string; description: string }> };
+      const { jobs } = payload as { jobs?: Array<{ id: string; title?: string; description: string; skills?: string[] }> };
       if (!Array.isArray(jobs) || !jobs.length) return json({ error: "jobs required" }, 400);
       const capped = jobs.slice(0, 50);
 
@@ -1120,7 +1120,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         yearsExperience: identity?.computed_years_experience.value || 0,
       };
       const scores = capped.map((j) => {
-        const q = computeQuickScore(String(j.description || ""), String(j.title || ""), profile);
+        const q = computeQuickScore(String(j.description || ""), String(j.title || ""), profile, j.skills);
         return { id: j.id, match_pct: q.score };
       });
       return json({ scores });
@@ -1156,17 +1156,17 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
 
       const { data: postings, error: postingsErr } = await adminRoles
         .from("job_postings")
-        .select("id, title, company, description, posted_at")
+        .select("id, title, company, description, posted_at, skills")
         .order("posted_at", { ascending: false })
         .limit(6000);
       if (postingsErr) return json({ error: postingsErr.message }, 500);
 
       type Bucket = { title: string; sumScore: number; count: number; companies: Set<string>; bestId: string; bestScore: number };
       const buckets = new Map<string, Bucket>();
-      for (const row of (postings || []) as Array<{ id: string; title: string | null; company: string | null; description: string | null }>) {
+      for (const row of (postings || []) as Array<{ id: string; title: string | null; company: string | null; description: string | null; skills: string[] | null }>) {
         const title = String(row.title || "").trim();
         if (!title) continue;
-        const q = computeQuickScore(String(row.description || ""), title, profile);
+        const q = computeQuickScore(String(row.description || ""), title, profile, row.skills || undefined);
         const key = title.toLowerCase();
         let b = buckets.get(key);
         if (!b) { b = { title, sumScore: 0, count: 0, companies: new Set(), bestId: row.id, bestScore: -1 }; buckets.set(key, b); }

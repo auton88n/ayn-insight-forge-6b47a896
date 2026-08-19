@@ -147,7 +147,7 @@ export const resumeHubApi = {
   // from job_postings via Supabase, not through this action — RLS already
   // allows any authenticated user to read that table, same as resumes/
   // user_profile_canonical are read directly elsewhere in this app.
-  jobBoardScore: (jobs: Array<{ id: string; title: string; description: string }>) =>
+  jobBoardScore: (jobs: Array<{ id: string; title: string; description: string; skills?: string[] | null }>) =>
     call<{ scores: Array<{ id: string; match_pct: number | null }> }>(
       "resume-hub", { action: "job_board_score", jobs },
     ),
@@ -176,6 +176,17 @@ export interface JobPosting {
   location: string | null;
   apply_url: string;
   posted_at: string;
+  // v3.166.0 — freehire's own structured enrichment, captured at ingestion.
+  // All nullable: real, not fabricated for the rows freehire didn't tag.
+  employment_type?: string | null;
+  seniority?: string | null;
+  salary_min?: number | null;
+  salary_max?: number | null;
+  salary_currency?: string | null;
+  category?: string | null;
+  work_mode?: string | null;
+  city?: string | null;
+  skills?: string[] | null;
 }
 
 export interface PoolSkill {

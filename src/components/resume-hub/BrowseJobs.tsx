@@ -36,8 +36,10 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Loader2, ExternalLink, Plus, Flame, Search, MapPin, Home, ChevronDown, X, Building2, Bookmark, Wand2, Compass,
+  DollarSign, Clock, TrendingUp,
 } from "lucide-react";
 import { resumeHubApi, type JobPosting } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
@@ -51,7 +53,38 @@ interface Props {
 
 const PAGE_SIZE = 25;
 const HOT_WINDOW_MS = 24 * 60 * 60 * 1000;
-const COLS = "id, source, company, company_logo_url, title, description, location, apply_url, posted_at";
+// v3.166.0 — the enrichment columns job-board-sync now captures, so filters
+// and ranking can read them without a second round trip per row.
+const COLS = "id, source, company, company_logo_url, title, description, location, apply_url, posted_at, "
+  + "employment_type, seniority, salary_min, salary_max, salary_currency, category, work_mode, city, skills";
+
+const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
+  full_time: "Full-time", part_time: "Part-time", contract: "Contract", internship: "Internship",
+};
+const SENIORITY_LABELS: Record<string, string> = {
+  junior: "Junior", mid: "Mid", senior: "Senior", staff: "Staff", lead: "Lead", principal: "Principal",
+};
+const POSTED_WITHIN_OPTIONS = [
+  { key: "1", label: "24 hours" },
+  { key: "3", label: "3 days" },
+  { key: "7", label: "This week" },
+] as const;
+
+// Freehire's own vocabulary for these two fields is broader than the curated
+// label maps above (c_level, middle, fellowship all showed up live, none of
+// them hardcoded) -- fall back to a humanized slug instead of the raw
+// underscore-joined value so an unmapped one still reads like a real label.
+function humanizeSlug(s: string) {
+  return s.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
+function formatSalary(min: number | null | undefined, max: number | null | undefined, currency: string | null | undefined) {
+  if (min == null && max == null) return null;
+  const cur = currency || "USD";
+  const fmt = (n: number) => n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+  if (min != null && max != null) return `${cur} ${fmt(min)}–${fmt(max)}`;
+  return `${cur} ${fmt((min ?? max)!)}+`;
+}
 // v3.145.0 — whatever's open in the detail pane, restored once on a
 // refresh via its own one-shot effect below.
 const BROWSE_LAST_OPEN_KEY = "ayn_browse_last_open";
@@ -224,6 +257,29 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const [location, setLocation] = useState<string | null>(null);
   const [remoteOnly, setRemoteOnly] = useState(false);
 
+  // v3.166.0 — real filters, backed by the enrichment columns job-board-sync
+  // now captures. employmentType/seniority are chip toggles (a small,
+  // bounded value set); category is a dropdown (freehire tags ~20 distinct
+  // values); postedWithin is a chip too. All plain .eq()/.gte() additions to
+  // buildQuery, same shape as the existing location/remoteOnly filters.
+  const [employmentType, setEmploymentType] = useState<string | null>(null);
+  const [seniority, setSeniority] = useState<string | null>(null);
+  const [category, setCategory] = useState<string | null>(null);
+  const [postedWithin, setPostedWithin] = useState<string | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [employmentTypes, setEmploymentTypes] = useState<string[]>([]);
+  const [seniorities, setSeniorities] = useState<string[]>([]);
+
+  // v3.166.0 — "real relevance ranking" is now the default, not opt-in.
+  // Independent of matchMode (which additionally narrows to Profile's
+  // desired_locations, a real, deliberate filter that stays its own
+  // choice) — this only controls whether the list re-sorts by quick score
+  // once scores come back. A caller with no profile yet gets match_pct:
+  // null for every job, which the re-sort effect below already treats as a
+  // no-op stable sort, so the honest fallback is exactly today's recency
+  // order — no new "no profile" branch needed.
+  const [newestFirst, setNewestFirst] = useState(false);
+
   const [locations, setLocations] = useState<string[]>([]);
   const [locOpen, setLocOpen] = useState(false);
   const [locFilter, setLocFilter] = useState("");
@@ -279,7 +335,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     setQuery(title);
   };
 
-  const hasFilters = !!query || !!location || remoteOnly;
+  const hasFilters = !!query || !!location || remoteOnly || !!employmentType || !!seniority || !!category || !!postedWithin;
 
   /* Debounce the search box so typing doesn't fire a query per keystroke. */
   useEffect(() => {
@@ -299,6 +355,71 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     });
     return () => { cancelled = true; };
   }, []);
+
+  /* Same pattern for the three enrichment-backed filters — real distinct
+     values on file, never a hardcoded guess at freehire's own vocabulary. */
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      supabase.from("job_postings").select("category").not("category", "is", null).limit(5000),
+      supabase.from("job_postings").select("employment_type").not("employment_type", "is", null).limit(5000),
+      supabase.from("job_postings").select("seniority").not("seniority", "is", null).limit(5000),
+    ]).then(([cat, et, sen]) => {
+      if (cancelled) return;
+      const dedupe = (rows: { [k: string]: string | null }[] | null, key: string) => {
+        const set = new Set<string>();
+        for (const r of rows || []) if (r[key]) set.add(r[key] as string);
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+      };
+      setCategories(dedupe(cat.data as { category: string | null }[], "category"));
+      setEmploymentTypes(dedupe(et.data as { employment_type: string | null }[], "employment_type"));
+      setSeniorities(dedupe(sen.data as { seniority: string | null }[], "seniority"));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  /* v3.166.0 — search autocomplete. Real distinct titles/companies already
+     on file, same lightweight single-column-read pattern as locations
+     above, filtered client side as the person types — no per-keystroke
+     query. */
+  const [titleOptions, setTitleOptions] = useState<string[]>([]);
+  const [companyOptions, setCompanyOptions] = useState<string[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchBoxRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      supabase.from("job_postings").select("title").limit(5000),
+      supabase.from("job_postings").select("company").limit(5000),
+    ]).then(([t, c]) => {
+      if (cancelled) return;
+      const dedupe = (rows: { [k: string]: string | null }[] | null, key: string) => {
+        const set = new Set<string>();
+        for (const r of rows || []) if (r[key]) set.add(r[key] as string);
+        return Array.from(set);
+      };
+      setTitleOptions(dedupe(t.data as { title: string | null }[], "title"));
+      setCompanyOptions(dedupe(c.data as { company: string | null }[], "company"));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) setSearchOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  const searchSuggestions = useMemo(() => {
+    const q = rawQuery.trim().toLowerCase();
+    if (!q) return [];
+    const titles = titleOptions.filter((t) => t.toLowerCase().includes(q)).slice(0, 5).map((v) => ({ v, kind: "title" as const }));
+    const companies = companyOptions.filter((c) => c.toLowerCase().includes(q)).slice(0, 3).map((v) => ({ v, kind: "company" as const }));
+    return [...titles, ...companies];
+  }, [rawQuery, titleOptions, companyOptions]);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -332,7 +453,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
 
   const scorePage = useCallback((rows: JobPosting[]) => {
     if (!rows.length) return;
-    resumeHubApi.jobBoardScore(rows.map((r) => ({ id: r.id, title: r.title, description: r.description })))
+    resumeHubApi.jobBoardScore(rows.map((r) => ({ id: r.id, title: r.title, description: r.description, skills: r.skills })))
       .then((res) => {
         setScores((prev) => {
           const next = { ...prev };
@@ -367,22 +488,33 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       if (location) q = q.eq("location", location);
       if (remoteOnly) q = q.ilike("location", "%remote%");
     }
+    if (employmentType) q = q.eq("employment_type", employmentType);
+    if (seniority) q = q.eq("seniority", seniority);
+    if (category) q = q.eq("category", category);
+    if (postedWithin) {
+      const cutoff = new Date(Date.now() - Number(postedWithin) * 24 * 60 * 60 * 1000).toISOString();
+      q = q.gte("posted_at", cutoff);
+    }
     return q;
-  }, [query, location, remoteOnly, matchMode, desiredLocations]);
+  }, [query, location, remoteOnly, matchMode, desiredLocations, employmentType, seniority, category, postedWithin]);
 
   // v3.142.0 — the underlying query still sorts by recency (that's what
   // keeps pagination and the total count honest); once a page's quick
-  // scores come back, Match me re-sorts what's already loaded so the
-  // strongest overlap with the resume surfaces first. Guarded against a
-  // no-op reorder so this can never loop against the score update below.
+  // scores come back, this re-sorts what's already loaded so the strongest
+  // overlap with the resume surfaces first. Guarded against a no-op reorder
+  // so this can never loop against the score update below.
+  // v3.166.0 — no longer gated on matchMode (which only ever meant "also
+  // narrow to Profile's desired_locations"). Match-based ranking is now the
+  // default state; "Newest" is the explicit opt-out for someone who wants
+  // pure recency instead.
   useEffect(() => {
-    if (!matchMode) return;
+    if (newestFirst) return;
     setJobs((prev) => {
       const sorted = [...prev].sort((a, b) => (scores[b.id] ?? -1) - (scores[a.id] ?? -1));
       const same = sorted.every((j, i) => j.id === prev[i]?.id);
       return same ? prev : sorted;
     });
-  }, [scores, matchMode]);
+  }, [scores, newestFirst]);
 
   /* First page, and every filter change. */
   useEffect(() => {
@@ -562,6 +694,10 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     setLocation(null);
     setRemoteOnly(false);
     setMatchMode(false);
+    setEmploymentType(null);
+    setSeniority(null);
+    setCategory(null);
+    setPostedWithin(null);
   };
 
   const startMatchMode = () => {
@@ -620,6 +756,34 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           <span className="text-xs text-muted-foreground">Posted {postedAge(selected.posted_at)} · {postedDate(selected.posted_at)}</span>
         </div>
 
+        {/* v3.166.0 — real, freehire-tagged facts about this specific
+            posting, shown wherever they're actually present, never a blank
+            placeholder for what's not on file. */}
+        {(formatSalary(selected.salary_min, selected.salary_max, selected.salary_currency) || selected.employment_type || selected.seniority || selected.work_mode) && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {formatSalary(selected.salary_min, selected.salary_max, selected.salary_currency) && (
+              <span className="inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1" style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}>
+                <DollarSign className="w-3 h-3" />{formatSalary(selected.salary_min, selected.salary_max, selected.salary_currency)}
+              </span>
+            )}
+            {selected.employment_type && (
+              <span className="text-xs rounded-full px-2.5 py-1 bg-muted text-muted-foreground">
+                {EMPLOYMENT_TYPE_LABELS[selected.employment_type] || humanizeSlug(selected.employment_type)}
+              </span>
+            )}
+            {selected.seniority && (
+              <span className="text-xs rounded-full px-2.5 py-1 bg-muted text-muted-foreground">
+                {SENIORITY_LABELS[selected.seniority] || humanizeSlug(selected.seniority)}
+              </span>
+            )}
+            {selected.work_mode && (
+              <span className="text-xs rounded-full px-2.5 py-1 bg-muted text-muted-foreground capitalize">
+                {selected.work_mode}
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-2 flex-wrap pt-1">
           <Button onClick={() => handleAdd(selected)} disabled={addingId === selected.id}>
             {addingId === selected.id
@@ -664,7 +828,20 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             Real postings from company career pages, refreshed continuously. Never LinkedIn or Indeed.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* v3.166.0 — real relevance ranking is the default now, so this
+              is an opt-out ("Newest") rather than the "Match me" opt-in
+              above, which is a separate, stronger action (it also narrows
+              to Profile's desired_locations). */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setNewestFirst((v) => !v)}
+            className="text-xs"
+          >
+            <Clock className="w-3.5 h-3.5 mr-1.5" />{newestFirst ? "Sorted by newest" : "Sort: best match"}
+          </Button>
           <Button type="button" variant="outline" onClick={openRoleFinder}>
             <Compass className="w-4 h-4 mr-2" />Explore roles
           </Button>
@@ -690,14 +867,32 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
 
       {/* Filters */}
       <div className="flex flex-col lg:flex-row gap-2">
-        <div className="relative flex-1">
+        <div className="relative flex-1" ref={searchBoxRef}>
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={rawQuery}
-            onChange={(e) => setRawQuery(e.target.value)}
+            onChange={(e) => { setRawQuery(e.target.value); setSearchOpen(true); }}
+            onFocus={() => setSearchOpen(true)}
             placeholder="Search by title or company"
             className="pl-9"
           />
+          {searchOpen && searchSuggestions.length > 0 && (
+            <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg py-1 max-h-64 overflow-y-auto">
+              {searchSuggestions.map((s) => (
+                <button
+                  key={`${s.kind}-${s.v}`}
+                  type="button"
+                  className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-sm hover:bg-muted"
+                  onClick={() => { setRawQuery(s.v); setQuery(s.v); setSearchOpen(false); }}
+                >
+                  {s.kind === "company"
+                    ? <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    : <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                  <span className="truncate">{s.v}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className={`relative w-full lg:w-64 ${matchMode ? "opacity-50 pointer-events-none" : ""}`} ref={locBoxRef}>
@@ -786,6 +981,71 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         )}
       </div>
 
+      {/* v3.166.0 — real filters on the enrichment columns job-board-sync
+          now captures. Job type and seniority as chips (a small, bounded
+          value set); category as a dropdown (freehire tags ~20 distinct
+          values); posted-within as chips too. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {POSTED_WITHIN_OPTIONS.map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            onClick={() => setPostedWithin((v) => (v === o.key ? null : o.key))}
+            className="text-xs px-2.5 py-1 rounded-full border transition"
+            style={postedWithin === o.key
+              ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
+              : { borderColor: "var(--border, hsl(var(--border)))" }}
+          >
+            {o.label}
+          </button>
+        ))}
+        {employmentTypes.length > 0 && (
+          <span className="w-px h-4 bg-border mx-0.5" aria-hidden="true" />
+        )}
+        {employmentTypes.map((et) => (
+          <button
+            key={et}
+            type="button"
+            onClick={() => setEmploymentType((v) => (v === et ? null : et))}
+            className="text-xs px-2.5 py-1 rounded-full border transition"
+            style={employmentType === et
+              ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
+              : { borderColor: "var(--border, hsl(var(--border)))" }}
+          >
+            {EMPLOYMENT_TYPE_LABELS[et] || humanizeSlug(et)}
+          </button>
+        ))}
+        {seniorities.length > 0 && (
+          <span className="w-px h-4 bg-border mx-0.5" aria-hidden="true" />
+        )}
+        {seniorities.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setSeniority((v) => (v === s ? null : s))}
+            className="text-xs px-2.5 py-1 rounded-full border transition"
+            style={seniority === s
+              ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
+              : { borderColor: "var(--border, hsl(var(--border)))" }}
+          >
+            {SENIORITY_LABELS[s] || humanizeSlug(s)}
+          </button>
+        ))}
+        {categories.length > 0 && (
+          <Select value={category ?? "__all"} onValueChange={(v) => setCategory(v === "__all" ? null : v)}>
+            <SelectTrigger className="h-7 w-auto text-xs gap-1.5 rounded-full px-2.5 py-1 border-input">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">All categories</SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c} value={c}>{c.replace(/_/g, " ")}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
       <p className="text-xs text-muted-foreground">
         {loading
           ? "Loading jobs…"
@@ -861,6 +1121,11 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                           <div className="flex items-center gap-2 flex-wrap pt-0.5">
                             {scorePill(j.id)}
                             <span className="text-[11px] text-muted-foreground">{postedAge(j.posted_at)} · {postedDate(j.posted_at)}</span>
+                            {formatSalary(j.salary_min, j.salary_max, j.salary_currency) && (
+                              <span className="text-[11px] font-medium" style={{ color: "var(--rh-accent-2)" }}>
+                                {formatSalary(j.salary_min, j.salary_max, j.salary_currency)}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </button>
