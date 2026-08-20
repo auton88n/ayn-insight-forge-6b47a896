@@ -609,11 +609,63 @@ export function computeQuickScore(jdText: string, jobTitle: string, profile: Qui
   });
   const titlePct = titleWords.length ? titleHits.length / titleWords.length : 0.5;
 
-  // 2. Skill fit: how many of the candidate's own skills this JD text
-  // actually mentions, exact phrase first, stemmed word-overlap fallback.
+  // 2. Skill fit: v3.184.0 rewrite, asked directly to fix a report that this
+  // score was "bad, not accurate." The old version asked "what fraction of
+  // EVERYTHING this candidate knows appears in this JD" (matched / the
+  // candidate's own total skill count) -- backwards, and it structurally
+  // punished a broad skill list, since a real JD only ever needs a handful
+  // of any one person's skills; a 30-skill profile could never clear a high
+  // score even on a genuinely strong match. Now asks the same question the
+  // paid Score/Tailor pipeline already asks correctly: of what this job
+  // actually states as a requirement, how much does the candidate have.
+  // Reuses extractRequirements() itself (hardened across several real live
+  // regressions, see its own history above -- one of them, v3.148.0, was
+  // this exact "quick auto score isn't working" complaint on a different
+  // JD) rather than inventing a second JD parser.
   const skills = Array.from(new Set((profile.skills || []).filter(Boolean)));
-  const matchedSkills = skills.filter(hasTermStemmed);
-  const skillsPct = skills.length ? matchedSkills.length / skills.length : 0;
+  const requiredReqs = extractRequirements(jd).filter((r) => r.kind === "required");
+  let skillsPct: number;
+  let matchedSkills: string[];
+  if (requiredReqs.length >= 3) {
+    // A requirement is evidenced if at least one of the candidate's own
+    // skills appears as a real term inside that requirement's own text --
+    // NOT a coverage-percentage of the requirement sentence's own generic
+    // words (that was tried first and measured wrong: a requirement like
+    // "Experience with PostgreSQL and relational database design" has
+    // "experience"/"relational"/"database"/"design" as words a bare skill
+    // list like "PostgreSQL" will never contain, dragging coverage below
+    // any sane threshold even though the actual skill is a dead match).
+    // computeGap's own coverage bar works because it matches against full
+    // resume prose, a much richer haystack than a short skills array;
+    // matching the other direction (skill-in-requirement, reusing the
+    // exact same stemmed matcher the old code already trusted) is the
+    // right check for this shorter, sparser haystack.
+    matchedSkills = [];
+    for (const r of requiredReqs) {
+      const reqHaystack = " " + expandWithSynonyms(norm(r.text)) + " ";
+      const reqWordStems = norm(r.text).split(" ").filter(Boolean).map(stem);
+      const skillInReq = skills.some((s) => {
+        const n = norm(s);
+        if (!n) return false;
+        if (reqHaystack.includes(` ${n} `) || reqHaystack.includes(n.length >= 4 ? n : ` ${n} `)) return true;
+        const words = n.split(" ").filter((w) => w.length >= 3);
+        return words.length > 0 && words.every((w) => {
+          const ws = stem(w);
+          return reqWordStems.some((rs) => stemsMatch(ws, rs));
+        });
+      });
+      if (skillInReq) matchedSkills.push(r.text);
+    }
+    skillsPct = matchedSkills.length / requiredReqs.length;
+  } else {
+    // Fallback only: this JD didn't extract enough real requirement
+    // structure to trust (too little prose, or formatted in a way
+    // extractRequirements can't parse) -- the original candidate-skills-
+    // vs-JD-text check, so it still returns a real score instead of one
+    // based on almost nothing.
+    matchedSkills = skills.filter(hasTermStemmed);
+    skillsPct = skills.length ? matchedSkills.length / skills.length : 0;
+  }
 
   // 3. Experience fit: candidate's own years vs. this JD's own stated
   // "N+ years", if it states one at all. No stated number is neutral
