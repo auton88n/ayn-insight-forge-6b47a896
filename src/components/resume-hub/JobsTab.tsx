@@ -729,7 +729,15 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     : statusScoped;
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    // v3.174.0 — reported directly, from a screenshot: "half the page is
+    // split," a real bug, not a feeling. This list's own root div capped
+    // at max-w-2xl (672px) while it renders inside .rh-main, which runs up
+    // to ~1240px wide -- roughly half the panel was dead space on every
+    // wide screen. BrowseJobs.tsx's own root has no such cap. Dropped it
+    // here too, and the single-column list became a responsive two-column
+    // grid instead of one very wide row, so the freed-up width goes into
+    // more cards on screen at once, not one oddly stretched column.
+    <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="rh-display text-xl">Saved jobs</h2>
         <Button
@@ -804,28 +812,30 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
         </DialogContent>
       </Dialog>
 
-      <div className="space-y-2.5">
-        {jobs.length === 0 && (
-          <Card className="p-10 text-center rounded-xl" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
-            <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
-            No saved jobs yet. Browse jobs or add one manually to get started.
-          </Card>
-        )}
+      {jobs.length === 0 && (
+        <Card className="p-10 text-center rounded-xl" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
+          <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          No saved jobs yet. Browse jobs or add one manually to get started.
+        </Card>
+      )}
 
-        {visibleJobs.length === 0 && jobs.length > 0 && (
-          <Card className="p-8 text-center rounded-xl" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
-            {q ? `Nothing matches "${jobQuery.trim()}".` : "Nothing in this stage yet."}
-          </Card>
-        )}
+      {visibleJobs.length === 0 && jobs.length > 0 && (
+        <Card className="p-8 text-center rounded-xl" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
+          {q ? `Nothing matches "${jobQuery.trim()}".` : "Nothing in this stage yet."}
+        </Card>
+      )}
 
-        {/* v3.173.0 — reported directly against a screenshot of Browse
-            jobs' own cards: this list should look like those, not the
-            flatter single-line row it had. Same shape (a lifted card, a
-            logo/initial box, the JD's own first couple lines, a
-            footer-link row) reused here, minus a live match score -- that
-            costs a real credit per job (`match`), so it's never computed
-            for every row in a free list, only on demand when a job is
-            actually opened. */}
+      {/* v3.173.0 — reported directly against a screenshot of Browse
+          jobs' own cards: this list should look like those, not the
+          flatter single-line row it had. Same shape (a lifted card, a
+          logo/initial box, the JD's own first couple lines, a
+          footer-link row) reused here, minus a live match score -- that
+          costs a real credit per job (`match`), so it's never computed
+          for every row in a free list, only on demand when a job is
+          actually opened.
+          v3.174.0 — two per row on a wide screen instead of one very wide
+          row, once the max-w-2xl cap above was removed. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {visibleJobs.map((j) => {
           const avatar = companyAvatar(j.company || "?");
           const logoUrl = faviconFor(j.source_url);
