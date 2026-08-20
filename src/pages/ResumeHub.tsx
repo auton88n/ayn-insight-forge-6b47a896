@@ -260,9 +260,10 @@ export default function ResumeHub() {
                 {creditBalance} credit{creditBalance === 1 ? "" : "s"}
               </button>
             )}
-            <button className="rh-btn rh-btn-primary" onClick={() => setTab("profile")}>
-              Your resume
-            </button>
+            {/* v3.177.0 — the "Your resume" button (setTab("profile"))
+                reported directly for removal — Profile has been its own
+                nav rail item since v3.175.0's reorder, so this was a
+                second, redundant path to the exact same place. */}
             {/* v3.173.0/v3.174.0 — this used to open a dropdown (Your
                 profile, Plan and credits, Settings, Sign out, later trimmed
                 to Settings/Sign out) for things that all now live on the

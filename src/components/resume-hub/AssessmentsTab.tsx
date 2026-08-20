@@ -452,55 +452,76 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
         </Card>
       )}
 
-      {rows.map(a => {
-        const avatar = companyAvatar(a.org_name || "?");
-        return (
-        <Card key={a.id} className="rh-lift p-4 sm:p-5 space-y-2 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
+      {/* v3.177.0 — reported directly: match Browse jobs' own tall card
+          shape (boxed logo, bigger title, a chip row, a bottom-border
+          footer) instead of the flatter single-row card this used before.
+          Title/subtitle order flipped to match every other card in this
+          app -- the role first, the company second -- since this one had
+          it backwards (org name as the heading, job title as the
+          subtitle). */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {rows.map(a => {
+          const avatar = companyAvatar(a.org_name || "?");
+          const statusMeta = a.status === "submitted"
+            ? { label: "Submitted", bg: "var(--rh-trust-tint)", color: "var(--rh-trust)" }
+            : a.status === "expired"
+              ? { label: "Expired", bg: "var(--rh-raised)", color: "var(--rh-faint)" }
+              : null;
+          return (
+            <div
+              key={a.id}
+              className="rh-lift w-full rounded-2xl p-5 flex flex-col"
+              style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}
+            >
               {a.org_logo_url ? (
-                <img src={a.org_logo_url} alt="" className="w-10 h-10 rounded-lg object-cover border" style={{ borderColor: "var(--rh-hair)" }} />
+                <img src={a.org_logo_url} alt="" className="w-14 h-14 rounded-xl object-contain bg-white p-1.5 border mb-3" style={{ borderColor: "var(--rh-hair)" }} />
               ) : (
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${avatar.className}`} style={{ boxShadow: "0 4px 12px -4px rgba(28,23,18,0.35)" }}>
+                <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 mb-3 ${avatar.className}`} style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}>
                   {avatar.initial}
                 </div>
               )}
-              <div className="min-w-0">
-                <p className="rh-display text-[14px] truncate">{a.org_name}</p>
-                <p className="text-xs truncate" style={{ color: "var(--rh-muted)" }}>{a.job_title}</p>
+              <p className="rh-display text-[18px] leading-snug mb-1">{a.job_title}</p>
+              <p className="text-[13px] mb-3" style={{ color: "var(--rh-muted)" }}>{a.org_name}</p>
+
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: "var(--rh-raised)", color: "var(--rh-muted)" }}>
+                  {a.question_count} questions · ~{Math.round(a.time_limit_seconds / 60)} min
+                </span>
+                {statusMeta && (
+                  <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: statusMeta.bg, color: statusMeta.color }}>
+                    {statusMeta.label}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex-1" />
+
+              <div className="flex items-center justify-between pt-3 mt-3 border-t" style={{ borderColor: "var(--rh-hair)" }}>
+                {a.status === "submitted" ? (
+                  <p className="text-xs" style={{ color: "var(--rh-faint)" }}>Your answers went to {a.org_name}.</p>
+                ) : a.status === "expired" ? (
+                  <p className="text-xs" style={{ color: "var(--rh-faint)" }}>This one closed before it was submitted.</p>
+                ) : (
+                  <p className="text-xs" style={{ color: "var(--rh-faint)" }}>
+                    {a.expires_at ? `Closes ${new Date(a.expires_at).toLocaleDateString()}` : ""}
+                  </p>
+                )}
+                {(a.status !== "submitted" && a.status !== "expired") && (
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => start(a.id)}
+                    style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+                    className="hover:opacity-90 shrink-0"
+                  >
+                    {a.status === "started" ? "Continue" : "Start"}
+                  </Button>
+                )}
               </div>
             </div>
-            {a.status === "submitted" && (
-              <span className="text-[11px] font-semibold rounded-full px-2.5 py-1 shrink-0" style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}>Submitted</span>
-            )}
-            {a.status === "expired" && (
-              <span className="text-[11px] font-semibold rounded-full px-2.5 py-1 shrink-0" style={{ background: "var(--rh-raised)", color: "var(--rh-faint)" }}>Expired</span>
-            )}
-          </div>
-
-          <p className="text-xs" style={{ color: "var(--rh-muted)" }}>
-            {a.question_count} questions · about {Math.round(a.time_limit_seconds / 60)} minutes
-            {a.expires_at ? ` · closes ${new Date(a.expires_at).toLocaleDateString()}` : ""}
-          </p>
-
-          {a.status === "submitted" ? (
-            <p className="text-xs" style={{ color: "var(--rh-faint)" }}>Your answers went to {a.org_name}.</p>
-          ) : a.status === "expired" ? (
-            <p className="text-xs" style={{ color: "var(--rh-faint)" }}>This one closed before it was submitted.</p>
-          ) : (
-            <Button
-              size="sm"
-              disabled={busy}
-              onClick={() => start(a.id)}
-              style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
-              className="hover:opacity-90"
-            >
-              {a.status === "started" ? "Continue" : "Start"}
-            </Button>
-          )}
-        </Card>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }

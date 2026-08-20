@@ -825,16 +825,14 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
         </Card>
       )}
 
-      {/* v3.173.0 — reported directly against a screenshot of Browse
-          jobs' own cards: this list should look like those, not the
-          flatter single-line row it had. Same shape (a lifted card, a
-          logo/initial box, the JD's own first couple lines, a
-          footer-link row) reused here, minus a live match score -- that
-          costs a real credit per job (`match`), so it's never computed
-          for every row in a free list, only on demand when a job is
-          actually opened.
-          v3.174.0 — two per row on a wide screen instead of one very wide
-          row, once the max-w-2xl cap above was removed. */}
+      {/* v3.177.0 — reported directly against the exact Browse jobs swipe
+          card (the tall, spacious card shape, not the flatter list row
+          this used before): a bordered, boxed logo; a bigger title; the
+          status as its own chip row instead of a top-right corner badge;
+          a longer description; a bottom border and a right-aligned "Read
+          full posting" link, matching that card's own footer wording.
+          Still no live match score per card -- that's a real, paid
+          `match` call, never run automatically across a whole free list. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {visibleJobs.map((j) => {
           const avatar = companyAvatar(j.company || "?");
@@ -845,46 +843,46 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
           return (
             <div
               key={j.id}
-              className="rh-lift w-full rounded-xl p-4"
+              className="rh-lift w-full rounded-2xl p-5 flex flex-col"
               style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}
             >
-              <button type="button" onClick={() => openJob(j)} className="flex items-start gap-3 w-full text-left">
+              <button type="button" onClick={() => openJob(j)} className="flex flex-col items-start w-full text-left">
                 {showLogo ? (
                   <img
                     src={logoUrl!}
                     alt=""
-                    className="w-12 h-12 rounded-xl shrink-0 object-contain bg-white p-1.5 border"
+                    className="w-14 h-14 rounded-xl shrink-0 object-contain bg-white p-1.5 border mb-3"
                     style={{ borderColor: "var(--rh-hair)" }}
                     onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
                   />
                 ) : (
                   <div
-                    className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold shrink-0 ${avatar.className}`}
+                    className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 mb-3 ${avatar.className}`}
                     style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
                   >
                     {avatar.initial}
                   </div>
                 )}
-                <div className="min-w-0 flex-1 space-y-1">
-                  <p className="rh-display text-[15.5px] leading-snug">{j.title}</p>
-                  <p className="text-[13px] truncate" style={{ color: "var(--rh-muted)" }}>
-                    {j.company}{j.location ? ` • ${j.location}` : ""}
-                  </p>
-                  {snippet && (
-                    <p className="text-[12.5px] leading-relaxed line-clamp-2" style={{ color: "var(--rh-muted)" }}>
-                      {snippet}
-                    </p>
-                  )}
+                <p className="rh-display text-[18px] leading-snug mb-1">{j.title}</p>
+                <p className="text-[13px] mb-3" style={{ color: "var(--rh-muted)" }}>
+                  {j.company}{j.location ? ` · ${j.location}` : ""}
+                </p>
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  <span
+                    className="text-[11px] font-semibold rounded-full px-2.5 py-1"
+                    style={{ background: meta.bg, color: meta.color }}
+                  >
+                    {meta.label}
+                  </span>
                 </div>
-                <span
-                  className="text-[11px] font-semibold rounded-full px-2.5 py-1 shrink-0"
-                  style={{ background: meta.bg, color: meta.color }}
-                >
-                  {meta.label}
-                </span>
+                {snippet && (
+                  <p className="text-[13px] leading-relaxed line-clamp-4" style={{ color: "var(--rh-muted)" }}>
+                    {snippet}
+                  </p>
+                )}
               </button>
-              {j.source_url && (
-                <div className="flex items-center justify-between pt-3 mt-3 border-t" style={{ borderColor: "var(--rh-hair)" }}>
+              <div className="flex items-center justify-between pt-3 mt-3 border-t" style={{ borderColor: "var(--rh-hair)" }}>
+                {j.source_url ? (
                   <a
                     href={j.source_url}
                     target="_blank"
@@ -898,16 +896,16 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                   >
                     View posting <ExternalLink className="w-3 h-3 ml-1" />
                   </a>
-                  <button
-                    type="button"
-                    onClick={() => openJob(j)}
-                    className="text-[11px] font-semibold"
-                    style={{ color: "var(--rh-muted)" }}
-                  >
-                    Open →
-                  </button>
-                </div>
-              )}
+                ) : <span />}
+                <button
+                  type="button"
+                  onClick={() => openJob(j)}
+                  className="text-[11px] font-bold underline"
+                  style={{ color: "var(--rh-accent-2)" }}
+                >
+                  Read full posting
+                </button>
+              </div>
             </div>
           );
         })}

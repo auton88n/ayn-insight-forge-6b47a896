@@ -113,10 +113,10 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0">
               {p.org_logo_url ? (
-                <img src={p.org_logo_url} alt={`${p.org_name} logo`} loading="lazy" className="w-11 h-11 rounded-xl object-cover border" style={{ borderColor: "var(--rh-hair)" }} />
+                <img src={p.org_logo_url} alt={`${p.org_name} logo`} loading="lazy" className="w-14 h-14 rounded-xl object-contain bg-white p-1.5 border" style={{ borderColor: "var(--rh-hair)" }} />
               ) : (
                 <div
-                  className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 ${avatar.className}`}
+                  className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 ${avatar.className}`}
                   style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
                 >
                   {avatar.initial}
@@ -126,10 +126,32 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
                 <p className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5" style={{ color: "var(--rh-accent-2)" }}>
                   <Sparkles className="w-3.5 h-3.5" />{p.org_name} wants to meet you
                 </p>
-                <p className="rh-display text-base mt-0.5">{p.job_title}</p>
+                <p className="rh-display text-[18px] mt-0.5">{p.job_title}</p>
               </div>
             </div>
             <Badge variant="outline" className="shrink-0 border-0" style={{ background: "var(--rh-raised)", color: "var(--rh-faint)" }}>{when(p.sent_at)}</Badge>
+          </div>
+
+          {/* v3.177.0 — reported directly: "vertical nice shape," matching
+              Browse jobs' own card language -- location/type/salary are
+              now real pill chips instead of plain icon+text, same as that
+              card's own chip row. */}
+          <div className="flex flex-wrap gap-1.5">
+            {p.job_location && (
+              <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: "var(--rh-raised)", color: "var(--rh-muted)" }}>
+                <MapPin className="w-3 h-3 inline mr-1 -mt-0.5" />{p.job_location}
+              </span>
+            )}
+            {p.employment_type && (
+              <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}>
+                <Briefcase className="w-3 h-3 inline mr-1 -mt-0.5" />{p.employment_type}
+              </span>
+            )}
+            {p.salary_range && (
+              <span className="text-[11px] font-bold rounded-full px-2.5 py-1" style={{ background: "var(--rh-gold-tint)", color: "var(--rh-gold)" }}>
+                <Banknote className="w-3 h-3 inline mr-1 -mt-0.5" />{p.salary_range}
+              </span>
+            )}
           </div>
 
           {/* v3.10.0 — who is reaching out, only what the employer actually entered. */}
@@ -149,16 +171,11 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
             </div>
           )}
 
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs" style={{ color: "var(--rh-muted)" }}>
-            {p.job_location && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{p.job_location}</span>}
-            {p.employment_type && <span className="inline-flex items-center gap-1"><Briefcase className="w-3.5 h-3.5" />{p.employment_type}</span>}
-            {p.salary_range && <span className="inline-flex items-center gap-1 font-semibold" style={{ color: "var(--rh-gold)" }}><Banknote className="w-3.5 h-3.5" />{p.salary_range}</span>}
-            {p.job_url && (
-              <a href={p.job_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline" style={{ color: "var(--rh-accent-2)" }}>
-                <ExternalLink className="w-3.5 h-3.5" />View the posting
-              </a>
-            )}
-          </div>
+          {p.job_url && (
+            <a href={p.job_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold underline" style={{ color: "var(--rh-accent-2)" }}>
+              <ExternalLink className="w-3.5 h-3.5" />View the posting
+            </a>
+          )}
 
 
           {p.message && (
@@ -167,7 +184,7 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
             </p>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-2 pt-3 border-t" style={{ borderColor: "var(--rh-hair)" }}>
             <p className="text-xs" style={{ color: "var(--rh-faint)" }}>
               Accepting shares your name, email and phone with this employer.
             </p>
