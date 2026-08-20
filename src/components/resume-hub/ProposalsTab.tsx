@@ -107,7 +107,7 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
         return (
         <Card
           key={p.id}
-          className="rh-lift p-4 sm:p-6 space-y-4 rounded-xl"
+          className="rh-lift p-4 sm:p-6 space-y-4 rounded-2xl min-h-[380px] flex flex-col"
           style={{ background: "var(--rh-surface)", border: "1.5px solid var(--rh-accent)", boxShadow: "var(--rh-shadow-lift)" }}
         >
           <div className="flex items-start justify-between gap-3">
@@ -184,7 +184,7 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
             </p>
           )}
 
-          <div className="space-y-2 pt-3 border-t" style={{ borderColor: "var(--rh-hair)" }}>
+          <div className="space-y-2 pt-3 mt-auto border-t" style={{ borderColor: "var(--rh-hair)" }}>
             <p className="text-xs" style={{ color: "var(--rh-faint)" }}>
               Accepting shares your name, email and phone with this employer.
             </p>

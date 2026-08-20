@@ -101,10 +101,12 @@ export function ResumeUpload({ onParsed, className, variant = "full" }: Props) {
           onClick={() => inputRef.current?.click()}
           disabled={status === "parsing"}
           className={cn(
-            "inline-flex items-center gap-2 px-3 py-1.5 rounded-none border border-border text-xs font-mono uppercase tracking-wider",
-            "hover:border-foreground transition-all duration-200",
+            "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all duration-200",
             "disabled:opacity-50 disabled:cursor-not-allowed"
           )}
+          style={{ borderColor: "var(--rh-hair, var(--border))" }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--rh-accent, var(--foreground))"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--rh-hair, var(--border))"; }}
         >
           {status === "parsing"
             ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Parsing...</>
@@ -129,55 +131,60 @@ export function ResumeUpload({ onParsed, className, variant = "full" }: Props) {
         onDragLeave={onDragLeave}
         onClick={() => status !== "parsing" && inputRef.current?.click()}
         className={cn(
-          "relative border-2 border-dashed rounded-none p-8 flex flex-col items-center justify-center gap-3 cursor-pointer",
+          "relative border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer",
           "transition-all duration-200 select-none",
-          dragging
-            ? "border-foreground bg-foreground/5 scale-[1.01]"
-            : status === "done"
+          status === "done"
             ? "border-emerald-500/60 bg-emerald-50/30 dark:bg-emerald-950/10"
             : status === "error"
             ? "border-rose-500/60 bg-rose-50/30 dark:bg-rose-950/10"
-            : "border-border hover:border-muted-foreground hover:bg-muted/20",
+            : "",
           status === "parsing" && "cursor-wait pointer-events-none opacity-80"
         )}
+        style={
+          status === "done" || status === "error"
+            ? undefined
+            : dragging
+              ? { borderColor: "var(--rh-accent, var(--foreground))", background: "var(--rh-tint, transparent)", transform: "scale(1.01)" }
+              : { borderColor: "var(--rh-hair, var(--border))" }
+        }
       >
         {status === "parsing" ? (
           <>
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            <p className="text-sm font-mono text-muted-foreground">Reading {fileName}…</p>
-            <p className="text-xs text-muted-foreground">AI is extracting your details</p>
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--rh-accent-2, currentColor)" }} />
+            <p className="text-sm" style={{ color: "var(--rh-muted, currentColor)" }}>Reading {fileName}…</p>
+            <p className="text-xs" style={{ color: "var(--rh-faint, currentColor)" }}>AI is extracting your details</p>
           </>
         ) : status === "done" ? (
           <>
             <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-            <p className="text-sm font-mono font-semibold text-emerald-700 dark:text-emerald-400">Resume loaded</p>
+            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Resume loaded</p>
             <p className="text-xs text-muted-foreground">{fileName} · click to upload a different file</p>
           </>
         ) : status === "error" ? (
           <>
             <XCircle className="w-8 h-8 text-rose-500" />
-            <p className="text-sm font-mono font-semibold text-rose-600 dark:text-rose-400">Parse failed</p>
+            <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">Parse failed</p>
             <p className="text-xs text-muted-foreground">Click to try again</p>
           </>
         ) : (
           <>
-            <div className="w-12 h-12 rounded-full border-2 border-border flex items-center justify-center">
-              <Upload className="w-5 h-5 text-muted-foreground" />
+            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "var(--rh-tint, transparent)" }}>
+              <Upload className="w-5 h-5" style={{ color: "var(--rh-accent-2, currentColor)" }} />
             </div>
             <div className="text-center">
-              <p className="text-sm font-medium">Drop your resume here or <span className="underline underline-offset-2">browse</span></p>
-              <p className="text-xs text-muted-foreground mt-1">PDF, DOCX, or TXT · max 10 MB</p>
+              <p className="text-sm font-medium">Drop your resume here or <span className="underline underline-offset-2" style={{ color: "var(--rh-accent-2, currentColor)" }}>browse</span></p>
+              <p className="text-xs mt-1" style={{ color: "var(--rh-muted, currentColor)" }}>PDF, DOCX, or TXT · max 10 MB</p>
             </div>
             <div className="flex items-center gap-3 mt-1">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <FileText className="w-3.5 h-3.5" />.pdf
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <FileText className="w-3.5 h-3.5" />.docx
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <FileText className="w-3.5 h-3.5" />.txt
-              </div>
+              {[".pdf", ".docx", ".txt"].map((ext) => (
+                <span
+                  key={ext}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-full px-2.5 py-1"
+                  style={{ background: "var(--rh-raised, transparent)", color: "var(--rh-muted, currentColor)" }}
+                >
+                  <FileText className="w-3 h-3" />{ext}
+                </span>
+              ))}
             </div>
           </>
         )}

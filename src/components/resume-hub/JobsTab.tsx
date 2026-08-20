@@ -826,13 +826,29 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       )}
 
       {/* v3.177.0 — reported directly against the exact Browse jobs swipe
-          card (the tall, spacious card shape, not the flatter list row
-          this used before): a bordered, boxed logo; a bigger title; the
-          status as its own chip row instead of a top-right corner badge;
-          a longer description; a bottom border and a right-aligned "Read
-          full posting" link, matching that card's own footer wording.
-          Still no live match score per card -- that's a real, paid
-          `match` call, never run automatically across a whole free list. */}
+          card. v3.178.0 — reported directly against the exact reference
+          card, side by side with this one: the earlier pass was close but
+          not it. Two real gaps closed. One, height -- that reference card
+          is a fixed 440px (BrowseJobs.tsx's own SwipeDeck), so a short
+          description still leaves generous empty space before the
+          footer; this list's cards were only ever as tall as their own
+          content, so a short posting looked visibly thinner than a long
+          one sitting right beside it. min-h-[420px] plus a flex-1 spacer
+          between the description and the footer gets the same effect
+          without needing a literal fixed height on every card, which
+          would clip a genuinely long description instead of just
+          scrolling past what a fixed-height deck card cannot show either.
+          Two, the footer -- the reference card's own footer is one
+          left-side indicator (a match-score gauge there, honestly not
+          available here without a paid `match` call run for free across
+          a whole list) plus one right-side "Read full posting" link, not
+          two competing links. The status pill moved down into that left
+          slot -- real data, not invented, and the actual at-a-glance
+          state this specific card needs -- and "View posting" (the
+          external apply link) was dropped from the card entirely: it is
+          not lost, the exact same link with the exact same auto-apply
+          click behavior already lives one tap away on the detail view
+          this card opens into. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {visibleJobs.map((j) => {
           const avatar = companyAvatar(j.company || "?");
@@ -841,72 +857,51 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
           const meta = STATUS_META[j.application_status] ?? STATUS_META.saved;
           const snippet = (j.jd_text || "").trim();
           return (
-            <div
+            <button
               key={j.id}
-              className="rh-lift w-full rounded-2xl p-5 flex flex-col"
+              type="button"
+              onClick={() => openJob(j)}
+              className="rh-lift w-full rounded-2xl p-5 flex flex-col text-left min-h-[420px]"
               style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}
             >
-              <button type="button" onClick={() => openJob(j)} className="flex flex-col items-start w-full text-left">
-                {showLogo ? (
-                  <img
-                    src={logoUrl!}
-                    alt=""
-                    className="w-14 h-14 rounded-xl shrink-0 object-contain bg-white p-1.5 border mb-3"
-                    style={{ borderColor: "var(--rh-hair)" }}
-                    onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
-                  />
-                ) : (
-                  <div
-                    className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 mb-3 ${avatar.className}`}
-                    style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
-                  >
-                    {avatar.initial}
-                  </div>
-                )}
-                <p className="rh-display text-[18px] leading-snug mb-1">{j.title}</p>
-                <p className="text-[13px] mb-3" style={{ color: "var(--rh-muted)" }}>
-                  {j.company}{j.location ? ` · ${j.location}` : ""}
-                </p>
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  <span
-                    className="text-[11px] font-semibold rounded-full px-2.5 py-1"
-                    style={{ background: meta.bg, color: meta.color }}
-                  >
-                    {meta.label}
-                  </span>
-                </div>
-                {snippet && (
-                  <p className="text-[13px] leading-relaxed line-clamp-4" style={{ color: "var(--rh-muted)" }}>
-                    {snippet}
-                  </p>
-                )}
-              </button>
-              <div className="flex items-center justify-between pt-3 mt-3 border-t" style={{ borderColor: "var(--rh-hair)" }}>
-                {j.source_url ? (
-                  <a
-                    href={j.source_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (j.application_status === "saved") updateStatus(j.id, "applied");
-                    }}
-                    className="inline-flex items-center text-[11px] font-bold underline"
-                    style={{ color: "var(--rh-accent-2)" }}
-                  >
-                    View posting <ExternalLink className="w-3 h-3 ml-1" />
-                  </a>
-                ) : <span />}
-                <button
-                  type="button"
-                  onClick={() => openJob(j)}
-                  className="text-[11px] font-bold underline"
-                  style={{ color: "var(--rh-accent-2)" }}
+              {showLogo ? (
+                <img
+                  src={logoUrl!}
+                  alt=""
+                  className="w-14 h-14 rounded-xl shrink-0 object-contain bg-white p-1.5 border mb-3"
+                  style={{ borderColor: "var(--rh-hair)" }}
+                  onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
+                />
+              ) : (
+                <div
+                  className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 mb-3 ${avatar.className}`}
+                  style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
                 >
+                  {avatar.initial}
+                </div>
+              )}
+              <p className="rh-display text-[18px] leading-snug mb-1">{j.title}</p>
+              <p className="text-[13px] mb-3" style={{ color: "var(--rh-muted)" }}>
+                {j.company}{j.location ? ` · ${j.location}` : ""}
+              </p>
+              {snippet && (
+                <p className="text-[13px] leading-relaxed line-clamp-6" style={{ color: "var(--rh-muted)" }}>
+                  {snippet}
+                </p>
+              )}
+              <div className="flex-1" />
+              <div className="flex items-center justify-between pt-3 mt-3 border-t w-full" style={{ borderColor: "var(--rh-hair)" }}>
+                <span
+                  className="text-[11px] font-semibold rounded-full px-2.5 py-1"
+                  style={{ background: meta.bg, color: meta.color }}
+                >
+                  {meta.label}
+                </span>
+                <span className="text-[11px] font-bold underline" style={{ color: "var(--rh-accent-2)" }}>
                   Read full posting
-                </button>
+                </span>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>

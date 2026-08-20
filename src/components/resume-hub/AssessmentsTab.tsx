@@ -458,7 +458,16 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
           Title/subtitle order flipped to match every other card in this
           app -- the role first, the company second -- since this one had
           it backwards (org name as the heading, job title as the
-          subtitle). */}
+          subtitle).
+          v3.178.0 — reported directly, again, as "bad, not what 2026
+          looks like": next to the reference card this still read thin,
+          since there is no description-equivalent field here to give it
+          real height. min-h-[300px] (shorter than Saved jobs' 420px --
+          there is genuinely less to say about an assessment than a full
+          job posting, and forcing the same height would read as dead
+          padding, not spaciousness) plus the flex-1 spacer already below
+          gives it the same generous, unhurried footer placement the
+          reference card has, without inventing content to fill it. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {rows.map(a => {
           const avatar = companyAvatar(a.org_name || "?");
@@ -470,7 +479,7 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
           return (
             <div
               key={a.id}
-              className="rh-lift w-full rounded-2xl p-5 flex flex-col"
+              className="rh-lift w-full rounded-2xl p-5 flex flex-col min-h-[300px]"
               style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}
             >
               {a.org_logo_url ? (
