@@ -46,7 +46,20 @@ interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile
 // handoff from Browse jobs having just happened.
 const LAST_OPEN_KEY = "ayn_jobs_last_open";
 
-interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string; application_status: string }
+interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string; application_status: string; application_status_changed_at: string }
+
+// v3.182.0 — "status silence is the #1 killer": research consistently found
+// candidates expect a reply within days and disengage after 1-2 weeks of
+// nothing, and once a job flips to Applied here AYN goes completely quiet --
+// there's no ATS to watch, so it never says anything again. This can't
+// promise a response (AYN has no visibility into what happens after the
+// click-through), only be honest that it's been a while and suggest a real,
+// low-effort next step. Ten days -- meaningfully past the fast end of what
+// research calls a normal reply window, not so long it reads as nagging.
+const SILENCE_NUDGE_DAYS = 10;
+function daysSince(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+}
 
 // v3.173.0 — a lighter version of BrowseJobs.tsx's own resolveLogoUrl: a
 // saved job's row here never has company_logo_url/company_slug (those
@@ -167,9 +180,10 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // of rows, already loaded in full.
   const [jobQuery, setJobQuery] = useState("");
   const [logoFailed, setLogoFailed] = useState<Set<string>>(new Set());
+  const [nudgeSnoozed, setNudgeSnoozed] = useState(false);
 
   const load = async () => {
-    const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at, application_status").eq("user_id", userId).order("created_at", { ascending: false });
+    const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at, application_status, application_status_changed_at").eq("user_id", userId).order("created_at", { ascending: false });
     const rows = (data as JobRow[]) ?? [];
     setJobs(rows);
     // v3.137.0 — Browse jobs adds a posting then hands off here, naming the
@@ -232,6 +246,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     setTailored(null);
     setCover(null);
     setGapSuggestions([]);
+    setNudgeSnoozed(isNudgeSnoozed(j.id));
     loadDocs(j.id);
   };
 
@@ -364,10 +379,29 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // Updates both the open detail view and the list's own row so neither
   // ever shows a stale status after the other changes it.
   const updateStatus = async (id: string, status: string) => {
-    const { error } = await supabase.from("jobs").update({ application_status: status }).eq("id", id);
+    const changedAt = new Date().toISOString();
+    const { error } = await supabase.from("jobs").update({ application_status: status, application_status_changed_at: changedAt }).eq("id", id);
     if (error) { toast({ title: "Couldn't update status", description: error.message, variant: "destructive" }); return; }
-    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, application_status: status } : j)));
-    setSelected((prev) => (prev && prev.id === id ? { ...prev, application_status: status } : prev));
+    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, application_status: status, application_status_changed_at: changedAt } : j)));
+    setSelected((prev) => (prev && prev.id === id ? { ...prev, application_status: status, application_status_changed_at: changedAt } : prev));
+    dismissNudgeSnooze(id, true); // a fresh status change means any prior silence nudge no longer applies
+  };
+
+  // v3.182.0 — a snooze, not a permanent dismiss: re-surfaces after another
+  // week rather than being silenced forever the first time someone closes
+  // it, since the whole point is a person genuinely might not check back in.
+  // `clear` is used on any real status change (see updateStatus above) so a
+  // stale snooze from a prior "Applied" spell can't suppress a nudge that's
+  // now about a completely different silence.
+  const dismissNudgeSnooze = (jobId: string, clear = false) => {
+    const key = `ayn_nudge_snooze_${jobId}`;
+    if (clear) { localStorage.removeItem(key); return; }
+    localStorage.setItem(key, String(Date.now()));
+  };
+  const isNudgeSnoozed = (jobId: string): boolean => {
+    const raw = localStorage.getItem(`ayn_nudge_snooze_${jobId}`);
+    if (!raw) return false;
+    return daysSince(new Date(Number(raw)).toISOString()) < 7;
   };
 
 
@@ -489,6 +523,33 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
             })}
           </div>
         </Card>
+
+        {/* v3.182.0 — "status silence is the #1 killer": research consistently
+            names no-response-for-weeks as the single biggest source of job-
+            search anxiety, and this is the honest, AYN-can-actually-say
+            version of it. Not a promise of a response (AYN has no way to
+            see one), just naming the specific job and company by name --
+            "feel seen, not processed" -- and a real, low-effort next step
+            instead of silence answered with more silence. Snoozable, not
+            permanently dismissible, since the silence itself doesn't end
+            just because someone closed the card once. */}
+        {selected.application_status === "applied" && !nudgeSnoozed && daysSince(selected.application_status_changed_at) >= SILENCE_NUDGE_DAYS && (
+          <Card className="p-4 rounded-xl flex items-start justify-between gap-3" style={{ background: "var(--rh-tint)", borderColor: "#e85d3a33" }}>
+            <p className="text-sm leading-relaxed" style={{ color: "var(--rh-ink)" }}>
+              It's been <span className="font-semibold">{daysSince(selected.application_status_changed_at)} days</span> since you applied to{" "}
+              <span className="font-semibold">{selected.company}</span> for {selected.title} — still no word? Most replies land faster than
+              this, so it's fair to look for another way in: a warm intro, a direct follow-up, or just refocusing your energy while you wait.
+            </p>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="shrink-0"
+              onClick={() => { dismissNudgeSnooze(selected.id); setNudgeSnoozed(true); }}
+            >
+              Got it
+            </Button>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
           <Card className="p-5 rounded-xl lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)] overflow-y-auto" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
@@ -867,6 +928,11 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
           const showLogo = !!logoUrl && !logoFailed.has(j.id);
           const meta = STATUS_META[j.application_status] ?? STATUS_META.saved;
           const snippet = (j.jd_text || "").trim();
+          // v3.182.0 — a lightweight, always-visible version of the silence
+          // nudge above: discoverable across the whole pipeline at a glance,
+          // without opening every card one at a time.
+          const silentDays = j.application_status === "applied" ? daysSince(j.application_status_changed_at) : 0;
+          const showSilentDays = silentDays >= SILENCE_NUDGE_DAYS;
           return (
             <button
               key={j.id}
@@ -906,7 +972,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                   className="text-[11px] font-semibold rounded-full px-2.5 py-1"
                   style={{ background: meta.bg, color: meta.color }}
                 >
-                  {meta.label}
+                  {meta.label}{showSilentDays ? ` · ${silentDays}d silent` : ""}
                 </span>
                 <span className="text-[11px] font-bold underline" style={{ color: "var(--rh-accent-2)" }}>
                   Read full posting

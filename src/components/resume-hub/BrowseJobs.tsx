@@ -483,6 +483,39 @@ function parseJobDescription(text: string): JdBlock[] {
   return blocks;
 }
 
+// v3.182.0 — 89% of job seekers say a company's values weigh on whether
+// they apply (real, cited research), and the highlights strip above had
+// salary/seniority/mode/type but nothing about the company itself. Zero new
+// data and zero AI call: JD_HEADER_KEYWORDS already recognizes "about us" /
+// "why join" / "who we are" style headings for the structural parser above,
+// so this just asks that same parser for the paragraph sitting right under
+// one of those specific headings and shows it verbatim, truncated. Never
+// summarized, never scored, never invented for a JD that doesn't have one --
+// exactly the "surface what the company already said" version, not a new
+// AYN opinion about the company.
+const ABOUT_COMPANY_HEADINGS = new Set([
+  "about us", "about the company", "who we are", "our culture",
+  "our values", "our mission", "why join", "why join us",
+]);
+const CULTURE_SNIPPET_MAX = 220;
+function extractCultureSnippet(text: string): string | null {
+  if (!text.trim()) return null;
+  const blocks = parseJobDescription(text);
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.kind !== "heading") continue;
+    if (!ABOUT_COMPANY_HEADINGS.has(b.text.trim().toLowerCase())) continue;
+    const next = blocks[i + 1];
+    if (!next) continue;
+    const raw = next.kind === "para" ? next.text : next.kind === "bullets" ? next.items.join(" ") : null;
+    if (!raw) continue;
+    const trimmed = raw.trim();
+    if (trimmed.length < 20) continue; // too short to be a real statement, likely noise
+    return trimmed.length > CULTURE_SNIPPET_MAX ? `${trimmed.slice(0, CULTURE_SNIPPET_MAX).trim()}…` : trimmed;
+  }
+  return null;
+}
+
 function JobDescriptionBody({ text }: { text: string }) {
   const blocks = useMemo(() => parseJobDescription(text.trim()), [text]);
   if (!blocks.length) {
@@ -1435,6 +1468,10 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   };
 
   const selectedSalary = selected ? resolveSalary(selected) : null;
+  const cultureSnippet = useMemo(
+    () => (selected ? extractCultureSnippet(selected.description ?? "") : null),
+    [selected],
+  );
 
   // v3.171.0 — "read it in 5 seconds," the highlights strip from the
   // approved Ember Discovery mockup. Recruiters skim a resume in 6-10
@@ -1541,6 +1578,15 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                 </span>
               ))}
             </div>
+          </div>
+        )}
+
+        {cultureSnippet && (
+          <div className="rounded-lg px-3 py-2.5" style={{ background: "var(--rh-tint)", border: "1px solid #e85d3a33" }}>
+            <div className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--rh-faint)" }}>
+              In {selected.company}'s own words
+            </div>
+            <p className="text-[13px] leading-relaxed" style={{ color: "var(--rh-ink)" }}>{cultureSnippet}</p>
           </div>
         )}
 

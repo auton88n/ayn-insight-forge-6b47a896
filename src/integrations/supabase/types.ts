@@ -2264,6 +2264,7 @@ export type Database = {
       jobs: {
         Row: {
           application_status: string
+          application_status_changed_at: string
           captured_at: string
           company: string | null
           created_at: string
@@ -2285,6 +2286,7 @@ export type Database = {
         }
         Insert: {
           application_status?: string
+          application_status_changed_at?: string
           captured_at?: string
           company?: string | null
           created_at?: string
@@ -2306,6 +2308,7 @@ export type Database = {
         }
         Update: {
           application_status?: string
+          application_status_changed_at?: string
           captured_at?: string
           company?: string | null
           created_at?: string
