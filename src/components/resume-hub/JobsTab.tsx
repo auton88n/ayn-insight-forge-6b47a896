@@ -29,7 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
-import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Download, X, ArrowLeft } from "lucide-react";
+import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Download, X, ArrowLeft, Search } from "lucide-react";
 import { resumeToText, buildResumeDocxBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import ResumeDiffViewer from "./ResumeDiffViewer";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
@@ -47,6 +47,24 @@ interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile
 const LAST_OPEN_KEY = "ayn_jobs_last_open";
 
 interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string; application_status: string }
+
+// v3.173.0 — a lighter version of BrowseJobs.tsx's own resolveLogoUrl: a
+// saved job's row here never has company_logo_url/company_slug (those
+// only exist on job_postings, the Browse catalog), only source_url -- a
+// plain favicon-by-hostname guess off that is a real, if looser, second
+// attempt at the same thing (an icon for a real company), and a failed
+// load already falls through to the colored-initial avatar exactly like
+// Browse jobs does, so this can only ever improve on it, never regress it.
+function faviconFor(sourceUrl: string | null): string | null {
+  if (!sourceUrl) return null;
+  try {
+    const host = new URL(sourceUrl).hostname.replace(/^www\./, "");
+    if (host.length < 4) return null;
+    return `https://icons.duckduckgo.com/ip3/${host}.ico`;
+  } catch {
+    return null;
+  }
+}
 
 // v3.172.0 — asked directly to bring the same research-driven pass to the
 // rest of Resume Hub. The single most-loved feature across the whole
@@ -142,6 +160,13 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // stands at a glance" value the research found without the much bigger
   // UI investment a real board would need for a list this size.
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  // v3.173.0 — reported directly: no way to search a growing saved-jobs
+  // list at all, unlike Browse jobs' own search box. All-client-side is
+  // the right call here (unlike Browse jobs' server-side, debounced search
+  // over a 1,000+ row catalog) — a saved-jobs list is realistically dozens
+  // of rows, already loaded in full.
+  const [jobQuery, setJobQuery] = useState("");
+  const [logoFailed, setLogoFailed] = useState<Set<string>>(new Set());
 
   const load = async () => {
     const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at, application_status").eq("user_id", userId).order("created_at", { ascending: false });
@@ -697,7 +722,11 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     acc[s] = jobs.filter((j) => j.application_status === s).length;
     return acc;
   }, {});
-  const visibleJobs = statusFilter ? jobs.filter((j) => j.application_status === statusFilter) : jobs;
+  const statusScoped = statusFilter ? jobs.filter((j) => j.application_status === statusFilter) : jobs;
+  const q = jobQuery.trim().toLowerCase();
+  const visibleJobs = q
+    ? statusScoped.filter((j) => j.title.toLowerCase().includes(q) || j.company.toLowerCase().includes(q))
+    : statusScoped;
 
   return (
     <div className="space-y-4 max-w-2xl">
@@ -711,6 +740,19 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
           <Plus className="w-4 h-4 mr-2" />Add job manually
         </Button>
       </div>
+
+      {jobs.length > 0 && (
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--rh-faint)" }} />
+          <Input
+            value={jobQuery}
+            onChange={(e) => setJobQuery(e.target.value)}
+            placeholder="Search by title or company"
+            className="pl-9"
+            style={{ borderColor: "var(--rh-hair)" }}
+          />
+        </div>
+      )}
 
       {jobs.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -772,37 +814,91 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
 
         {visibleJobs.length === 0 && jobs.length > 0 && (
           <Card className="p-8 text-center rounded-xl" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
-            Nothing in this stage yet.
+            {q ? `Nothing matches "${jobQuery.trim()}".` : "Nothing in this stage yet."}
           </Card>
         )}
 
+        {/* v3.173.0 — reported directly against a screenshot of Browse
+            jobs' own cards: this list should look like those, not the
+            flatter single-line row it had. Same shape (a lifted card, a
+            logo/initial box, the JD's own first couple lines, a
+            footer-link row) reused here, minus a live match score -- that
+            costs a real credit per job (`match`), so it's never computed
+            for every row in a free list, only on demand when a job is
+            actually opened. */}
         {visibleJobs.map((j) => {
           const avatar = companyAvatar(j.company || "?");
+          const logoUrl = faviconFor(j.source_url);
+          const showLogo = !!logoUrl && !logoFailed.has(j.id);
           const meta = STATUS_META[j.application_status] ?? STATUS_META.saved;
+          const snippet = (j.jd_text || "").trim();
           return (
-            <button
+            <div
               key={j.id}
-              onClick={() => openJob(j)}
-              className="rh-lift w-full text-left flex items-center gap-3 p-3.5 rounded-xl"
+              className="rh-lift w-full rounded-xl p-4"
               style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}
             >
-              <div
-                className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${avatar.className}`}
-                style={{ boxShadow: "0 4px 12px -4px rgba(28,23,18,0.35)" }}
-              >
-                {avatar.initial}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="rh-display text-[14px] truncate">{j.title}</div>
-                <div className="text-xs truncate" style={{ color: "var(--rh-muted)" }}>{j.company} {j.location && `• ${j.location}`}</div>
-              </div>
-              <span
-                className="text-[11px] font-semibold rounded-full px-2.5 py-1 shrink-0"
-                style={{ background: meta.bg, color: meta.color }}
-              >
-                {meta.label}
-              </span>
-            </button>
+              <button type="button" onClick={() => openJob(j)} className="flex items-start gap-3 w-full text-left">
+                {showLogo ? (
+                  <img
+                    src={logoUrl!}
+                    alt=""
+                    className="w-12 h-12 rounded-xl shrink-0 object-contain bg-white p-1.5 border"
+                    style={{ borderColor: "var(--rh-hair)" }}
+                    onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
+                  />
+                ) : (
+                  <div
+                    className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold shrink-0 ${avatar.className}`}
+                    style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
+                  >
+                    {avatar.initial}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="rh-display text-[15.5px] leading-snug">{j.title}</p>
+                  <p className="text-[13px] truncate" style={{ color: "var(--rh-muted)" }}>
+                    {j.company}{j.location ? ` • ${j.location}` : ""}
+                  </p>
+                  {snippet && (
+                    <p className="text-[12.5px] leading-relaxed line-clamp-2" style={{ color: "var(--rh-muted)" }}>
+                      {snippet}
+                    </p>
+                  )}
+                </div>
+                <span
+                  className="text-[11px] font-semibold rounded-full px-2.5 py-1 shrink-0"
+                  style={{ background: meta.bg, color: meta.color }}
+                >
+                  {meta.label}
+                </span>
+              </button>
+              {j.source_url && (
+                <div className="flex items-center justify-between pt-3 mt-3 border-t" style={{ borderColor: "var(--rh-hair)" }}>
+                  <a
+                    href={j.source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (j.application_status === "saved") updateStatus(j.id, "applied");
+                    }}
+                    className="inline-flex items-center text-[11px] font-bold underline"
+                    style={{ color: "var(--rh-accent-2)" }}
+                  >
+                    View posting <ExternalLink className="w-3 h-3 ml-1" />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => openJob(j)}
+                    className="text-[11px] font-semibold"
+                    style={{ color: "var(--rh-muted)" }}
+                  >
+                    Open →
+                  </button>
+                </div>
+              )}
+            </div>
           );
         })}
       </div>

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Home, User, Briefcase, Mail, LogOut, ClipboardCheck, CreditCard, Settings, Compass } from "lucide-react";
+import { Home, User, Briefcase, Mail, LogOut, ClipboardCheck, Settings, Compass } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -240,18 +240,29 @@ export default function ResumeHub() {
                   <User className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setTab("profile")}>
-                  <User className="w-4 h-4 mr-2" /> Your profile
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/billing")}>
-                  <CreditCard className="w-4 h-4 mr-2" /> Plan and credits
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/settings")}>
+              {/* v3.173.0 — reported directly: four items (Your profile,
+                  Plan and credits, Settings, Sign out) when Settings already
+                  shows the plan/credits summary and the profile summary with
+                  a link back to each real editor (AccountPreferences.tsx,
+                  v3.73.0) — three ways to reach the same place. Collapsed to
+                  Settings plus Sign out, and retinted off the default
+                  bg-popover/text-popover-foreground (plain white/black) onto
+                  the same rh-tokens the rest of Resume Hub already uses. */}
+              <DropdownMenuContent
+                align="end"
+                className="border-[color:var(--rh-hair)] bg-[color:var(--rh-surface)] text-[color:var(--rh-ink)]"
+              >
+                <DropdownMenuItem
+                  onClick={() => navigate("/settings")}
+                  className="focus:bg-[color:var(--rh-tint)] focus:text-[color:var(--rh-accent-2)]"
+                >
                   <Settings className="w-4 h-4 mr-2" /> Settings
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut}>
+                <DropdownMenuSeparator className="bg-[color:var(--rh-hair)]" />
+                <DropdownMenuItem
+                  onClick={handleSignOut}
+                  className="focus:bg-[color:var(--rh-tint)] focus:text-[color:var(--rh-accent-2)]"
+                >
                   <LogOut className="w-4 h-4 mr-2" /> Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>
