@@ -69,7 +69,7 @@ export default function GapProbeDialog({ open, onOpenChange, issue, question, on
 
         {submitting ? (
           <div className="flex flex-col items-center gap-3 py-10">
-            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--rh-accent)" }} />
             <p className="text-sm text-muted-foreground">Reading your answer…</p>
           </div>
         ) : (

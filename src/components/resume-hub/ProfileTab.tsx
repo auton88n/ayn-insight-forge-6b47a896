@@ -677,50 +677,53 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   return (
     <div className="space-y-4">
       {/* ── Matching readiness, and the autosave indicator ───────────────── */}
-      <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+      <div className="flex items-start justify-between gap-4 rounded-xl px-4 py-3" style={{ background: "var(--rh-raised)", border: "1px solid var(--rh-hair)" }}>
         <div className="flex items-start gap-2 min-w-0">
           {readiness.ready
-            ? <Check className="w-4 h-4 mt-0.5 shrink-0 text-primary" />
-            : <Sparkles className="w-4 h-4 mt-0.5 shrink-0 text-primary" />}
+            ? <Check className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--rh-trust)" }} />
+            : <Sparkles className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--rh-accent-2)" }} />}
           <p className="text-xs leading-relaxed">{readiness.line}</p>
         </div>
-        <span className="text-[11px] text-muted-foreground shrink-0 flex items-center gap-1.5">
+        <span className="text-[11px] shrink-0 flex items-center gap-1.5" style={{ color: "var(--rh-faint)" }}>
           {saveState === "saving" && <><Loader2 className="w-3 h-3 animate-spin" /> Saving</>}
           {saveState === "saved" && <><Check className="w-3 h-3" /> Saved</>}
         </span>
       </div>
 
       {/* ── Let employers find me — moved here from Get discovered so the
-          on/off decision sits right next to the profile it controls. Green
-          means on, grey means off, on purpose: this is a visibility switch,
-          not a settings checkbox, and it should read at a glance. ────────── */}
+          on/off decision sits right next to the profile it controls. Solid
+          color means on, grey means off, on purpose: this is a visibility
+          switch, not a settings checkbox, and it should read at a glance.
+          v3.172.0 — recolored from a raw Tailwind emerald to the same
+          trust teal every other "verified/on/positive" signal in the app
+          now uses (Browse Jobs' own "sourced directly" line, work-mode
+          chips), so this reads as one consistent color language instead
+          of two different greens depending on which page you're on. ──── */}
       <Card
-        className={`p-4 sm:p-6 flex items-center justify-between gap-4 flex-wrap border ${
-          poolOptedIn ? "border-emerald-500/40 bg-emerald-500/[0.06]" : "border-border/60 bg-muted/20"
-        }`}
+        className="p-4 sm:p-6 flex items-center justify-between gap-4 flex-wrap rounded-xl"
+        style={poolOptedIn
+          ? { border: "1.5px solid var(--rh-trust)", background: "var(--rh-trust-tint)" }
+          : { border: "1px solid var(--rh-hair)", background: "var(--rh-raised)" }}
       >
         <div className="flex items-start gap-2.5 min-w-0">
-          <Users className={`w-4 h-4 mt-0.5 shrink-0 ${poolOptedIn ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`} />
+          <Users className="w-4 h-4 mt-0.5 shrink-0" style={{ color: poolOptedIn ? "var(--rh-trust)" : "var(--rh-faint)" }} />
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-medium">Let employers find me</span>
+              <span className="text-sm font-semibold">Let employers find me</span>
               <span
-                className={`text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${
-                  poolOptedIn
-                    ? "bg-emerald-500 text-white"
-                    : "bg-muted-foreground/20 text-muted-foreground"
-                }`}
+                className="text-[11px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                style={poolOptedIn ? { background: "var(--rh-trust)", color: "#fff" } : { background: "var(--rh-hair)", color: "var(--rh-faint)" }}
               >
                 {poolOptedIn ? "On" : "Off"}
               </span>
             </div>
             {poolRestricted ? (
-              <p className="text-xs text-destructive mt-1 max-w-md leading-relaxed">
+              <p className="text-xs mt-1 max-w-md leading-relaxed" style={{ color: "#9a5348" }}>
                 An administrator has removed your profile from the talent pool, so employers cannot
                 find you right now.{poolStatus?.discovery_restriction_reason ? ` Reason given: ${poolStatus.discovery_restriction_reason}.` : ""}
               </p>
             ) : (
-              <p className="text-xs text-muted-foreground mt-1 max-w-md leading-relaxed">
+              <p className="text-xs mt-1 max-w-md leading-relaxed" style={{ color: "var(--rh-muted)" }}>
                 {poolOptedIn
                   ? "You are discoverable. Employers can send you job proposals. Your contact details stay private until you accept one."
                   : "Turn this on to be recommended to employers hiring for roles like yours."}
@@ -729,12 +732,12 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {poolSaving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          {poolSaving && <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--rh-faint)" }} />}
           <Switch
             checked={poolOptedIn}
             disabled={poolSaving || poolRestricted}
             onCheckedChange={(next) => (next ? setPoolConfirmOpen(true) : togglePool(false))}
-            className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-muted-foreground/30"
+            style={poolOptedIn ? { backgroundColor: "var(--rh-trust)" } : undefined}
           />
         </div>
       </Card>
@@ -774,7 +777,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
         {primaryResume ? (
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 min-w-0">
-              <FileUp className="w-4 h-4 text-primary shrink-0" />
+              <FileUp className="w-4 h-4 shrink-0" style={{ color: "var(--rh-accent-2)" }} />
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">{primaryResume.title}</p>
                 <p className="text-[11px] text-muted-foreground">
@@ -858,9 +861,9 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
                     {primaryResume.ats_score >= 70
-                      ? <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
-                      : <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />}
-                    <p className="text-sm font-medium">
+                      ? <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: "var(--rh-trust)" }} />
+                      : <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: "var(--rh-gold)" }} />}
+                    <p className="text-sm font-semibold">
                       {primaryResume.ats_score}/100 · {
                         primaryResume.ats_score >= 85 ? "Strong" : primaryResume.ats_score >= 70 ? "Good"
                           : primaryResume.ats_score >= 50 ? "Fair" : "Poor"
@@ -871,7 +874,13 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
                     <Button variant="ghost" size="sm" onClick={checkResume} disabled={checkingResume}>
                       {checkingResume ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                     </Button>
-                    <Button size="sm" onClick={optimizeResume} disabled={optimizing}>
+                    <Button
+                      size="sm"
+                      onClick={optimizeResume}
+                      disabled={optimizing}
+                      style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+                      className="hover:opacity-90"
+                    >
                       {optimizing
                         ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Rewriting…</>
                         : <><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Optimize my resume · 15 credits</>}
@@ -883,13 +892,14 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
                     {(primaryResume.ats_issues ?? []).map((issue, i) => {
                       const probe = resumeContent ? classifyProbableIssue(issue, resumeContent) : null;
                       return (
-                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5 flex-wrap">
-                          <span className="text-amber-500 shrink-0">•</span>
+                        <li key={i} className="text-xs flex items-start gap-1.5 flex-wrap" style={{ color: "var(--rh-muted)" }}>
+                          <span className="shrink-0" style={{ color: "var(--rh-gold)" }}>•</span>
                           <span className="flex-1 min-w-[180px]">{issue}</span>
                           {probe && (
                             <button
                               type="button"
-                              className="text-[11px] font-medium text-primary underline underline-offset-2 shrink-0"
+                              className="text-[11px] font-semibold underline underline-offset-2 shrink-0"
+                              style={{ color: "var(--rh-accent-2)" }}
                               onClick={() => setProbeState({ issue, question: probe.question, target: probe.target })}
                               disabled={probeApplying}
                             >
@@ -901,19 +911,19 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
                     })}
                   </ul>
                 )}
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-[11px]" style={{ color: "var(--rh-faint)" }}>
                   Optimizing rewrites your resume for clarity and impact and replaces the one above.
                   Nothing is invented, and you can download the result right after.
                 </p>
               </div>
             )}
             {optimizeChanges && optimizeChanges.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-border/60">
-                <p className="text-[11px] font-medium text-foreground mb-1.5">What changed</p>
+              <div className="mt-3 pt-3 border-t" style={{ borderColor: "var(--rh-hair)" }}>
+                <p className="text-[11px] font-semibold mb-1.5">What changed</p>
                 <ul className="space-y-1 pl-1">
                   {optimizeChanges.map((c, i) => (
-                    <li key={i} className="text-xs text-muted-foreground flex gap-1.5">
-                      <Check className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" /> {c}
+                    <li key={i} className="text-xs flex gap-1.5" style={{ color: "var(--rh-muted)" }}>
+                      <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "var(--rh-trust)" }} /> {c}
                     </li>
                   ))}
                 </ul>
@@ -952,21 +962,22 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
         {/* Skills */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Skills ({career.skills.length})</p>
-            <span className="text-[11px] text-muted-foreground">
+            <p className="text-sm font-semibold">Skills ({career.skills.length})</p>
+            <span className="text-[11px]" style={{ color: "var(--rh-faint)" }}>
               {skillsWithLevel} of {career.skills.length} have a level
             </span>
           </div>
 
           {needsLevelPrompt && (
-            <div className="rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-xs flex items-start justify-between gap-3">
+            <div className="rounded-md px-3 py-2 text-xs flex items-start justify-between gap-3" style={{ border: "1px solid var(--rh-accent)", background: "var(--rh-tint)" }}>
               <span className="leading-relaxed">
                 Your skills came across as names only. Add a level to your top five, not all of them. That is
                 what an employer search actually ranks on.
               </span>
               <button
                 type="button"
-                className="underline shrink-0 hover:text-foreground"
+                className="underline shrink-0"
+                style={{ color: "var(--rh-accent-2)" }}
                 onClick={() => { sessionStorage.setItem("ayn_skill_level_prompt", "done"); setLevelPromptDone(true); }}
               >
                 Dismiss
@@ -974,7 +985,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
             </div>
           )}
 
-          {career.skills.length === 0 && <p className="text-xs text-muted-foreground">No skills yet. Upload a resume and AYN fills these in.</p>}
+          {career.skills.length === 0 && <p className="text-xs" style={{ color: "var(--rh-muted)" }}>No skills yet. Upload a resume and AYN fills these in.</p>}
 
           <div className="flex flex-wrap gap-1.5">
             {career.skills.map((s, i) => (
@@ -982,9 +993,8 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
                 key={i}
                 type="button"
                 onClick={() => setOpenSkill(openSkill === i ? null : i)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${
-                  openSkill === i ? "border-primary bg-primary/10" : "border-border hover:border-foreground/40"
-                }`}
+                className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors"
+                style={openSkill === i ? { borderColor: "var(--rh-accent)", background: "var(--rh-tint)" } : { borderColor: "var(--rh-hair)" }}
               >
                 <span className="font-medium">{s.name || "Untitled skill"}</span>
                 {s.level && <span className="text-muted-foreground">{LEVELS.find(l => l.value === s.level)?.label}</span>}
@@ -1326,19 +1336,18 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       {/* ── 5. Work eligibility ──────────────────────────────────────────── */}
       <Group id="eligibility" title="Work eligibility" line="Employers filter on this before anything else.">
         <div>
-          <Label className="text-xs text-muted-foreground">Countries you can work in</Label>
-          <p className="text-[11px] text-muted-foreground">Legal eligibility, separate from the cities you'd actually want to work in above.</p>
+          <Label className="text-xs" style={{ color: "var(--rh-muted)" }}>Countries you can work in</Label>
+          <p className="text-[11px]" style={{ color: "var(--rh-faint)" }}>Legal eligibility, separate from the cities you'd actually want to work in above.</p>
           <div className="flex flex-wrap gap-2 mt-1.5">
             {WORK_COUNTRIES.map(c => (
               <button
                 key={c}
                 type="button"
                 onClick={() => toggleCountry(c)}
-                className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-                  countries.includes(c)
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/40"
-                }`}
+                className="px-3 py-1.5 text-xs rounded-md border transition-colors font-medium"
+                style={countries.includes(c)
+                  ? { background: "var(--rh-gradient)", color: "#fff", borderColor: "transparent" }
+                  : { borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}
               >
                 {c}
               </button>
@@ -1387,18 +1396,32 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
 }
 
 // ── Presentation helpers ─────────────────────────────────────────────────────
+// v3.172.0 — extended the same Charcoal & Ember system onto Profile that
+// Browse Jobs, Saved jobs, Home, Proposals and Assessments already picked
+// up in this same pass. Fixed at the shared primitives every field group
+// on this page is built from (Group/PlainField/OptionRow/Toggle/ChipList
+// etc.), not at each of the ~30 individual call sites, so the whole
+// 1,600-line page picks up the system from one real fix instead of
+// dozens of copy-pasted ones. Found the same un-tokened-button bug this
+// app has already fixed in several other places (employer-surface,
+// contact-surface, settings-surface, resume-hub.css's own button.bg-
+// foreground retint): OptionRow/OptionRowMulti's own active-chip state
+// used shadcn's bare `bg-primary`, which resolves to this app's default
+// near-black, not AYN's own ember — every selected chip on this entire
+// page (seniority, work eligibility, employment type, dozens of others)
+// was rendering black instead of on-brand.
 function Group({ id, title, line, children }: { id: string; title: string; line: string; children: React.ReactNode }) {
   const key = `ayn_profile_group_${id}`;
   const [open, setOpen] = useState(() => sessionStorage.getItem(key) !== "closed");
   const toggle = () => setOpen(o => { sessionStorage.setItem(key, o ? "closed" : "open"); return !o; });
   return (
-    <Card className="p-4 sm:p-6">
+    <Card className="p-4 sm:p-6 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
       <button type="button" onClick={toggle} className="w-full flex items-start justify-between gap-3 text-left">
         <div>
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">{line}</p>
+          <h3 className="rh-display text-[15px]">{title}</h3>
+          <p className="text-xs mt-0.5" style={{ color: "var(--rh-muted)" }}>{line}</p>
         </div>
-        <ChevronDown className={`w-4 h-4 mt-1 shrink-0 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
+        <ChevronDown className={`w-4 h-4 mt-1 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} style={{ color: "var(--rh-faint)" }} />
       </button>
       {open && <div className="space-y-4 mt-4">{children}</div>}
     </Card>
@@ -1412,7 +1435,7 @@ function PlainField({
 }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label className="text-xs" style={{ color: "var(--rh-muted)" }}>{label}</Label>
       <Input value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} type={type} disabled={disabled} />
     </div>
   );
@@ -1431,15 +1454,16 @@ function SourcedField({
 }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label className="text-xs" style={{ color: "var(--rh-muted)" }}>{label}</Label>
       <Input value={f.value} onChange={e => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} type={type} />
-      {f.source === "resume" && <p className="text-[11px] text-muted-foreground">From your resume</p>}
+      {f.source === "resume" && <p className="text-[11px]" style={{ color: "var(--rh-faint)" }}>From your resume</p>}
       {f.source === "edited" && (
-        <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+        <p className="text-[11px] flex items-center gap-1.5" style={{ color: "var(--rh-faint)" }}>
           Edited by you
           <button
             type="button"
-            className="inline-flex items-center gap-1 underline hover:text-foreground"
+            className="inline-flex items-center gap-1 underline"
+            style={{ color: "var(--rh-accent-2)" }}
             onClick={() => onRevert?.(f.original || "")}
           >
             <Undo2 className="w-3 h-3" /> Use resume value
@@ -1460,22 +1484,24 @@ function OptionRow({
 }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label className="text-xs" style={{ color: "var(--rh-muted)" }}>{label}</Label>
       <div className="flex flex-wrap gap-1.5">
-        {options.map(o => (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => onChange(value === o.value ? null : o.value)}
-            className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
-              value === o.value
-                ? "bg-primary text-primary-foreground border-primary"
-                : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/40"
-            }`}
-          >
-            {o.label}
-          </button>
-        ))}
+        {options.map(o => {
+          const active = value === o.value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => onChange(active ? null : o.value)}
+              className="px-2.5 py-1 text-xs rounded-md border transition-colors font-medium"
+              style={active
+                ? { background: "var(--rh-gradient)", color: "#fff", borderColor: "transparent" }
+                : { borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}
+            >
+              {o.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -1490,7 +1516,7 @@ function MultiSelect({ label, options, values, onChange }: { label: string; opti
 function OptionRowMulti({ label, options, values, onChange }: { label: string; options: string[]; values: string[]; onChange: (v: string[]) => void }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label className="text-xs" style={{ color: "var(--rh-muted)" }}>{label}</Label>
       <div className="flex flex-wrap gap-1.5">
         {options.map(o => {
           const on = values.includes(o);
@@ -1499,9 +1525,10 @@ function OptionRowMulti({ label, options, values, onChange }: { label: string; o
               key={o}
               type="button"
               onClick={() => onChange(on ? values.filter(v => v !== o) : [...values, o])}
-              className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
-                on ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/40"
-              }`}
+              className="px-2.5 py-1 text-xs rounded-md border transition-colors font-medium"
+              style={on
+                ? { background: "var(--rh-gradient)", color: "#fff", borderColor: "transparent" }
+                : { borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}
             >
               {o}
             </button>
@@ -1525,7 +1552,7 @@ function SingleSelect({ label, options, value, onChange }: { label: string; opti
 
 function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+    <label className="flex items-center justify-between rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--rh-hair)" }}>
       <span>{label}</span>
       <Switch checked={value} onCheckedChange={onChange} />
     </label>
@@ -1563,14 +1590,14 @@ function ChipList({ label, hint, values, onChange, placeholder }: { label: strin
   };
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+      <Label className="text-xs" style={{ color: "var(--rh-muted)" }}>{label}</Label>
+      {hint && <p className="text-[11px]" style={{ color: "var(--rh-faint)" }}>{hint}</p>}
       <div className="flex flex-wrap gap-1 mb-1">
         {values.map((v, i) => (
-          <Badge key={i} variant="secondary" className="gap-1">
+          <span key={i} className="inline-flex items-center gap-1 text-xs font-semibold rounded-full px-2.5 py-1" style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}>
             {v}
-            <button onClick={() => onChange(values.filter((_, j) => j !== i))} className="ml-1 opacity-60 hover:opacity-100"><X className="w-3 h-3" /></button>
-          </Badge>
+            <button onClick={() => onChange(values.filter((_, j) => j !== i))} className="opacity-60 hover:opacity-100"><X className="w-3 h-3" /></button>
+          </span>
         ))}
       </div>
       <div className="flex gap-2">

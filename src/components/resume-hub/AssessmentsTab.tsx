@@ -10,12 +10,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Timer, CheckCircle2, Building2, Type } from "lucide-react";
+import { Loader2, Timer, CheckCircle2, Type } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { assessmentApi, type SeekerAssessment, type StartedAssessment } from "@/lib/assessments";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
+import { companyAvatar } from "./BrowseJobs";
+
+// v3.172.0 — checked assessments against real research on what candidates
+// say about skills tests: a good one "feels collaborative and real," a bad
+// one "feels like a badly-set-up exam." The one concrete thing here that
+// read as exam-alarm rather than calm: both timers flashed shadcn's harsh
+// "destructive" red the moment they crossed a threshold, binary, no
+// graduated warning. Replaced with the same gold AYN already reserves for
+// "pay attention to this" elsewhere (salary, low-ATS-score notices) —
+// still real urgency, not a fire alarm.
+function timerTone(secondsLeft: number, warnAt: number): { color: string; bg: string } {
+  if (secondsLeft < Math.min(20, warnAt / 4)) return { color: "#9a5348", bg: "#f5e6e2" };
+  if (secondsLeft < warnAt) return { color: "var(--rh-gold)", bg: "var(--rh-gold-tint)" };
+  return { color: "var(--rh-muted)", bg: "var(--rh-raised)" };
+}
 
 function mmss(total: number): string {
   const s = Math.max(0, total);
@@ -287,12 +301,12 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
 
   if (done) {
     return (
-      <Card className="p-6 space-y-2 max-w-lg">
+      <Card className="p-6 space-y-2 max-w-lg rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
         <div className="flex items-center gap-2">
-          <CheckCircle2 className="w-5 h-5 text-primary" />
-          <h2 className="text-sm font-semibold">Submitted</h2>
+          <CheckCircle2 className="w-5 h-5" style={{ color: "var(--rh-trust)" }} />
+          <h2 className="rh-display text-base">Submitted</h2>
         </div>
-        <p className="text-sm text-muted-foreground leading-relaxed">Your answers went to {done}.</p>
+        <p className="text-sm leading-relaxed" style={{ color: "var(--rh-muted)" }}>Your answers went to {done}.</p>
         <Button variant="outline" onClick={() => setDone(null)}>Back to assessments</Button>
       </Card>
     );
@@ -300,25 +314,36 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
 
   if (active) {
     const q = active.questions[idx];
+    const qTone = timerTone(qLeft, 20);
+    const overallTone = timerTone(left, 120);
+    const progress = active.questions.length > 0 ? Math.round((idx / active.questions.length) * 100) : 0;
     return (
-      <Card className="p-5 sm:p-6 space-y-4 max-w-2xl">
+      <Card className="p-5 sm:p-6 space-y-4 max-w-2xl rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{active.org_name}</p>
-            <h2 className="text-sm font-semibold truncate">{active.job_title || "Assessment"}</h2>
+            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--rh-faint)" }}>{active.org_name}</p>
+            <h2 className="rh-display text-[15px] truncate">{active.job_title || "Assessment"}</h2>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Badge variant={qLeft < 20 ? "destructive" : "outline"} className="gap-1">
+            <span className="text-xs font-semibold rounded-full px-2.5 py-1" style={{ background: qTone.bg, color: qTone.color }}>
               {mmss(qLeft)} <span className="hidden sm:inline">this question</span>
-            </Badge>
-            <Badge variant={left < 120 ? "destructive" : "outline"} className="gap-1">
+            </span>
+            <span className="text-xs font-semibold rounded-full px-2.5 py-1 inline-flex items-center gap-1" style={{ background: overallTone.bg, color: overallTone.color }}>
               <Timer className="w-3 h-3" /> {mmss(left)}
-            </Badge>
+            </span>
           </div>
         </div>
 
+        {/* v3.172.0 — a real progress bar, not just "Question 2 of 6" as
+            text. Visual progress is a calmer signal than a raw count —
+            the same principle behind why a skeleton screen feels faster
+            than a spinner even at an identical load time. */}
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--rh-raised)" }}>
+          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(4, progress)}%`, background: "var(--rh-gradient)" }} />
+        </div>
+
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs" style={{ color: "var(--rh-muted)" }}>
             Question {idx + 1} of {active.questions.length}. You cannot go back.
           </p>
           {/* v3.156.0 — a real, unconditional switch, not a hidden setting:
@@ -367,7 +392,10 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
                       // the real option text -- that's still exactly what
                       // the toggle exists to reveal.
                       aria-label={accessibleText ? undefined : `Option ${i + 1}`}
-                      className="w-full text-left rounded-lg border border-border px-3 py-2.5 text-sm leading-relaxed hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
+                      className="w-full text-left rounded-lg px-3 py-2.5 text-sm leading-relaxed transition-colors disabled:opacity-50"
+                      style={{ border: "1px solid var(--rh-hair)" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--rh-accent)"; e.currentTarget.style.background = "var(--rh-tint)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--rh-hair)"; e.currentTarget.style.background = "transparent"; }}
                     >
                       {accessibleText ? o : <CanvasQuestionText text={o} sampleClassName="text-sm leading-relaxed" />}
                     </button>
@@ -386,8 +414,13 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
                   className="min-h-[140px]"
                   placeholder="Two to four sentences, typed in your own words."
                 />
-                <p className="text-[11px] text-muted-foreground -mt-2">Pasting is turned off for this box. Type your answer directly.</p>
-                <Button onClick={() => saveAndNext(draft)} disabled={busy || !draft.trim()}>
+                <p className="text-[11px] -mt-2" style={{ color: "var(--rh-faint)" }}>Pasting is turned off for this box. Type your answer directly.</p>
+                <Button
+                  onClick={() => saveAndNext(draft)}
+                  disabled={busy || !draft.trim()}
+                  style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+                  className="hover:opacity-90"
+                >
                   {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                   {idx + 1 >= active.questions.length ? "Submit" : "Next question"}
                 </Button>
@@ -402,55 +435,72 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-sm font-semibold">Assessments</h2>
-        <p className="text-sm text-muted-foreground leading-relaxed">
+        <h2 className="rh-display text-xl">Assessments</h2>
+        <p className="text-sm leading-relaxed" style={{ color: "var(--rh-muted)" }}>
           A company asked you a few questions about your own work before deciding on a role.
         </p>
       </div>
 
       <MaintenanceNotice feature="assessments" />
 
-      {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+      {loading && <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--rh-faint)" }} />}
       {!loading && rows.length === 0 && (
-        <Card className="p-5">
-          <p className="text-sm text-muted-foreground">
+        <Card className="p-5 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+          <p className="text-sm" style={{ color: "var(--rh-muted)" }}>
             Nothing here yet. Assessments arrive from companies that found you in the talent pool.
           </p>
         </Card>
       )}
 
-      {rows.map(a => (
-        <Card key={a.id} className="p-4 sm:p-5 space-y-2">
+      {rows.map(a => {
+        const avatar = companyAvatar(a.org_name || "?");
+        return (
+        <Card key={a.id} className="rh-lift p-4 sm:p-5 space-y-2 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
           <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0">
-              {a.org_logo_url
-                ? <img src={a.org_logo_url} alt="" className="w-8 h-8 rounded object-cover" />
-                : <Building2 className="w-4 h-4 text-muted-foreground" />}
+            <div className="flex items-center gap-3 min-w-0">
+              {a.org_logo_url ? (
+                <img src={a.org_logo_url} alt="" className="w-10 h-10 rounded-lg object-cover border" style={{ borderColor: "var(--rh-hair)" }} />
+              ) : (
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${avatar.className}`} style={{ boxShadow: "0 4px 12px -4px rgba(28,23,18,0.35)" }}>
+                  {avatar.initial}
+                </div>
+              )}
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{a.org_name}</p>
-                <p className="text-xs text-muted-foreground truncate">{a.job_title}</p>
+                <p className="rh-display text-[14px] truncate">{a.org_name}</p>
+                <p className="text-xs truncate" style={{ color: "var(--rh-muted)" }}>{a.job_title}</p>
               </div>
             </div>
-            {a.status === "submitted" && <Badge variant="secondary">Submitted</Badge>}
-            {a.status === "expired" && <Badge variant="outline">Expired</Badge>}
+            {a.status === "submitted" && (
+              <span className="text-[11px] font-semibold rounded-full px-2.5 py-1 shrink-0" style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}>Submitted</span>
+            )}
+            {a.status === "expired" && (
+              <span className="text-[11px] font-semibold rounded-full px-2.5 py-1 shrink-0" style={{ background: "var(--rh-raised)", color: "var(--rh-faint)" }}>Expired</span>
+            )}
           </div>
 
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs" style={{ color: "var(--rh-muted)" }}>
             {a.question_count} questions · about {Math.round(a.time_limit_seconds / 60)} minutes
             {a.expires_at ? ` · closes ${new Date(a.expires_at).toLocaleDateString()}` : ""}
           </p>
 
           {a.status === "submitted" ? (
-            <p className="text-xs text-muted-foreground">Your answers went to {a.org_name}.</p>
+            <p className="text-xs" style={{ color: "var(--rh-faint)" }}>Your answers went to {a.org_name}.</p>
           ) : a.status === "expired" ? (
-            <p className="text-xs text-muted-foreground">This one closed before it was submitted.</p>
+            <p className="text-xs" style={{ color: "var(--rh-faint)" }}>This one closed before it was submitted.</p>
           ) : (
-            <Button size="sm" disabled={busy} onClick={() => start(a.id)}>
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() => start(a.id)}
+              style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+              className="hover:opacity-90"
+            >
               {a.status === "started" ? "Continue" : "Start"}
             </Button>
           )}
         </Card>
-      ))}
+        );
+      })}
     </div>
   );
 }

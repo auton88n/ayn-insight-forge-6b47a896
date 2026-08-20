@@ -46,7 +46,33 @@ interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile
 // handoff from Browse jobs having just happened.
 const LAST_OPEN_KEY = "ayn_jobs_last_open";
 
-interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string }
+interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string; application_status: string }
+
+// v3.172.0 — asked directly to bring the same research-driven pass to the
+// rest of Resume Hub. The single most-loved feature across the whole
+// "application tracker" competitor category (Huntr, Teal, Simplify) is
+// real pipeline tracking, not a flat saved-jobs list -- checked live and
+// confirmed AYN had no status column at all, so once a resume was
+// tailored for a job there was no way to record what happened next. This
+// is deliberately self-tracked, not read from any employer's own ATS
+// (AYN has no way to see that) -- but it still closes the same real gap
+// the earlier LinkedIn/Indeed research found (unclear application status
+// as a top complaint), just the honest way AYN can: one place the
+// candidate keeps their own record instead of a spreadsheet.
+// "rejected" deliberately displays as "Not this time" -- the underlying
+// value stays a plain, technical "rejected" for filtering, but Gen Z
+// candidates specifically report real anxiety around rejection language,
+// and there's no reason this app's own tone should be harsher than it
+// needs to be about something already hard to go through.
+const STATUS_ORDER = ["saved", "applied", "interviewing", "offer", "rejected", "withdrawn"] as const;
+const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+  saved: { label: "Saved", color: "var(--rh-muted)", bg: "var(--rh-raised)" },
+  applied: { label: "Applied", color: "var(--rh-trust)", bg: "var(--rh-trust-tint)" },
+  interviewing: { label: "Interviewing", color: "var(--rh-gold)", bg: "var(--rh-gold-tint)" },
+  offer: { label: "Offer", color: "#fff", bg: "var(--rh-accent)" },
+  rejected: { label: "Not this time", color: "#9a5348", bg: "#f5e6e2" },
+  withdrawn: { label: "Withdrawn", color: "var(--rh-faint)", bg: "var(--rh-raised)" },
+};
 interface TailoredRow { id: string; created_at: string; content: ResumeContent }
 interface CoverRow { id: string; created_at: string; body: string }
 
@@ -111,8 +137,14 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // knows it's not part of what they're being asked to decide on.
   const [tailorConfirmOpen, setTailorConfirmOpen] = useState(false);
 
+  // v3.172.0 — a real filter/status view over the pipeline, not a full
+  // drag-and-drop kanban board -- delivers the same "see where everything
+  // stands at a glance" value the research found without the much bigger
+  // UI investment a real board would need for a list this size.
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+
   const load = async () => {
-    const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at").eq("user_id", userId).order("created_at", { ascending: false });
+    const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at, application_status").eq("user_id", userId).order("created_at", { ascending: false });
     const rows = (data as JobRow[]) ?? [];
     setJobs(rows);
     // v3.137.0 — Browse jobs adds a posting then hands off here, naming the
@@ -301,6 +333,18 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     load();
   };
 
+  // v3.172.0 — one click, no ceremony, matching the exact thing the
+  // research flagged as what people actually want from a tracker ("capture
+  // and move an application through a real pipeline without ceremony").
+  // Updates both the open detail view and the list's own row so neither
+  // ever shows a stale status after the other changes it.
+  const updateStatus = async (id: string, status: string) => {
+    const { error } = await supabase.from("jobs").update({ application_status: status }).eq("id", id);
+    if (error) { toast({ title: "Couldn't update status", description: error.message, variant: "destructive" }); return; }
+    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, application_status: status } : j)));
+    setSelected((prev) => (prev && prev.id === id ? { ...prev, application_status: status } : prev));
+  };
+
 
   const addManually = async () => {
     if (!newJob.url && !newJob.text) return;
@@ -340,20 +384,24 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
         <button
           type="button"
           onClick={() => (backTarget === "browse" ? onBackToBrowse() : setSelected(null))}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition"
+          className="inline-flex items-center gap-1.5 text-sm transition"
+          style={{ color: "var(--rh-muted)" }}
         >
           <ArrowLeft className="w-4 h-4" />{backTarget === "browse" ? "Browse jobs" : "Saved jobs"}
         </button>
 
-        <Card className="p-5">
+        <Card className="p-5 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0">
-              <div className={`w-11 h-11 rounded-lg flex items-center justify-center font-semibold shrink-0 ${companyAvatar(selected.company || "?").className}`}>
+              <div
+                className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold shrink-0 ${companyAvatar(selected.company || "?").className}`}
+                style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
+              >
                 {companyAvatar(selected.company || "?").initial}
               </div>
               <div className="min-w-0">
-                <h2 className="text-xl font-semibold leading-snug">{selected.title}</h2>
-                <p className="text-sm text-muted-foreground">{selected.company} {selected.location && `• ${selected.location}`}</p>
+                <h2 className="rh-display text-xl leading-snug">{selected.title}</h2>
+                <p className="text-sm" style={{ color: "var(--rh-muted)" }}>{selected.company} {selected.location && `• ${selected.location}`}</p>
                 {selected.source_url && (
                   <a href={selected.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center text-xs mt-1" style={{ color: "var(--rh-accent-2)" }}>
                     View original <ExternalLink className="w-3 h-3 ml-1" />
@@ -373,25 +421,50 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               <Button onClick={() => removeJob(selected.id)} variant="ghost" size="icon" aria-label="Remove job"><Trash2 className="w-4 h-4" /></Button>
             </div>
           </div>
+
+          {/* v3.172.0 — "where do things stand," one click, no ceremony —
+              the exact thing the application-tracker research (Huntr,
+              Teal, Simplify) found candidates loved most. Self-tracked
+              since AYN has no employer ATS to read a real status from. */}
+          <div className="flex items-center gap-1.5 flex-wrap mt-4 pt-4 border-t" style={{ borderColor: "var(--rh-hair)" }}>
+            <span className="text-[11px] font-bold uppercase tracking-wide mr-1" style={{ color: "var(--rh-faint)" }}>Status</span>
+            {STATUS_ORDER.map((s) => {
+              const meta = STATUS_META[s];
+              const active = selected.application_status === s;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => updateStatus(selected.id, s)}
+                  className="text-xs font-semibold rounded-full px-3 py-1.5 transition"
+                  style={active
+                    ? { background: meta.bg, color: meta.color, boxShadow: s === "offer" ? "var(--rh-glow)" : undefined }
+                    : { background: "var(--rh-raised)", color: "var(--rh-faint)" }}
+                >
+                  {meta.label}
+                </button>
+              );
+            })}
+          </div>
         </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-          <Card className="p-5 lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)] overflow-y-auto">
-            <h3 className="font-semibold mb-2">Job description</h3>
+          <Card className="p-5 rounded-xl lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)] overflow-y-auto" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+            <h3 className="rh-display text-sm mb-2">Job description</h3>
             {selected.jd_text
-              ? <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground">{selected.jd_text}</pre>
-              : <p className="text-sm text-muted-foreground">No description was saved for this job.</p>}
+              ? <pre className="text-sm whitespace-pre-wrap font-sans" style={{ color: "var(--rh-muted)" }}>{selected.jd_text}</pre>
+              : <p className="text-sm" style={{ color: "var(--rh-muted)" }}>No description was saved for this job.</p>}
           </Card>
 
           <div className="space-y-4">
-            <Card className="p-5">
-              <h3 className="font-semibold mb-3">AYN</h3>
+            <Card className="p-5 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+              <h3 className="rh-display text-sm mb-3">AYN</h3>
               <MaintenanceNotice feature="tailoring" className="mb-3" />
               <div className="flex flex-wrap gap-2">
                 <Button
                   onClick={calcMatch}
                   disabled={activeAction !== null || !primaryResume}
-                  style={{ background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }}
+                  style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
                   className="hover:opacity-90"
                 >
                   {activeAction === "score"
@@ -410,13 +483,13 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                 </Button>
               </div>
               {!primaryResume && (
-                <p className="text-xs text-amber-500 mt-3">Add your resume in Profile to enable AI actions.</p>
+                <p className="text-xs mt-3" style={{ color: "var(--rh-gold)" }}>Add your resume in Profile to enable AI actions.</p>
               )}
               {primaryResume && primaryResume.ats_score != null && primaryResume.ats_score < 70 && (
-                <p className="text-xs text-amber-500 mt-3">
+                <p className="text-xs mt-3" style={{ color: "var(--rh-gold)" }}>
                   Your resume scores {primaryResume.ats_score}/100 for ATS readiness. Tailoring still works,
                   but a weak base resume means a weaker one for every job.{" "}
-                  <button type="button" className="underline hover:text-foreground" onClick={onOpenProfile}>
+                  <button type="button" className="underline" style={{ color: "var(--rh-ink)" }} onClick={onOpenProfile}>
                     Improve it in Profile
                   </button>
                 </p>
@@ -424,8 +497,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
             </Card>
 
             {matchData && (
-              <Card className="p-5">
-                <h3 className="font-semibold mb-3">Match breakdown</h3>
+              <Card className="p-5 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+                <h3 className="rh-display text-sm mb-3">Match breakdown</h3>
                 <p className="text-sm mb-3">{matchData.summary}</p>
                 <div className="grid grid-cols-3 gap-3 mb-3">
                   {Object.entries(matchData.breakdown).map(([k, v]) => (
@@ -435,13 +508,13 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                       style={{ background: "var(--rh-tint)", borderColor: "#e85d3a33" }}
                     >
                       <div className="text-2xl font-bold" style={{ fontFamily: "JetBrains Mono, monospace", color: "var(--rh-accent-2)" }}>{v}</div>
-                      <div className="text-xs text-muted-foreground capitalize">{k.replace("_", " ")}</div>
+                      <div className="text-xs capitalize" style={{ color: "var(--rh-muted)" }}>{k.replace("_", " ")}</div>
                     </div>
                   ))}
                 </div>
                 {matchData.missing_keywords.length > 0 && (
                   <div>
-                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Missing keywords</p>
+                    <p className="text-xs uppercase tracking-wider mb-2" style={{ color: "var(--rh-faint)" }}>Missing keywords</p>
                     <div className="flex flex-wrap gap-1">
                       {/* v3.143.0 — a badge is meant to read as one short
                           chip; a long-but-legitimate requirement line
@@ -461,10 +534,10 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
             )}
 
             {(tailored || cover) && (
-              <Card className="p-5 space-y-4">
+              <Card className="p-5 rounded-xl space-y-4" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
                 <div>
-                  <h3 className="font-semibold">Documents for this job</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <h3 className="rh-display text-sm">Documents for this job</h3>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--rh-faint)" }}>
                     Written from your resume and this posting. Generating again replaces the copy stored here.
                   </p>
                 </div>
@@ -599,14 +672,58 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     );
   }
 
+  // v3.172.0 — "see the whole pipeline at a glance," the exact value the
+  // application-tracker research says candidates want most from a real
+  // one. A count per stage, clickable to filter -- delivers that without
+  // a full drag-and-drop kanban rebuild.
+  const statusCounts = STATUS_ORDER.reduce<Record<string, number>>((acc, s) => {
+    acc[s] = jobs.filter((j) => j.application_status === s).length;
+    return acc;
+  }, {});
+  const visibleJobs = statusFilter ? jobs.filter((j) => j.application_status === statusFilter) : jobs;
+
   return (
     <div className="space-y-4 max-w-2xl">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">Saved jobs</h2>
-        <Button onClick={() => setAdding(true)} variant="outline">
+        <h2 className="rh-display text-xl">Saved jobs</h2>
+        <Button
+          onClick={() => setAdding(true)}
+          variant="outline"
+          style={{ borderColor: "var(--rh-accent)", color: "var(--rh-accent-2)" }}
+        >
           <Plus className="w-4 h-4 mr-2" />Add job manually
         </Button>
       </div>
+
+      {jobs.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setStatusFilter(null)}
+            className="text-xs font-semibold rounded-full px-3 py-1.5 transition"
+            style={!statusFilter
+              ? { background: "var(--rh-ink)", color: "#fff" }
+              : { background: "var(--rh-raised)", color: "var(--rh-muted)" }}
+          >
+            All · {jobs.length}
+          </button>
+          {STATUS_ORDER.filter((s) => statusCounts[s] > 0).map((s) => {
+            const meta = STATUS_META[s];
+            const active = statusFilter === s;
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatusFilter(active ? null : s)}
+                className="text-xs font-semibold rounded-full px-3 py-1.5 transition"
+                style={active ? { background: meta.bg, color: meta.color } : { background: "var(--rh-raised)", color: "var(--rh-muted)" }}
+              >
+                {meta.label} · {statusCounts[s]}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <Dialog open={adding} onOpenChange={setAdding}>
         <DialogContent>
@@ -619,7 +736,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
             <Button
               onClick={addManually}
               disabled={busy}
-              style={{ background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }}
+              style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
               className="w-full hover:opacity-90"
             >
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save job"}
@@ -628,30 +745,46 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
         </DialogContent>
       </Dialog>
 
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {jobs.length === 0 && (
-          <Card className="p-10 text-center text-muted-foreground">
-            <FileText className="w-10 h-10 mx-auto mb-3 opacity-50" />
+          <Card className="p-10 text-center rounded-xl" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
+            <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
             No saved jobs yet. Browse jobs or add one manually to get started.
           </Card>
         )}
 
-        {jobs.map((j) => {
+        {visibleJobs.length === 0 && jobs.length > 0 && (
+          <Card className="p-8 text-center rounded-xl" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
+            Nothing in this stage yet.
+          </Card>
+        )}
+
+        {visibleJobs.map((j) => {
           const avatar = companyAvatar(j.company || "?");
+          const meta = STATUS_META[j.application_status] ?? STATUS_META.saved;
           return (
             <button
               key={j.id}
               onClick={() => openJob(j)}
-              className="w-full text-left flex items-center gap-3 p-3 rounded-lg border transition hover:bg-muted/40"
-              style={{ borderColor: "var(--rh-hair)" }}
+              className="rh-lift w-full text-left flex items-center gap-3 p-3.5 rounded-xl"
+              style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}
             >
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-semibold text-xs shrink-0 ${avatar.className}`}>
+              <div
+                className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${avatar.className}`}
+                style={{ boxShadow: "0 4px 12px -4px rgba(28,23,18,0.35)" }}
+              >
                 {avatar.initial}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-medium text-sm truncate">{j.title}</div>
-                <div className="text-xs text-muted-foreground truncate">{j.company} {j.location && `• ${j.location}`}</div>
+                <div className="rh-display text-[14px] truncate">{j.title}</div>
+                <div className="text-xs truncate" style={{ color: "var(--rh-muted)" }}>{j.company} {j.location && `• ${j.location}`}</div>
               </div>
+              <span
+                className="text-[11px] font-semibold rounded-full px-2.5 py-1 shrink-0"
+                style={{ background: meta.bg, color: meta.color }}
+              >
+                {meta.label}
+              </span>
             </button>
           );
         })}
