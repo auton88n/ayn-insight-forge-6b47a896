@@ -2261,6 +2261,24 @@ export type Database = {
         }
         Relationships: []
       }
+      job_postings_seen: {
+        Row: {
+          job_posting_id: string
+          seen_at: string
+          user_id: string
+        }
+        Insert: {
+          job_posting_id: string
+          seen_at?: string
+          user_id: string
+        }
+        Update: {
+          job_posting_id?: string
+          seen_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       jobs: {
         Row: {
           application_status: string

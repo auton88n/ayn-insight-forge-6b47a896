@@ -635,7 +635,7 @@ function SwipeCardPeek({ job, style }: { job: JobPosting; style: React.CSSProper
 // calls the exact same saveJob the list's own bookmark uses so the two
 // surfaces can never disagree about what's actually saved.
 function SwipeDeck({
-  jobs, index, onIndexChange, scores, scored, logoFailed, setLogoFailed, onSave, onOpenDetail, hasMore,
+  jobs, index, onIndexChange, scores, scored, logoFailed, setLogoFailed, onSave, onSeen, onOpenDetail, hasMore,
 }: {
   jobs: JobPosting[];
   index: number;
@@ -645,6 +645,7 @@ function SwipeDeck({
   logoFailed: Set<string>;
   setLogoFailed: React.Dispatch<React.SetStateAction<Set<string>>>;
   onSave: (job: JobPosting) => void;
+  onSeen: (jobId: string) => void;
   onOpenDetail: (job: JobPosting) => void;
   hasMore: boolean;
 }) {
@@ -656,6 +657,20 @@ function SwipeDeck({
   const current = jobs[index];
   const upNext = jobs[index + 1];
   const onDeck = jobs[index + 2];
+
+  // v3.183.0 — reaching the front of the deck is "seen" for swipe mode's
+  // own purposes: the full card is shown, read, and swiped on, unlike a
+  // list row that needs an actual click to open. Marks the whole session's
+  // worth of cards as seen as the person swipes through, without touching
+  // the array being swiped (see swipeJobs' own comment in the parent).
+  // Deliberately keyed on current?.id alone: onSeen is a stable useCallback
+  // from the parent, and including it (or the whole current object) would
+  // refire on every unrelated re-render, not just when the front card
+  // actually changes.
+  useEffect(() => {
+    if (current) onSeen(current.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.id]);
 
   const advance = (dir: 1 | -1) => {
     if (!current || flying) return;
@@ -713,6 +728,10 @@ function SwipeDeck({
   const passOpacity = dragX < 0 ? Math.min(Math.abs(dragX) / 90, 1) : 0;
   const saveOpacity = dragX > 0 ? Math.min(dragX / 90, 1) : 0;
   const desc = (current.description || "").trim();
+  // v3.183.0 — reported directly: the swipe deck never showed the New
+  // badge at all, even though the same 24h logic already works correctly
+  // in list view. Same HOT_WINDOW_MS, just never wired into this card.
+  const isHot = Date.now() - new Date(current.posted_at).getTime() < HOT_WINDOW_MS;
 
   return (
     <div className="flex flex-col items-center gap-5 py-2">
@@ -750,19 +769,30 @@ function SwipeDeck({
             Save
           </span>
 
-          {showLogo ? (
-            <img
-              src={logoUrl!}
-              alt=""
-              className="w-14 h-14 rounded-xl object-contain bg-white p-1.5 border mb-3"
-              style={{ borderColor: "var(--rh-hair)" }}
-              onError={() => setLogoFailed((prev) => new Set(prev).add(current.id))}
-            />
-          ) : (
-            <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg mb-3 ${avatar.className}`} style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}>
-              {avatar.initial}
-            </div>
-          )}
+          <div className="flex items-start justify-between mb-3">
+            {showLogo ? (
+              <img
+                src={logoUrl!}
+                alt=""
+                className="w-14 h-14 rounded-xl object-contain bg-white p-1.5 border"
+                style={{ borderColor: "var(--rh-hair)" }}
+                onError={() => setLogoFailed((prev) => new Set(prev).add(current.id))}
+              />
+            ) : (
+              <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg ${avatar.className}`} style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}>
+                {avatar.initial}
+              </div>
+            )}
+            {isHot && (
+              <Badge
+                variant="outline"
+                className="shrink-0 gap-1 border-0"
+                style={{ background: "var(--rh-gradient)", color: "#fff", boxShadow: "var(--rh-glow)" }}
+              >
+                <Flame className="w-3 h-3" /> New
+              </Badge>
+            )}
+          </div>
           <p className="rh-display text-[18px] leading-snug mb-1">{current.title}</p>
           <p className="text-[13px] mb-3" style={{ color: "var(--rh-muted)" }}>
             {current.company}{current.location ? ` · ${current.location}` : ""}
@@ -859,6 +889,45 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   // spinning on "Scoring…" forever.
   const [scored, setScored] = useState<Set<string>>(new Set());
   const [logoFailed, setLogoFailed] = useState<Set<string>>(new Set());
+
+  // v3.183.0 — real, persistent "have I seen this job before" tracking
+  // (job_postings_seen), reported directly: swipe mode repeated cards on
+  // every reload, with no memory at all. `seenIds` is the live, growing set
+  // used for the list view's "Seen" badge; `seenSnapshotRef` is frozen the
+  // moment the initial fetch lands and is what the swipe deck filters
+  // against — deliberately NOT the live `seenIds`, so a card marked seen
+  // mid-session (the moment it becomes the active swipe card) doesn't
+  // retroactively vanish from the array and shift indices out from under
+  // an in-progress drag. The next reload's fresh fetch is what actually
+  // excludes it, which is the real thing being asked for: no repeats
+  // across a reload, not real-time removal mid-swipe.
+  const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
+  const seenSnapshotRef = useRef<Set<string> | null>(null);
+  // Flips exactly once, when the initial fetch resolves — used only to
+  // trigger swipeJobs' memo below the first time the snapshot is ready
+  // (the fetch can resolve after or before the jobs fetch, a real race).
+  // Deliberately not touched again by markSeen, unlike seenIds itself, so
+  // it can't retrigger that memo mid-session the way depending on seenIds
+  // directly would.
+  const [seenSnapshotReady, setSeenSnapshotReady] = useState(false);
+  useEffect(() => {
+    supabase.from("job_postings_seen").select("job_posting_id").eq("user_id", userId)
+      .then(({ data }) => {
+        const ids = new Set((data ?? []).map((r) => r.job_posting_id as string));
+        setSeenIds(ids);
+        seenSnapshotRef.current = ids;
+        setSeenSnapshotReady(true);
+      });
+  }, [userId]);
+  const markSeen = useCallback((jobId: string) => {
+    setSeenIds((prev) => {
+      if (prev.has(jobId)) return prev; // already known seen — skip the redundant write
+      supabase.from("job_postings_seen")
+        .upsert({ user_id: userId, job_posting_id: jobId }, { onConflict: "user_id,job_posting_id" })
+        .then(() => {});
+      return new Set(prev).add(jobId);
+    });
+  }, [userId]);
 
   const [rawQuery, setRawQuery] = useState("");
   const [query, setQuery] = useState("");
@@ -1249,15 +1318,32 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     return () => { cancelled = true; };
   }, [buildQuery, scorePage, toast]);
 
+  // v3.183.0 — the deck now excludes anything already seen (frozen at the
+  // fetch that just landed, see seenSnapshotRef above), so what the deck
+  // actually has left to show can run short of what was fetched — a fully
+  // already-seen page would otherwise silently starve the deck without
+  // ever tripping the old raw-fetch-count trigger below.
+  // seenSnapshotReady is read only to force this one recompute once the ref
+  // is actually populated (a plain ref mutation doesn't trigger useMemo on
+  // its own); the lint rule can't see it's used indirectly via the ref.
+  const swipeJobs = useMemo(
+    () => (seenSnapshotRef.current ? jobs.filter((j) => !seenSnapshotRef.current!.has(j.id)) : jobs),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [jobs, seenSnapshotReady],
+  );
+
   // v3.171.0 — keeps the swipe deck feeling like a continuous stream
   // instead of hitting a wall every 25 cards: loads the next page a few
   // cards before the deck actually runs out, same loadMore the list's own
   // "Load more jobs" button already calls.
+  // v3.183.0 — checks how many UNSEEN cards are actually left (swipeJobs),
+  // not the raw fetched count — a page that came back mostly already-seen
+  // needs another load sooner, not later.
   useEffect(() => {
     if (viewMode !== "swipe" || total === null || loadingMore) return;
-    if (jobs.length < total && swipeIndex >= jobs.length - 3) loadMore();
+    if (jobs.length < total && swipeIndex >= swipeJobs.length - 3) loadMore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, swipeIndex, jobs.length, total, loadingMore]);
+  }, [viewMode, swipeIndex, jobs.length, swipeJobs.length, total, loadingMore]);
 
   // v3.145.0 — reported directly: refreshing dropped whatever was open in
   // the detail pane back to the page's first result. Deliberately its own
@@ -1337,6 +1423,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   // SheetContent already hides its panel at.
   const openJob = (j: JobPosting) => {
     setSelected(j);
+    markSeen(j.id);
     if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) return;
     setSheetOpen(true);
   };
@@ -1999,6 +2086,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                   const salary = resolveSalary(j);
                   const active = selected?.id === j.id;
                   const isSaved = savedUrls.has(j.apply_url);
+                  const isSeen = seenIds.has(j.id);
                   return (
                     // v3.142.0 — the row used to be one big <button>; adding
                     // a bookmark control meant it could no longer be, since
@@ -2071,6 +2159,16 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                             <Flame className="w-3 h-3" /> New
                           </Badge>
                         )}
+                        {/* v3.183.0 — reported directly: no way to tell at a
+                            glance whether a card had already been opened
+                            before. Real, persistent per-user tracking
+                            (job_postings_seen), not a guess — set the moment
+                            this card's detail is actually opened. */}
+                        {isSeen && (
+                          <Badge variant="outline" className="shrink-0 border-0" style={{ background: "var(--rh-raised)", color: "var(--rh-faint)" }}>
+                            Seen
+                          </Badge>
+                        )}
                         {/* v3.142.0 — asked directly for a bookmark-style
                             save so a job can be kept without leaving the
                             list or reading the full posting first.
@@ -2119,7 +2217,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         </div>
       ) : (
         <SwipeDeck
-          jobs={jobs}
+          jobs={swipeJobs}
           index={swipeIndex}
           onIndexChange={setSwipeIndex}
           scores={scores}
@@ -2127,6 +2225,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           logoFailed={logoFailed}
           setLogoFailed={setLogoFailed}
           onSave={(job) => saveJob(job)}
+          onSeen={markSeen}
           onOpenDetail={(job) => { setViewMode("list"); openJob(job); }}
           hasMore={total !== null && jobs.length < total}
         />

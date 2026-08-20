@@ -25,7 +25,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
@@ -138,7 +137,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   const tailoring = useFeature("tailoring");
   const [cover, setCover] = useState<CoverRow | null>(null);
   const [showDiff, setShowDiff] = useState(false);
-  const [busy, setBusy] = useState(false);
   // v3.146.0 — reported directly: clicking Score/Tailor/Write cover letter
   // just disabled the buttons with no visible change, reading as a stuck
   // page instead of AYN actually working on a real AI call that takes a
@@ -153,8 +151,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // retry for the same job but a different job (or a later, separate
   // attempt after real success) gets its own fresh key.
   const pendingIdemKeys = useRef<Record<string, string>>({});
-  const [adding, setAdding] = useState(false);
-  const [newJob, setNewJob] = useState({ url: "", text: "" });
 
   // v3.152.0 — asked directly for informed consent before a tailor run, not
   // just after it. The gap-suggestion cards below (title match, missing
@@ -335,6 +331,10 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       await supabase.from("cover_letters").insert({ user_id: userId, job_id: selected.id, resume_id: primaryResume.id, body });
       await loadDocs(selected.id);
       onCreditsChanged?.();
+      // v3.183.0 — reported directly: this ran silently while its sibling
+      // (Tailor resume) both toasted AND showed the new document. Matching
+      // that confirmation now instead of only the new card quietly appearing.
+      toast({ title: "Cover letter ready", description: "Download it below." });
     } catch (e) {
       // idemKey deliberately left in the ref — see tailorResume's comment.
       toast(isFeatureDisabled(e)
@@ -404,28 +404,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     return daysSince(new Date(Number(raw)).toISOString()) < 7;
   };
 
-
-  const addManually = async () => {
-    if (!newJob.url && !newJob.text) return;
-    setBusy(true);
-    try {
-      const { error } = await supabase.from("jobs").insert({
-        user_id: userId,
-        source: "manual",
-        source_url: newJob.url || null,
-        jd_text: newJob.text || null,
-        company: "New company",
-        title: "Untitled role",
-      });
-      if (error) throw error;
-      setNewJob({ url: "", text: "" });
-      setAdding(false);
-      load();
-      toast({ title: "Job added", description: "Open it to fill in details." });
-    } catch (e) {
-      toast({ title: "Add failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
-    } finally { setBusy(false); }
-  };
 
   // v3.142.0 — reported directly against a screenshot: the detail view was
   // squeezed next to a 320px list, the description sat stacked all the way
@@ -801,13 +779,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="rh-display text-xl">Saved jobs</h2>
-        <Button
-          onClick={() => setAdding(true)}
-          variant="outline"
-          style={{ borderColor: "var(--rh-accent)", color: "var(--rh-accent-2)" }}
-        >
-          <Plus className="w-4 h-4 mr-2" />Add job manually
-        </Button>
       </div>
 
       {jobs.length > 0 && (
@@ -853,30 +824,10 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
         </div>
       )}
 
-      <Dialog open={adding} onOpenChange={setAdding}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add a job manually</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Input placeholder="Job URL (optional)" value={newJob.url} onChange={(e) => setNewJob({ ...newJob, url: e.target.value })} />
-            <Textarea placeholder="Paste job description" value={newJob.text} onChange={(e) => setNewJob({ ...newJob, text: e.target.value })} rows={6} />
-            <Button
-              onClick={addManually}
-              disabled={busy}
-              style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
-              className="w-full hover:opacity-90"
-            >
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save job"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {jobs.length === 0 && (
         <Card className="p-10 text-center rounded-xl" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
           <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          No saved jobs yet. Browse jobs or add one manually to get started.
+          No saved jobs yet. Browse jobs to get started.
         </Card>
       )}
 
