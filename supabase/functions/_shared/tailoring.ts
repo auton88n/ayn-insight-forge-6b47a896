@@ -640,15 +640,26 @@ export function computeQuickScore(jdText: string, jobTitle: string, profile: Qui
     // matching the other direction (skill-in-requirement, reusing the
     // exact same stemmed matcher the old code already trusted) is the
     // right check for this shorter, sparser haystack.
+    // Live-caught while verifying against real postings: a requirement
+    // written as "Python/C#/Java/Go/TypeScript" or "AWS/Azure/GCP" (a very
+    // common real JD pattern for "any of these") normalizes to one
+    // unbroken token, since norm() deliberately keeps "/" for things like
+    // "node.js"/"ci/cd" elsewhere in this file. That's fine for a whole-JD
+    // haystack search, but breaks per-alternative matching here -- "AWS"
+    // never finds a bounded " aws " inside "aws/azure/gcp". Splitting "/"
+    // to a space ONLY for this per-requirement check (not touching norm()
+    // itself, which other call sites in this file still rely on) turns
+    // each slash-separated option into its own real word.
     matchedSkills = [];
     for (const r of requiredReqs) {
-      const reqHaystack = " " + expandWithSynonyms(norm(r.text)) + " ";
-      const reqWordStems = norm(r.text).split(" ").filter(Boolean).map(stem);
+      const reqText = r.text.replace(/\//g, " ");
+      const reqHaystack = " " + expandWithSynonyms(norm(reqText)) + " ";
+      const reqWordStems = norm(reqText).split(" ").filter(Boolean).map(stem);
       const skillInReq = skills.some((s) => {
         const n = norm(s);
         if (!n) return false;
         if (reqHaystack.includes(` ${n} `) || reqHaystack.includes(n.length >= 4 ? n : ` ${n} `)) return true;
-        const words = n.split(" ").filter((w) => w.length >= 3);
+        const words = n.split(" ").filter((w) => w.length >= 2);
         return words.length > 0 && words.every((w) => {
           const ws = stem(w);
           return reqWordStems.some((rs) => stemsMatch(ws, rs));
