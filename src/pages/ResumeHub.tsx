@@ -217,36 +217,46 @@ export default function ResumeHub() {
           {/* v3.12.0 — "Back" had nowhere sensible to go once the dashboard
               was removed. The AYN mark takes its place, and Sign out moved
               into a menu on the right, matching the employer header. */}
+          {/* v3.176.0 — reported directly: "the resuma hub needs to be
+              removed and Job Search OS also," part of the same "organize
+              this" pass as the credit pill below. Both were pure text
+              labels with no function -- the eyebrow was decorative, and
+              there is only one app here, so naming it again next to its
+              own logo was never telling anyone something they didn't
+              already know. The heading itself isn't deleted, only its
+              visible rendering: an sr-only <h1> keeps a real, single page
+              heading for screen readers and SEO (this page's only h1 was
+              about to disappear entirely otherwise, a real regression this
+              same research pass had just flagged as a value screen readers
+              rely on), while a sighted visitor now sees just the mark. */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center shrink-0" aria-label="AYN">
               <img src={aynLogo} alt="AYN" className="h-7 w-auto" />
             </div>
-            <div className="w-px h-6 bg-[color:var(--rh-hair)]" aria-hidden />
-            <div className="min-w-0">
-              <div className="rh-eyebrow">Job Search OS</div>
-              <h1 className="rh-title leading-tight truncate">Resume Hub</h1>
-            </div>
+            <h1 className="sr-only">Resume Hub</h1>
           </div>
           <div className="flex items-center gap-2">
             {/* v3.35.0 — billing_get already returns this; it just never showed
                 up anywhere before /billing itself.
                 v3.175.0 — reported directly: "better looking credit bar."
-                A Zap icon and a real ember glow shadow, matching the same
-                narrow-accent-plus-glow language the rest of this page's
-                gradient CTAs already use, instead of a bare outline pill. */}
+                v3.176.0 — reported directly, again: still not modern enough,
+                asked for something "the new generation" would like. 2026
+                research on Gen Z product design points at "Functional
+                Maximalism" -- bold, confident color over a subtle outline,
+                not literal gamification (streaks/badges/leaderboards would
+                be real scope creep for a plain balance readout in a job
+                tool, not a finance app). Switched from an outline+tint chip
+                to the same solid ember gradient + glow every primary CTA on
+                this page already uses, so it reads as a real, first-class
+                stat instead of a quiet secondary label. */}
             {creditBalance !== null && (
               <button
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition hover:opacity-90"
-                style={{
-                  border: "1px solid var(--rh-accent)",
-                  color: "var(--rh-accent-2)",
-                  background: "var(--rh-tint)",
-                  boxShadow: "0 3px 10px -4px rgba(232, 93, 58, 0.45)",
-                }}
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold text-white transition hover:opacity-90"
+                style={{ background: "var(--rh-gradient)", boxShadow: "var(--rh-glow)" }}
                 onClick={() => navigate("/billing")}
                 title="Credit balance"
               >
-                <Zap className="w-3.5 h-3.5" fill="var(--rh-accent-2)" strokeWidth={0} />
+                <Zap className="w-3.5 h-3.5" fill="#fff" strokeWidth={0} />
                 {creditBalance} credit{creditBalance === 1 ? "" : "s"}
               </button>
             )}
