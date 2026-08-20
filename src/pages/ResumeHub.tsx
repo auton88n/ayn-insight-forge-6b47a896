@@ -336,15 +336,10 @@ export default function ResumeHub() {
           {/* Main panel */}
           <section className="rh-main">
             <Suspense fallback={<div className="rh-tab-loading"><AynLoader size="md" /></div>}>
-              {tab === "home"      && (
-                <HomeTab
-                  userId={userId!}
-                  session={session}
-                  onOpenProfile={() => setTab("profile")}
-                  onOpenJobs={() => setTab("jobs")}
-                  onOpenProposals={() => setTab("proposals")}
-                />
-              )}
+              {/* v3.179.0 — Home is Settings only now, "Next" removed;
+                  onOpenProfile/onOpenJobs/onOpenProposals only ever existed
+                  to power that section's own buttons. */}
+              {tab === "home"      && <HomeTab userId={userId!} session={session} />}
               {tab === "profile"   && <ProfileTab userId={userId!} onCreditsChanged={refreshCredits} />}
               {tab === "proposals" && <ProposalsTab onChanged={setPendingIntros} />}
               {tab === "assessments" && <AssessmentsTab onChanged={setPendingAssessments} />}

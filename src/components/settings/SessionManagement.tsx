@@ -72,7 +72,10 @@ export const SessionManagement = ({ userId, userEmail, accessToken }: SessionMan
 
   return (
     <div className="space-y-6">
-      <Card className="p-6 bg-card/50 backdrop-blur-xl border-border/50">
+      <Card
+        className="p-6"
+        style={{ background: "var(--rh-surface, hsl(var(--card)))", border: "1px solid var(--rh-hair, hsl(var(--border)))", boxShadow: "var(--rh-shadow-card, none)" }}
+      >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold">{t('settings.activeSessions')}</h2>
           <AlertDialog>
@@ -108,7 +111,8 @@ export const SessionManagement = ({ userId, userEmail, accessToken }: SessionMan
             sessions.map((session) => (
               <div
                 key={session.id}
-                className="flex items-start justify-between p-4 rounded-lg border border-border bg-background/50 hover:bg-background/80 transition-colors"
+                className="flex items-start justify-between p-4 rounded-lg border transition-colors"
+                style={{ borderColor: "var(--rh-hair, hsl(var(--border)))", background: "var(--rh-raised, transparent)" }}
               >
                 <div className="flex items-start gap-3">
                   <div className="mt-1 text-muted-foreground">

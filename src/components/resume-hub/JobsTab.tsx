@@ -849,7 +849,18 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
           not lost, the exact same link with the exact same auto-apply
           click behavior already lives one tap away on the detail view
           this card opens into. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      {/* v3.180.0 — reported directly, repeatedly, that this still didn't
+          look like the reference: the actual gap was never the padding or
+          the footer, it was the shape. The reference card (BrowseJobs.tsx's
+          SwipeDeck) is a narrow, tall portrait card, min(360px, 92vw) wide.
+          A two-column grid stretches each card to roughly half the panel's
+          own ~1240px width -- a wide landscape card no amount of internal
+          polish reads as "the same card" as a narrow one. Switched to an
+          auto-fill grid with a 280px floor, so cards size close to the
+          reference's own width and the column count adapts to the panel,
+          instead of being fixed at two regardless of how many would
+          actually fit at that size. */}
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
         {visibleJobs.map((j) => {
           const avatar = companyAvatar(j.company || "?");
           const logoUrl = faviconFor(j.source_url);

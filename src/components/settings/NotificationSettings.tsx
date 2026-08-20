@@ -36,7 +36,10 @@ export const NotificationSettings = ({ userId, accessToken }: NotificationSettin
   }
 
   return (
-    <Card className="p-6 bg-card/50 backdrop-blur-xl border-border/50">
+    <Card
+      className="p-6"
+      style={{ background: "var(--rh-surface, hsl(var(--card)))", border: "1px solid var(--rh-hair, hsl(var(--border)))", boxShadow: "var(--rh-shadow-card, none)" }}
+    >
       <div className="flex items-center gap-3 mb-6">
         <div className="p-2 rounded-xl" style={{ background: "var(--rh-tint, hsl(var(--primary) / 0.1))" }}>
           <Mail className="w-5 h-5" style={{ color: "var(--rh-accent-2, hsl(var(--primary)))" }} />

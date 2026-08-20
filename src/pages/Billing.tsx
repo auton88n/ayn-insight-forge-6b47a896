@@ -150,26 +150,39 @@ export default function Billing() {
 
   if (loading) {
     return (
-      <div className="min-h-screen grid place-items-center bg-background">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      <div className={`min-h-screen grid place-items-center bg-background ${audience === "employer" ? "employer-surface" : "resume-hub-theme"}`}>
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: audience === "employer" ? undefined : "var(--rh-accent)" }} />
       </div>
     );
   }
 
+  // v3.179.0 — reported directly: "the page of billing is not branded."
+  // The employer half of this page already had its own scope
+  // (.employer-surface) applied conditionally; the seeker half never got
+  // the matching .resume-hub-theme treatment, so a job seeker landed on
+  // this page's plain shadcn default (bg-foreground buttons, no rh-*
+  // tokens anywhere) every single time. Same fix as every other bare
+  // surface this app has hit: apply the scope class, which already
+  // retints button.bg-foreground/border-foreground to ember on its own,
+  // then hand-retint the handful of literal text-primary/border-primary/
+  // border spots the scope's CSS doesn't reach automatically.
+  const seekerBranded = audience !== "employer";
+
   return (
-    <div className={`min-h-screen bg-background ${audience === "employer" ? "employer-surface" : ""}`}>
+    <div className={`min-h-screen bg-background ${audience === "employer" ? "employer-surface" : "resume-hub-theme"}`}>
       <SEO title="Billing | AYN" description="Your AYN plan, credits and usage." noIndex />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         <button
           onClick={() => navigate(audience === "employer" ? "/" : "/resume-hub")}
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-2 text-sm hover:opacity-80"
+          style={{ color: seekerBranded ? "var(--rh-muted)" : undefined }}
         >
           <ArrowLeft className="w-4 h-4" /> Back to your hub
         </button>
 
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className={seekerBranded ? "rh-display text-2xl" : "text-2xl font-semibold tracking-tight"}>Billing</h1>
+          <p className="text-sm mt-1" style={{ color: seekerBranded ? "var(--rh-muted)" : undefined }}>
             {audience === "employer"
               ? "Your plan, your free month, and how many candidates you have contacted this period."
               : "Your plan, your credit balance and what you spent them on this period."}
@@ -177,15 +190,18 @@ export default function Billing() {
         </div>
 
         {/* Current state */}
-        <div className="rounded-2xl border bg-card p-6">
+        <div className="rounded-2xl border p-6" style={seekerBranded ? { borderColor: "var(--rh-hair)", background: "var(--rh-surface)", boxShadow: "var(--rh-shadow-card)" } : undefined}>
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Current plan</p>
-              <p className="text-xl font-semibold mt-1">
+              <p className="text-xs uppercase tracking-wide" style={{ color: seekerBranded ? "var(--rh-faint)" : undefined }}>Current plan</p>
+              <p className={seekerBranded ? "rh-display text-xl mt-1" : "text-xl font-semibold mt-1"}>
                 {audience === "employer" ? employer?.plan?.name || "—" : seeker?.plan?.name || "Free"}
               </p>
             </div>
-            <Badge variant="secondary">
+            <Badge
+              variant="secondary"
+              style={seekerBranded ? { background: "var(--rh-trust-tint)", color: "var(--rh-trust)" } : undefined}
+            >
               {(audience === "employer" ? employer?.status : seeker?.status) || "active"}
             </Badge>
           </div>
@@ -233,11 +249,11 @@ export default function Billing() {
             )}
           </div>
           {endingSoon && (
-            <p className="mt-3 text-xs text-primary">
+            <p className="mt-3 text-xs font-semibold" style={{ color: seekerBranded ? "var(--rh-gold)" : undefined }}>
               This subscription is set to end and will not renew. You can keep it with one click above.
             </p>
           )}
-          <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
+          <p className="mt-3 text-xs leading-relaxed" style={{ color: seekerBranded ? "var(--rh-faint)" : undefined }}>
             Your plan renews automatically. You can cancel at any time. Cancellation takes
             effect at the end of the period you have already paid for, and fees already paid
             are not refunded. {CREDITS_NOTE}
@@ -245,26 +261,27 @@ export default function Billing() {
         </div>
 
         {/* Billing history */}
-        <div className="rounded-2xl border bg-card p-6">
-          <h2 className="font-semibold">Billing history</h2>
+        <div className="rounded-2xl border p-6" style={seekerBranded ? { borderColor: "var(--rh-hair)", background: "var(--rh-surface)", boxShadow: "var(--rh-shadow-card)" } : undefined}>
+          <h2 className={seekerBranded ? "rh-display" : "font-semibold"}>Billing history</h2>
           {invoices.length ? (
-            <ul className="mt-4 divide-y">
+            <ul className="mt-4 divide-y" style={seekerBranded ? { borderColor: "var(--rh-hair)" } : undefined}>
               {invoices.map(inv => (
-                <li key={inv.id} className="py-2.5 flex items-center justify-between gap-4 text-sm">
-                  <span className="text-muted-foreground">
+                <li key={inv.id} className="py-2.5 flex items-center justify-between gap-4 text-sm" style={seekerBranded ? { borderColor: "var(--rh-hair)" } : undefined}>
+                  <span style={{ color: seekerBranded ? "var(--rh-muted)" : undefined }}>
                     {new Date(inv.created * 1000).toLocaleDateString()} {inv.number ? `· ${inv.number}` : ""}
                   </span>
                   <span className="flex items-center gap-3">
                     <span className="font-medium">
                       {(inv.amount_paid / 100).toFixed(2)} {inv.currency.toUpperCase()}
                     </span>
-                    <Badge variant="secondary">{inv.status || "unknown"}</Badge>
+                    <Badge variant="secondary" style={seekerBranded ? { background: "var(--rh-raised)", color: "var(--rh-muted)" } : undefined}>{inv.status || "unknown"}</Badge>
                     {inv.invoice_pdf && (
                       <a
                         href={inv.invoice_pdf}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                        className="inline-flex items-center gap-1 text-xs font-bold hover:underline"
+                        style={{ color: seekerBranded ? "var(--rh-accent-2)" : undefined }}
                       >
                         <Download className="w-3.5 h-3.5" /> Receipt
                       </a>
@@ -274,39 +291,39 @@ export default function Billing() {
               ))}
             </ul>
           ) : (
-            <p className="mt-3 text-sm text-muted-foreground">No invoices yet.</p>
+            <p className="mt-3 text-sm" style={{ color: seekerBranded ? "var(--rh-muted)" : undefined }}>No invoices yet.</p>
           )}
         </div>
 
 
         {/* Usage this period */}
         {audience === "seeker" && (
-          <div className="rounded-2xl border bg-card p-6">
-            <h2 className="font-semibold">Usage this period</h2>
+          <div className="rounded-2xl border p-6" style={{ borderColor: "var(--rh-hair)", background: "var(--rh-surface)", boxShadow: "var(--rh-shadow-card)" }}>
+            <h2 className="rh-display">Usage this period</h2>
             {seeker?.ledger?.length ? (
-              <ul className="mt-4 divide-y">
+              <ul className="mt-4 divide-y" style={{ borderColor: "var(--rh-hair)" }}>
                 {seeker.ledger.slice(0, 12).map((l, i) => (
-                  <li key={`${l.created_at}-${i}`} className="py-2.5 flex items-center justify-between gap-4 text-sm">
-                    <span className="text-muted-foreground">{l.reason}</span>
+                  <li key={`${l.created_at}-${i}`} className="py-2.5 flex items-center justify-between gap-4 text-sm" style={{ borderColor: "var(--rh-hair)" }}>
+                    <span style={{ color: "var(--rh-muted)" }}>{l.reason}</span>
                     <span className="flex items-center gap-3">
-                      <span className={l.delta < 0 ? "text-foreground" : "text-primary font-medium"}>
+                      <span className="font-medium" style={{ color: l.delta < 0 ? "var(--rh-ink)" : "var(--rh-trust)" }}>
                         {l.delta > 0 ? `+${l.delta}` : l.delta}
                       </span>
-                      <span className="text-xs text-muted-foreground w-20 text-right">{fmtDate(l.created_at)}</span>
+                      <span className="text-xs w-20 text-right" style={{ color: "var(--rh-faint)" }}>{fmtDate(l.created_at)}</span>
                     </span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="mt-3 text-sm text-muted-foreground">Nothing spent yet this period.</p>
+              <p className="mt-3 text-sm" style={{ color: "var(--rh-muted)" }}>Nothing spent yet this period.</p>
             )}
           </div>
         )}
 
         {/* Full tier list, including the employer tiers we do not publish. */}
-        <div className="rounded-2xl border bg-card p-6">
-          <h2 className="font-semibold">Change your plan</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+        <div className="rounded-2xl border p-6" style={seekerBranded ? { borderColor: "var(--rh-hair)", background: "var(--rh-surface)", boxShadow: "var(--rh-shadow-card)" } : undefined}>
+          <h2 className={seekerBranded ? "rh-display" : "font-semibold"}>Change your plan</h2>
+          <p className="mt-1 text-sm" style={{ color: seekerBranded ? "var(--rh-muted)" : undefined }}>
             You can move up or down at any time, including down to Free. {CREDITS_NOTE}
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
@@ -315,22 +332,29 @@ export default function Billing() {
               const isDown = p.price_cents < currentPrice;
               const label = current ? "Current plan" : isDown ? (p.price_cents === 0 ? "Move to Free" : "Move down") : "Move up";
               return (
-                <div key={p.key} className={`rounded-xl border p-4 flex flex-col ${current ? "border-primary" : ""}`}>
+                <div
+                  key={p.key}
+                  className="rounded-xl border p-4 flex flex-col"
+                  style={seekerBranded
+                    ? { borderColor: current ? "var(--rh-accent)" : "var(--rh-hair)", background: current ? "var(--rh-tint)" : undefined }
+                    : undefined}
+                >
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-medium">{p.name}</h3>
-                    {current && <Badge variant="secondary">Current</Badge>}
+                    <h3 className={seekerBranded ? "rh-display text-[15px]" : "font-medium"}>{p.name}</h3>
+                    {current && <Badge variant="secondary" style={seekerBranded ? { background: "var(--rh-accent)", color: "#fff" } : undefined}>Current</Badge>}
                   </div>
-                  <p className="mt-2 text-lg font-semibold">{priceLabel(p.price_cents, p.interval)}</p>
-                  <p className="mt-1 text-sm text-muted-foreground flex-1">
+                  <p className={seekerBranded ? "mt-2 rh-display text-lg" : "mt-2 text-lg font-semibold"}>{priceLabel(p.price_cents, p.interval)}</p>
+                  <p className="mt-1 text-sm flex-1" style={{ color: seekerBranded ? "var(--rh-muted)" : undefined }}>
                     {p.audience === "seeker"
                       ? `${p.credits ?? 0} credits`
                       : `${p.proposals_limit ?? "Unlimited"} proposals, ${p.assessments_limit ?? "unlimited"} assessments`}
                   </p>
                   <Button
-                    className="mt-4 w-full"
+                    className="mt-4 w-full hover:opacity-90"
                     variant={current || isDown ? "outline" : "default"}
                     disabled={current || busy === p.key || (p.price_cents === 0 && !hasSubscription)}
                     onClick={() => (hasSubscription ? changePlan(p) : upgrade(p.key))}
+                    style={seekerBranded && !current && !isDown ? { background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" } : undefined}
                   >
                     {busy === p.key ? <Loader2 className="w-4 h-4 animate-spin" /> : label}
                   </Button>

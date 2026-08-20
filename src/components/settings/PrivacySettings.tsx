@@ -106,7 +106,10 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
 
   return (
     <div className="space-y-6">
-      <Card className="p-6 bg-card/50 backdrop-blur-xl border-border/50">
+      <Card
+        className="p-6"
+        style={{ background: "var(--rh-surface, hsl(var(--card)))", border: "1px solid var(--rh-hair, hsl(var(--border)))", boxShadow: "var(--rh-shadow-card, none)" }}
+      >
         <h2 className="text-xl font-semibold mb-6">{t('settings.dataManagement')}</h2>
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4">

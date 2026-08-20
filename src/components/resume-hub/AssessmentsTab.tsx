@@ -468,7 +468,11 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
           padding, not spaciousness) plus the flex-1 spacer already below
           gives it the same generous, unhurried footer placement the
           reference card has, without inventing content to fill it. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      {/* v3.180.0 — same fix as JobsTab.tsx's own card grid: a fixed
+          two-column layout stretched each card to roughly half the panel,
+          a wide landscape shape next to the reference card's narrow
+          portrait one. Auto-fill with a 280px floor instead. */}
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
         {rows.map(a => {
           const avatar = companyAvatar(a.org_name || "?");
           const statusMeta = a.status === "submitted"

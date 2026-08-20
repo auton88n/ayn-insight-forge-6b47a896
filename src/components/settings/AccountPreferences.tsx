@@ -103,7 +103,7 @@ export const AccountPreferences = ({ userId, userEmail }: AccountPreferencesProp
 
   return (
     <div className="space-y-6">
-      <Card className="p-6 bg-card/50 backdrop-blur-xl border-border/50">
+      <Card className="p-6" style={{ background: "var(--rh-surface, hsl(var(--card)))", border: "1px solid var(--rh-hair, hsl(var(--border)))", boxShadow: "var(--rh-shadow-card, none)" }}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h2 className="text-xl font-semibold mb-1">Plan</h2>
@@ -146,7 +146,7 @@ export const AccountPreferences = ({ userId, userEmail }: AccountPreferencesProp
         )}
       </Card>
 
-      <Card className="p-6 bg-card/50 backdrop-blur-xl border-border/50">
+      <Card className="p-6" style={{ background: "var(--rh-surface, hsl(var(--card)))", border: "1px solid var(--rh-hair, hsl(var(--border)))", boxShadow: "var(--rh-shadow-card, none)" }}>
         <h2 className="text-xl font-semibold mb-4">Profile</h2>
         <div className="space-y-3">
           <div>
@@ -171,7 +171,7 @@ export const AccountPreferences = ({ userId, userEmail }: AccountPreferencesProp
         </Button>
       </Card>
 
-      <Card className="p-6 bg-card/50 backdrop-blur-xl border-border/50">
+      <Card className="p-6" style={{ background: "var(--rh-surface, hsl(var(--card)))", border: "1px solid var(--rh-hair, hsl(var(--border)))", boxShadow: "var(--rh-shadow-card, none)" }}>
         <h2 className="text-xl font-semibold mb-6">Security</h2>
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="space-y-0.5">
