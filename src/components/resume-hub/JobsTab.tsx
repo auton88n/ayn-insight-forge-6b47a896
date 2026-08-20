@@ -403,7 +403,24 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                 <h2 className="rh-display text-xl leading-snug">{selected.title}</h2>
                 <p className="text-sm" style={{ color: "var(--rh-muted)" }}>{selected.company} {selected.location && `• ${selected.location}`}</p>
                 {selected.source_url && (
-                  <a href={selected.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center text-xs mt-1" style={{ color: "var(--rh-accent-2)" }}>
+                  <a
+                    href={selected.source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => {
+                      // v3.173.0 — the one status transition AYN can actually
+                      // observe: clicking through to the real posting is what
+                      // "applying" looks like from here. Everything past this
+                      // (interviewing, offer, rejected) happens in someone's
+                      // inbox or on a call, nowhere AYN has visibility, so
+                      // those stay a manual pill. Never overwrite a status
+                      // already moved past "saved" — a re-click on an
+                      // already-applied job shouldn't roll it backward.
+                      if (selected.application_status === "saved") updateStatus(selected.id, "applied");
+                    }}
+                    className="inline-flex items-center text-xs mt-1"
+                    style={{ color: "var(--rh-accent-2)" }}
+                  >
                     View original <ExternalLink className="w-3 h-3 ml-1" />
                   </a>
                 )}
