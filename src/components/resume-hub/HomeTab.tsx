@@ -26,7 +26,7 @@
  * standalone /settings route is untouched, not deleted -- EmployerHub's
  * own account menu still points there, and it's still reachable directly.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -70,24 +70,12 @@ interface Action {
 export default function HomeTab({ userId, session, onOpenProfile, onOpenJobs, onOpenProposals }: Props) {
   const [snap, setSnap] = useState<HubSnapshot | null>(null);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("account");
-  const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
     loadHubSnapshot(userId).then(s => { if (alive) setSnap(s); }).catch(() => { if (alive) setSnap(null); });
     return () => { alive = false; };
   }, [userId]);
-
-  // v3.174.0 — the account menu's Settings item switches to this tab and
-  // sets this flag instead of navigating anywhere; scroll to the section
-  // once, the same one-shot sessionStorage handoff ayn_open_tab already
-  // established for cross-tab links elsewhere in this file's history.
-  useEffect(() => {
-    if (sessionStorage.getItem("ayn_scroll_settings")) {
-      sessionStorage.removeItem("ayn_scroll_settings");
-      settingsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, []);
 
   if (!snap) {
     return (
@@ -213,8 +201,12 @@ export default function HomeTab({ userId, session, onOpenProfile, onOpenJobs, on
           pattern already used for Saved jobs' status filter and Browse
           jobs' List/Swipe toggle, deliberately not shadcn's Tabs (its
           default active-tab state renders un-tokened black outside the
-          .settings-surface scope that page used to fix it). */}
-      <div ref={settingsRef} className="pt-2">
+          .settings-surface scope that page used to fix it).
+          v3.175.0 — Home moved to the last nav slot with a gear icon
+          (ResumeHub.tsx), so it's reached directly now instead of via the
+          account menu's old cross-tab handoff; the one-shot scroll that
+          handoff needed is gone since nothing sets it anymore. */}
+      <div className="pt-2">
         <h2 className="rh-display text-xl">Settings</h2>
         <p className="text-sm mt-0.5 mb-3" style={{ color: "var(--rh-muted)" }}>
           Your plan, notifications, data, and where you're signed in.

@@ -3,11 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Home, User, Briefcase, Mail, LogOut, ClipboardCheck, Settings, Compass } from "lucide-react";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Home, User, Briefcase, Mail, LogOut, ClipboardCheck, Settings, Compass, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AynLoader } from "@/components/shared/AynLoader";
 // v3.159.0 — lazy, not eager: these seven tabs were all bundled into one
@@ -30,7 +26,7 @@ import { PlatformMaintenanceScreen } from "@/components/shared/MaintenanceNotice
 
 
 type TabKey = "home" | "profile" | "browse" | "jobs" | "proposals" | "assessments";
-const TAB_KEYS: TabKey[] = ["home", "profile", "browse", "jobs", "proposals", "assessments"];
+const TAB_KEYS: TabKey[] = ["browse", "profile", "jobs", "proposals", "assessments", "home"];
 
 // v3.145.0 — reported directly: refreshing the page always dropped the
 // person back on Home, no matter which section (or which job) they were
@@ -53,13 +49,20 @@ function readStoredTab(): TabKey {
 // v3.69.0 — Get discovered removed: "Let employers find me" and everything
 // it powers moved into Profile, so this nav item had nothing left to hold.
 // v3.164.0 — Browser extension removed: everything it did now lives here.
+// v3.175.0 — reported directly: reorder so the actual job-search work
+// (Browse, Profile/resume, Saved, Proposals, Assessments) comes first, with
+// Home last instead of first, now that it carries the merged Settings
+// section (v3.174.0) as much as it carries "Next." Icon swapped from a
+// house to a gear to match what Home mostly reads as now: the account/
+// settings area, not the app's primary landing point (Browse jobs already
+// is that, per readStoredTab's own "browse" fallback below).
 const NAV: { key: TabKey; label: string; icon: typeof Home }[] = [
-  { key: "home",        label: "Home",              icon: Home },
-  { key: "profile",     label: "Profile",           icon: User },
   { key: "browse",      label: "Browse jobs",       icon: Compass },
+  { key: "profile",     label: "Profile",           icon: User },
   { key: "jobs",        label: "Saved jobs",        icon: Briefcase },
   { key: "proposals",   label: "Proposals",         icon: Mail },
   { key: "assessments", label: "Assessments",       icon: ClipboardCheck },
+  { key: "home",        label: "Home",              icon: Settings },
 ];
 
 
@@ -226,65 +229,49 @@ export default function ResumeHub() {
           </div>
           <div className="flex items-center gap-2">
             {/* v3.35.0 — billing_get already returns this; it just never showed
-                up anywhere before /billing itself. */}
+                up anywhere before /billing itself.
+                v3.175.0 — reported directly: "better looking credit bar."
+                A Zap icon and a real ember glow shadow, matching the same
+                narrow-accent-plus-glow language the rest of this page's
+                gradient CTAs already use, instead of a bare outline pill. */}
             {creditBalance !== null && (
               <button
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold"
-                style={{ borderColor: "var(--rh-accent)", color: "var(--rh-accent-2)", background: "var(--rh-tint)" }}
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition hover:opacity-90"
+                style={{
+                  border: "1px solid var(--rh-accent)",
+                  color: "var(--rh-accent-2)",
+                  background: "var(--rh-tint)",
+                  boxShadow: "0 3px 10px -4px rgba(232, 93, 58, 0.45)",
+                }}
                 onClick={() => navigate("/billing")}
                 title="Credit balance"
               >
+                <Zap className="w-3.5 h-3.5" fill="var(--rh-accent-2)" strokeWidth={0} />
                 {creditBalance} credit{creditBalance === 1 ? "" : "s"}
               </button>
             )}
             <button className="rh-btn rh-btn-primary" onClick={() => setTab("profile")}>
               Your resume
             </button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Account menu"
-                  className="rounded-full text-[color:var(--rh-muted)] hover:text-[color:var(--rh-ink)] hover:bg-[color:var(--rh-raised)]">
-                  <User className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              {/* v3.173.0 — reported directly: four items (Your profile,
-                  Plan and credits, Settings, Sign out) when Settings already
-                  shows the plan/credits summary and the profile summary with
-                  a link back to each real editor (AccountPreferences.tsx,
-                  v3.73.0) — three ways to reach the same place. Collapsed to
-                  Settings plus Sign out, and retinted off the default
-                  bg-popover/text-popover-foreground (plain white/black) onto
-                  the same rh-tokens the rest of Resume Hub already uses.
-                  v3.174.0 — reported directly, right after: "the settings
-                  needs to be in home page have everything," rather than a
-                  navigation detour to a separate route entirely outside this
-                  page. "Settings" no longer leaves Resume Hub at all — it
-                  switches to Home (where Account/Notifications/Privacy/
-                  Sessions now render inline) and flags a one-shot scroll via
-                  the same sessionStorage-handoff pattern ayn_open_tab
-                  already established. The standalone /settings route and its
-                  four components are untouched, not deleted — EmployerHub's
-                  own account menu still points there, and it stays reachable
-                  by direct link; only the seeker path here no longer uses it. */}
-              <DropdownMenuContent
-                align="end"
-                className="border-[color:var(--rh-hair)] bg-[color:var(--rh-surface)] text-[color:var(--rh-ink)]"
-              >
-                <DropdownMenuItem
-                  onClick={() => { sessionStorage.setItem("ayn_scroll_settings", "1"); setTab("home"); }}
-                  className="focus:bg-[color:var(--rh-tint)] focus:text-[color:var(--rh-accent-2)]"
-                >
-                  <Settings className="w-4 h-4 mr-2" /> Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-[color:var(--rh-hair)]" />
-                <DropdownMenuItem
-                  onClick={handleSignOut}
-                  className="focus:bg-[color:var(--rh-tint)] focus:text-[color:var(--rh-accent-2)]"
-                >
-                  <LogOut className="w-4 h-4 mr-2" /> Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* v3.173.0/v3.174.0 — this used to open a dropdown (Your
+                profile, Plan and credits, Settings, Sign out, later trimmed
+                to Settings/Sign out) for things that all now live on the
+                Home tab itself (v3.174.0's merged Settings section).
+                v3.175.0 — reported directly: "make icon for exit only."
+                With Settings gone from here, a one-item dropdown had
+                nothing left to justify itself; this is now a direct sign
+                out button, no menu, matching handleSignOut's own existing
+                no-confirmation design everywhere else it's called. */}
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Sign out"
+              title="Sign out"
+              onClick={handleSignOut}
+              className="rounded-full text-[color:var(--rh-muted)] hover:text-[color:var(--rh-accent-2)] hover:bg-[color:var(--rh-tint)]"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
         </div>
 
