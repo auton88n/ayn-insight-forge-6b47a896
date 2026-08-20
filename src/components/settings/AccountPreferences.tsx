@@ -120,7 +120,7 @@ export const AccountPreferences = ({ userId, userEmail }: AccountPreferencesProp
 
         {!isEmployer && (
           <div className="mt-4 flex items-center gap-2 text-sm">
-            <Sparkles className="w-4 h-4 text-primary shrink-0" />
+            <Sparkles className="w-4 h-4 shrink-0" style={{ color: "var(--rh-accent-2, hsl(var(--primary)))" }} />
             <span className="font-medium">{seekerBilling?.balance ?? 0} credits</span>
             <span className="text-muted-foreground">
               : {seekerBilling?.costs?.tailored_resume ?? 2} for a tailored resume, {seekerBilling?.costs?.cover_letter ?? 1} for a cover letter.

@@ -38,8 +38,8 @@ export const NotificationSettings = ({ userId, accessToken }: NotificationSettin
   return (
     <Card className="p-6 bg-card/50 backdrop-blur-xl border-border/50">
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 rounded-xl bg-primary/10">
-          <Mail className="w-5 h-5 text-primary" />
+        <div className="p-2 rounded-xl" style={{ background: "var(--rh-tint, hsl(var(--primary) / 0.1))" }}>
+          <Mail className="w-5 h-5" style={{ color: "var(--rh-accent-2, hsl(var(--primary)))" }} />
         </div>
         <div>
           <h2 className="text-xl font-semibold">Email preferences</h2>
@@ -61,6 +61,7 @@ export const NotificationSettings = ({ userId, accessToken }: NotificationSettin
             checked={settings.email_marketing}
             onCheckedChange={(checked) => updateSettings({ email_marketing: checked })}
             disabled={updating}
+            style={settings.email_marketing ? { backgroundColor: "var(--rh-accent-2, hsl(var(--primary)))" } : undefined}
           />
         </div>
       </div>

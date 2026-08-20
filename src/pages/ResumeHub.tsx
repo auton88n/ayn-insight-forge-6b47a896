@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Home, User, Briefcase, Mail, LogOut, ClipboardCheck, Settings, Compass } from "lucide-react";
@@ -72,6 +73,11 @@ export default function ResumeHub() {
     setTabRaw(next);
   }, []);
   const [userId, setUserId] = useState<string | null>(null);
+  // v3.174.0 — Home now embeds the settings sections directly (Account,
+  // Notifications, Privacy, Sessions), which need a real access token and
+  // the full Session object (PrivacySettings' export/delete flow), not
+  // just the user id everything else here has always used.
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pendingIntros, setPendingIntros] = useState(0);
@@ -130,6 +136,7 @@ export default function ResumeHub() {
         }
       } catch { /* silent */ }
       setUserId(data.user.id);
+      supabase.auth.getSession().then(({ data: sessData }) => { if (alive) setSession(sessData.session); });
       setLoading(false);
       // v3.74.0 — a cross-page link (Settings > Account's "Edit in Profile")
       // can ask to land straight on a tab instead of always opening Home.
@@ -247,13 +254,24 @@ export default function ResumeHub() {
                   v3.73.0) — three ways to reach the same place. Collapsed to
                   Settings plus Sign out, and retinted off the default
                   bg-popover/text-popover-foreground (plain white/black) onto
-                  the same rh-tokens the rest of Resume Hub already uses. */}
+                  the same rh-tokens the rest of Resume Hub already uses.
+                  v3.174.0 — reported directly, right after: "the settings
+                  needs to be in home page have everything," rather than a
+                  navigation detour to a separate route entirely outside this
+                  page. "Settings" no longer leaves Resume Hub at all — it
+                  switches to Home (where Account/Notifications/Privacy/
+                  Sessions now render inline) and flags a one-shot scroll via
+                  the same sessionStorage-handoff pattern ayn_open_tab
+                  already established. The standalone /settings route and its
+                  four components are untouched, not deleted — EmployerHub's
+                  own account menu still points there, and it stays reachable
+                  by direct link; only the seeker path here no longer uses it. */}
               <DropdownMenuContent
                 align="end"
                 className="border-[color:var(--rh-hair)] bg-[color:var(--rh-surface)] text-[color:var(--rh-ink)]"
               >
                 <DropdownMenuItem
-                  onClick={() => navigate("/settings")}
+                  onClick={() => { sessionStorage.setItem("ayn_scroll_settings", "1"); setTab("home"); }}
                   className="focus:bg-[color:var(--rh-tint)] focus:text-[color:var(--rh-accent-2)]"
                 >
                   <Settings className="w-4 h-4 mr-2" /> Settings
@@ -323,6 +341,7 @@ export default function ResumeHub() {
               {tab === "home"      && (
                 <HomeTab
                   userId={userId!}
+                  session={session}
                   onOpenProfile={() => setTab("profile")}
                   onOpenJobs={() => setTab("jobs")}
                   onOpenProposals={() => setTab("proposals")}
