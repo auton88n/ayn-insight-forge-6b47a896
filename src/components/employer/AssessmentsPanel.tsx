@@ -93,7 +93,12 @@ export default function AssessmentsPanel({ reloadKey }: { reloadKey: number }) {
                     {VERDICT_LABEL[a.result.verification_verdict] || a.result.verification_verdict}
                   </Badge>
                   {a.result.writing_signal !== "human" && (
-                    <Badge variant="outline" className="font-normal text-amber-600 border-amber-600/40" title={a.result.writing_signal_note || undefined}>
+                    <Badge
+                      variant="outline"
+                      className="font-normal"
+                      style={{ color: "var(--rh-gold)", borderColor: "var(--rh-gold)" }}
+                      title={a.result.writing_signal_note || undefined}
+                    >
                       {WRITING_SIGNAL_LABEL[a.result.writing_signal] || a.result.writing_signal}
                     </Badge>
                   )}
@@ -105,7 +110,7 @@ export default function AssessmentsPanel({ reloadKey }: { reloadKey: number }) {
                   <p className="text-sm leading-relaxed">{a.result.employer_summary}</p>
                 )}
                 {a.result.writing_signal !== "human" && a.result.writing_signal_note && (
-                  <p className="text-xs text-amber-600 leading-relaxed">{a.result.writing_signal_note}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--rh-gold)" }}>{a.result.writing_signal_note}</p>
                 )}
 
                 {isOpen && (

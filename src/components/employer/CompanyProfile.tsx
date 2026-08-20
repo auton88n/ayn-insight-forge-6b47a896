@@ -33,13 +33,10 @@ function SizeOption({ label, selected, onClick }: { label: string; selected: boo
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className={[
-        "group relative flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm text-left transition-all",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        selected
-          ? "border-primary bg-primary text-primary-foreground shadow-sm"
-          : "border-border/70 bg-card hover:border-primary/50 hover:bg-muted/50",
-      ].join(" ")}
+      className="group relative flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      style={selected
+        ? { background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }
+        : { borderColor: "var(--rh-hair)", background: "var(--rh-surface)" }}
     >
       {selected && <Check className="w-4 h-4 shrink-0" />}
       <span className="font-medium">{label}</span>
@@ -139,7 +136,7 @@ export default function CompanyProfile({
   const fields = (
     <div className="space-y-4 employer-step-in">
       {missing.length > 0 && (
-        <ul className="space-y-1 border-l-2 border-primary/60 pl-3">
+        <ul className="space-y-1 border-l-2 pl-3" style={{ borderColor: "var(--rh-accent)" }}>
           {missing.map(m => (
             <li key={m.key} className="text-xs text-muted-foreground">{m.nudge}</li>
           ))}
@@ -197,7 +194,7 @@ export default function CompanyProfile({
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <Label className="text-xs">About the company</Label>
-          <span className={`text-[11px] ${aboutLen > 0 && aboutLen < ABOUT_MIN ? "text-primary" : "text-muted-foreground"}`}>
+          <span className="text-[11px]" style={{ color: aboutLen > 0 && aboutLen < ABOUT_MIN ? "var(--rh-accent-2)" : "var(--rh-muted)" }}>
             {aboutLen < ABOUT_MIN ? `${aboutLen} of ${ABOUT_MIN} minimum` : `${aboutLen} of 600`}
           </span>
         </div>
@@ -217,12 +214,12 @@ export default function CompanyProfile({
 
   if (onboarding || page) {
     return (
-      <Card className="p-5 sm:p-7 space-y-5">
+      <Card className="p-5 sm:p-7 space-y-5 rounded-2xl" style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
         <div className="space-y-1.5">
           <div className="flex items-center gap-3">
             {org.logo_url
               ? <img src={org.logo_url} alt={`${org.name} logo`} className="w-10 h-10 rounded-lg object-cover border border-border/60" loading="lazy" />
-              : <span className="w-10 h-10 rounded-lg grid place-items-center bg-muted border border-border/60"><Building2 className="w-4 h-4 text-primary" /></span>}
+              : <span className="w-10 h-10 rounded-lg grid place-items-center" style={{ background: "var(--rh-tint)" }}><Building2 className="w-4 h-4" style={{ color: "var(--rh-accent-2)" }} /></span>}
             <h1 className="text-lg font-semibold">
               {onboarding ? "Tell candidates who you are" : org.name || "Company profile"}
             </h1>
@@ -241,7 +238,7 @@ export default function CompanyProfile({
 
 
   return (
-    <Card className="p-4 sm:p-6 space-y-4">
+    <Card className="p-4 sm:p-6 space-y-4 rounded-2xl" style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
@@ -266,7 +263,7 @@ export default function CompanyProfile({
       </button>
 
       {missing.length > 0 && !expanded && (
-        <ul className="space-y-1 border-l-2 border-primary/60 pl-3">
+        <ul className="space-y-1 border-l-2 pl-3" style={{ borderColor: "var(--rh-accent)" }}>
           {missing.map(m => <li key={m.key} className="text-xs text-muted-foreground">{m.nudge}</li>)}
         </ul>
       )}

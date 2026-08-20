@@ -25,7 +25,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Send, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
-  Brain, Search as SearchIcon, Mail, ClipboardCheck, ArrowLeft, CreditCard, Settings,
+  Brain, Search as SearchIcon, Mail, ClipboardCheck, ArrowLeft, Settings,
 } from "lucide-react";
 
 import IntakeWizard from "@/components/employer/IntakeWizard";
@@ -45,6 +45,19 @@ import {
   type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
 import { billingApi, type EmployerBilling } from "@/lib/billing";
+// v3.181.0 — the actual root cause of "the gradient button rendered
+// transparent": this file applied the .resume-hub-theme class but never
+// loaded the stylesheet that defines --rh-* on it. ResumeHub.tsx pulls
+// this in directly (its own import, same path) rather than it being a
+// global stylesheet, so a fresh employer session that never visited
+// Resume Hub in the same tab had every --rh-* variable resolve to nothing
+// at all -- not the old flat orange, not ember, literally undefined,
+// which is why the "Continue" button above was invisible (an inline
+// `background: var(--rh-gradient)` with an unresolved var() is treated
+// as invalid, not a fallback to nothing rendered, so it fell through to
+// the default Button variant's own now-conflicting bg-foreground rule
+// and produced a fully transparent button with white text).
+import "@/styles/resume-hub.css";
 
 
 /** v3.12.0 — the employer gets a left rail in the Resume Hub language. */
@@ -63,7 +76,7 @@ function ScoreRing({ score }: { score: number }) {
   return (
     <div
       className="relative w-12 h-12 shrink-0 rounded-full grid place-items-center"
-      style={{ background: `conic-gradient(hsl(var(--primary)) ${pct * 3.6}deg, hsl(var(--muted)) 0deg)` }}
+      style={{ background: `conic-gradient(var(--rh-accent) ${pct * 3.6}deg, var(--rh-raised) 0deg)` }}
       aria-label={`Match score ${pct}`}
     >
       <div className="w-9 h-9 rounded-full bg-card grid place-items-center text-xs font-semibold">{pct}</div>
@@ -178,10 +191,17 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
    * outside this page's DOM tree, so a class on the wrapper alone would leave
    * the proposal dialog black while the page turned orange. Setting it on
    * <body> for the lifetime of the employer surface covers both.
+   * v3.181.0 — reported directly: "make sure our design for candidate is
+   * same design for the employer too." .employer-surface was its own,
+   * older, flatter-orange (#f97316) system, separate from Resume Hub's
+   * real Charcoal & Ember one (#e85d3a gradient, warm paper canvas,
+   * Figtree/Outfit). Swapped to .resume-hub-theme -- the exact same scope
+   * the seeker side uses, not a lookalike -- so both surfaces are
+   * genuinely one design system, not two that happen to match colors.
    */
   useEffect(() => {
-    document.body.classList.add("employer-surface");
-    return () => document.body.classList.remove("employer-surface");
+    document.body.classList.add("resume-hub-theme");
+    return () => document.body.classList.remove("resume-hub-theme");
   }, []);
 
   const createOrg = async () => {
@@ -278,17 +298,29 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   const sentRefs = new Set(sent.filter(s => s.status === "pending" || s.status === "approved").map(s => s.ref));
 
   if (orgLoading) {
-    return <div className="employer-surface min-h-screen grid place-items-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin" /></div>;
+    return (
+      <div className="resume-hub-theme min-h-screen grid place-items-center" style={{ color: "var(--rh-muted)" }}>
+        <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--rh-accent)" }} />
+      </div>
+    );
   }
 
   if (!org) {
     return (
-      <div className="employer-surface min-h-screen grid place-items-center p-6">
-        <Card className="w-full max-w-md p-6 space-y-4">
-          <div className="flex items-center gap-2"><Building2 className="w-4 h-4 text-primary" /><h1 className="font-semibold">Name your company</h1></div>
-          <p className="text-sm text-muted-foreground">Candidates see this name on any proposal you send.</p>
+      <div className="resume-hub-theme min-h-screen grid place-items-center p-6">
+        <Card className="w-full max-w-md p-6 space-y-4 rounded-2xl" style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+          <div className="flex items-center gap-2">
+            <Building2 className="w-4 h-4" style={{ color: "var(--rh-accent-2)" }} />
+            <h1 className="rh-display">Name your company</h1>
+          </div>
+          <p className="text-sm" style={{ color: "var(--rh-muted)" }}>Candidates see this name on any proposal you send.</p>
           <Input value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="Company name" />
-          <Button onClick={createOrg} disabled={orgBusy || !orgName.trim()} className="w-full">
+          <Button
+            onClick={createOrg}
+            disabled={orgBusy || !orgName.trim()}
+            className="w-full hover:opacity-90"
+            style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+          >
             {orgBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}Continue
           </Button>
         </Card>
@@ -299,130 +331,142 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   const pendingSent = sent.filter(s => s.status === "pending").length;
 
   return (
-    <div className="employer-surface min-h-screen bg-background">
-      {/* v3.12.0 — AYN branded header with a company menu, so the employer
-          surface reads as the same product as the seeker side. */}
-      <header className="border-b border-border/60 sticky top-0 z-30 bg-background/95 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+    <div className="resume-hub-theme">
+      <div className="rh-shell">
+        {/* v3.181.0 — the exact rh-topbar markup ResumeHub.tsx uses, not a
+            lookalike. "Hiring"/company-name text dropped, matching the
+            same "the logo alone is enough" call made on the seeker side
+            (v3.176.0) -- org.name still carries as the page's sr-only
+            heading and the logo's alt text, so it's not lost, just not
+            rendered as a redundant label next to its own mark. */}
+        <div className="rh-topbar">
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center shrink-0" aria-label="AYN">
               <img src={aynLogo} alt="AYN" className="h-7 w-auto" />
             </div>
-            <div className="w-px h-6 bg-border" aria-hidden />
-            <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground leading-none">Hiring</p>
-              <h1 className="text-sm font-semibold truncate leading-tight">{org.name}</h1>
-            </div>
+            <h1 className="sr-only">{org.name} — AYN for employers</h1>
           </div>
-
-          {/* v3.35.0 — the same usage numbers Billing already shows, right
-              where searches, proposals and assessments actually get spent. */}
-          {profileComplete && usage && (
-            <button
-              type="button"
-              onClick={() => navigate("/billing")}
-              className="hidden sm:flex items-center gap-2.5 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
-              title="Usage this period"
-            >
-              <span>{usage.searches_used}{usage.plan?.searches_limit ? `/${usage.plan.searches_limit}` : ""} searches</span>
-              <span className="w-1 h-1 rounded-full bg-border" aria-hidden />
-              <span>{usage.proposals_used}{usage.plan?.proposals_limit ? `/${usage.plan.proposals_limit}` : ""} proposals</span>
-              <span className="w-1 h-1 rounded-full bg-border" aria-hidden />
-              <span>{usage.assessments_used}{usage.plan?.assessments_limit ? `/${usage.plan.assessments_limit}` : ""} assessments</span>
-            </button>
-          )}
-
-          {org.logo_url && (
-            <img src={org.logo_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
-          )}
-
-        </div>
-      </header>
-
-      {/**
-       * v3.11.0 — the gate. While a required company field is missing the
-       * onboarding profile is the ONLY thing rendered, and v3.12.0 keeps the
-       * nav out of the page too. The backend enforces the same rule.
-       */}
-      {!profileComplete ? (
-        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-          <CompanyProfile org={org} onSaved={handleOrgSaved} onboarding />
-        </main>
-      ) : (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex gap-6 pb-24 md:pb-6">
-          {/* v3.14.0 — icon rail, same language as the seeker Resume Hub. */}
-          <aside className="hidden md:block w-24 shrink-0" aria-label="Employer navigation">
-            <nav className="sticky top-24 flex flex-col items-stretch gap-1 rounded-2xl border border-border/60 bg-card p-2">
-              {EMPLOYER_NAV.map(item => {
-                const Icon = item.icon;
-                const active = tab === item.key;
-                const badge = item.key === "proposals" ? pendingSent : 0;
-                return (
-                  <button
-                    key={item.key}
-                    onClick={() => setTab(item.key)}
-                    aria-label={item.label}
-                    className={`relative w-full rounded-xl py-2.5 flex flex-col items-center gap-1 transition-colors ${
-                      active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }`}
-                  >
-                    <Icon className="w-[18px] h-[18px]" />
-                    <span className="text-[11px] font-medium leading-none">{item.label}</span>
-                    {badge > 0 && (
-                      <span
-                        aria-hidden
-                        className="absolute top-1 right-2 min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold leading-4 text-center"
-                      >{badge > 9 ? "9+" : badge}</span>
-                    )}
-                  </button>
-                );
-              })}
-
-              {/* v3.15.0 — sign out lives in the nav, not the header. */}
-              <span className="my-1 h-px w-6 self-center bg-border" aria-hidden />
+          <div className="flex items-center gap-2">
+            {/* v3.35.0 — the same usage numbers Billing already shows, right
+                where searches, proposals and assessments actually get spent.
+                v3.181.0 — restyled as a real ember stat, same treatment as
+                the seeker credit pill, instead of a plain muted-text row. */}
+            {profileComplete && usage && (
               <button
+                type="button"
                 onClick={() => navigate("/billing")}
-                aria-label="Plan and billing"
-                className="w-full rounded-xl py-2.5 flex flex-col items-center gap-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="hidden sm:inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold transition hover:opacity-90"
+                style={{ border: "1px solid var(--rh-accent)", color: "var(--rh-accent-2)", background: "var(--rh-tint)" }}
+                title="Usage this period"
               >
-                <CreditCard className="w-[18px] h-[18px]" />
-                <span className="text-[11px] font-medium leading-none">Plan</span>
+                <span>{usage.searches_used}{usage.plan?.searches_limit ? `/${usage.plan.searches_limit}` : ""} searches</span>
+                <span className="w-1 h-1 rounded-full" style={{ background: "var(--rh-accent)" }} aria-hidden />
+                <span>{usage.proposals_used}{usage.plan?.proposals_limit ? `/${usage.plan.proposals_limit}` : ""} proposals</span>
+                <span className="w-1 h-1 rounded-full" style={{ background: "var(--rh-accent)" }} aria-hidden />
+                <span>{usage.assessments_used}{usage.plan?.assessments_limit ? `/${usage.plan.assessments_limit}` : ""} assessments</span>
               </button>
-              <button
-                onClick={() => navigate("/settings")}
-                aria-label="Settings"
-                className="w-full rounded-xl py-2.5 flex flex-col items-center gap-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-              >
-                <Settings className="w-[18px] h-[18px]" />
-                <span className="text-[11px] font-medium leading-none">Settings</span>
-              </button>
-              <button
-                onClick={handleSignOut}
-                aria-label="Sign out"
-                className="w-full rounded-xl py-2.5 flex flex-col items-center gap-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-              >
-                <LogOut className="w-[18px] h-[18px]" />
-                <span className="text-[11px] font-medium leading-none">Sign out</span>
-              </button>
-            </nav>
-          </aside>
+            )}
+            {org.logo_url && (
+              <img src={org.logo_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Settings"
+              title="Settings"
+              onClick={() => navigate("/settings")}
+              className="rounded-full"
+              style={{ color: "var(--rh-muted)" }}
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Sign out"
+              title="Sign out"
+              onClick={handleSignOut}
+              className="rounded-full"
+              style={{ color: "var(--rh-muted)" }}
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
 
+        {/**
+         * v3.11.0 — the gate. While a required company field is missing the
+         * onboarding profile is the ONLY thing rendered, and v3.12.0 keeps the
+         * nav out of the page too. The backend enforces the same rule.
+         */}
+        {!profileComplete ? (
+          <div className="rh-main max-w-2xl mx-auto">
+            <CompanyProfile org={org} onSaved={handleOrgSaved} onboarding />
+          </div>
+        ) : (
+          <div className="rh-grid">
+            {/* v3.14.0 — icon rail, same language as the seeker Resume Hub.
+                v3.181.0 — now the literal same classes (.rh-aside-left/
+                .rh-navlist/.rh-navitem/.rh-tip), not a parallel
+                reimplementation -- icon-only with a hover tooltip instead
+                of an always-visible label, and the same responsive
+                collapse to a horizontal row on mobile that ResumeHub.tsx
+                already gets for free from resume-hub.css, so the separate
+                fixed-bottom mobile nav this page used to hand-roll is
+                gone; there's nothing left for it to do differently. */}
+            <aside className="rh-aside-left" aria-label="Employer navigation">
+              <div className="rh-rail-mark" aria-hidden>A</div>
+              <div className="rh-rail-sep" aria-hidden />
+              <nav className="rh-navlist">
+                {EMPLOYER_NAV.map(item => {
+                  const Icon = item.icon;
+                  const active = tab === item.key;
+                  const badge = item.key === "proposals" ? pendingSent : 0;
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => setTab(item.key)}
+                      className={`rh-navitem ${active ? "active" : ""}`}
+                      aria-label={item.label + (badge > 0 ? ` (${badge} new)` : "")}
+                      style={{ position: "relative" }}
+                    >
+                      <Icon className="w-[18px] h-[18px] shrink-0" />
+                      {badge > 0 && (
+                        <span
+                          aria-hidden
+                          style={{
+                            position: "absolute", top: 4, right: 4,
+                            minWidth: 16, height: 16, padding: "0 4px",
+                            borderRadius: 999, background: "var(--rh-accent)",
+                            color: "#fff",
+                            fontSize: 10, fontWeight: 600, lineHeight: "16px",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}
+                        >{badge > 9 ? "9+" : badge}</span>
+                      )}
+                      <span className="rh-tip" role="tooltip">
+                        {item.label}{badge > 0 ? ` · ${badge} new` : ""}
+                      </span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </aside>
 
-          <main className="flex-1 min-w-0 space-y-6">
-            {/* The rail is icons only, so the section names itself here. */}
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">
-                {tab === "search" && stage === "results"
-                  ? (spec?.title || "Your role")
-                  : EMPLOYER_NAV.find(n => n.key === tab)?.label}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {tab === "search" && stage === "results"
-                  ? [spec?.seniority, spec?.location_preference, EMPLOYMENT_LABEL[spec?.employment_type || ""]]
-                      .filter(Boolean).join(" · ")
-                  : EMPLOYER_NAV.find(n => n.key === tab)?.hint}
-              </p>
-            </div>
+            <section className="rh-main">
+              <div className="mb-4">
+                <h2 className="rh-display text-xl">
+                  {tab === "search" && stage === "results"
+                    ? (spec?.title || "Your role")
+                    : EMPLOYER_NAV.find(n => n.key === tab)?.label}
+                </h2>
+                <p className="text-sm mt-0.5" style={{ color: "var(--rh-muted)" }}>
+                  {tab === "search" && stage === "results"
+                    ? [spec?.seniority, spec?.location_preference, EMPLOYMENT_LABEL[spec?.employment_type || ""]]
+                        .filter(Boolean).join(" · ")
+                    : EMPLOYER_NAV.find(n => n.key === tab)?.hint}
+                </p>
+              </div>
 
 
             {tab === "search" && searching && (
@@ -477,28 +521,33 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
 
             {tab === "proposals" && (
-              <Card className="p-4 sm:p-6 space-y-3">
-                <h2 className="text-sm font-semibold">Proposals you sent</h2>
+              <Card className="p-4 sm:p-6 space-y-3 rounded-2xl" style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+                <h2 className="rh-display text-[15px]">Proposals you sent</h2>
                 {sent.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm" style={{ color: "var(--rh-muted)" }}>
                     Nothing sent yet. Find a candidate first, then send them a proposal.
                   </p>
                 )}
                 {sent.map(s => (
-                  <div key={s.id} className="rounded-lg border border-border/50 px-3 py-2.5 space-y-1">
+                  <div key={s.id} className="rounded-lg px-3 py-2.5 space-y-1" style={{ border: "1px solid var(--rh-hair)" }}>
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">
                           {s.name || s.first_name || (s.ref ? `Candidate ${s.ref}` : "Candidate")}
                         </p>
-                        <p className="text-xs text-muted-foreground truncate">
+                        <p className="text-xs truncate" style={{ color: "var(--rh-muted)" }}>
                           {[s.job_title || "Role", s.sent_at ? new Date(s.sent_at).toLocaleDateString() : ""]
                             .filter(Boolean).join(" · ")}
                         </p>
                       </div>
-                      <Badge variant={s.status === "approved" ? "secondary" : "outline"} className="shrink-0">
+                      <span
+                        className="text-[11px] font-semibold rounded-full px-2.5 py-1 shrink-0"
+                        style={s.status === "approved"
+                          ? { background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }
+                          : { background: "var(--rh-raised)", color: "var(--rh-muted)" }}
+                      >
                         {s.status === "pending" ? "Waiting for a reply" : s.status === "approved" ? "Accepted" : "Declined"}
-                      </Badge>
+                      </span>
                     </div>
                     {s.status === "approved" && (s.email || s.phone) && (
                       <p className="text-xs">
@@ -506,7 +555,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                       </p>
                     )}
                     {s.status === "declined" && (
-                      <p className="text-xs text-muted-foreground">They passed on this role.</p>
+                      <p className="text-xs" style={{ color: "var(--rh-faint)" }}>They passed on this role.</p>
                     )}
                     <Button
                       size="sm" variant="ghost" className="h-7 px-2 text-xs"
@@ -534,62 +583,10 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             {tab === "company" && <CompanyProfile org={org} onSaved={handleOrgSaved} page />}
 
             {tab === "assessments" && <AssessmentsPanel reloadKey={assessKey} />}
-
-
-          </main>
-
-          {/* v3.15.0 — the same destinations plus sign out, as a bottom bar. */}
-          <nav
-            className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border bg-card/95 backdrop-blur flex"
-            aria-label="Employer navigation"
-          >
-            {EMPLOYER_NAV.map(item => {
-              const Icon = item.icon;
-              const active = tab === item.key;
-              const badge = item.key === "proposals" ? pendingSent : 0;
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => setTab(item.key)}
-                  className={`relative flex-1 py-2.5 grid place-items-center gap-0.5 ${
-                    active ? "text-primary" : "text-muted-foreground"
-                  }`}
-                >
-                  <Icon className="w-[18px] h-[18px]" />
-                  <span className="text-[10px] font-medium">{item.label}</span>
-                  {badge > 0 && (
-                    <span className="absolute top-1.5 right-[28%] min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold leading-4 text-center">
-                      {badge > 9 ? "9+" : badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-            <button
-              onClick={() => navigate("/billing")}
-              className="flex-1 py-2.5 grid place-items-center gap-0.5 text-muted-foreground"
-            >
-              <CreditCard className="w-[18px] h-[18px]" />
-              <span className="text-[10px] font-medium">Plan</span>
-            </button>
-            <button
-              onClick={() => navigate("/settings")}
-              className="flex-1 py-2.5 grid place-items-center gap-0.5 text-muted-foreground"
-            >
-              <Settings className="w-[18px] h-[18px]" />
-              <span className="text-[10px] font-medium">Settings</span>
-            </button>
-            <button
-              onClick={handleSignOut}
-              className="flex-1 py-2.5 grid place-items-center gap-0.5 text-muted-foreground"
-            >
-              <LogOut className="w-[18px] h-[18px]" />
-              <span className="text-[10px] font-medium">Sign out</span>
-            </button>
-          </nav>
-
-        </div>
-      )}
+            </section>
+          </div>
+        )}
+      </div>
 
 
 
@@ -627,7 +624,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                         .flatMap(w => w.split(/(?<=\.)\s+(?=[A-Z])/).map(s => s.trim()).filter(Boolean))
                         .map((w, i) => (
                           <li key={i} className="text-sm leading-relaxed flex gap-2.5">
-                            <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-primary shrink-0" aria-hidden />
+                            <span className="mt-[7px] w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "var(--rh-accent)" }} aria-hidden />
                             <span>{w}</span>
                           </li>
                         ))}
@@ -761,7 +758,8 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                   type="button"
                   onClick={() => open && draftMessage(open)}
                   disabled={drafting}
-                  className="text-[11px] text-primary hover:underline disabled:opacity-50"
+                  className="text-[11px] font-bold hover:underline disabled:opacity-50"
+                  style={{ color: "var(--rh-accent-2)" }}
                 >
                   {drafting ? "Writing a draft…" : "Rewrite draft"}
                 </button>

@@ -1998,60 +1998,17 @@ button, a, input, textarea, select {
 @media (prefers-reduced-motion: reduce) { .lp-reveal { opacity: 1; transform: none; } }
 
 /* ============================================================
-   v3.10.0 — one visual language on the employer surface.
-   The employer side used the black --primary token, which made it
-   look like a different product to the orange seeker side and the
-   landing page. Rather than a new palette, we re-point the existing
-   tokens to the AYN orange inside .employer-surface, so every
-   shadcn primary button, ring, score ring and selected chip picks
-   it up with no per-component overrides.
+   v3.10.0/v3.12.0 — .employer-surface used to live here: its own,
+   older, flatter-orange (#f97316) re-point of --primary, separate
+   from the real Charcoal & Ember system (#e85d3a gradient, warm
+   paper canvas, Figtree/Outfit) the seeker side has run on since.
+   v3.181.0 — reported directly: "make sure our design for candidate
+   is same design for the employer too." Removed outright rather than
+   kept as a second, parallel scope: EmployerHub.tsx and Billing.tsx
+   (its only two real consumers, confirmed via a full grep sweep
+   before deleting) now apply .resume-hub-theme directly, the exact
+   same scope the seeker side uses, not a lookalike.
    ============================================================ */
-.employer-surface {
-  --primary: 24 95% 53%;             /* #f97316 */
-  --primary-foreground: 0 0% 100%;
-  --ring: 24 95% 53%;
-  --ayn-orange: 24 95% 53%;
-  --ayn-orange-active: 21 90% 48%;   /* #ea580c */
-}
-.employer-surface .bg-primary:hover,
-.employer-surface button.bg-primary:hover {
-  background-color: hsl(var(--ayn-orange-active));
-}
-
-/* ============================================================
-   v3.12.0 — why the buttons were still black.
-   This project's Button component is NOT token driven. Its
-   `default` variant is `bg-foreground text-background` and its
-   `outline` variant is `border-2 border-foreground`, so
-   re-pointing --primary above never reached a single <Button>.
-   Only components that write `bg-primary` themselves (the intake
-   option cards, the company size options, the score ring) turned
-   orange, which is exactly the split seen in the screenshot:
-   orange size pills, black "Find candidates" and "Start over".
-   Retint those two variants inside the scope. Element+class
-   selectors outrank the single-class Tailwind utilities, and the
-   scope lives on <body> so Radix portals inherit it too.
-   ============================================================ */
-.employer-surface button.bg-foreground {
-  background-color: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-}
-.employer-surface button.bg-foreground:hover {
-  background-color: hsl(var(--ayn-orange-active));
-  color: hsl(var(--primary-foreground));
-}
-.employer-surface button.border-foreground {
-  border-width: 1px;
-  border-color: hsl(var(--primary) / 0.45);
-  color: hsl(var(--primary));
-  background-color: transparent;
-  box-shadow: none;
-}
-.employer-surface button.border-foreground:hover {
-  background-color: hsl(var(--primary) / 0.08);
-  border-color: hsl(var(--primary));
-  color: hsl(var(--primary));
-}
 
 /* ============================================================
    v3.63.0 — the Contact form used the same un-tokened black

@@ -31,7 +31,7 @@ export function ScoreDial({ score, size = 56 }: { score: number; size?: number }
       className="relative shrink-0 rounded-full grid place-items-center"
       style={{
         width: size, height: size,
-        background: `conic-gradient(hsl(var(--primary)) ${pct * 3.6}deg, hsl(var(--muted)) 0deg)`,
+        background: `conic-gradient(var(--rh-accent, hsl(var(--primary))) ${pct * 3.6}deg, var(--rh-raised, hsl(var(--muted))) 0deg)`,
       }}
       aria-label={`Match score ${pct} out of 100`}
     >
@@ -76,7 +76,7 @@ export default function CandidateResultCard({
   ].filter(Boolean).join(" · ");
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="rh-lift overflow-hidden rounded-2xl" style={{ border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
       {/* Header */}
       <div className="flex items-start gap-4 p-5">
         <div className="flex flex-col items-center gap-1.5">
@@ -149,7 +149,7 @@ export default function CandidateResultCard({
           <ul className="space-y-2">
             {shownWhy.map((w, i) => (
               <li key={i} className="text-sm leading-relaxed flex gap-2.5">
-                <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-primary shrink-0" aria-hidden />
+                <span className="mt-[7px] w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "var(--rh-accent)" }} aria-hidden />
                 <span>{w}</span>
               </li>
             ))}
@@ -158,7 +158,8 @@ export default function CandidateResultCard({
             <button
               type="button"
               onClick={() => setShowAllWhy(v => !v)}
-              className="text-xs text-primary hover:underline mt-2.5"
+              className="text-xs font-bold hover:underline mt-2.5"
+              style={{ color: "var(--rh-accent-2)" }}
             >
               {showAllWhy ? "Show less" : `Show ${why.length - 3} more`}
             </button>
@@ -182,7 +183,14 @@ export default function CandidateResultCard({
         {alreadySent ? (
           <Button size="sm" variant="secondary" disabled>Proposal sent, waiting for a reply</Button>
         ) : (
-          <Button size="sm" onClick={onProposal}>Send a job proposal</Button>
+          <Button
+            size="sm"
+            onClick={onProposal}
+            className="hover:opacity-90"
+            style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+          >
+            Send a job proposal
+          </Button>
         )}
         <span className="text-xs text-muted-foreground ml-auto hidden sm:block">
           Contact details arrive only if they accept.

@@ -131,11 +131,12 @@ export default function AssessmentDialog({
                     <button
                       type="button"
                       onClick={() => setLimit(suggestedLimit)}
-                      className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                        limit === suggestedLimit
-                          ? "border-primary bg-primary/10 text-primary font-medium"
-                          : "border-border text-muted-foreground hover:bg-muted"
-                      }`}
+                      className="rounded-full border px-3 py-1 text-xs transition-colors"
+                        style={{
+                          ...((limit === suggestedLimit)
+                            ? { borderColor: "var(--rh-accent)", background: "var(--rh-tint)", color: "var(--rh-accent-2)", fontWeight: 500 }
+                            : { borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }),
+                      }}
                     >Suggested ({Math.round(suggestedLimit / 60)} min)</button>
                   )}
                   {LIMITS.map(l => (
@@ -143,11 +144,10 @@ export default function AssessmentDialog({
                       key={l.value}
                       type="button"
                       onClick={() => setLimit(l.value)}
-                      className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                        limit === l.value
-                          ? "border-primary bg-primary/10 text-primary font-medium"
-                          : "border-border text-muted-foreground hover:bg-muted"
-                      }`}
+                      className="rounded-full border px-3 py-1 text-xs transition-colors"
+                      style={limit === l.value
+                        ? { borderColor: "var(--rh-accent)", background: "var(--rh-tint)", color: "var(--rh-accent-2)", fontWeight: 500 }
+                        : { borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}
                     >{l.label}</button>
                   ))}
                 </div>
@@ -163,11 +163,10 @@ export default function AssessmentDialog({
                       key={l.value}
                       type="button"
                       onClick={() => setExpiry(l.value)}
-                      className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                        expiry === l.value
-                          ? "border-primary bg-primary/10 text-primary font-medium"
-                          : "border-border text-muted-foreground hover:bg-muted"
-                      }`}
+                      className="rounded-full border px-3 py-1 text-xs transition-colors"
+                      style={expiry === l.value
+                        ? { borderColor: "var(--rh-accent)", background: "var(--rh-tint)", color: "var(--rh-accent-2)", fontWeight: 500 }
+                        : { borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}
                     >{l.label}</button>
                   ))}
                 </div>

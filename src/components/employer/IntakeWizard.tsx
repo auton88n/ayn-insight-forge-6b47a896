@@ -198,13 +198,10 @@ function OptionCard({
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className={[
-        "group relative flex items-center gap-2 rounded-xl border px-4 py-3 text-sm text-left transition-all",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        selected
-          ? "border-primary bg-primary text-primary-foreground shadow-sm"
-          : "border-border/70 bg-card hover:border-primary/50 hover:bg-muted/50",
-      ].join(" ")}
+      className="group relative flex items-center gap-2 rounded-xl border px-4 py-3 text-sm text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      style={selected
+        ? { background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }
+        : { borderColor: "var(--rh-hair)", background: "var(--rh-surface)" }}
     >
       {selected && <Check className="w-4 h-4 shrink-0" />}
       <span className="font-medium">{label}</span>
@@ -274,7 +271,10 @@ function SkillChips({
             {matches.map(m => (
               <button
                 key={m.skill_norm} type="button" onClick={() => add(m.skill)}
-                className="text-xs rounded-full border border-border/60 px-2.5 py-1 hover:border-primary/50 hover:bg-muted transition-colors"
+                className="text-xs rounded-full border px-2.5 py-1 transition-colors"
+                style={{ borderColor: "var(--rh-hair)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--rh-accent)"; e.currentTarget.style.background = "var(--rh-tint)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--rh-hair)"; e.currentTarget.style.background = "transparent"; }}
               >
                 {m.skill} <span className="text-muted-foreground">{m.count}</span>
               </button>
@@ -531,12 +531,16 @@ export default function IntakeWizard({
               disabled={!reachable}
               onClick={() => jumpTo(k)}
               aria-current={active ? "step" : undefined}
-              className={[
-                "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
-                active ? "border-primary bg-primary/10 text-foreground font-medium"
-                  : done ? "border-border/70 text-muted-foreground hover:border-primary/50 hover:text-foreground"
-                    : "border-dashed border-border/50 text-muted-foreground/50 cursor-not-allowed",
-              ].join(" ")}
+              className={active
+                ? "rounded-full border px-2.5 py-1 text-[11px] transition-colors font-medium"
+                : done
+                  ? "rounded-full border px-2.5 py-1 text-[11px] transition-colors"
+                  : "rounded-full border border-dashed px-2.5 py-1 text-[11px] transition-colors cursor-not-allowed"}
+              style={active
+                ? { borderColor: "var(--rh-accent)", background: "var(--rh-tint)", color: "var(--rh-ink)" }
+                : done
+                  ? { borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }
+                  : { borderColor: "var(--rh-hair)", color: "var(--rh-faint)" }}
             >
               <span className="tabular-nums mr-1 opacity-60">{i + 1}</span>
               {done && !active ? shortLabel(k, spec) : SUMMARY_LABEL[k]}
@@ -594,7 +598,7 @@ export default function IntakeWizard({
           </div>
 
           {clearedNote && (
-            <p className="text-xs text-muted-foreground border-l-2 border-primary/60 pl-3">{clearedNote}</p>
+            <p className="text-xs border-l-2 pl-3" style={{ color: "var(--rh-muted)", borderColor: "var(--rh-accent)" }}>{clearedNote}</p>
           )}
 
           {current === "title" && (
@@ -611,7 +615,10 @@ export default function IntakeWizard({
                   .slice(0, 8)
                   .map(t => (
                     <button key={t} type="button" onClick={() => answer({ title: t })}
-                      className="text-xs rounded-full border border-border/60 px-2.5 py-1 hover:border-primary/50 hover:bg-muted transition-colors">
+                      className="text-xs rounded-full border px-2.5 py-1 transition-colors"
+                style={{ borderColor: "var(--rh-hair)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--rh-accent)"; e.currentTarget.style.background = "var(--rh-tint)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--rh-hair)"; e.currentTarget.style.background = "transparent"; }}>
                       {t}
                     </button>
                   ))}
@@ -749,7 +756,7 @@ export default function IntakeWizard({
         <p className="text-sm text-muted-foreground">Click any line to change it.</p>
       </div>
       {clearedNote && (
-        <p className="text-xs text-muted-foreground border-l-2 border-primary/60 pl-3">{clearedNote}</p>
+        <p className="text-xs border-l-2 pl-3" style={{ color: "var(--rh-muted)", borderColor: "var(--rh-accent)" }}>{clearedNote}</p>
       )}
       <div className="divide-y divide-border/50 rounded-xl border border-border/60 overflow-hidden">
         {STEPS.map(k => (

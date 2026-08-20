@@ -316,8 +316,8 @@ export default function ResumeHub() {
                         style={{
                           position: "absolute", top: 4, right: 4,
                           minWidth: 16, height: 16, padding: "0 4px",
-                          borderRadius: 999, background: "hsl(var(--primary))",
-                          color: "hsl(var(--primary-foreground))",
+                          borderRadius: 999, background: "var(--rh-accent)",
+                          color: "#fff",
                           fontSize: 10, fontWeight: 600, lineHeight: "16px",
                           display: "flex", alignItems: "center", justifyContent: "center",
                         }}

@@ -19,6 +19,11 @@ import {
   type Invoice, type StripeSubscriptionState,
 } from "@/lib/billing";
 import { employerApi } from "@/lib/employer";
+// v3.181.0 — same fix as EmployerHub.tsx: .resume-hub-theme's own --rh-*
+// variables live in this stylesheet, not globally. A direct visit to
+// /billing (a bookmark, a fresh tab) that never mounted ResumeHub.tsx or
+// EmployerHub.tsx first would have every --rh-* token resolve to nothing.
+import "@/styles/resume-hub.css";
 
 const CREDITS_NOTE =
   "Credits are for the period they were granted in. Unused credits expire at the end of the period and do not roll over.";
@@ -150,26 +155,30 @@ export default function Billing() {
 
   if (loading) {
     return (
-      <div className={`min-h-screen grid place-items-center bg-background ${audience === "employer" ? "employer-surface" : "resume-hub-theme"}`}>
-        <Loader2 className="w-6 h-6 animate-spin" style={{ color: audience === "employer" ? undefined : "var(--rh-accent)" }} />
+      <div className="resume-hub-theme min-h-screen grid place-items-center bg-background">
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--rh-accent)" }} />
       </div>
     );
   }
 
   // v3.179.0 — reported directly: "the page of billing is not branded."
-  // The employer half of this page already had its own scope
-  // (.employer-surface) applied conditionally; the seeker half never got
-  // the matching .resume-hub-theme treatment, so a job seeker landed on
-  // this page's plain shadcn default (bg-foreground buttons, no rh-*
-  // tokens anywhere) every single time. Same fix as every other bare
-  // surface this app has hit: apply the scope class, which already
-  // retints button.bg-foreground/border-foreground to ember on its own,
-  // then hand-retint the handful of literal text-primary/border-primary/
-  // border spots the scope's CSS doesn't reach automatically.
-  const seekerBranded = audience !== "employer";
+  // The employer half of this page had its own scope (.employer-surface,
+  // a separate, older, flatter orange) applied conditionally; the seeker
+  // half never got the matching .resume-hub-theme treatment, so a job
+  // seeker landed on this page's plain shadcn default every single time.
+  // v3.181.0 — reported directly, again: "make sure our design for
+  // candidate is same design for the employer too." .employer-surface is
+  // gone from this file entirely now -- both audiences share the one real
+  // Charcoal & Ember scope, not two systems that happen to look similar.
+  // seekerBranded kept as a named constant (now always true) rather than
+  // deleted outright, since every conditional style below still reads it;
+  // renaming ~15 call sites for a variable that's structurally about to
+  // matter again the moment this page needs a genuinely audience-specific
+  // style would be pure churn for no behavior change.
+  const seekerBranded = true;
 
   return (
-    <div className={`min-h-screen bg-background ${audience === "employer" ? "employer-surface" : "resume-hub-theme"}`}>
+    <div className="resume-hub-theme min-h-screen bg-background">
       <SEO title="Billing | AYN" description="Your AYN plan, credits and usage." noIndex />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         <button

@@ -59,9 +59,8 @@ export default function CandidateAskCards({
             type="button"
             size="sm"
             variant="outline"
-            className={`h-8 rounded-full text-xs font-medium ${
-              active === c.key ? "border-primary bg-primary/10 text-primary hover:bg-primary/15" : ""
-            }`}
+            className="h-8 rounded-full text-xs font-medium"
+            style={active === c.key ? { borderColor: "var(--rh-accent)", background: "var(--rh-tint)", color: "var(--rh-accent-2)" } : undefined}
             onClick={() => ask(c.key)}
           >
             {busy && active === c.key ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : null}
@@ -70,7 +69,7 @@ export default function CandidateAskCards({
         ))}
       </div>
       {active && (busy || answer) && (
-        <div className="rounded-xl border border-border bg-card border-l-2 border-l-primary px-4 py-3.5 space-y-2">
+        <div className="rounded-xl px-4 py-3.5 space-y-2" style={{ border: "1px solid var(--rh-hair)", borderLeft: "2px solid var(--rh-accent)", background: "var(--rh-surface)" }}>
           <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             {activeLabel}
           </p>
