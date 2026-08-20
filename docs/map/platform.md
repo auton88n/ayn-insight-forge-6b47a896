@@ -1,3 +1,13 @@
+# v3.181.0 Employer surface unified onto the exact same Charcoal & Ember scope Resume Hub uses, not a lookalike
+
+Full writeup lives in CLAUDE.md's own v3.181.0 entry; this is the map-file pointer per the maintenance rule, since this touches EmployerHub.tsx's own seam (its topbar/rail/nav structure) directly.
+
+Asked directly to audit the whole app for design consistency between the candidate and employer surfaces. `.employer-surface` (`index.css`, since v3.10.0) turned out to be a real, separate design system — a flat `#f97316` orange re-point of shadcn's `--primary`, none of the real Charcoal & Ember system's warm-paper canvas, Figtree/Outfit typography, or gradient/glow. Deleted outright: `EmployerHub.tsx` and `Billing.tsx`'s employer branch now apply `.resume-hub-theme`, the literal same scope the seeker side uses. `EmployerHub.tsx`'s topbar/rail/main were rebuilt onto `.rh-shell`/`.rh-topbar`/`.rh-grid`/`.rh-aside-left`/`.rh-navlist`/`.rh-navitem`/`.rh-tip`/`.rh-main` — the same classes, not a parallel reimplementation — which also meant the old hand-rolled fixed-bottom mobile nav could be deleted, since `.rh-aside-left` already collapses to a horizontal row on mobile for free. All 7 `src/components/employer/*` files needed individual retinting (`bg-primary`/`border-primary`/`text-primary` used directly, not through `Button`, which `.resume-hub-theme` never auto-fixes the way the old scope's `--primary` re-point did).
+
+Real bug caught only by testing a fresh session: `resume-hub.css` (every `--rh-*` variable) is only ever imported by `ResumeHub.tsx`'s own `import` statement, not loaded globally — applying the class name alone to `EmployerHub.tsx`/`Billing.tsx` produced a fully invisible primary button (transparent background, white text) for any session that hadn't already mounted Resume Hub first. Fixed by adding the same `import "@/styles/resume-hub.css"` to both files. This was a latent bug in the prior round's own Billing.tsx seeker-branding fix too, masked because that fix was only ever verified by clicking through from an already-mounted Resume Hub session.
+
+Verified live with a real approved throwaway employer account (onboarding gate, all four rail tabs with hover tooltips, Company profile, empty Proposals/Assessments) and a genuinely cold direct visit to `/billing` in a fresh tab. `npx tsc --noEmit`, eslint, and `npm run build` all clean.
+
 # v3.94.0 "How it works" retargeted to the employer demo mockup instead of the STEP list next to it
 
 Reported directly from a live screenshot: clicking "How it works" in employer mode should land on the role/candidates demo (`ShortlistMockup`, "THE ROLE, ONCE" / "THE THREE STRONGEST FITS"), not the plain STEP 1-4 text list `#employers-how` had pointed to since v3.90.0.
