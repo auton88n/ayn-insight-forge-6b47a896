@@ -25,6 +25,18 @@ import { useFeature } from "@/hooks/useFeatureFlags";
 import { PlatformMaintenanceScreen } from "@/components/shared/MaintenanceNotice";
 
 
+// v3.188.0 — reported directly against a screenshot: the rail's top mark
+// read as a personal avatar (rounded square, single letter, ember-filled —
+// exactly the shape apps use for one), but it was a hardcoded "A" for
+// "AYN" regardless of who was signed in. Now the real signed-in person's
+// own initial, name first since that's what a person actually recognizes
+// as themselves, email as the fallback for an account with no name on
+// file yet. "A" only survives as the fallback-of-last-resort.
+function initialFromIdentity(name: string | null | undefined, email: string | null | undefined): string {
+  const source = (name || "").trim() || (email || "").trim();
+  return source ? source[0].toUpperCase() : "A";
+}
+
 type TabKey = "home" | "profile" | "browse" | "jobs" | "proposals" | "assessments";
 const TAB_KEYS: TabKey[] = ["browse", "profile", "jobs", "proposals", "assessments", "home"];
 
@@ -291,7 +303,13 @@ export default function ResumeHub() {
         <div className="rh-grid">
           {/* Left icon rail */}
           <aside className="rh-aside-left" aria-label="Workspace navigation">
-            <div className="rh-rail-mark" aria-hidden>A</div>
+            <div
+              className="rh-rail-mark"
+              title={session?.user?.email || undefined}
+              aria-label={session?.user?.email ? `Signed in as ${session.user.email}` : "Account"}
+            >
+              {initialFromIdentity(session?.user?.user_metadata?.full_name as string | undefined, session?.user?.email)}
+            </div>
             <div className="rh-rail-sep" aria-hidden />
             <nav className="rh-navlist">
               {NAV.map((item) => {

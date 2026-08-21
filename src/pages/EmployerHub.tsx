@@ -84,10 +84,22 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
+// v3.188.0 — same fix as ResumeHub.tsx's own rail mark, see its comment:
+// the rounded-square single-letter mark reads as a personal avatar, so it
+// should actually be one. Duplicated rather than imported since it's three
+// lines and importing a helper out of a sibling page component for this
+// would be the wrong kind of coupling.
+function initialFromIdentity(name: string | null | undefined, email: string | null | undefined): string {
+  const source = (name || "").trim() || (email || "").trim();
+  return source ? source[0].toUpperCase() : "A";
+}
+
 export default function EmployerHub({ companyName }: { companyName?: string | null }) {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
   const [org, setOrg] = useState<Org | null>(null);
   const [orgLoading, setOrgLoading] = useState(true);
   const [orgName, setOrgName] = useState(companyName || "");
@@ -202,6 +214,13 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   useEffect(() => {
     document.body.classList.add("resume-hub-theme");
     return () => document.body.classList.remove("resume-hub-theme");
+  }, []);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUserEmail(data.user?.email ?? null);
+      setUserName((data.user?.user_metadata?.full_name as string | undefined) ?? null);
+    });
   }, []);
 
   const createOrg = async () => {
@@ -416,7 +435,13 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 v3.187.0 — labels are now always visible, not a hover-only
                 tooltip; see resume-hub.css's own note on why. */}
             <aside className="rh-aside-left" aria-label="Employer navigation">
-              <div className="rh-rail-mark" aria-hidden>A</div>
+              <div
+                className="rh-rail-mark"
+                title={userEmail || undefined}
+                aria-label={userEmail ? `Signed in as ${userEmail}` : "Account"}
+              >
+                {initialFromIdentity(userName, userEmail)}
+              </div>
               <div className="rh-rail-sep" aria-hidden />
               <nav className="rh-navlist">
                 {EMPLOYER_NAV.map(item => {
