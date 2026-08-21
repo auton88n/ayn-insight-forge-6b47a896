@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Inbox, MapPin, Briefcase, Banknote, ExternalLink, ChevronDown, MessageCircle, Sparkles } from "lucide-react";
 import { employerApi, type Proposal } from "@/lib/employer";
+import { resumeHubApi } from "@/lib/resumeHub";
 import MessageThread from "@/components/shared/MessageThread";
 import { companyAvatar } from "./BrowseJobs";
 
@@ -45,6 +46,12 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [historyOpen, setHistoryOpen] = useState(false);
   const [openThread, setOpenThread] = useState<string | null>(null);
+  // v3.186.0 — reported directly: the empty state always said "Turn on
+  // discovery," even for an account that already had it on and was
+  // correctly just waiting for a real employer to send one. Fetches the
+  // same talent_pool_get status ProfileTab's own toggle already reads, so
+  // the two surfaces can't disagree about whether discovery is on.
+  const [poolOptedIn, setPoolOptedIn] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -57,6 +64,9 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
   }, [onChanged]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    resumeHubApi.talentPoolGet().then(r => setPoolOptedIn(!!r.opted_in)).catch(() => {});
+  }, []);
 
   const decide = async (id: string, approve: boolean) => {
     setBusy(p => ({ ...p, [id]: true }));
@@ -97,7 +107,9 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
           <Inbox className="w-6 h-6 mx-auto" style={{ color: "var(--rh-faint)" }} />
           <p className="rh-display text-[15px]">No proposals yet</p>
           <p className="text-xs" style={{ color: "var(--rh-muted)" }}>
-            Turn on discovery so employers hiring for roles like yours can reach you.
+            {poolOptedIn
+              ? "You're discoverable — a proposal will show up here the moment an employer sends one."
+              : "Turn on discovery so employers hiring for roles like yours can reach you."}
           </p>
         </Card>
       )}
