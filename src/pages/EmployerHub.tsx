@@ -391,17 +391,6 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Settings"
-              title="Settings"
-              onClick={() => navigate("/settings")}
-              className="rounded-full"
-              style={{ color: "var(--rh-muted)" }}
-            >
-              <Settings className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
               aria-label="Sign out"
               title="Sign out"
               onClick={handleSignOut}
@@ -463,6 +452,21 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                     </button>
                   );
                 })}
+                {/* v3.189.0 — reported directly: Settings was a standalone
+                    topbar icon, the one thing on this page not living in
+                    the nav rail with everything else. Moved in as a real
+                    row, same treatment as every other item (not a tab
+                    switch — it still navigates to the real /settings
+                    route, unchanged), matching the seeker side's own
+                    Home-as-settings item at the end of its rail. */}
+                <button
+                  onClick={() => navigate("/settings")}
+                  className="rh-navitem"
+                  aria-label="Settings"
+                >
+                  <Settings className="w-[18px] h-[18px] shrink-0" />
+                  <span className="rh-navlabel">Settings</span>
+                </button>
               </nav>
             </aside>
 

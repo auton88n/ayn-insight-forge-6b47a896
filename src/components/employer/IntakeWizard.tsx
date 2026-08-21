@@ -539,7 +539,13 @@ export default function IntakeWizard({
               style={active
                 ? { borderColor: "var(--rh-accent)", background: "var(--rh-tint)", color: "var(--rh-ink)" }
                 : done
-                  ? { borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }
+                  // v3.189.0 — reported directly: a completed step read as
+                  // plain grey, no different from an unreachable one, so
+                  // the whole step map looked un-branded next to the rest
+                  // of the ember system. A light, quiet ember tint for
+                  // "done" keeps it clearly a step below "active" while
+                  // still reading as this app's own color, not default grey.
+                  ? { borderColor: "#e85d3a33", color: "var(--rh-accent-2)" }
                   : { borderColor: "var(--rh-hair)", color: "var(--rh-faint)" }}
             >
               <span className="tabular-nums mr-1 opacity-60">{i + 1}</span>
@@ -758,15 +764,24 @@ export default function IntakeWizard({
       {clearedNote && (
         <p className="text-xs border-l-2 pl-3" style={{ color: "var(--rh-muted)", borderColor: "var(--rh-accent)" }}>{clearedNote}</p>
       )}
-      <div className="divide-y divide-border/50 rounded-xl border border-border/60 overflow-hidden">
+      {/* v3.189.0 — reported directly: this whole block was still on plain
+          shadcn/Tailwind defaults (border-border, text-muted-foreground)
+          while the step map right above it and the rest of Resume Hub
+          already speak the ember system — the page read as grey with one
+          orange row. Switched to the same --rh-* tokens used everywhere
+          else in this file. */}
+      <div className="divide-y rounded-xl border overflow-hidden" style={{ borderColor: "var(--rh-hair)" }}>
         {STEPS.map(k => (
           <button
             key={k} type="button" onClick={() => { setEditing(k); setPhase("asking"); }}
-            className="w-full flex items-center justify-between gap-3 px-3.5 py-3 text-left hover:bg-muted/50 transition-colors"
+            className="w-full flex items-center justify-between gap-3 px-3.5 py-3 text-left transition-colors"
+            style={{ borderColor: "var(--rh-hair)" }}
+            onMouseEnter={e => (e.currentTarget.style.background = "var(--rh-raised)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
           >
-            <span className="text-xs text-muted-foreground shrink-0 w-40">{SUMMARY_LABEL[k]}</span>
-            <span className="text-sm flex-1 truncate">{labelFor(k, spec)}</span>
-            <Pencil className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs shrink-0 w-40" style={{ color: "var(--rh-muted)" }}>{SUMMARY_LABEL[k]}</span>
+            <span className="text-sm flex-1 truncate" style={{ color: "var(--rh-ink)" }}>{labelFor(k, spec)}</span>
+            <Pencil className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--rh-accent-2)" }} />
           </button>
         ))}
       </div>
