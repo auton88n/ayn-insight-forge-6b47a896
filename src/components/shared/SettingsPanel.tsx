@@ -18,8 +18,25 @@
  * --rh-* tokens with a hsl(var(--x)) fallback, so they render correctly
  * the moment they're mounted inside a .resume-hub-theme scope, which both
  * callers already are.
+ *
+ * v3.193.0 -- a QA pass right after the above shipped found two real,
+ * scoped gaps, both fixed here:
+ * 1. The segmented control was four plain buttons with no tab semantics
+ *    at all -- a screen reader had no way to know these were related,
+ *    mutually-exclusive views, or which one was selected. Real
+ *    role="tablist"/role="tab"/aria-selected, a matching role="tabpanel"
+ *    for the content below, and roving-tabindex arrow-key navigation
+ *    (the actual expected keyboard behavior once role="tab" is used --
+ *    adding the role without it would have been a worse mismatch than
+ *    not using it at all).
+ * 2. Because the parent conditionally renders (and so unmounts) this
+ *    component when its own tab isn't active, a plain useState reset
+ *    back to "account" every time someone left Settings and came back.
+ *    Persisted to sessionStorage instead, the same pattern
+ *    ResumeHub.tsx's own top-level tab already uses, read as the lazy
+ *    initial state so a remount picks the real last section back up.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { Loader2, User, Mail, Shield, Monitor } from "lucide-react";
 import { AccountPreferences } from "@/components/settings/AccountPreferences";
@@ -40,8 +57,35 @@ const SETTINGS_SECTIONS: { key: SettingsSection; label: string; icon: typeof Use
   { key: "sessions", label: "Sessions", icon: Monitor },
 ];
 
+const SECTION_STORAGE_KEY = "ayn_settings_section";
+
+function readStoredSection(): SettingsSection {
+  const v = sessionStorage.getItem(SECTION_STORAGE_KEY);
+  return (SETTINGS_SECTIONS.some(s => s.key === v)) ? (v as SettingsSection) : "account";
+}
+
 export default function SettingsPanel({ userId, session }: Props) {
-  const [settingsSection, setSettingsSection] = useState<SettingsSection>("account");
+  const [settingsSection, setSettingsSectionRaw] = useState<SettingsSection>(readStoredSection);
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  const setSettingsSection = (next: SettingsSection) => {
+    sessionStorage.setItem(SECTION_STORAGE_KEY, next);
+    setSettingsSectionRaw(next);
+  };
+
+  const focusAndSelect = (index: number) => {
+    const wrapped = (index + SETTINGS_SECTIONS.length) % SETTINGS_SECTIONS.length;
+    const next = SETTINGS_SECTIONS[wrapped];
+    setSettingsSection(next.key);
+    tabRefs.current[next.key]?.focus();
+  };
+
+  const onTabKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key === "ArrowRight") { e.preventDefault(); focusAndSelect(index + 1); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); focusAndSelect(index - 1); }
+    else if (e.key === "Home") { e.preventDefault(); focusAndSelect(0); }
+    else if (e.key === "End") { e.preventDefault(); focusAndSelect(SETTINGS_SECTIONS.length - 1); }
+  };
 
   return (
     <div>
@@ -49,14 +93,21 @@ export default function SettingsPanel({ userId, session }: Props) {
       <p className="text-sm mt-0.5 mb-3" style={{ color: "var(--rh-muted)" }}>
         Your plan, notifications, data, and where you're signed in.
       </p>
-      <div className="flex items-center gap-1.5 flex-wrap mb-4">
-        {SETTINGS_SECTIONS.map(({ key, label, icon: Icon }) => {
+      <div role="tablist" aria-label="Settings sections" className="flex items-center gap-1.5 flex-wrap mb-4">
+        {SETTINGS_SECTIONS.map(({ key, label, icon: Icon }, index) => {
           const active = settingsSection === key;
           return (
             <button
               key={key}
+              ref={el => { tabRefs.current[key] = el; }}
               type="button"
+              role="tab"
+              id={`settings-tab-${key}`}
+              aria-selected={active}
+              aria-controls={`settings-panel-${key}`}
+              tabIndex={active ? 0 : -1}
               onClick={() => setSettingsSection(key)}
+              onKeyDown={e => onTabKeyDown(e, index)}
               className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5 transition"
               style={active
                 ? { background: "var(--rh-ink)", color: "#fff" }
@@ -73,7 +124,13 @@ export default function SettingsPanel({ userId, session }: Props) {
           <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading…
         </div>
       ) : (
-        <>
+        <div
+          role="tabpanel"
+          id={`settings-panel-${settingsSection}`}
+          aria-labelledby={`settings-tab-${settingsSection}`}
+          aria-live="polite"
+          tabIndex={0}
+        >
           {settingsSection === "account" && (
             <AccountPreferences userId={userId} userEmail={session.user.email || ""} accessToken={session.access_token} />
           )}
@@ -86,7 +143,7 @@ export default function SettingsPanel({ userId, session }: Props) {
           {settingsSection === "sessions" && (
             <SessionManagement userId={userId} userEmail={session.user.email || ""} accessToken={session.access_token} />
           )}
-        </>
+        </div>
       )}
     </div>
   );

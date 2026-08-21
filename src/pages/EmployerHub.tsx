@@ -10,7 +10,7 @@
  * No candidate identity is ever rendered here. Name, email and phone only
  * appear in the Sent list, and only after the candidate accepted.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -128,6 +128,16 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   // v3.15.0 — left nav state, and the staged search flow.
   const [tab, setTab] = useState<EmployerTab>("search");
   const [stage, setStage] = useState<"spec" | "results">("spec");
+
+  // v3.193.0 — same rail, same fix as ResumeHub.tsx's own: the mobile
+  // horizontal scroll row never scrolled the active item into view, so a
+  // tab near the end of the list (Settings, now that it's a real tab
+  // switch) could render clipped at the edge with no scroll cue.
+  const navListRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    navListRef.current?.querySelector(".rh-navitem.active")
+      ?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }, [tab]);
 
 
 
@@ -451,7 +461,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 {initialFromIdentity(userName, userEmail)}
               </div>
               <div className="rh-rail-sep" aria-hidden />
-              <nav className="rh-navlist">
+              <nav className="rh-navlist" ref={navListRef}>
                 {EMPLOYER_NAV.map(item => {
                   const Icon = item.icon;
                   const active = tab === item.key;

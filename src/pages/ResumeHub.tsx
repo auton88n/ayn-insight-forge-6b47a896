@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -104,6 +104,17 @@ export default function ResumeHub() {
   }, []);
   // v3.25.0 — a platform wide stop shows one message instead of a broken hub.
   const platform = useFeature("platform");
+
+  // v3.193.0 — found in a QA pass on mobile: the rail's own horizontal
+  // scroll row (resume-hub.css collapses .rh-navlist to a scrollable row
+  // under the desktop breakpoint) never scrolled the active item into
+  // view, so switching to a tab near the end of the list could leave it
+  // clipped at the edge with no visual cue anything was even scrollable.
+  const navListRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    navListRef.current?.querySelector(".rh-navitem.active")
+      ?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }, [tab]);
 
   // v3.142.0 — found while adding a Dialog to Jobs: its "Save job" button
   // rendered with a transparent background instead of ember, because Radix
@@ -311,7 +322,7 @@ export default function ResumeHub() {
               {initialFromIdentity(session?.user?.user_metadata?.full_name as string | undefined, session?.user?.email)}
             </div>
             <div className="rh-rail-sep" aria-hidden />
-            <nav className="rh-navlist">
+            <nav className="rh-navlist" ref={navListRef}>
               {NAV.map((item) => {
                 const Icon = item.icon;
                 const active = tab === item.key;
