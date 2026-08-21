@@ -5,12 +5,14 @@ src/pages/ResumeHub.tsx with six tabs in src/components/resume-hub/ (Resumes rem
 
 | key | label | hint | component |
 |---|---|---|---|
-| home | Home | Start here | HomeTab (next actions, replaced OverviewTab) |
+| home | Home | Start here | SettingsPanel (v3.192.0 — moved from `HomeTab.tsx` to `src/components/shared/SettingsPanel.tsx`, shared verbatim with `EmployerHub.tsx`'s own Settings tab; renders the four settings sections inline, no route change) |
 | profile | Profile | You, your resume, your goals | ProfileTab (resume group + four field groups + discoverability, see below) |
 | browse | Browse jobs | Real postings, refreshed daily | BrowseJobs (job board: server side search, location and remote filters over the whole job_postings table, paged 25 at a time, split list and full description view or a card-swipe deck (List/Swipe toggle, v3.171.0), quick match score per row, a JD highlights strip in the detail pane, real "Charcoal & Ember" branding — see CLAUDE.md's own v3.167.0-v3.171.0 entries for the full redesign story) |
 | jobs | Saved jobs | Score and tailor | JobsTab (saved jobs, score, tailor, cover letter, generated documents, handoff, application-status pipeline tracking — see v3.172.0 below) |
 | proposals | Proposals | Roles employers want you for | ProposalsTab (pending proposal cards, accept or decline, collapsed history) |
 | assessments | Assessments | Questions about your own work | AssessmentsTab |
+
+v3.192.0 — Settings stopped being a separate page on the employer side (the seeker side already had this right, since v3.174.0). `EmployerHub.tsx`'s own Settings rail item used to `navigate("/settings")`, landing on the standalone `Settings.tsx`/`SettingsLayout.tsx` route — never brought inside `.resume-hub-theme`, running on a separate `.settings-surface` scope that only retinted `--primary`, not the canvas or typography. Confirmed live via `getComputedStyle`: plain white background, `Inter` font, a flat non-gradient active tab. Fixed by extracting `HomeTab.tsx`'s content (already correct for the seeker side) into `src/components/shared/SettingsPanel.tsx`, and having both `ResumeHub.tsx`'s "home" tab and `EmployerHub.tsx`'s new `"settings"` `EmployerTab` value render the same component — one click, no route change, on either surface. `EmployerHub.tsx` gained real `userId`/`session` state (previously tracked only `userEmail`/`userName`) to hand the panel what it needs. The standalone `/settings` route itself is untouched, now fully unlinked from the app rather than deleted. See CLAUDE.md's own v3.192.0 entry.
 
 v3.188.0 — the rail's own `.rh-rail-mark` (the rounded-square single-letter mark at the top) now shows the real signed-in person's initial (`initialFromIdentity(name, email)`, name first, email fallback, "A" only as a last resort) instead of a hardcoded "A" — reported directly right after v3.187.0 shipped, since the mark reads exactly like a personal avatar. `EmployerHub.tsx` gained a small `supabase.auth.getUser()` fetch on mount to get this, since it never tracked the signed-in user's own identity before. See CLAUDE.md's own v3.188.0 entry.
 
