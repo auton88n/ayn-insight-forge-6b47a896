@@ -4,8 +4,8 @@
  * Real job postings sourced from company career pages (never LinkedIn or
  * Indeed — job-board-sync's own header comment covers how that's enforced
  * and what got filtered out when it wasn't true in practice), refreshed
- * continuously, dropped after 7 days so Apply always points at something
- * still likely open.
+ * continuously, dropped after 3 days (v3.194.0, was 7) so Apply always
+ * points at something still likely open.
  *
  * v3.137.0 — reported directly against a live screenshot: this needs to be
  * its own page rather than a mode that takes over the saved-jobs tracker,
@@ -367,9 +367,10 @@ function postedAge(iso: string) {
 
 // v3.141.0 — asked directly to also show the actual posting date, not just
 // a relative "3 hours ago". Short form for the compact list row (no year —
-// job_postings is pruned past a 7-day freshness window, so a stored date
-// is always within the current year in practice); the detail pane gets the
-// same short date, room there doesn't call for anything longer either.
+// job_postings is pruned past a 3-day freshness window (v3.194.0, was 7),
+// so a stored date is always within the current year in practice); the
+// detail pane gets the same short date, room there doesn't call for
+// anything longer either.
 function postedDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
@@ -1004,12 +1005,13 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const [addingId, setAddingId] = useState<string | null>(null);
 
   // v3.166.0 — "posting freshness" as the honest, measurable stand-in for
-  // "how responsive is this company": job_postings prunes anything past 7
-  // days regardless of source, so every row already on file is a currently
-  // open posting — how many of them a company has right now, and how
-  // recently the newest one landed, is a real signal AYN already has data
-  // for. Never framed as "reply speed" (Browse Jobs applications happen on
-  // the company's own site, outside anything AYN can observe).
+  // "how responsive is this company": job_postings prunes anything past 3
+  // days regardless of source (v3.194.0, was 7), so every row already on
+  // file is a currently open posting — how many of them a company has
+  // right now, and how recently the newest one landed, is a real signal
+  // AYN already has data for. Never framed as "reply speed" (Browse Jobs
+  // applications happen on the company's own site, outside anything AYN
+  // can observe).
   const [companyActivity, setCompanyActivity] = useState<{ count: number; mostRecent: string } | null>(null);
 
   // v3.142.0 — a bookmark on each row saves without leaving the list or
@@ -1371,9 +1373,9 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   }, [selected]);
 
   /* v3.166.0 — posting freshness for the currently open job's company.
-     job_postings prunes past 7 days regardless of source, so every row
-     already on file is a currently open posting -- this is a real count of
-     how many that company has right now, not an estimate. */
+     job_postings prunes past 3 days regardless of source (v3.194.0, was 7),
+     so every row already on file is a currently open posting -- this is a
+     real count of how many that company has right now, not an estimate. */
   useEffect(() => {
     if (!selected) { setCompanyActivity(null); return; }
     let cancelled = false;
@@ -1627,14 +1629,15 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             one that's already been filled or was never real. AYN's real,
             structural answer to that (never a third-party aggregator like
             LinkedIn/Indeed, sourced straight from the company's own hiring
-            system, pruned the moment it's 7 days old) was already true and
-            already stated once in this page's own subtitle, but never
+            system, pruned the moment it's 3 days old, v3.194.0, was 7) was
+            already true and already stated once in this page's own
+            subtitle, but never
             surfaced as its own trust signal where someone deciding whether
             to trust THIS posting actually is.
             v3.171.0 — recolored to the new trust teal, its own accent
             reserved only for this class of signal, distinct from the
             decorative ember used everywhere else on the page. */}
-        <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--rh-trust)" }} title="Never a third-party aggregator, never LinkedIn or Indeed. Pulled straight from the company's own hiring system and dropped from AYN 7 days after it's posted, so nothing here goes stale.">
+        <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--rh-trust)" }} title="Never a third-party aggregator, never LinkedIn or Indeed. Pulled straight from the company's own hiring system and dropped from AYN 3 days after it's posted, so nothing here goes stale.">
           <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
           Sourced directly from {selected.company}'s own hiring system
         </p>

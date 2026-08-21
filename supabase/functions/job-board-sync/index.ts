@@ -63,7 +63,19 @@ import { stripHtml } from "../_shared/htmlText.ts";
 // from, so this is not optional.
 const FREEHIRE_BASE = "https://freehire.me/api/v1/agent/jobs/search";
 const PAGE_SIZE = 100;
-const FRESHNESS_DAYS = 7;
+// v3.194.0 — was 7. Reported directly: a listing pulled by the employer
+// could still sit in AYN's own data for up to a week after it actually
+// closed, since this is a pure elapsed-time cutoff against posted_at
+// (last-confirmed-live), not tied to how fast the disappearance was
+// actually detected (every 2-hour sync cycle notices immediately). 3
+// days keeps a real buffer against one flaky sync cycle wrongly pruning
+// a still-genuinely-open listing, while cutting the worst-case staleness
+// window from 7 days to 3. Also narrows freehire's own posted_within
+// query to the same window, since the two have always shared this one
+// constant — sourcing intentionally stays this tight too, not just
+// pruning, so job_postings never holds anything older than AYN itself
+// has confirmed within the last 3 days.
+const FRESHNESS_DAYS = 3;
 
 // A cleaner, more precise language signal than a Unicode-script heuristic
 // — freehire's own documented, filterable `posting_language` facet.
