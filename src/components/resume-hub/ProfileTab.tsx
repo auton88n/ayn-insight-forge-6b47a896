@@ -82,7 +82,13 @@ type Career = {
 
 const EMPTY: Career = { skills: [], experiences: [], education: [], certifications: [], work_auth: {}, preferences: {}, derived: {} };
 
-const WORK_COUNTRIES = ["Canada", "United States", "United Kingdom", "European Union", "Australia", "United Arab Emirates"];
+// v3.185.0 — reported directly from a screenshot: trimmed from 6 to the 2
+// that are real choices. job-board-sync has been deliberately scoped to
+// Canada and the US only since v3.163.0 (a founder decision, not a gap --
+// UK/EU/Australia/UAE were left as a disclosed later expansion, not a
+// permanent exclusion) -- so the other 4 were dead options with nothing
+// behind them: no postings from those countries exist to match against.
+const WORK_COUNTRIES = ["Canada", "United States"];
 const LEVELS: { value: SkillLevel; label: string }[] = [
   { value: "familiar", label: "Familiar" },
   { value: "proficient", label: "Proficient" },

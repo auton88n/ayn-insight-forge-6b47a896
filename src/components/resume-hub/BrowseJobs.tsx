@@ -1750,38 +1750,52 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           Every posting comes straight from a real company's own hiring system. Never LinkedIn, Indeed, or a third-party aggregator.
         </p>
       </div>
-      <div className="flex items-center gap-1 flex-wrap">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => setNewestFirst((v) => !v)}
-          className="text-xs text-muted-foreground min-w-[104px] justify-start"
-        >
-          <Clock className="w-3.5 h-3.5 mr-1.5 shrink-0" />{newestFirst ? "Newest" : "Best match"}
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={openTrending} className="text-xs text-muted-foreground">
-          <TrendingUp className="w-3.5 h-3.5 mr-1.5" />Trending
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={openRoleFinder} className="text-xs text-muted-foreground">
-          <Compass className="w-3.5 h-3.5 mr-1.5" />Explore roles
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => (matchMode ? setMatchMode(false) : startMatchMode())}
-          style={matchMode ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" } : undefined}
-          variant={matchMode ? undefined : "outline"}
-          className={matchMode ? "hover:opacity-90 ml-1 min-w-[132px] justify-start" : "ml-1 min-w-[132px] justify-start"}
-        >
-          <Wand2 className="w-4 h-4 mr-1.5 shrink-0" />{matchMode ? "Showing my matches" : "Match me"}
-        </Button>
+      {/* v3.185.0 — reported directly from a mobile screenshot: the
+          List/Swipe toggle used ml-auto inside the SAME wrapping row as the
+          sort/discovery buttons, so once that row actually wrapped on a
+          narrow screen, ml-auto flung the toggle onto its own line pinned
+          hard against the right edge -- stranded, with no visual
+          connection to anything above it. Splitting the sort cluster and
+          the view toggle into two real sibling flex items under one
+          justify-between row fixes both widths at once: wide screens still
+          get the exact same left-cluster/right-toggle layout (justify-
+          between does what ml-auto used to), and a narrow screen's second
+          line now left-aligns directly under the sort buttons instead of
+          floating disconnected on the right. */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-1 flex-wrap">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setNewestFirst((v) => !v)}
+            className="text-xs text-muted-foreground min-w-[104px] justify-start"
+          >
+            <Clock className="w-3.5 h-3.5 mr-1.5 shrink-0" />{newestFirst ? "Newest" : "Best match"}
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={openTrending} className="text-xs text-muted-foreground">
+            <TrendingUp className="w-3.5 h-3.5 mr-1.5" />Trending
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={openRoleFinder} className="text-xs text-muted-foreground">
+            <Compass className="w-3.5 h-3.5 mr-1.5" />Explore roles
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => (matchMode ? setMatchMode(false) : startMatchMode())}
+            style={matchMode ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" } : undefined}
+            variant={matchMode ? undefined : "outline"}
+            className={matchMode ? "hover:opacity-90 ml-1 min-w-[132px] justify-start" : "ml-1 min-w-[132px] justify-start"}
+          >
+            <Wand2 className="w-4 h-4 mr-1.5 shrink-0" />{matchMode ? "Showing my matches" : "Match me"}
+          </Button>
+        </div>
 
         {/* v3.171.0 — "swipe to decide," a genuinely second way to move
             through the same filtered/scored jobs, not a reskin of the
             list. A plain segmented toggle, not its own nav item, since
             it's a view of the same data rather than a different page. */}
-        <div className="flex items-center rounded-lg p-0.5 ml-auto" style={{ background: "var(--rh-raised)" }}>
+        <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--rh-raised)" }}>
           <button
             type="button"
             onClick={() => setViewMode("list")}
@@ -1908,24 +1922,36 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           )}
         </div>
 
-        <Button
-          type="button"
-          variant={remoteOnly ? "default" : "outline"}
-          onClick={() => setRemoteOnly((v) => !v)}
-          disabled={matchMode}
-          className={`shrink-0 ${matchMode ? "opacity-50" : ""}`}
-        >
-          <Home className="w-4 h-4 mr-1.5" />Remote
-        </Button>
+        {/* v3.185.0 — reported directly from a mobile screenshot: Search,
+            Location, Remote and Filters stacked as four separate full-width
+            rows with no grouping at all. Search and Location genuinely need
+            that width (a text field, a dropdown trigger with real label
+            text); Remote and Filters are both compact, button-shaped
+            toggles, so they now share one row and split it evenly on
+            mobile instead of each claiming a full row of their own.
+            lg:contents makes this wrapper disappear from layout at the
+            desktop breakpoint, so Remote and Filters rejoin the outer row
+            exactly as before -- pixel-identical desktop behavior, purely
+            additive on mobile. */}
+        <div className="flex gap-2 lg:contents">
+          <Button
+            type="button"
+            variant={remoteOnly ? "default" : "outline"}
+            onClick={() => setRemoteOnly((v) => !v)}
+            disabled={matchMode}
+            className={`flex-1 lg:flex-initial shrink-0 ${matchMode ? "opacity-50" : ""}`}
+          >
+            <Home className="w-4 h-4 mr-1.5" />Remote
+          </Button>
 
-        {/* v3.167.0 — the job type/seniority/category/posted-within chips
-            used to sit permanently on screen, ~20 of them wrapping across
-            two lines — the single biggest thing making this page read as
-            cluttered rather than clean. Collapsed into one button with an
-            active-count badge; the panel it opens is the exact same
-            controls, just out of the way until wanted. Same hand-rolled
-            dropdown pattern as the location box, not a new primitive. */}
-        <div className="relative shrink-0" ref={filtersBoxRef}>
+          {/* v3.167.0 — the job type/seniority/category/posted-within chips
+              used to sit permanently on screen, ~20 of them wrapping across
+              two lines — the single biggest thing making this page read as
+              cluttered rather than clean. Collapsed into one button with an
+              active-count badge; the panel it opens is the exact same
+              controls, just out of the way until wanted. Same hand-rolled
+              dropdown pattern as the location box, not a new primitive. */}
+          <div className="relative flex-1 lg:flex-initial shrink-0" ref={filtersBoxRef}>
           <Button
             type="button"
             variant={activeFilterCount > 0 ? "default" : "outline"}
@@ -2027,6 +2053,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
               )}
             </div>
           )}
+          </div>
         </div>
 
         {(hasFilters || matchMode) && (
