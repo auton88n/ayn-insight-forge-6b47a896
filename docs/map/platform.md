@@ -1,3 +1,7 @@
+# v3.190.0 Employer usage pill actually matched to the seeker credit pill's real style
+
+Full writeup lives in CLAUDE.md's own v3.190.0 entry. `EmployerHub.tsx`'s topbar usage pill carried a v3.181.0 comment claiming it already matched the seeker credit pill's ember-gradient style, but the actual CSS was still the old outline+tint chip. Fixed to the real solid `var(--rh-gradient)` + `var(--rh-glow)` treatment with a `Zap` icon, matching `ResumeHub.tsx`'s credit pill exactly.
+
 # v3.189.0 Settings moved into the employer rail, IntakeWizard's summary screen brought onto the ember tokens
 
 Full writeup lives in CLAUDE.md's own v3.189.0 entry. `EmployerHub.tsx`'s topbar Settings icon (`navigate("/settings")`) is now a real `.rh-navitem` row at the end of the nav rail instead, same route, no new tab state. `IntakeWizard.tsx`'s completed-step pills and the "role AYN will search for" summary rows (border, pencil icon) were still on raw shadcn/Tailwind defaults left over from whenever they were built — now on `--rh-hair`/`--rh-muted`/`--rh-ink`/`--rh-accent-2` like the rest of this file.

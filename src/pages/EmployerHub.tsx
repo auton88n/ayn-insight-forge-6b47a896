@@ -25,7 +25,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Send, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
-  Brain, Search as SearchIcon, Mail, ClipboardCheck, ArrowLeft, Settings,
+  Brain, Search as SearchIcon, Mail, ClipboardCheck, ArrowLeft, Settings, Zap,
 } from "lucide-react";
 
 import IntakeWizard from "@/components/employer/IntakeWizard";
@@ -368,20 +368,23 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
           <div className="flex items-center gap-2">
             {/* v3.35.0 — the same usage numbers Billing already shows, right
                 where searches, proposals and assessments actually get spent.
-                v3.181.0 — restyled as a real ember stat, same treatment as
-                the seeker credit pill, instead of a plain muted-text row. */}
+                v3.190.0 — actually matched to the seeker credit pill's real
+                style now (solid ember gradient + glow, white text), not just
+                the v3.181.0 comment that claimed it already was: this was
+                still the old outline+tint chip until now. */}
             {profileComplete && usage && (
               <button
                 type="button"
                 onClick={() => navigate("/billing")}
-                className="hidden sm:inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold transition hover:opacity-90"
-                style={{ border: "1px solid var(--rh-accent)", color: "var(--rh-accent-2)", background: "var(--rh-tint)" }}
+                className="hidden sm:inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold text-white transition hover:opacity-90"
+                style={{ background: "var(--rh-gradient)", boxShadow: "var(--rh-glow)" }}
                 title="Usage this period"
               >
+                <Zap className="w-3.5 h-3.5" fill="#fff" strokeWidth={0} />
                 <span>{usage.searches_used}{usage.plan?.searches_limit ? `/${usage.plan.searches_limit}` : ""} searches</span>
-                <span className="w-1 h-1 rounded-full" style={{ background: "var(--rh-accent)" }} aria-hidden />
+                <span className="w-1 h-1 rounded-full bg-white/60" aria-hidden />
                 <span>{usage.proposals_used}{usage.plan?.proposals_limit ? `/${usage.plan.proposals_limit}` : ""} proposals</span>
-                <span className="w-1 h-1 rounded-full" style={{ background: "var(--rh-accent)" }} aria-hidden />
+                <span className="w-1 h-1 rounded-full bg-white/60" aria-hidden />
                 <span>{usage.assessments_used}{usage.plan?.assessments_limit ? `/${usage.plan.assessments_limit}` : ""} assessments</span>
               </button>
             )}

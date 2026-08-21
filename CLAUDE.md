@@ -6,7 +6,13 @@ MAINTENANCE RULE: any commit that changes a seam, message type, backend action, 
 
 BEFORE TOUCHING ANY FEATURE, NEW OR EXISTING: read docs/map/blueprint.md. Nothing here is a single-file change — a new paid action alone touches billing, RLS, the resume-hub dispatcher, admin visibility, account erasure, and CORS. That file is the concrete checklist, the system diagram, and the security/scale techniques that actually found this app's real bugs (including one where any signed-in user could mint themselves unlimited free credits).
 
-Last verified: v3.189.0, two fixes reported directly against a live screenshot of the employer surface: Settings moved into the nav rail, and the Search wizard's still-un-tokened colors brought onto the ember system.
+Last verified: v3.190.0, the employer usage pill (searches/proposals/assessments in the topbar) finally matched to the seeker credit pill's real style, reported directly against a screenshot.
+
+THE PILL'S OWN CODE COMMENT SAID IT WAS ALREADY DONE; IT WASN'T. `EmployerHub.tsx`'s topbar usage pill (`0/25 searches • 0/5 proposals • 0/3 assessments`) carried a v3.181.0 comment claiming it was "restyled as a real ember stat, same treatment as the seeker credit pill" — but the actual style underneath was still the old outline+tint chip (`border: 1px solid var(--rh-accent)`, `background: var(--rh-tint)`), never the solid `var(--rh-gradient)` + `var(--rh-glow)` treatment the seeker credit pill (`ResumeHub.tsx`) and every primary CTA on this page already use. The comment described an intent that never actually shipped. Fixed by copying the seeker pill's real style exactly: solid ember gradient background, white text, glow shadow, a `Zap` icon, with the divider dots switched from `var(--rh-accent)` to `bg-white/60` so they stay visible against the now-solid background instead of disappearing.
+
+Verified live with a fresh throwaway employer account (approved, org completed) driven through to the Search tab: the pill renders as a solid ember gradient with the Zap icon and glow shadow, pixel-matching the seeker side. `npx tsc --noEmit` clean. Test account and its seeded org fully erased after via `self_delete_account`.
+
+Preceded by v3.189.0, two fixes reported directly against a live screenshot of the employer surface: Settings moved into the nav rail, and the Search wizard's still-un-tokened colors brought onto the ember system.
 
 SETTINGS WAS THE ONE THING ON THIS PAGE NOT LIVING IN THE RAIL. `EmployerHub.tsx`'s topbar had a standalone gear icon next to Sign out, calling `navigate("/settings")` — everything else (Search, Proposals, Assessments, Company) lived in the nav rail as a real, labeled row. Moved Settings into the rail as its own `.rh-navitem`, last in the list (matching the seeker side's own "Home" convention), same styling, same route underneath — a placement fix, not a new page or a new tab-switching state.
 
