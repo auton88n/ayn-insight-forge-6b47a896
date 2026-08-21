@@ -128,18 +128,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   // v3.15.0 — left nav state, and the staged search flow.
   const [tab, setTab] = useState<EmployerTab>("search");
   const [stage, setStage] = useState<"spec" | "results">("spec");
-
-  // v3.193.0 — same rail, same fix as ResumeHub.tsx's own: the mobile
-  // horizontal scroll row never scrolled the active item into view, so a
-  // tab near the end of the list (Settings, now that it's a real tab
-  // switch) could render clipped at the edge with no scroll cue.
   const navListRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    navListRef.current?.querySelector(".rh-navitem.active")
-      ?.scrollIntoView({ inline: "nearest", block: "nearest" });
-  }, [tab]);
-
-
 
   // v3.39.0 — a bare signOut() cleared the session but never navigated
   // anywhere, so this whole gated view stayed on screen looking untouched.
@@ -180,6 +169,26 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
    * field later re-locks it, and we say which field and what it blocks.
    */
   const profileComplete = isOrgComplete(org);
+
+  // v3.193.0 — same rail, same fix as ResumeHub.tsx's own: the mobile
+  // horizontal scroll row never scrolled the active item into view, so a
+  // tab near the end of the list (Settings, now that it's a real tab
+  // switch) could render clipped at the edge with no scroll cue.
+  // orgLoading/profileComplete included alongside tab for the same reason
+  // ResumeHub.tsx's own version needed `loading` added: the rail (and
+  // navListRef) only exists once the company-profile onboarding gate
+  // opens, so the effect needs a real chance to run again once that
+  // happens, not just when tab itself changes. Declared here, after
+  // profileComplete's own const, not up near navListRef's declaration --
+  // a dependency array referencing a const before its own declaration in
+  // source order is a real temporal-dead-zone ReferenceError, the exact
+  // class of bug this codebase has hit once before (filtersOpen in
+  // BrowseJobs.tsx, per CLAUDE.md's own v3.169.0 entry).
+  useEffect(() => {
+    navListRef.current?.querySelector(".rh-navitem.active")
+      ?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }, [tab, orgLoading, profileComplete]);
+
   const handleOrgSaved = useCallback((next: Org) => {
     // v3.86.0 — toast() must never run inside a setState updater: it triggers
     // the Toaster's own setState while React is still processing this one,

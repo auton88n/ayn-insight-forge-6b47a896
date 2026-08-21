@@ -110,11 +110,20 @@ export default function ResumeHub() {
   // under the desktop breakpoint) never scrolled the active item into
   // view, so switching to a tab near the end of the list could leave it
   // clipped at the edge with no visual cue anything was even scrollable.
+  // Re-verified live and found a second gap in this same fix: when `tab`
+  // is already its final value on mount (readStoredTab() restoring "home"
+  // from sessionStorage, the common case for a returning user), this
+  // effect's first run happens while the real rail is still behind the
+  // `loading` gate below and navListRef.current is null -- and since
+  // `tab` itself never changes again after that, the effect never gets a
+  // second chance to run once the ref is actually populated. Adding
+  // `loading` to the dependency list gives it that second chance the
+  // moment the gate opens, without needing tab to change at all.
   const navListRef = useRef<HTMLElement>(null);
   useEffect(() => {
     navListRef.current?.querySelector(".rh-navitem.active")
       ?.scrollIntoView({ inline: "nearest", block: "nearest" });
-  }, [tab]);
+  }, [tab, loading]);
 
   // v3.142.0 — found while adding a Dialog to Jobs: its "Save job" button
   // rendered with a transparent background instead of ember, because Radix
