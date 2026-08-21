@@ -1,3 +1,7 @@
+# v3.191.0 All remaining flat-colored employer primary buttons brought onto the seeker side's gradient treatment
+
+Full writeup lives in CLAUDE.md's own v3.191.0 entry. 7 primary `<Button>`s across `IntakeWizard.tsx`, `AssessmentDialog.tsx` and `EmployerHub.tsx` were still falling through to `.resume-hub-theme button.bg-foreground`'s flat `--rh-accent` fallback fill instead of the explicit `style={{ background: "var(--rh-gradient)", boxShadow: "var(--rh-glow)" }}` override every seeker-side primary CTA already carries. All 7 now match. Outline/ghost/icon buttons on both surfaces were already consistent — the mismatch was primary buttons only.
+
 # v3.190.0 Employer usage pill actually matched to the seeker credit pill's real style
 
 Full writeup lives in CLAUDE.md's own v3.190.0 entry. `EmployerHub.tsx`'s topbar usage pill carried a v3.181.0 comment claiming it already matched the seeker credit pill's ember-gradient style, but the actual CSS was still the old outline+tint chip. Fixed to the real solid `var(--rh-gradient)` + `var(--rh-glow)` treatment with a `Zap` icon, matching `ResumeHub.tsx`'s credit pill exactly.

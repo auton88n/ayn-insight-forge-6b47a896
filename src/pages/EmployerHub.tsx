@@ -730,7 +730,14 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 {sentRefs.has(open.ref) ? (
                   <Button disabled variant="secondary">Proposal sent, waiting for a reply</Button>
                 ) : (
-                  <Button onClick={() => openProposal(open)} disabled={!proposalFeature.enabled}>Send a job proposal</Button>
+                  <Button
+                    onClick={() => openProposal(open)}
+                    disabled={!proposalFeature.enabled}
+                    className="hover:opacity-90"
+                    style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+                  >
+                    Send a job proposal
+                  </Button>
                 )}
               </DialogFooter>
 
@@ -796,7 +803,12 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
-            <Button onClick={submitProposal} disabled={sending}>
+            <Button
+              onClick={submitProposal}
+              disabled={sending}
+              className="hover:opacity-90"
+              style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+            >
               {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
               Send proposal
             </Button>

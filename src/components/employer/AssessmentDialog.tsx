@@ -222,7 +222,12 @@ export default function AssessmentDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={send} disabled={sending || busy || kept.length < 3}>
+          <Button
+            onClick={send}
+            disabled={sending || busy || kept.length < 3}
+            className="hover:opacity-90"
+            style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+          >
             {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
             Send assessment
           </Button>

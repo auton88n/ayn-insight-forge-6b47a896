@@ -504,7 +504,12 @@ export default function IntakeWizard({
           className="min-h-[110px]"
         />
         <div className="flex flex-wrap gap-2">
-          <Button onClick={readOpening} disabled={reading}>
+          <Button
+            onClick={readOpening}
+            disabled={reading}
+            className="hover:opacity-90"
+            style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+          >
             {reading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ArrowRight className="w-4 h-4 mr-2" />}
             Continue
           </Button>
@@ -717,6 +722,8 @@ export default function IntakeWizard({
             </Button>
             <Button
               size="sm"
+              className="hover:opacity-90"
+              style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
               disabled={
                 (current === "title" && !(typed || spec.title).trim()) ||
                 (current === "work_mode" && !spec.work_mode) ||
@@ -795,7 +802,8 @@ export default function IntakeWizard({
       <div className="pt-1 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <Button
-            className="h-11 px-6 w-full sm:w-auto"
+            className="h-11 px-6 w-full sm:w-auto hover:opacity-90"
+            style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
             onClick={() => onSearch(spec)}
             disabled={searching || !spec.title.trim() || spec.must_have_skills.length === 0}
           >
@@ -835,7 +843,15 @@ function TypeInstead({
         autoFocus
       />
       <div className="flex gap-2">
-        <Button size="sm" disabled={!value.trim()} onClick={() => onSave(value.trim())}>Save</Button>
+        <Button
+          size="sm"
+          disabled={!value.trim()}
+          onClick={() => onSave(value.trim())}
+          className="hover:opacity-90"
+          style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+        >
+          Save
+        </Button>
         <Button size="sm" variant="ghost" onClick={onBack}>Back to options</Button>
       </div>
     </div>
