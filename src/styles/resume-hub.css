@@ -201,13 +201,22 @@
     gap: 2px;
   }
   .resume-hub-theme .rh-aside-left::-webkit-scrollbar { display: none; }
-  .resume-hub-theme .rh-rail-mark { margin-bottom: 0; margin-right: 4px; }
+  .resume-hub-theme .rh-rail-mark { margin-bottom: 0; margin-right: 4px; flex-shrink: 0; }
   .resume-hub-theme .rh-rail-sep { display: none; }
-  .resume-hub-theme .rh-navlist { flex-direction: row; }
+  /* v3.193.0 — found in a QA pass: with no flex-shrink set, .rh-navlist
+     (a flex child of .rh-aside-left, itself the actual overflow-x:auto
+     scroll container) was being compressed below its own content's
+     natural width by flexbox's default shrink behavior. That left its
+     scrollWidth smaller than its children actually needed, which in turn
+     meant .rh-aside-left's own scrollWidth never grew enough to make the
+     last item (Home/Settings) reachable by scrolling at all -- not a
+     scroll-position bug, a content-width bug upstream of it. */
+  .resume-hub-theme .rh-navlist { flex-direction: row; flex-shrink: 0; width: max-content; }
   .resume-hub-theme .rh-navitem {
     flex-direction: column;
     width: auto;
     min-width: 58px;
+    flex-shrink: 0;
     padding: 7px 6px;
     gap: 3px;
     font-size: 9.5px;
