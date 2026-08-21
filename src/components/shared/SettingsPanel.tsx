@@ -1,28 +1,23 @@
 /**
- * HomeTab.tsx — v3.3.0 "Home replaces Overview"
+ * SettingsPanel.tsx
  *
- * v3.174.0 — reported directly: "the settings needs to be in home page
- * have everything," after the account menu was trimmed down to a single
- * Settings item that still navigated away to a separate /settings route.
- * The same four sections that page has always held (Account,
- * Notifications, Privacy, Sessions -- src/components/settings/*, none of
- * them rewritten, just reused here) render inline, so nothing about
- * managing the account means leaving Resume Hub. The standalone /settings
- * route is untouched, not deleted -- EmployerHub's own account menu still
- * points there, and it's still reachable directly.
+ * Shared by both ResumeHub.tsx (its "Home" tab, since v3.174.0) and
+ * EmployerHub.tsx (its "Settings" tab). Previously only ResumeHub.tsx had
+ * this inline -- EmployerHub's own Settings item still navigated out to
+ * the standalone /settings route (Settings.tsx/SettingsLayout.tsx), which
+ * was never brought inside .resume-hub-theme and rendered on plain white
+ * with the generic Inter font instead of the real design system. Reported
+ * directly, live: "two different designs, two different types of
+ * buttons... I don't go a different page." Extracted out of HomeTab.tsx
+ * (which had already solved this once for the seeker side) rather than
+ * duplicated, so both surfaces share one implementation instead of two
+ * that can drift apart.
  *
- * v3.179.0 — reported directly, plainly: "the settings needs to remove
- * next just settings." Home used to lead with a "Next" section (up to
- * four onboarding/next-action cards) above the settings sections merged
- * in above -- with Home now the last nav item, carrying a gear icon, and
- * reached deliberately rather than being the landing tab (Browse jobs is,
- * per readStoredTab in ResumeHub.tsx), "Next"'s own job -- surfacing what
- * to do first -- had already stopped being this tab's actual job. Cut
- * outright rather than kept smaller: this tab is Settings now, not
- * Settings-plus-onboarding-nudges. loadHubSnapshot and the whole Action-
- * card model that only ever fed "Next" go with it, along with the
- * onOpenProfile/onOpenJobs/onOpenProposals props that existed solely to
- * power those cards' own buttons (ResumeHub.tsx updated to match).
+ * The four section components (AccountPreferences, NotificationSettings,
+ * PrivacySettings, SessionManagement) are untouched -- they already read
+ * --rh-* tokens with a hsl(var(--x)) fallback, so they render correctly
+ * the moment they're mounted inside a .resume-hub-theme scope, which both
+ * callers already are.
  */
 import { useState } from "react";
 import type { Session } from "@supabase/supabase-js";
@@ -45,7 +40,7 @@ const SETTINGS_SECTIONS: { key: SettingsSection; label: string; icon: typeof Use
   { key: "sessions", label: "Sessions", icon: Monitor },
 ];
 
-export default function HomeTab({ userId, session }: Props) {
+export default function SettingsPanel({ userId, session }: Props) {
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("account");
 
   return (

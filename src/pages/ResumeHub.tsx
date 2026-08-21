@@ -10,7 +10,7 @@ import { AynLoader } from "@/components/shared/AynLoader";
 // ~880KB chunk regardless of which one is actually open, since none of
 // them were code-split. Now each tab's code only loads once its own
 // button is actually clicked.
-const HomeTab = lazy(() => import("@/components/resume-hub/HomeTab"));
+const SettingsPanel = lazy(() => import("@/components/shared/SettingsPanel"));
 const JobsTab = lazy(() => import("@/components/resume-hub/JobsTab"));
 const BrowseJobs = lazy(() => import("@/components/resume-hub/BrowseJobs"));
 const ProfileTab = lazy(() => import("@/components/resume-hub/ProfileTab"));
@@ -344,7 +344,7 @@ export default function ResumeHub() {
               {/* v3.179.0 — Home is Settings only now, "Next" removed;
                   onOpenProfile/onOpenJobs/onOpenProposals only ever existed
                   to power that section's own buttons. */}
-              {tab === "home"      && <HomeTab userId={userId!} session={session} />}
+              {tab === "home"      && <SettingsPanel userId={userId!} session={session} />}
               {tab === "profile"   && <ProfileTab userId={userId!} onCreditsChanged={refreshCredits} />}
               {tab === "proposals" && <ProposalsTab onChanged={setPendingIntros} />}
               {tab === "assessments" && <AssessmentsTab onChanged={setPendingAssessments} />}

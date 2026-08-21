@@ -12,6 +12,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import CandidateProfile from "@/components/employer/CandidateProfile";
 import AssessmentDialog from "@/components/employer/AssessmentDialog";
 import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
 import MessageThread from "@/components/shared/MessageThread";
+import SettingsPanel from "@/components/shared/SettingsPanel";
 import { AynLoader } from "@/components/shared/AynLoader";
 import aynLogo from "@/assets/ayn-logo.png";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
@@ -61,7 +63,7 @@ import "@/styles/resume-hub.css";
 
 
 /** v3.12.0 — the employer gets a left rail in the Resume Hub language. */
-type EmployerTab = "search" | "proposals" | "assessments" | "company";
+type EmployerTab = "search" | "proposals" | "assessments" | "company" | "settings";
 const EMPLOYER_NAV: { key: EmployerTab; label: string; icon: typeof Brain; hint: string }[] = [
   { key: "search", label: "Search", hint: "Describe the role, read candidates", icon: SearchIcon },
   { key: "proposals", label: "Proposals", hint: "What you sent, and their answers", icon: Mail },
@@ -100,6 +102,11 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
+  // v3.192.0 — the Settings tab (below) needs the real user id and a full
+  // Session (access token, PrivacySettings' export/delete flow), same as
+  // ResumeHub.tsx's own settings-carrying state has always needed.
+  const [userId, setUserId] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [org, setOrg] = useState<Org | null>(null);
   const [orgLoading, setOrgLoading] = useState(true);
   const [orgName, setOrgName] = useState(companyName || "");
@@ -220,7 +227,9 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data.user?.email ?? null);
       setUserName((data.user?.user_metadata?.full_name as string | undefined) ?? null);
+      setUserId(data.user?.id ?? null);
     });
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
   }, []);
 
   const createOrg = async () => {
@@ -455,16 +464,21 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                     </button>
                   );
                 })}
-                {/* v3.189.0 — reported directly: Settings was a standalone
-                    topbar icon, the one thing on this page not living in
-                    the nav rail with everything else. Moved in as a real
-                    row, same treatment as every other item (not a tab
-                    switch — it still navigates to the real /settings
-                    route, unchanged), matching the seeker side's own
-                    Home-as-settings item at the end of its rail. */}
+                {/* v3.189.0 — Settings moved from a standalone topbar icon
+                    into a real rail row.
+                    v3.192.0 — reported directly, live: "two different
+                    designs... I don't go a different page." It still
+                    navigated to /settings, a route that was never brought
+                    inside .resume-hub-theme (plain white, generic Inter,
+                    a flat non-gradient active tab) — confirmed by
+                    inspecting the real computed styles on a live account,
+                    not guessed at. Now a real tab switch, same as every
+                    other item, rendering SettingsPanel inline — matching
+                    the seeker side's own Home-as-settings tab, which
+                    never left the page in the first place. */}
                 <button
-                  onClick={() => navigate("/settings")}
-                  className="rh-navitem"
+                  onClick={() => setTab("settings")}
+                  className={`rh-navitem ${tab === "settings" ? "active" : ""}`}
                   aria-label="Settings"
                 >
                   <Settings className="w-[18px] h-[18px] shrink-0" />
@@ -474,6 +488,11 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             </aside>
 
             <section className="rh-main">
+              {/* v3.192.0 — Settings carries its own heading (SettingsPanel
+                  is shared with the seeker side's Home tab, which never had
+                  this generic row to begin with), so it's skipped here
+                  rather than shown twice. */}
+              {tab !== "settings" && (
               <div className="mb-4">
                 <h2 className="rh-display text-xl">
                   {tab === "search" && stage === "results"
@@ -487,6 +506,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                     : EMPLOYER_NAV.find(n => n.key === tab)?.hint}
                 </p>
               </div>
+              )}
 
 
             {tab === "search" && searching && (
@@ -603,6 +623,8 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             {tab === "company" && <CompanyProfile org={org} onSaved={handleOrgSaved} page />}
 
             {tab === "assessments" && <AssessmentsPanel reloadKey={assessKey} />}
+
+            {tab === "settings" && <SettingsPanel userId={userId!} session={session} />}
             </section>
           </div>
         )}
