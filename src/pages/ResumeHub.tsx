@@ -307,25 +307,12 @@ export default function ResumeHub() {
                     onClick={() => setTab(item.key)}
                     className={`rh-navitem ${active ? "active" : ""}`}
                     aria-label={item.label + (count > 0 ? ` (${count} new)` : "")}
-                    style={{ position: "relative" }}
                   >
                     <Icon className="w-[18px] h-[18px] shrink-0" />
+                    <span className="rh-navlabel">{item.label}</span>
                     {count > 0 && (
-                      <span
-                        aria-hidden
-                        style={{
-                          position: "absolute", top: 4, right: 4,
-                          minWidth: 16, height: 16, padding: "0 4px",
-                          borderRadius: 999, background: "var(--rh-accent)",
-                          color: "#fff",
-                          fontSize: 10, fontWeight: 600, lineHeight: "16px",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                        }}
-                      >{count > 9 ? "9+" : count}</span>
+                      <span className="rh-navbadge" aria-hidden>{count > 9 ? "9+" : count}</span>
                     )}
-                    <span className="rh-tip" role="tooltip">
-                      {item.label}{count > 0 ? ` · ${count} new` : ""}
-                    </span>
                   </button>
                 );
 

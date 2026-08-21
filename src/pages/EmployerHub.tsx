@@ -407,13 +407,14 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
           <div className="rh-grid">
             {/* v3.14.0 — icon rail, same language as the seeker Resume Hub.
                 v3.181.0 — now the literal same classes (.rh-aside-left/
-                .rh-navlist/.rh-navitem/.rh-tip), not a parallel
-                reimplementation -- icon-only with a hover tooltip instead
-                of an always-visible label, and the same responsive
-                collapse to a horizontal row on mobile that ResumeHub.tsx
-                already gets for free from resume-hub.css, so the separate
-                fixed-bottom mobile nav this page used to hand-roll is
-                gone; there's nothing left for it to do differently. */}
+                .rh-navlist/.rh-navitem), not a parallel reimplementation,
+                and the same responsive collapse to a horizontal row on
+                mobile that ResumeHub.tsx already gets for free from
+                resume-hub.css, so the separate fixed-bottom mobile nav
+                this page used to hand-roll is gone; there's nothing left
+                for it to do differently.
+                v3.187.0 — labels are now always visible, not a hover-only
+                tooltip; see resume-hub.css's own note on why. */}
             <aside className="rh-aside-left" aria-label="Employer navigation">
               <div className="rh-rail-mark" aria-hidden>A</div>
               <div className="rh-rail-sep" aria-hidden />
@@ -428,25 +429,12 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                       onClick={() => setTab(item.key)}
                       className={`rh-navitem ${active ? "active" : ""}`}
                       aria-label={item.label + (badge > 0 ? ` (${badge} new)` : "")}
-                      style={{ position: "relative" }}
                     >
                       <Icon className="w-[18px] h-[18px] shrink-0" />
+                      <span className="rh-navlabel">{item.label}</span>
                       {badge > 0 && (
-                        <span
-                          aria-hidden
-                          style={{
-                            position: "absolute", top: 4, right: 4,
-                            minWidth: 16, height: 16, padding: "0 4px",
-                            borderRadius: 999, background: "var(--rh-accent)",
-                            color: "#fff",
-                            fontSize: 10, fontWeight: 600, lineHeight: "16px",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                          }}
-                        >{badge > 9 ? "9+" : badge}</span>
+                        <span className="rh-navbadge" aria-hidden>{badge > 9 ? "9+" : badge}</span>
                       )}
-                      <span className="rh-tip" role="tooltip">
-                        {item.label}{badge > 0 ? ` · ${badge} new` : ""}
-                      </span>
                     </button>
                   );
                 })}
