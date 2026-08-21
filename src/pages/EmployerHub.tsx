@@ -102,10 +102,18 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
-  // v3.192.0 — the Settings tab (below) needs the real user id and a full
-  // Session (access token, PrivacySettings' export/delete flow), same as
-  // ResumeHub.tsx's own settings-carrying state has always needed.
-  const [userId, setUserId] = useState<string | null>(null);
+  // v3.192.0 — the Settings tab (below) needs a full Session (access
+  // token, PrivacySettings' export/delete flow), same as ResumeHub.tsx's
+  // own settings-carrying state has always needed. Deliberately not a
+  // second, separately-tracked userId state: an early version of this fix
+  // set userId from getUser() and session from getSession() as two
+  // independent promises racing each other, with no loading gate blocking
+  // the shell (unlike ResumeHub.tsx's own `if (loading) return`) — a fast
+  // click on Settings could render SettingsPanel with session already
+  // resolved (passing its own !session guard) but userId still null,
+  // cast to string via `!`, silently breaking every query inside the four
+  // settings sections. Reading userId off session.user.id below removes
+  // the second promise entirely, so there is nothing left to race.
   const [session, setSession] = useState<Session | null>(null);
   const [org, setOrg] = useState<Org | null>(null);
   const [orgLoading, setOrgLoading] = useState(true);
@@ -227,7 +235,6 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data.user?.email ?? null);
       setUserName((data.user?.user_metadata?.full_name as string | undefined) ?? null);
-      setUserId(data.user?.id ?? null);
     });
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
   }, []);
@@ -624,7 +631,13 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
             {tab === "assessments" && <AssessmentsPanel reloadKey={assessKey} />}
 
-            {tab === "settings" && <SettingsPanel userId={userId!} session={session} />}
+            {tab === "settings" && (
+              session
+                ? <SettingsPanel userId={session.user.id} session={session} />
+                : <div className="flex items-center justify-center py-10" style={{ color: "var(--rh-faint)" }}>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading…
+                  </div>
+            )}
             </section>
           </div>
         )}
