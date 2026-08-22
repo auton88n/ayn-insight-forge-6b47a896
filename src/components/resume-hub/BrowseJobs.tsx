@@ -1014,6 +1014,16 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   // can observe).
   const [companyActivity, setCompanyActivity] = useState<{ count: number; mostRecent: string } | null>(null);
 
+  // v3.197.0 — "actively hiring" only ever shown when AYN is actually sure:
+  // company_hiring_status() requires real observed turnover over real time
+  // (company_hiring_stats, maintained by triggers on job_postings), not a
+  // guess from a single listing. Deliberately one-directional — showcase/
+  // uncertain/insufficient_data all render nothing at all, since a
+  // negative-leaning label on a real, named company is a much bigger trust
+  // call than a positive one, and most companies won't have a confident
+  // verdict for weeks regardless.
+  const [activelyHiring, setActivelyHiring] = useState(false);
+
   // v3.142.0 — a bookmark on each row saves without leaving the list or
   // opening detail, separate from "Score and tailor" in the detail pane
   // (which deliberately still jumps to the Jobs page — that's someone
@@ -1402,6 +1412,17 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     return () => { cancelled = true; };
   }, [selected]);
 
+  useEffect(() => {
+    if (!selected?.company_slug) { setActivelyHiring(false); return; }
+    let cancelled = false;
+    supabase
+      .rpc("company_hiring_status", { p_company_slug: selected.company_slug })
+      .then(({ data }) => {
+        if (!cancelled) setActivelyHiring(data === "active");
+      });
+    return () => { cancelled = true; };
+  }, [selected]);
+
   const loadMore = async () => {
     setLoadingMore(true);
     const { data, error } = await buildQuery(false).range(jobs.length, jobs.length + PAGE_SIZE - 1);
@@ -1649,6 +1670,13 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
           Sourced directly from {selected.company}'s own hiring system
         </p>
+
+        {activelyHiring && (
+          <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--rh-trust)" }} title="Based on real turnover AYN has actually observed over time for this company, not a guess from one listing.">
+            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+            {selected.company} is actively hiring
+          </p>
+        )}
 
         {highlightCells.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
