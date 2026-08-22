@@ -15,6 +15,8 @@ AYN is self-hosted on a Hostinger VPS (Ubuntu, Docker Compose), not Lovable Clou
 - `/root/ayn-repo/` — a separate git checkout of this same repo, used only for building the frontend. `npm run build` here produces `/root/ayn-repo/dist`, which `ayn-frontend` serves.
 - `/root/auto_deploy.sh` — the one-command official deploy script (see below).
 
+**`docker-compose.yml` and `auto_deploy.sh` are infrastructure, not application code — neither is tracked in this git repo.** They live only on the VPS. `auto_deploy.sh` copies an explicit, hardcoded list of named function directories (adding a new function means adding its own `rm -rf ... && cp -r ...` line by hand); `docker-compose.yml` is the self-hosted Supabase install's own compose file. A schema/app change ships through this repo as normal; an infrastructure change (a new function needing a deploy-script entry, a new secret needing a compose-file line) has to be made directly on the VPS and is only ever *described* here, not version-controlled.
+
 ## The containers that matter
 
 - `supabase-db` — Postgres. Real, live production data.
@@ -92,9 +94,41 @@ The standing pattern this app's own history uses for "prove it, don't assume it,
 
 **The live `https://ayn.careers` domain itself may be blocked by the Browser pane's own navigation policy** in some sessions (external-domain restriction, not an app problem). When that happens, use `preview_start` with `{name: "dev"}` (the `dev` config in `.claude/launch.json`, `npm run dev` on port 3000) instead — a local dev server is not subject to the same external-URL block, and since `SUPABASE_URL` defaults to the real production backend with no local override, it exercises the exact same live data and live edge functions as the deployed site. The session-injection steps above work identically against `http://localhost:3000`.
 
+## Adding a new edge function secret
+
+`supabase/docker/.env` is **not** automatically forwarded to a container's environment — Docker Compose only uses it for `${VAR}` substitution *inside* `docker-compose.yml` itself. `supabase-edge-functions`' actual environment is the explicit list under the `functions:` service's `environment:` block in `docker-compose.yml` (e.g. `AI_RELAY_URL: ${AI_RELAY_URL}`) — a new secret has to be added as its own line there, by name, or `Deno.env.get()` will never see it no matter what's in `.env`.
+
+**A plain `docker restart supabase-edge-functions` will not pick up a new or changed secret either way.** A container's environment is baked in at *creation* time from the compose file; `restart` just restarts the same process inside the same already-materialized container. Confirmed live this session: appending a line to `.env` and restarting left a brand-new secret invisible to `Deno.env.get()` for two full restart cycles, until recreating the container properly fixed it:
+
+```bash
+ssh root@2.25.109.213 "cd /root/supabase/docker && docker compose -p supabase -f docker-compose.yml up -d --force-recreate functions"
+```
+
+Use `--force-recreate functions` (real service name, not the `supabase-edge-functions` container-name alias) whenever a secret changes; a plain `docker restart` is still correct and sufficient for a pure code/file change in the functions volume, since that part *is* read fresh on every restart.
+
+## A second, internal-only service: the job closure checker
+
+`ayn-job-checker` (v3.195.0) is a standalone Docker container, **not** part of `docker-compose.yml`, running a small Python/FastAPI service (`job-checker/` in this repo) built on ScrapeGraphAI plus a headless Chromium. It visits a job posting's real `apply_url` and asks whether it's genuinely still open — the real, verified alternative to guessing from freehire's own (proven unreliable) `posted_at`. `job-board-sync` calls it before pruning a listing past `FRESHNESS_DAYS`.
+
+It is deliberately **not exposed on any public port** — attached only to the `supabase_default` Docker network, reachable from `supabase-edge-functions` by container name (`http://ayn-job-checker:8000/check`), authenticated by a `CHECKER_SECRET` header shared only between the two. It never holds the real AI gateway credential itself; it calls through `ai-openai-bridge` (a small edge function, service-role-key-gated) so that credential never leaves the edge runtime.
+
+Build and run it fresh (e.g. after a `job-checker/` source change):
+
+```bash
+scp -r job-checker root@2.25.109.213:/root/job-checker
+ssh root@2.25.109.213 'cd /root/job-checker && docker build -t ayn-job-checker .'
+SERVICE_KEY=$(ssh root@2.25.109.213 "grep '^SERVICE_ROLE_KEY=' /root/supabase/docker/.env | cut -d= -f2-")
+CHECK_SECRET=$(ssh root@2.25.109.213 "grep '^CHECKER_SECRET=' /root/supabase/docker/.env | cut -d= -f2-")
+ssh root@2.25.109.213 "docker rm -f ayn-job-checker 2>/dev/null; docker run -d --name ayn-job-checker --network supabase_default --restart unless-stopped --memory=1.5g --cpus=1 -e SERVICE_ROLE_KEY='$SERVICE_KEY' -e CHECKER_SECRET='$CHECK_SECRET' ayn-job-checker"
+```
+
+`CHECKER_SECRET` itself must be a real line in `.env` **and** explicitly added to `docker-compose.yml`'s `functions:` environment block (see above) — it is not part of this repo's own migration/deploy tracking since `docker-compose.yml` isn't tracked here at all.
+
+**A real timeout was hit and fixed this session, worth knowing before touching the checker's batch sizes.** The Edge Runtime's own worker supervisor killed a `job-board-sync` invocation outright (`WorkerRequestCancelled`) when the checker's wall-clock budget was too generous on top of the function's existing fetch+upsert work — there is a real, hard ceiling here, tighter than the 150s figure documented elsewhere in this codebase for other functions. Keep the checker's own batch size and wall-clock budget conservative (current values: 8 + 3 candidates, 20s budget) and watch real `time` output after any increase rather than assuming headroom.
+
 ## Things that will bite you if you assume otherwise
 
-- A `docker restart supabase-edge-functions` reloads the *whole* functions volume, not one function — convenient (one restart covers a shared-module change plus every caller) but means a half-finished edit to an unrelated function will also go live the moment you restart for something else. Check `git status` / diff the functions volume mentally before restarting if you've been mid-edit on more than one function.
+- A `docker restart supabase-edge-functions` reloads the *whole* functions volume, not one function — convenient (one restart covers a shared-module change plus every caller) but means a half-finished edit to an unrelated function will also go live the moment you restart for something else. Check `git status` / diff the functions volume mentally before restarting if you've been mid-edit on more than one function. It does **not**, however, pick up a new environment variable — see above.
 - The frontend has no fast path — `ayn-frontend` serves a pre-built `dist/`, so a CSS/TSX change is invisible until a real `npm run build` + container restart happens, either via `auto_deploy.sh` or by hand.
 - Bundle filenames are content-hashed per build. Never grep a *locally* built bundle to confirm a *remote* deploy landed — always pull the actual filename the VPS just built (`ls /root/ayn-repo/dist/assets/`) before checking its contents.
 - `/root/ayn-repo` and this local checkout are two independent git working copies of the same remote. Uncommitted local changes don't exist on the VPS until pushed and pulled — the fast-iteration scp path is the only way to get an unpushed change onto the VPS, and it bypasses git entirely, which is exactly why it must always be followed by a real commit.

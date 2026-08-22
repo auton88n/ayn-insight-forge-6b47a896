@@ -369,6 +369,156 @@ async function syncRegion(
   return { fetched, upserted };
 }
 
+// v3.194.0 -- verified closure check before pruning. freehire's own
+// posted_at and reality.class were both live-tested and found unreliable
+// (posted_at gets kept artificially fresh for many listings regardless of
+// true age; reality.class="stale" jobs were confirmed live, still
+// genuinely open, via a real browser check against the real employer
+// page). Rather than trust either, a real checker (ScrapeGraphAI plus a
+// headless browser, running as its own internal-only service on this VPS,
+// reached only through ai-openai-bridge so the real AI credential never
+// leaves the edge runtime) visits the actual apply_url and asks: is this
+// genuinely still open? Bounded to a small batch per run so a slow check
+// can never blow this function's own time budget; everything past the
+// batch still falls through to the exact same blind elapsed-time prune as
+// before, so the "nothing older than FRESHNESS_DAYS survives" guarantee
+// is never weakened, only ever strengthened for whatever a run can afford
+// to verify. Not yet in git -- written directly on the VPS while local
+// repo access was broken this session, needs a proper commit the moment
+// that access returns.
+const CHECKER_URL = "http://ayn-job-checker:8000/check";
+const CHECKER_SECRET = Deno.env.get("CHECKER_SECRET");
+const CHECK_BATCH_SIZE = 8;
+const CHECK_RECHECK_COOLDOWN_HOURS = 24;
+// Real safety net, not just a count cap: a single slow/stuck page could
+// individually eat up to CHECK_PER_REQUEST_TIMEOUT_MS, and 15 of those in
+// a worst case would run well past what a background cron invocation
+// should ever take. This wall-clock budget stops starting new checks once
+// hit, regardless of how many of CHECK_BATCH_SIZE were actually reached --
+// self-limiting under bad conditions instead of trusting a fixed count.
+// Cut hard from 60s: a real run just got killed by the platform's own
+// worker supervisor with the fetch+upsert step (2000 jobs) plus this
+// budget combined -- the 60s margin was not actually safe against the
+// real ceiling. 20s leaves much more headroom; can be raised later once
+// real successful run times are known.
+const CHECK_WALL_CLOCK_BUDGET_MS = 20_000;
+const CHECK_PER_REQUEST_TIMEOUT_MS = 20_000;
+// The main candidate query above only ever fires when OUR OWN posted_at
+// goes stale -- but posted_at is copied straight from freehire's own
+// field, and freehire was proven (live) to keep it looking recent for
+// listings it privately classifies as weeks old. A company whose listings
+// freehire keeps bumping forever would never age past FRESHNESS_DAYS and
+// so would never reach the query above, no matter how long the listing
+// has really been sitting there -- exactly the "is this company really
+// hiring or just showcasing" blind spot. This second, independent query
+// uses created_at instead -- set once, on first insert, never touched
+// again by any later upsert -- so it can't be gamed by freehire re-
+// stamping posted_at. Small and separately budgeted, since it exists
+// purely to catch that blind spot, not to replace the main check.
+const SPOT_CHECK_BATCH_SIZE = 3;
+const SPOT_CHECK_MIN_AGE_DAYS = 14;
+const SPOT_CHECK_COOLDOWN_DAYS = 7;
+
+async function verifyClosureBatch(
+  admin: ReturnType<typeof createClient>,
+  cutoff: string,
+): Promise<{ checked: number; keptOpen: number; confirmedClosed: number; checkErrors: number; checkedIds: string[] }> {
+  const empty = { checked: 0, keptOpen: 0, confirmedClosed: 0, checkErrors: 0, checkedIds: [] as string[] };
+  if (!CHECKER_SECRET) return empty;
+
+  const recheckCutoff = new Date(Date.now() - CHECK_RECHECK_COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
+  const { data: staleCandidates, error } = await admin
+    .from("job_postings")
+    .select("id, apply_url")
+    .lt("posted_at", cutoff)
+    .or(`closure_checked_at.is.null,closure_checked_at.lt.${recheckCutoff}`)
+    .order("closure_checked_at", { ascending: true, nullsFirst: true })
+    .limit(CHECK_BATCH_SIZE);
+
+  const spotCheckCutoffCreated = new Date(Date.now() - SPOT_CHECK_MIN_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const spotCheckCutoffChecked = new Date(Date.now() - SPOT_CHECK_COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { data: spotCandidates } = await admin
+    .from("job_postings")
+    .select("id, apply_url")
+    .lt("created_at", spotCheckCutoffCreated)
+    .or(`closure_checked_at.is.null,closure_checked_at.lt.${spotCheckCutoffChecked}`)
+    .order("closure_checked_at", { ascending: true, nullsFirst: true })
+    .limit(SPOT_CHECK_BATCH_SIZE);
+
+  // spotCandidates first, deliberately: they are the ones that would
+  // otherwise never surface on their own (freehire keeps their posted_at
+  // looking recent forever), and they are a small, fixed-size batch, so
+  // giving them priority can never meaningfully starve the larger main
+  // batch of its own share of the wall-clock budget below.
+  const seen = new Set<string>();
+  const candidates = ([...(spotCandidates ?? []), ...(staleCandidates ?? [])] as Array<{ id: string; apply_url: string }>)
+    .filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+  if (error || !candidates.length) return empty;
+
+  let keptOpen = 0, confirmedClosed = 0, checkErrors = 0;
+  const checkedIds: string[] = [];
+  const startedAt = Date.now();
+
+  for (const row of candidates as Array<{ id: string; apply_url: string }>) {
+    if (Date.now() - startedAt > CHECK_WALL_CLOCK_BUDGET_MS) break;
+    checkedIds.push(row.id);
+    try {
+      const r = await fetch(CHECKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Checker-Secret": CHECKER_SECRET },
+        body: JSON.stringify({ url: row.apply_url }),
+        signal: AbortSignal.timeout(CHECK_PER_REQUEST_TIMEOUT_MS),
+      });
+      const body = await r.json().catch(() => null) as { ok?: boolean; result?: unknown } | null;
+      const raw = (body?.result as { content?: unknown })?.content ?? body?.result;
+      let parsed: { is_open?: boolean } | null = null;
+      if (typeof raw === "string") {
+        try { parsed = JSON.parse(raw); } catch { parsed = null; }
+      } else if (raw && typeof raw === "object") {
+        parsed = raw as { is_open?: boolean };
+      }
+
+      if (!body?.ok || parsed?.is_open == null) {
+        await admin.from("job_postings")
+          .update({ closure_checked_at: new Date().toISOString(), closure_status: "error" })
+          .eq("id", row.id);
+        checkErrors++;
+        continue;
+      }
+
+      if (parsed.is_open) {
+        await admin.from("job_postings")
+          .update({
+            posted_at: new Date().toISOString(),
+            closure_checked_at: new Date().toISOString(),
+            closure_status: "open",
+          })
+          .eq("id", row.id);
+        keptOpen++;
+      } else {
+        // Set closure_status before deleting -- job_postings_track_delete's
+        // trigger reads OLD.closure_status to tell a real, checker-confirmed
+        // closure apart from a blind elapsed-time prune. Two round trips,
+        // but this only ever runs for the small checked batch, not the bulk
+        // fallback prune.
+        await admin.from("job_postings").update({ closure_status: "closed" }).eq("id", row.id);
+        await admin.from("job_postings").delete().eq("id", row.id);
+        confirmedClosed++;
+      }
+    } catch {
+      try {
+        await admin.from("job_postings")
+          .update({ closure_checked_at: new Date().toISOString(), closure_status: "error" })
+          .eq("id", row.id);
+      } catch { /* best effort -- a failed error-marker write just means this row gets retried next cycle */ }
+      checkErrors++;
+    }
+  }
+
+  return { checked: checkedIds.length, keptOpen, confirmedClosed, checkErrors, checkedIds };
+}
+
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return handleCors(req);
 
@@ -412,17 +562,23 @@ Deno.serve(async (req: Request) => {
     const upserted = Object.values(byRegion).reduce((n, r) => n + r.upserted, 0);
 
     const cutoff = new Date(Date.now() - FRESHNESS_DAYS * 24 * 60 * 60 * 1000).toISOString();
-    const { error: pruneErr, count } = await admin
-      .from("job_postings")
-      .delete({ count: "exact" })
-      .lt("posted_at", cutoff);
+
+    const verify = await verifyClosureBatch(admin, cutoff).catch(() => ({
+      checked: 0, keptOpen: 0, confirmedClosed: 0, checkErrors: 0, checkedIds: [] as string[],
+    }));
+
+    let pruneQuery = admin.from("job_postings").delete({ count: "exact" }).lt("posted_at", cutoff);
+    if (verify.checkedIds.length) {
+      pruneQuery = pruneQuery.not("id", "in", `(${verify.checkedIds.join(",")})`);
+    }
+    const { error: pruneErr, count } = await pruneQuery;
     if (pruneErr) throw pruneErr;
 
     const companiesKnown = knownLogos.size;
     const companiesWithLogo = Array.from(knownLogos.values()).filter((v) => v).length;
 
     return new Response(JSON.stringify({
-      ok: true, fetched, upserted, pruned: count ?? 0, byRegion, companiesKnown, companiesWithLogo,
+      ok: true, fetched, upserted, pruned: count ?? 0, byRegion, companiesKnown, companiesWithLogo, closureCheck: verify,
     }), {
       headers: { ...corsHeaders(req), "Content-Type": "application/json" },
     });
