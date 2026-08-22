@@ -1262,7 +1262,15 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     let q = supabase
       .from("job_postings")
       .select(COLS, withCount ? { count: "exact" } : undefined)
-      .order("posted_at", { ascending: false });
+      .order("posted_at", { ascending: false })
+      // v3.196.0 — the closure checker (job-checker/) flags real scam
+      // patterns on the small subset of listings it actually visits;
+      // never shown to a seeker once confirmed. Most rows are still
+      // unchecked (scam_suspected is null), so this must explicitly keep
+      // null alongside false — a bare `.not(...,"eq",true)` would silently
+      // drop every unchecked row too, since SQL's three-valued logic
+      // treats NOT(NULL = true) as NULL, not TRUE.
+      .or("scam_suspected.is.null,scam_suspected.eq.false");
     const term = safeLike(query);
     if (term) q = q.or(`title.ilike.%${term}%,company.ilike.%${term}%`);
     if (matchMode && desiredLocations && desiredLocations.length > 0) {
