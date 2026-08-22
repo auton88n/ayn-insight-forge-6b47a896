@@ -883,6 +883,17 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const [scores, setScores] = useState<Record<string, number | null>>({});
+
+  // v3.199.0 — a confirmed "showcase" company (real, observed low turnover
+  // over real time, from company_hiring_status) ranks a little lower in
+  // Best match, never hidden outright, never anything less than "showcase"
+  // itself (insufficient_data/uncertain get no penalty at all -- most
+  // companies sit there for weeks, and treating "no verdict yet" the same
+  // as a real negative one would quietly bury most of the catalog for no
+  // real reason). Fetched once per distinct company already on the page,
+  // not per row.
+  const [hiringStatusByCompany, setHiringStatusByCompany] = useState<Record<string, string>>({});
+  const SHOWCASE_RANK_PENALTY = 20;
   // job_board_score legitimately returns match_pct: null for every job when
   // the caller has no resume/profile text to score against yet — a real,
   // honest "can't score this" answer, not a pending fetch. This tracks which
@@ -1244,6 +1255,27 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     return () => { cancelled = true; };
   }, [userId]);
 
+  // v3.199.0 — batched, and only for companies not already known, so
+  // paging through a long list never re-fetches a company it already has
+  // an answer for.
+  useEffect(() => {
+    const slugs = Array.from(new Set(jobs.map((j) => j.company_slug).filter((s): s is string => !!s)))
+      .filter((s) => !(s in hiringStatusByCompany));
+    if (!slugs.length) return;
+    let cancelled = false;
+    supabase.rpc("company_hiring_status_batch", { p_company_slugs: slugs }).then(({ data }) => {
+      if (cancelled || !data) return;
+      setHiringStatusByCompany((prev) => {
+        const next = { ...prev };
+        for (const row of data as Array<{ company_slug: string; status: string | null }>) {
+          next[row.company_slug] = row.status ?? "";
+        }
+        return next;
+      });
+    });
+    return () => { cancelled = true; };
+  }, [jobs, hiringStatusByCompany]);
+
   const scorePage = useCallback((rows: JobPosting[]) => {
     if (!rows.length) return;
     resumeHubApi.jobBoardScore(rows.map((r) => ({ id: r.id, title: r.title, description: r.description, skills: r.skills })))
@@ -1308,14 +1340,23 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   // narrow to Profile's desired_locations"). Match-based ranking is now the
   // default state; "Newest" is the explicit opt-out for someone who wants
   // pure recency instead.
+  // v3.199.0 — a confirmed "showcase" company's jobs rank a little lower
+  // here, never hidden, never anything less than a real "showcase" verdict
+  // (see hiringStatusByCompany above).
+  const rankScore = useCallback((j: JobPosting) => {
+    const base = scores[j.id] ?? -1;
+    const showcase = j.company_slug && hiringStatusByCompany[j.company_slug] === "showcase";
+    return showcase ? base - SHOWCASE_RANK_PENALTY : base;
+  }, [scores, hiringStatusByCompany]);
+
   useEffect(() => {
     if (newestFirst) return;
     setJobs((prev) => {
-      const sorted = [...prev].sort((a, b) => (scores[b.id] ?? -1) - (scores[a.id] ?? -1));
+      const sorted = [...prev].sort((a, b) => rankScore(b) - rankScore(a));
       const same = sorted.every((j, i) => j.id === prev[i]?.id);
       return same ? prev : sorted;
     });
-  }, [scores, newestFirst]);
+  }, [scores, newestFirst, rankScore]);
 
   /* First page, and every filter change. */
   useEffect(() => {
