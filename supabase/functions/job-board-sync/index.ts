@@ -383,9 +383,7 @@ async function syncRegion(
 // batch still falls through to the exact same blind elapsed-time prune as
 // before, so the "nothing older than FRESHNESS_DAYS survives" guarantee
 // is never weakened, only ever strengthened for whatever a run can afford
-// to verify. Not yet in git -- written directly on the VPS while local
-// repo access was broken this session, needs a proper commit the moment
-// that access returns.
+// to verify.
 const CHECKER_URL = "http://ayn-job-checker:8000/check";
 const CHECKER_SECRET = Deno.env.get("CHECKER_SECRET");
 const CHECK_BATCH_SIZE = 8;
@@ -396,13 +394,16 @@ const CHECK_RECHECK_COOLDOWN_HOURS = 24;
 // should ever take. This wall-clock budget stops starting new checks once
 // hit, regardless of how many of CHECK_BATCH_SIZE were actually reached --
 // self-limiting under bad conditions instead of trusting a fixed count.
-// Cut hard from 60s: a real run just got killed by the platform's own
-// worker supervisor with the fetch+upsert step (2000 jobs) plus this
-// budget combined -- the 60s margin was not actually safe against the
-// real ceiling. 20s leaves much more headroom; can be raised later once
-// real successful run times are known.
-const CHECK_WALL_CLOCK_BUDGET_MS = 20_000;
-const CHECK_PER_REQUEST_TIMEOUT_MS = 20_000;
+// Cut hard twice: first from 60s to 20s after a real WorkerRequestCancelled
+// kill, then from 20s to 10s after a SECOND real kill at 20s -- the
+// fetch+upsert step's own real duration varies enough (freehire/network
+// variance, not anything under this function's control) that 20s still
+// was not consistently safe. 10s leaves real margin under either observed
+// duration; a per-check ~5s means this can still complete 1-2 real checks
+// most runs, just fewer under bad conditions, which is the whole point of
+// a wall-clock budget over a fixed count.
+const CHECK_WALL_CLOCK_BUDGET_MS = 10_000;
+const CHECK_PER_REQUEST_TIMEOUT_MS = 10_000;
 // The main candidate query above only ever fires when OUR OWN posted_at
 // goes stale -- but posted_at is copied straight from freehire's own
 // field, and freehire was proven (live) to keep it looking recent for
