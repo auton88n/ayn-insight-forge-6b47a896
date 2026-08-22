@@ -54,6 +54,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { isUsOrCanadaLocation } from "../_shared/geoScope.ts";
 import { stripHtml } from "../_shared/htmlText.ts";
+import { detectScamSignal } from "../_shared/scamSignals.ts";
 
 const CRON_INTERVAL_MS = 2 * 60 * 60 * 1000; // matches this function's own cron registration
 // v3.166.0 — tuned down from an initial 150/120/150 (which hit the
@@ -169,6 +170,8 @@ interface Row {
   salary_currency: string | null;
   skills: string[] | null;
   mass_posting_count: number | null;
+  scam_suspected?: boolean;
+  scam_reason?: string | null;
 }
 
 async function pollGreenhouse(slug: string, companyInfo: Map<string, { company: string; logo: string | null }>): Promise<Row[]> {
@@ -391,6 +394,18 @@ Deno.serve(async (req: Request) => {
     const ashbyRows = await pollBatch(ashbyBatch, FETCH_CONCURRENCY, (slug) => pollAshby(slug, companyInfo), { remaining: MAX_JOBS_PER_VENDOR });
 
     const allRows = [...ghRows, ...leverRows, ...ashbyRows];
+    // v3.197.0 — checked here, on every row, before it's ever inserted or
+    // updated: a cheap keyword pass against text already in memory, no
+    // extra fetch or AI call. See _shared/scamSignals.ts for why this is
+    // deliberately narrow (a false positive on a real job is worse than a
+    // false negative here, since the deeper AI checker still gets a later
+    // look at anything this misses once a listing ages into its own
+    // candidate pool).
+    for (const row of allRows) {
+      const { suspected, reason } = detectScamSignal(row.description, row.title);
+      row.scam_suspected = suspected;
+      row.scam_reason = reason;
+    }
 
     const toUpdate: Array<{ id: string; row: Row }> = [];
     const toInsert: Row[] = [];

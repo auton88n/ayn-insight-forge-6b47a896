@@ -52,6 +52,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { isUsOrCanadaLocation } from "../_shared/geoScope.ts";
 import { stripHtml } from "../_shared/htmlText.ts";
+import { detectScamSignal } from "../_shared/scamSignals.ts";
 
 // v3.134.0 — /jobs/search (the plain search endpoint) truncates description
 // to a ~1000-char preview, confirmed live (999 chars, cut off mid-sentence).
@@ -308,16 +309,29 @@ async function syncRegion(
       .filter((j) => !isBlockedAggregatorUrl(j.url!))
       .map((j) => {
         const e = j.enrichment || {};
+        const title = String(j.title).slice(0, 300);
+        const description = stripHtml(j.description || "").slice(0, 20000);
+        // v3.197.0 — a cheap keyword pass, checked here before this row is
+        // ever inserted or updated, so a listing can never reach Browse
+        // Jobs even once unchecked. Safe to write plainly on every upsert
+        // (including the same 2000 rows re-synced every 2 hours): a real
+        // scam_suspected=true a deeper AI check already set can't be
+        // silently overwritten back to false here -- job_postings_scam_
+        // sticky's own DB trigger (migration 20260822030000) guarantees
+        // that regardless of what this function writes.
+        const scam = detectScamSignal(description, title);
         return {
           source: "freehire",
           external_id: j.public_slug!,
           company: String(j.company).slice(0, 300),
           company_slug: j.company_slug ? String(j.company_slug).slice(0, 300) : null,
-          title: String(j.title).slice(0, 300),
-          description: stripHtml(j.description || "").slice(0, 20000),
+          title,
+          description,
           location: j.location ? String(j.location).slice(0, 300) : null,
           apply_url: j.url!,
           posted_at: j.posted_at!,
+          scam_suspected: scam.suspected,
+          scam_reason: scam.reason,
           // v3.166.0 — freehire's own structured enrichment, captured as-is,
           // never inferred for the rows it doesn't have. See this file's own
           // header note on real, live-measured coverage per field.
