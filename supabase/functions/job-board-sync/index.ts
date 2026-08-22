@@ -472,11 +472,11 @@ async function verifyClosureBatch(
       });
       const body = await r.json().catch(() => null) as { ok?: boolean; result?: unknown } | null;
       const raw = (body?.result as { content?: unknown })?.content ?? body?.result;
-      let parsed: { is_open?: boolean } | null = null;
+      let parsed: { is_open?: boolean; scam_suspected?: boolean; scam_reason?: string } | null = null;
       if (typeof raw === "string") {
         try { parsed = JSON.parse(raw); } catch { parsed = null; }
       } else if (raw && typeof raw === "object") {
-        parsed = raw as { is_open?: boolean };
+        parsed = raw as { is_open?: boolean; scam_suspected?: boolean; scam_reason?: string };
       }
 
       if (!body?.ok || parsed?.is_open == null) {
@@ -488,11 +488,18 @@ async function verifyClosureBatch(
       }
 
       if (parsed.is_open) {
+        // scam_suspected/scam_reason: the same page visit and AI call
+        // already answers this, at zero extra cost -- captured for
+        // visibility only, never acted on automatically. A confirmed
+        // closure is deleted regardless of this signal below, so it's
+        // only meaningful to record on the kept-open path.
         await admin.from("job_postings")
           .update({
             posted_at: new Date().toISOString(),
             closure_checked_at: new Date().toISOString(),
             closure_status: "open",
+            scam_suspected: parsed.scam_suspected === true,
+            scam_reason: parsed.scam_suspected === true ? (parsed.scam_reason ?? null) : null,
           })
           .eq("id", row.id);
         keptOpen++;
