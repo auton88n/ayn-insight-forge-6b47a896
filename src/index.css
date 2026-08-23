@@ -1864,27 +1864,22 @@ button, a, input, textarea, select {
 .lp-stat-l { font-size: 14.5px; line-height: 1.5; color: hsl(var(--lp-muted)); }
 .is-lead .lp-stat-l { color: hsl(0 0% 100% / 0.88); }
 
-/* --- kinetic headline: words fade up once on load, replay on hover.
-   v3.208.0 -- reported directly against a screenshot: the headline's
-   first letter rendered as a smeared, glitchy swoosh instead of text.
-   Root cause was filter: blur() transitioning on a text glyph -- a real,
-   known CSS risk (blur-on-text compositing is inconsistent across
-   browsers/GPUs and can visibly distort a glyph mid-transition, exactly
-   what got captured). Removed the blur entirely; opacity + a small
-   vertical shift alone is enough motion to read as "reveals in," with
-   zero risk of a letterform ever rendering as anything but a letter. --- */
-/* v3.211.0 -- a pure CSS, one-shot animation instead of a JS-driven class
-   toggle. The full word is in the DOM and laid out from the first frame
-   (see KineticHeadline.tsx for why that matters for text-wrap: balance);
-   animation-delay staggers each word's own reveal, still opacity and
-   transform only. */
-@keyframes lpKineticIn {
+/* --- kinetic headline: the whole heading fades up once on load, replays
+   on hover. v3.212.0 -- three rounds of per-word span animation
+   (v3.208.0's blur removal, v3.211.0's text-wrap/spacing rebuild) each
+   fixed a real, confirmed mechanism without stopping a recurring live
+   report of a smeared, ember-colored fragment on "Search." Rather than
+   chase a fourth theory, the whole per-word-span approach is gone: the
+   heading is now plain, unsplit text (see KineticHeadline.tsx) with one
+   single animation on the block itself. Nothing left to attach a
+   mid-animation compositing artifact to. --- */
+@keyframes lpKineticFadeIn {
   from { opacity: 0.16; transform: translateY(0.14em); }
   to { opacity: 1; transform: none; }
 }
-.lp-kinetic-word { display: inline-block; animation: lpKineticIn .4s ease both; }
+.lp-kinetic-fade { animation: lpKineticFadeIn .5s ease both; }
 @media (prefers-reduced-motion: reduce) {
-  .lp-kinetic-word { animation: none; opacity: 1; transform: none; }
+  .lp-kinetic-fade { animation: none; opacity: 1; transform: none; }
 }
 
 /* --- steps --- */
