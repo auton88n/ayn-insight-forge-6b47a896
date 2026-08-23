@@ -14,12 +14,16 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 // itself gets EMPLOYER_LINKS. Each audience's "How it works"/"Features"
 // anchors now live on that audience's own single-identity route, so a
 // hash link never has to flip anything else into view first.
+// v3.214.0 -- Features/How it works are real pages now (/features,
+// /how-it-works), not hash anchors on "/". The rest of what used to be
+// sections on this page (Why AYN, Get discovered, Messaging, etc.) are
+// also real pages, reachable via MarketingSubNav on every one of these,
+// not crammed into the primary header nav too.
 const SEEKER_LINKS = [
 { path: '/', en: 'Home' },
 { path: '/jobs', en: 'Browse jobs' },
-{ path: '/salary-guide', en: 'Salary guide' },
-{ path: '/#how-it-works', en: 'How it works' },
-{ path: '/#features', en: 'Features' },
+{ path: '/features', en: 'Features' },
+{ path: '/how-it-works', en: 'How it works' },
 { path: '/pricing', en: 'Pricing' },
 { path: '/contact', en: 'Contact' }];
 
@@ -78,10 +82,11 @@ export const Header = () => {
   };
 
   // The landing page runs the warm Ember system, other marketing pages stay on
-  // the light surface, so the bar flips its palette by route. "/employers" is
-  // a landing page too now, not a toggle state on "/", so it gets the same
-  // treatment.
-  const onLanding = location.pathname === '/' || isEmployerRoute;
+  // the light surface, so the bar flips its palette by route. "/employers" and
+  // the nine pages split out of the old single seeker page at v3.214.0 all
+  // use the same .lp system Home does, so they all get the same treatment.
+  const MARKETING_ROUTES = ['/features', '/how-it-works', '/why-ayn', '/real-ai', '/get-discovered', '/messaging', '/sourcing', '/proof', '/faq'];
+  const onLanding = location.pathname === '/' || isEmployerRoute || MARKETING_ROUTES.includes(location.pathname);
   const inkStrong = '#0a0a0f';
   const inkSoft = onLanding ? 'rgba(10,10,15,0.55)' : 'rgba(10,10,15,0.50)';
   const pillBg = onLanding ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.95)';

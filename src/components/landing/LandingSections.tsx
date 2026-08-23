@@ -8,27 +8,19 @@
  */
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { openCookiePreferences } from '@/components/shared/CookieConsent';
-import { COPYRIGHT_LINE, COMPANY_TAGLINE, NAV_LINKS, COMPANY_LINKS } from '@/components/shared/siteLinks';
 import { readAudience, writeAudience, type Audience } from '@/lib/landingAudience';
-import aynLogo from '@/assets/ayn-logo.png';
 import {
-  ArrowRight, FileText, Target, ShieldCheck, MessagesSquare, Radar,
-  Search, ClipboardCheck, MailCheck, Building2, Eye, Mail, Ban, Clock, Users,
+  ArrowRight, ShieldCheck, Eye, Ban, Clock, Users,
+  Search, ClipboardCheck, MailCheck, Building2,
 } from 'lucide-react';
-import {
-  TailoredDocsMockup,
-  CandidateCardMockup,
-  AssessmentMockup,
-  ShortlistMockup,
-  InboxMockup,
-} from './AppMockups';
-import { BeforeAfterProof } from './BeforeAfterProof';
+import { CandidateCardMockup, AssessmentMockup, ShortlistMockup, InboxMockup } from './AppMockups';
 import { KineticHeadline } from './KineticHeadline';
 import { TrustBento } from './TrustBento';
-import { LiveJobsPreview } from './LiveJobsPreview';
 import { HeadToHead } from './HeadToHead';
 import { JobsBrowser } from './JobsBrowser';
+import { MarketingSubNav, MARKETING_PAGES } from './MarketingSubNav';
+import { LandingFooter } from './LandingFooter';
+import { PAIN, HEAD_TO_HEAD, TRUST, FAQS } from './landingContent';
 
 // v3.210.0 -- the structural rework: AYN is no longer one page trying to be
 // legible to two different buyers via an in-place toggle. "/" commits to
@@ -40,19 +32,6 @@ import { JobsBrowser } from './JobsBrowser';
 // renders when it's left unset, which no real route does any more.
 type Props = { onStartFree?: (role?: Audience) => void; forcedAudience?: Audience };
 
-// v3.48.0 — same social icons as src/components/shared/Footer.tsx, so the
-// footer here matches instead of just showing bare legal links.
-const DiscordIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" width={18} height={18}>
-    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.947 2.418-2.157 2.418z" />
-  </svg>
-);
-const XIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" width={16} height={16}>
-    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-  </svg>
-);
-
 const SOURCING_MARKS = ['Real company career pages', 'Never LinkedIn or Indeed', 'Refreshed every 2 hours', 'Or paste any posting yourself'];
 const POOL_MARKS = ['Opted in candidates', 'Skill provenance', 'Match evidence', 'Verification assessments'];
 
@@ -61,86 +40,15 @@ const STRIP: Record<Audience, { label: string; marks: string[] }> = {
   employer: { label: 'Every candidate comes with', marks: POOL_MARKS },
 };
 
-const PAIN: Record<Audience, { eyebrow: string; title: string; lead: string; who: string; lines: string[] }> = {
-  job_seeker: {
-    eyebrow: 'The problem',
-    title: 'You are guessing what they want',
-    lead: 'The posting is written for everybody. Your resume is written for nobody.',
-    who: 'If you are applying',
-    lines: [
-      'Same resume, forty postings, no replies.',
-      'Rewriting it properly costs you an evening.',
-      'You never learn which line lost you the interview.',
-      'The company that would want you does not know you exist.',
-    ],
-  },
-  employer: {
-    eyebrow: 'The problem',
-    title: 'You are guessing who can actually do it',
-    lead: 'A resume is a claim. Hiring needs the evidence behind it.',
-    who: 'If you are hiring',
-    lines: [
-      'A flooded inbox of resumes, most of them wrong.',
-      'The right people never see your ad.',
-      'Confidence on paper proves nothing.',
-      'Or you hand it to an agency and pay a cut of the salary to skip the pile.',
-    ],
-  },
-};
-
-// v3.208.0 -- real marketing content, not another feature list. Every
-// line restates a claim already made elsewhere on this page (PAIN,
-// AI_CONTRAST, EASY_HIRING_CHIPS) in the one format that actually
-// persuades: a direct, named comparison, not a description in the
-// abstract.
-const HEAD_TO_HEAD: Record<Audience, { themLabel: string; rows: { them: string; us: string }[] }> = {
-  job_seeker: {
-    themLabel: 'Other job boards',
-    rows: [
-      { them: "Listings pulled in from anywhere, some already filled, some never real to begin with.", us: "Sourced straight from the company's own career page, pruned within 3 days if it's not reconfirmed live." },
-      { them: 'One resume, sent to every posting, competing with hundreds of others.', us: 'A resume rewritten for the one job in front of you, from your real experience.' },
-      { them: 'No idea what you are missing until the rejection arrives.', us: 'See exactly what matches and what is missing before you apply.' },
-      { them: 'Recruiters skim keyword stuffed resumes for seconds.', us: 'Employers see an evidence based profile, gaps stated plainly.' },
-      { them: 'Free to browse, but paid tiers push sponsored listings ahead of real ones.', us: 'Free to search, browse, and check your resume against a job. No account needed.' },
-    ],
-  },
-  employer: {
-    themLabel: 'A recruiter or staffing agency',
-    rows: [
-      { them: "A cut of the new hire's first year salary, often 15 to 25 percent.", us: 'One flat monthly rate, no matter how many people you hire.' },
-      { them: 'Weeks of back and forth before you see a real candidate.', us: 'A shortlist of three people to read, in minutes.' },
-      { them: 'A pile of resumes to sort through yourself.', us: 'Each name comes with its evidence and its gaps already named.' },
-      { them: 'Confidence on paper, unverified until the interview.', us: "A short assessment built from that person's own claims, before you commit." },
-    ],
-  },
-};
-
-// The seeker-side contrast is against mass-apply/auto-apply bots (LazyApply,
-// Sonara and the like). The employer-side contrast is the flip side of that
-// same problem: those bots are exactly what's filling employer inboxes with
-// generic, AI-written resumes, which is why the answer here is verification,
-// not just matching. Two different competitor shapes, kept as two lists.
-const AI_CONTRAST = [
-  'Reads the actual job description, not a keyword list',
-  'Writes from your real experience. Nothing invented, nothing generic',
-  'You submit every application yourself. It never auto-applies for you',
-];
+// v3.214.0 -- PAIN/HEAD_TO_HEAD/TRUST/FAQS moved to landingContent.ts (see
+// the import above) so the nine seeker pages this section content split
+// into can share the exact same copy this file still uses for the
+// employer route, rather than each holding its own drifting copy.
 
 const EMPLOYER_AI_CONTRAST = [
   'Skills labeled proven or inferred, never blended together',
   'Semantic matching on real evidence, not keyword stuffing',
   'Assessments built from their own claims. A generic AI cannot fake them',
-];
-
-// The seeker product is two things, not one: applying (a tailored resume for
-// a job they found) and discovery (a profile employers can find them
-// through). The tailoring side had all the marketing weight; this carries
-// the other half, reusing the exact same card an employer sees, so the
-// promise is not abstract, it is the literal screen.
-const DISCOVER_CHIPS = [
-  { icon: Radar, text: 'One toggle, in your profile' },
-  { icon: Eye, text: 'Employers see evidence, never a resume pile' },
-  { icon: ShieldCheck, text: 'Your name and contact stay private until you accept' },
 ];
 
 // The employer-side reframe: lead with what changes for them (no agency
@@ -153,74 +61,9 @@ const EASY_HIRING_CHIPS = [
   { icon: Users, text: 'Three people to read, not a pile of resumes' },
 ];
 
-const SEEKER_TILES = [
-  {
-    span: 'lp-span-6',
-    icon: Search,
-    title: 'The posting, read in full',
-    desc: 'Browse real postings or add your own. See where you stand out of 10.',
-    meta: ['Browse jobs', 'Add a link', 'Paste the text'],
-  },
-  {
-    span: 'lp-span-3',
-    icon: FileText,
-    title: 'A resume for that one job',
-    desc: 'Your real experience, in the language of the posting.',
-    meta: ['PDF', 'DOCX', 'One page', 'Kept with the job'],
-  },
-  {
-    span: 'lp-span-3',
-    icon: MessagesSquare,
-    title: 'A cover letter that names things',
-    desc: 'The company, the role, the reason. No template sentences.',
-    meta: ['Named company', 'Grounded in the posting'],
-  },
-  {
-    span: 'lp-span-2',
-    icon: Radar,
-    title: 'Found while you sleep',
-    desc: 'Turn on discovery. Employers see the evidence first, you decide who gets your contact.',
-  },
-  {
-    span: 'lp-span-2',
-    icon: Target,
-    title: 'The honest gap list',
-    desc: 'Matched, missing and nice to have, before a word is written.',
-  },
-  {
-    span: 'lp-span-2',
-    icon: ShieldCheck,
-    title: 'Nothing invented',
-    desc: 'No skill, number or title that is not already yours.',
-  },
-];
-
-// The employer side already had a step-by-step "how it works" flow
-// (EMPLOYER_STEPS below); the seeker side never did, only scattered tiles.
-// This is the direct answer to "why should I apply through this instead of
-// anywhere else": what the AI actually does, in the order it does it.
-const SEEKER_STEPS = [
-  {
-    icon: Search,
-    title: 'Reads the posting for you',
-    desc: 'The real listing, in full, not a summary or a keyword scrape.',
-  },
-  {
-    icon: Target,
-    title: 'Scores your real fit',
-    desc: 'What matches, what is missing, before a word is written.',
-  },
-  {
-    icon: FileText,
-    title: 'Writes for that one job',
-    desc: 'A resume and cover letter from your real experience, in the posting\u2019s own language.',
-  },
-  {
-    icon: Radar,
-    title: 'Keeps working after you apply',
-    desc: 'Turn on discovery and employers searching for your background find you too.',
-  },
-];
+// v3.214.0 -- SEEKER_TILES and SEEKER_STEPS moved to landingContent.ts;
+// they're used by src/pages/marketing/Features.tsx and HowItWorks.tsx now,
+// not rendered directly on this page any more.
 
 const EMPLOYER_STEPS = [
   {
@@ -245,99 +88,8 @@ const EMPLOYER_STEPS = [
   },
 ];
 
-const TRUST: Record<Audience, { title: string; lead: string; chips: string[] }> = {
-  job_seeker: {
-    title: 'It shows its work',
-    lead: 'You see the posting it read, the resume it used and what it inferred.',
-    chips: [
-      'Never auto-applies',
-      'Grounded in the posting',
-      'Nothing invented',
-      'Your details stay yours',
-    ],
-  },
-  employer: {
-    title: 'Every claim has a source',
-    lead: 'Claimed and inferred stay apart, and the gaps are named out loud.',
-    chips: [
-      'Skills by provenance',
-      'Gaps stated plainly',
-      'Server timed assessments',
-      'Contact on accept',
-    ],
-  },
-};
-
-const FAQS: Record<Audience, { q: string; a: string }[]> = {
-  job_seeker: [
-    {
-      q: 'What does AYN do for me?',
-      a: 'It reads the job description in full and scores you against it. Then it writes a one page resume and a cover letter from your own history.',
-    },
-    {
-      q: 'Where do the jobs come from?',
-      a: 'Real company career pages, sourced automatically and refreshed every two hours, never LinkedIn or Indeed. You can also add any posting yourself, by link or by pasting the text.',
-    },
-    {
-      q: 'Does it apply for me?',
-      a: 'No. It writes the resume and the cover letter. You review them and submit the application yourself, on the company’s own site.',
-    },
-    {
-      q: 'How do employers find me?',
-      a: 'Turn on discovery in your Profile. Employers searching for people with your background can then see your evidence based profile and reach out with a proposal. Nothing about you opens until you accept.',
-    },
-    {
-      q: 'Can employers see my name and email?',
-      a: 'Not until you accept their proposal. Before that they see your profile and your match evidence only.',
-    },
-    {
-      q: 'Is it really a real employer messaging me?',
-      a: 'Yes. Every employer account is checked at signup: their email has to match their company’s own website domain, and personal email addresses are refused outright. You can message back and forth right in AYN, never through your personal email or phone, and every message is screened before it reaches you.',
-    },
-    {
-      q: 'Will it invent experience?',
-      a: 'No. Anything missing is shown to you as a gap instead.',
-    },
-    {
-      q: 'Is it free to try?',
-      a: 'Yes, free to start and no credit card needed.',
-    },
-  ],
-  employer: [
-    {
-      q: 'Where do the candidates come from?',
-      a: 'People who built a profile here and turned on discovery. Nobody is scraped.',
-    },
-    {
-      q: 'How does this compare to a recruiter?',
-      a: 'There is no placement fee. You pay a flat monthly rate no matter how many people you hire, where a staffing agency typically takes a cut of the new hire\u2019s first year pay just for the introduction.',
-    },
-    {
-      q: 'How does the matching work?',
-      a: 'A hard filter on your must have skills, then semantic recall, then one grounded rerank. You see the evidence and the gaps behind every name.',
-    },
-    {
-      q: 'What is a verification assessment?',
-      a: 'A short set of questions built from that candidate\u2019s background and your role. You see the score, the observations and the time spent per answer.',
-    },
-    {
-      q: 'When do I get contact details?',
-      a: 'Only when the candidate accepts. Everything before that is anonymous, enforced on the server.',
-    },
-    {
-      q: 'Can I message everyone at once?',
-      a: 'No. One open proposal per candidate, and none for thirty days after a decline.',
-    },
-    {
-      q: 'How do I actually talk to a candidate?',
-      a: 'Once you send a proposal, a real inbox opens on it right inside AYN. It stays one way until you choose to open it up, and every message either side sends is screened before it’s delivered, no links, no phone numbers, nothing routed off the platform.',
-    },
-    {
-      q: 'How do I get access?',
-      a: 'Request employer access. We onboard companies one at a time, starting with your company profile.',
-    },
-  ],
-};
+// v3.214.0 -- TRUST and FAQS moved to landingContent.ts; seeker's own
+// copies now live on src/pages/marketing/Proof.tsx and Faq.tsx.
 
 const HERO: Record<Audience, {
   headline: string;
@@ -565,6 +317,12 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
         </div>
       </header>
 
+      {/* v3.214.0 -- "think of it like Indeed's design, even if you sign
+          in": the same consistent nav strip on Home as on every one of the
+          nine pages the rest of this content split into, so the site
+          reads as one connected product, not a scattering of pages. */}
+      {seeker && <MarketingSubNav atPageTop={false} />}
+
       {/* v3.213.0 -- "make home the browser page": the real search/browse
           experience sits right under the headline as the home page's own
           primary content, not a preview of it elsewhere. Full .lp-shell
@@ -608,195 +366,34 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
              requested position, using the same painSection element). ── */}
         {!seeker && painSection}
 
-        {/* ── FEATURES (seeker, position 2 as asked: home, then features,
-             then how it works, then the rest) ─────────────────────────── */}
+        {/* ── TRUST STRIP (seeker, kept on Home -- five stat tiles are too
+             thin to earn their own page, everything else genuinely earned
+             a real page and moved to one, see MARKETING_PAGES) ────────── */}
         {seeker && (
-          <section id="features" className="lp-section">
-            <div className="lp-shell">
-              <div className="lp-reveal" style={{ marginBottom: 38 }}>
-                <p className="lp-eyebrow">Features</p>
-                <h2 className="lp-display lp-h2">Everything AYN actually does for you</h2>
-                <p className="lp-lead">
-                  One posting in, one real application out. Nothing here is a preview, it is what you get.
-                </p>
-              </div>
-              <div className="lp-bento lp-reveal">
-                {SEEKER_TILES.map((tile) => {
-                  const Icon = tile.icon;
-                  return (
-                    <article key={tile.title} className={`lp-tile ${tile.span}`}>
-                      <span className="lp-tile-icon" aria-hidden="true">
-                        <Icon size={20} strokeWidth={1.75} />
-                      </span>
-                      <h3>{tile.title}</h3>
-                      <p>{tile.desc}</p>
-                      {'meta' in tile && (
-                        <div className="lp-tile-meta">
-                          {(tile as { meta: string[] }).meta.map((m) => <span key={m}>{m}</span>)}
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── HOW IT WORKS (seeker, position 3) ───────────────────────── */}
-        {seeker && (
-          <section id="how-it-works" className="lp-section" style={{ paddingBlockStart: 0 }}>
-            <div className="lp-shell">
-              <div className="lp-split lp-reveal">
-                <div>
-                  <p className="lp-eyebrow">How it works</p>
-                  <h2 className="lp-display lp-h2">One posting in, one application out</h2>
-                  <p className="lp-lead">
-                    Open a job from the browser above. Get a score, a resume and a cover letter for it.
-                  </p>
-                  <div className="lp-cta-row" style={{ marginTop: 26 }}>
-                    <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('job_seeker')}>
-                      Start free <ArrowRight size={15} />
-                    </button>
-                  </div>
-                </div>
-                <div className="lp-art lp-art-plain">
-                  <TailoredDocsMockup />
-                </div>
-              </div>
-
-              <div className="lp-flow lp-reveal" style={{ marginTop: 44 }}>
-                {SEEKER_STEPS.map((s, i) => {
-                  const Icon = s.icon;
-                  return (
-                    <div className="lp-flow-step" key={s.title}>
-                      <span className="lp-tile-icon" aria-hidden="true"><Icon size={18} strokeWidth={1.75} /></span>
-                      <span className="lp-step-n">STEP {i + 1}</span>
-                      <h3 className="lp-display">{s.title}</h3>
-                      <p>{s.desc}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── THE REST OF THINGS (seeker, position 4 onward) ──────────── */}
-        {seeker && (
-          <div className="lp-shell" style={{ paddingBlockStart: 'clamp(72px, 11vw, 132px)' }}>
+          <div className="lp-shell" style={{ paddingBlockStart: 'clamp(56px, 8vw, 96px)' }}>
             <TrustBento />
           </div>
         )}
 
-        {seeker && (
-          <div id="proof"><BeforeAfterProof /></div>
-        )}
-
-        {seeker && painSection}
-
-        {/* ── WHERE JOBS COME FROM ────────────────────────────── */}
-        {seeker && (
-          <section id="browse" className="lp-section" style={{ paddingBlockStart: 0 }}>
-            <div className="lp-shell">
-              <div className="lp-split lp-reveal">
-                <div className="lp-art lp-art-plain">
-                  <LiveJobsPreview />
-                </div>
-                <div>
-                  <p className="lp-eyebrow">Where the jobs come from</p>
-                  <h2 className="lp-display lp-h2">Real postings, pulled straight from the company. <em>Never scraped from a job board.</em></h2>
-                  <p className="lp-lead">
-                    Company career pages only, sourced automatically and refreshed every two hours. Never LinkedIn,
-                    never Indeed. Do not see the role you are after? Add any posting yourself, by link or by pasting the text.
-                  </p>
-                  <div className="lp-cta-row" style={{ marginTop: 26 }}>
-                    <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('job_seeker')}>
-                      Start free <ArrowRight size={15} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── GET DISCOVERED ──────────────────────────────────── */}
-        {seeker && (
-          <section id="discover" className="lp-section" style={{ paddingBlockStart: 0 }}>
-            <div className="lp-shell">
-              <div className="lp-split lp-reveal">
-                <div>
-                  <p className="lp-eyebrow">The other half of AYN</p>
-                  <h2 className="lp-display lp-h2">You do not have to find every job. <em>Some of them can find you.</em></h2>
-                  <p className="lp-lead">
-                    Applying is one job at a time, the one you found. Discovery works the other way: turn it on once,
-                    and employers searching for people with your background find you first, evidence and all,
-                    before they ever see your name.
-                  </p>
-                  <div className="lp-chips" style={{ marginTop: 22 }}>
-                    {DISCOVER_CHIPS.map((c) => (
-                      <span className="lp-chip" key={c.text}>
-                        <c.icon size={14} />
-                        {c.text}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className="lp-art lp-art-plain">
-                  <CandidateCardMockup />
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── THE INBOX ────────────────────────────────────────── */}
-        {seeker && (
-          <section id="inbox" className="lp-section" style={{ paddingBlockStart: 0 }}>
-            <div className="lp-shell">
-              <div className="lp-split lp-reveal">
-                <div>
-                  <p className="lp-eyebrow">When an employer reaches out</p>
-                  <h2 className="lp-display lp-h2">A real inbox, not your personal email. <em>Screened both ways.</em></h2>
-                  <p className="lp-lead">
-                    Every employer is checked before they can search or message anyone: their email has to match
-                    their own company's website, personal email addresses are refused. Once they reach out, you talk
-                    right inside AYN, one way until you choose to open it up, and every message either side sends is
-                    screened before it arrives, no links, no phone numbers, nothing routed off the platform.
-                  </p>
-                  <div className="lp-chips" style={{ marginTop: 22 }}>
-                    <span className="lp-chip"><ShieldCheck size={14} />Employer identity verified</span>
-                    <span className="lp-chip"><Eye size={14} />You control two-way replies</span>
-                    <span className="lp-chip"><Ban size={14} />No links or contact info, ever</span>
-                  </div>
-                </div>
-                <div className="lp-art lp-art-plain">
-                  <InboxMockup />
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── REAL AI, NOT MASS-APPLY SPAM ───────────────────── */}
+        {/* ── EXPLORE (seeker) -- v3.214.0: every remaining section is now
+             its own real page (Features, How it works, Why AYN, Real AI,
+             Get discovered, Messaging, Where jobs come from, Proof, FAQ),
+             linked here and in MarketingSubNav on every one of them. ─── */}
         {seeker && (
           <section className="lp-section" style={{ paddingBlockStart: 0 }}>
-            <div className="lp-shell lp-reveal">
-              <p className="lp-eyebrow">The AI, and what it refuses to do</p>
-              <h2 className="lp-display lp-h2">Real AI, aimed at <em>the one job in front of you.</em></h2>
-              <p className="lp-lead" style={{ maxWidth: 680 }}>
-                Some tools use AI to auto-apply to hundreds of postings a day and hope volume gets you an interview.
-                Low quality, unread by anyone, and it is not even looking for the right job, just applying to all of them.
-                AYN's AI does the opposite: it reads the specific posting you have open, writes your resume and
-                cover letter from your real experience for that job, and stops there.
-              </p>
-              <div className="lp-chips" style={{ marginTop: 22 }}>
-                {AI_CONTRAST.map((c) => (
-                  <span className="lp-chip" key={c}>
-                    <ShieldCheck size={14} />
-                    {c}
-                  </span>
+            <div className="lp-shell">
+              <div className="lp-reveal" style={{ marginBottom: 30 }}>
+                <p className="lp-eyebrow">Keep exploring</p>
+                <h2 className="lp-display lp-h2">See exactly what AYN does, and why</h2>
+              </div>
+              <div className="lp-bento lp-reveal">
+                {MARKETING_PAGES.filter((p) => p.to !== '/').map((p) => (
+                  <Link key={p.to} to={p.to} className="lp-tile lp-span-2" style={{ textDecoration: 'none' }}>
+                    <h3>{p.label}</h3>
+                    <p style={{ color: 'hsl(var(--lp-ember))', fontSize: 13.5, fontWeight: 600 }}>
+                      Read more <ArrowRight size={13} style={{ display: 'inline', verticalAlign: -1 }} />
+                    </p>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -952,40 +549,45 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
           </section>
         )}
 
-        {/* ── TRUST ──────────────────────────────────────────── */}
-        <section id="trust" className="lp-section" style={{ paddingBlockStart: 0 }}>
-          <div className="lp-shell lp-reveal">
-            <p className="lp-eyebrow">Built to be honest</p>
-            <h2 className="lp-display lp-h2">{trust.title}</h2>
-            <p className="lp-lead">{trust.lead}</p>
-            <div className="lp-chips">
-              {trust.chips.map((c) => (
-                <span className="lp-chip" key={c}>
-                  <Eye size={14} />
-                  {c}
-                </span>
-              ))}
+        {/* ── TRUST (employer only -- seeker's own copy of this content
+             now lives on /proof) ──────────────────────────────────────── */}
+        {!seeker && (
+          <section id="trust" className="lp-section" style={{ paddingBlockStart: 0 }}>
+            <div className="lp-shell lp-reveal">
+              <p className="lp-eyebrow">Built to be honest</p>
+              <h2 className="lp-display lp-h2">{trust.title}</h2>
+              <p className="lp-lead">{trust.lead}</p>
+              <div className="lp-chips">
+                {trust.chips.map((c) => (
+                  <span className="lp-chip" key={c}>
+                    <Eye size={14} />
+                    {c}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
-        {/* ── FAQ ────────────────────────────────────────────── */}
-        <section id="faq" className="lp-section" style={{ paddingBlockStart: 0 }}>
-          <div className="lp-shell">
-            <div className="lp-reveal" style={{ marginBottom: 28 }}>
-              <p className="lp-eyebrow">Questions</p>
-              <h2 className="lp-display lp-h2">Good to know</h2>
+        {/* ── FAQ (employer only -- seeker's own copy now lives on /faq) ── */}
+        {!seeker && (
+          <section id="faq" className="lp-section" style={{ paddingBlockStart: 0 }}>
+            <div className="lp-shell">
+              <div className="lp-reveal" style={{ marginBottom: 28 }}>
+                <p className="lp-eyebrow">Questions</p>
+                <h2 className="lp-display lp-h2">Good to know</h2>
+              </div>
+              <div className="lp-faq lp-reveal">
+                {FAQS[audience].map((f) => (
+                  <div className="lp-faq-item" key={f.q}>
+                    <h3>{f.q}</h3>
+                    <p>{f.a}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="lp-faq lp-reveal">
-              {FAQS[audience].map((f) => (
-                <div className="lp-faq-item" key={f.q}>
-                  <h3>{f.q}</h3>
-                  <p>{f.a}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* ── CLOSING ────────────────────────────────────────── */}
         <section className="lp-section" style={{ paddingBlockStart: 0 }}>
@@ -1011,49 +613,7 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
         </section>
       </div>
 
-      {/* ── FOOTER ───────────────────────────────────────────── */}
-      <footer className="lp-footer">
-        <div className="lp-shell">
-          <div className="lp-footer-top">
-            <div className="lp-footer-brand">
-              <img src={aynLogo} alt="AYN" style={{ height: 30, width: 'auto' }} />
-              <p className="lp-footer-tagline">{COMPANY_TAGLINE}</p>
-              <div className="lp-footer-social">
-                <a href="mailto:info@ayn.careers" aria-label="Email"><Mail size={18} /></a>
-                <a href="https://discord.gg/y2DcBegbC7" target="_blank" rel="noopener noreferrer" aria-label="Discord"><DiscordIcon /></a>
-                <a href="https://x.com/AYNN_AI" target="_blank" rel="noopener noreferrer" aria-label="X (Twitter)"><XIcon /></a>
-              </div>
-            </div>
-
-            <div className="lp-footer-cols">
-              <div className="lp-footer-col">
-                <h4>Navigate</h4>
-                <ul>
-                  {NAV_LINKS.map(l => (
-                    <li key={l.to}><Link to={l.to}>{l.label}</Link></li>
-                  ))}
-                </ul>
-              </div>
-              <div className="lp-footer-col">
-                <h4>Company</h4>
-                <ul>
-                  {COMPANY_LINKS.map(l => (
-                    <li key={l.to}><Link to={l.to}>{l.label}</Link></li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <div className="lp-footer-bottom">
-            <span>{COPYRIGHT_LINE}</span>
-            <div className="lp-footer-bottom-links">
-              <Link to="/privacy">Privacy Policy</Link>
-              <button type="button" onClick={openCookiePreferences}>Cookie choices</button>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <LandingFooter />
     </div>
   );
 });

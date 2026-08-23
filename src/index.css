@@ -1856,6 +1856,29 @@ button, a, input, textarea, select {
 @media (max-width: 640px) { .lp-browser-field-where { flex-basis: 100%; } }
 
 /* --- logo strip --- */
+/* --- marketing sub-nav: v3.214.0, the same strip of links on every seeker
+   page (MarketingSubNav.tsx) so the split-into-real-pages site still reads
+   as one connected product, Indeed-style consistency rather than a
+   scattering of standalone URLs. Sits directly under the fixed header. --- */
+.lp-subnav {
+  position: sticky; top: 0; z-index: 20;
+  background: hsl(var(--lp-bg) / 0.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid hsl(var(--lp-border-soft));
+}
+.lp-subnav.is-at-top { padding-top: clamp(76px, 10vw, 96px); }
+.lp-subnav-inner {
+  display: flex; gap: clamp(14px, 2vw, 26px); overflow-x: auto; scrollbar-width: none;
+  padding-block: 14px;
+}
+.lp-subnav-inner::-webkit-scrollbar { display: none; }
+.lp-subnav-link {
+  flex-shrink: 0; font-size: 13.5px; font-weight: 500; color: hsl(var(--lp-muted));
+  text-decoration: none; white-space: nowrap; padding-bottom: 4px; border-bottom: 2px solid transparent;
+  transition: color .15s ease, border-color .15s ease;
+}
+.lp-subnav-link:hover { color: hsl(var(--lp-fg)); }
+.lp-subnav-link.is-active { color: hsl(var(--lp-ember)); border-color: hsl(var(--lp-ember)); font-weight: 600; }
+
 .lp-strip { border-block: 1px solid hsl(var(--lp-border-soft)); background: hsl(var(--lp-surface) / 0.5); }
 .lp-strip-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: clamp(18px, 4vw, 52px); padding-block: 22px; }
 .lp-strip-label { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: hsl(var(--lp-dim)); }
