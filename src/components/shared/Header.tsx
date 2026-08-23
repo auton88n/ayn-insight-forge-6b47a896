@@ -24,6 +24,7 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 // switching to employer mode already gets you the employer section.
 const SEEKER_LINKS = [
 { path: '/', en: 'Home' },
+{ path: '/jobs', en: 'Browse jobs' },
 { path: '/#proof', en: 'How it works' },
 { path: '/#features', en: 'Features' },
 { path: '/pricing', en: 'Pricing' },

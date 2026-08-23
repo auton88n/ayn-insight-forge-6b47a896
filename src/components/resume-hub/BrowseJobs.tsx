@@ -58,10 +58,10 @@ const HOT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const COLS = "id, source, company, company_slug, company_logo_url, title, description, location, apply_url, posted_at, "
   + "employment_type, seniority, salary_min, salary_max, salary_currency, category, work_mode, city, skills";
 
-const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
+export const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   full_time: "Full-time", part_time: "Part-time", contract: "Contract", internship: "Internship",
 };
-const SENIORITY_LABELS: Record<string, string> = {
+export const SENIORITY_LABELS: Record<string, string> = {
   junior: "Junior", mid: "Mid", senior: "Senior", staff: "Staff", lead: "Lead", principal: "Principal",
 };
 const POSTED_WITHIN_OPTIONS = [
@@ -189,7 +189,7 @@ function extractSalaryFromText(text: string): { min: number; max: number; period
  * employer's own posting -- the second is just a different, deterministic
  * way of finding the same fact, disclosed via fromListingText so a caller
  * can note where it came from if it wants to. */
-function resolveSalary(job: JobPosting): { text: string; fromListingText: boolean } | null {
+export function resolveSalary(job: JobPosting): { text: string; fromListingText: boolean } | null {
   const structured = formatSalary(job.salary_min, job.salary_max, job.salary_currency);
   if (structured) return { text: structured, fromListingText: false };
   const extracted = extractSalaryFromText(job.description || "");
@@ -273,7 +273,7 @@ function faviconFallbackUrl(job: JobPosting): string | null {
 /** company_logo_url when present (freehire's own server-side lookup),
  * otherwise a client-side favicon guess — never invented, just a second,
  * looser attempt at the same real thing: an icon for this real company. */
-function resolveLogoUrl(job: JobPosting): string | null {
+export function resolveLogoUrl(job: JobPosting): string | null {
   return job.company_logo_url || faviconFallbackUrl(job);
 }
 
@@ -356,7 +356,7 @@ function ScoreGauge({ score, size = 28, showLabel = false }: { score: number; si
   );
 }
 
-function postedAge(iso: string) {
+export function postedAge(iso: string) {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
   if (mins < 60) return `${mins} min ago`;
   const hours = Math.round(mins / 60);
@@ -371,12 +371,12 @@ function postedAge(iso: string) {
 // so a stored date is always within the current year in practice); the
 // detail pane gets the same short date, room there doesn't call for
 // anything longer either.
-function postedDate(iso: string) {
+export function postedDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 /** Escapes the characters PostgREST treats as special inside an ilike filter. */
-function safeLike(s: string) {
+export function safeLike(s: string) {
   return s.replace(/[%,()]/g, " ").trim();
 }
 
@@ -517,7 +517,7 @@ function extractCultureSnippet(text: string): string | null {
   return null;
 }
 
-function JobDescriptionBody({ text }: { text: string }) {
+export function JobDescriptionBody({ text }: { text: string }) {
   const blocks = useMemo(() => parseJobDescription(text.trim()), [text]);
   if (!blocks.length) {
     return (
