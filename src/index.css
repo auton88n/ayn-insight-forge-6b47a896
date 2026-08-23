@@ -1702,6 +1702,61 @@ button, a, input, textarea, select {
 .lp-btn-ghost { background: hsl(var(--lp-fg) / 0.04); color: hsl(var(--lp-fg)); border-color: hsl(var(--lp-border)); }
 .lp-btn-ghost:hover { background: hsl(var(--lp-fg) / 0.09); border-color: hsl(var(--lp-fg) / 0.35); }
 .lp-btn-invert { background: hsl(var(--lp-fg)); color: hsl(var(--lp-bg)); }
+
+/* --- hero job search: the landing page's own real search, not a
+   preview of one. Two fields (title/keyword, location) plus a submit
+   that lands on /jobs with both applied -- the same real, working
+   search that page already runs, not a separate demo of it. --- */
+.lp-hero-search {
+  display: flex; align-items: stretch; gap: 0; margin-top: 30px; text-align: left;
+  background: hsl(var(--lp-card)); border: 1px solid hsl(var(--lp-border));
+  border-radius: 18px; box-shadow: var(--lp-shadow-lift); padding: 6px;
+  max-width: 640px;
+}
+.lp-hero-search-field { flex: 1; display: flex; align-items: center; gap: 9px; padding: 0 14px; min-width: 0; }
+.lp-hero-search-field svg { flex-shrink: 0; color: hsl(var(--lp-dim)); }
+.lp-hero-search-field + .lp-hero-search-field { border-left: 1px solid hsl(var(--lp-border-soft)); }
+.lp-hero-search-field input {
+  flex: 1; min-width: 0; border: none; outline: none; background: transparent;
+  font-family: 'Figtree', system-ui, sans-serif; font-size: 15px; color: hsl(var(--lp-fg));
+  padding: 13px 0;
+}
+.lp-hero-search-field input::placeholder { color: hsl(var(--lp-dim)); }
+.lp-hero-search-btn {
+  display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;
+  background: var(--lp-gradient-ember); color: #fff; border: none; border-radius: 13px;
+  padding: 0 22px; font-family: 'Figtree', system-ui, sans-serif; font-weight: 700; font-size: 14.5px;
+  cursor: pointer; transition: transform .18s ease, box-shadow .25s ease;
+}
+.lp-hero-search-btn:hover { transform: translateY(-1px); box-shadow: 0 12px 26px -12px hsl(var(--lp-ember) / 0.9); }
+@media (max-width: 640px) {
+  .lp-hero-search { flex-direction: column; padding: 8px; gap: 6px; }
+  .lp-hero-search-field + .lp-hero-search-field { border-left: none; border-top: 1px solid hsl(var(--lp-border-soft)); }
+  .lp-hero-search-btn { width: 100%; justify-content: center; padding: 13px 0; margin-top: 4px; }
+}
+
+/* --- hero live results: real postings sitting directly on the page,
+   not framed as a screenshot of the app. --- */
+.lp-hero-results { margin-top: 34px; max-width: 640px; text-align: left; }
+.lp-hero-results-label { font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: hsl(var(--lp-dim)); margin-bottom: 10px; }
+.lp-hero-result {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 13px;
+  border: 1px solid hsl(var(--lp-border-soft)); background: hsl(var(--lp-card));
+  text-decoration: none; transition: border-color .2s ease, transform .2s ease;
+}
+.lp-hero-result:hover { border-color: hsl(var(--lp-ember) / 0.5); transform: translateY(-2px); }
+.lp-hero-result + .lp-hero-result { margin-top: 8px; }
+.lp-hero-result-avatar {
+  width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-family: 'Outfit', system-ui, sans-serif; font-weight: 700; font-size: 13px; flex-shrink: 0;
+}
+.lp-hero-result-title { font-family: 'Figtree', system-ui, sans-serif; font-weight: 700; font-size: 14px; color: hsl(var(--lp-fg)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-hero-result-meta { font-size: 12px; color: hsl(var(--lp-dim)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-hero-result-new {
+  flex-shrink: 0; font-family: 'Figtree', system-ui, sans-serif; font-size: 10px; font-weight: 700;
+  color: #2f6f5e; background: rgba(63,157,106,0.14); border: 1px solid rgba(63,157,106,0.3);
+  border-radius: 999px; padding: 3px 9px;
+}
 .lp-btn-invert:hover { transform: translateY(-2px); }
 
 /* --- hero --- */
@@ -2136,6 +2191,9 @@ button, a, input, textarea, select {
 .lp-hero-center .lp-lead { text-wrap: balance; margin-inline: auto; }
 .lp-hero-center .lp-cta-row { justify-content: center; }
 .lp-hero-center .lp-hero-art { width: 100%; margin-top: clamp(36px, 6vw, 64px); }
+.lp-hero-center .lp-hero-search,
+.lp-hero-center .lp-hero-results,
+.lp-hero-center .lp-note { margin-inline: auto; }
 @media (max-width: 520px) {
   .lp-switch { width: 100%; }
   .lp-switch-btn { flex: 1; padding-inline: 10px; font-size: 13px; min-height: 44px; }

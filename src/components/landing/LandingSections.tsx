@@ -27,6 +27,7 @@ import { BeforeAfterProof } from './BeforeAfterProof';
 import { KineticHeadline } from './KineticHeadline';
 import { TrustBento } from './TrustBento';
 import { LiveJobsPreview } from './LiveJobsPreview';
+import { HeroJobSearch } from './HeroJobSearch';
 
 type Props = { onStartFree?: (role?: Audience) => void };
 
@@ -311,16 +312,18 @@ const HERO: Record<Audience, {
   art?: JSX.Element;
 }> = {
   job_seeker: {
-    headline: 'Every real job, scored against you.',
-    emphasis: 'Before you write a word.',
-    // v3.204.0 -- SEO/positioning research, Aug 2026: "ghost jobs" is now
-    // a named, widely-recognized term (47-67% of seekers report hitting
-    // one), not just a mechanism to describe. Naming it directly matches
-    // what people are actually searching for and already frustrated by.
-    lead: "No ghost jobs. Company career pages only, refreshed continuously, never LinkedIn or Indeed.",
+    // v3.207.0 -- reported directly: the landing page should work like a
+    // better version of Indeed, a real search a visitor can use right
+    // there, not a page selling a picture of one. "Scored against you"
+    // promised a signed-in feature (a match score needs a resume) as the
+    // very first thing a search returns -- rewritten to say only what a
+    // search actually gives back the instant someone runs it: real
+    // postings, never a ghost listing.
+    headline: 'Search real jobs.',
+    emphasis: 'Never a ghost listing.',
+    lead: "Every posting is pulled straight from the company's own career page, refreshed continuously. Never scraped from LinkedIn or Indeed.",
     cta: 'Start free',
     note: 'You review and send every application yourself. AYN never auto-applies for you.',
-    art: <LiveJobsPreview />,
   },
   employer: {
     headline: 'AI-powered hiring built by engineers,',
@@ -457,15 +460,36 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
 
               <p className="lp-lead" style={{ maxWidth: 660 }}>{hero.lead}</p>
 
-              <div className="lp-cta-row" style={{ marginTop: 30 }}>
-                <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.(audience)}>
-                  {hero.cta} <ArrowRight size={15} />
-                </button>
-                {seeker && (
-                  <a href="#proof" className="lp-quiet-link">See the difference</a>
-                )}
-              </div>
-              <p className="lp-note">{hero.note}</p>
+              {seeker ? (
+                <>
+                  {/* v3.207.0 -- the search bar IS the hero now, not a
+                      preview of one. Submitting lands on the real,
+                      already-built /jobs search with both fields
+                      applied; no account needed to use it. */}
+                  <HeroJobSearch />
+                  <p className="lp-note" style={{ marginTop: 16 }}>
+                    {hero.note} Want AYN to score every job against your resume automatically?{' '}
+                    <button
+                      type="button"
+                      className="lp-quiet-link"
+                      style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
+                      onClick={() => onStartFree?.(audience)}
+                    >
+                      Start free
+                    </button>.
+                  </p>
+                  <LiveJobsPreview />
+                </>
+              ) : (
+                <>
+                  <div className="lp-cta-row" style={{ marginTop: 30 }}>
+                    <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.(audience)}>
+                      {hero.cta} <ArrowRight size={15} />
+                    </button>
+                  </div>
+                  <p className="lp-note">{hero.note}</p>
+                </>
+              )}
             </div>
           </div>
 

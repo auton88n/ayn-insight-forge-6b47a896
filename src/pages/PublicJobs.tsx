@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { SEO } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
@@ -93,8 +93,16 @@ const PublicJobs = () => {
   const cityFilter = locationSlug ? unslugifyCity(locationSlug) : null;
   const categoryLabel = categorySlug ? humanizeCategory(categorySlug) : null;
 
-  const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  // v3.207.0 -- the hero's own real search (HeroJobSearch.tsx) submits
+  // straight into this page via ?q= and ?where=, the two fields of a
+  // real two-box search, Indeed's own pattern. Read once on first mount
+  // only (searchParams isn't re-read on every render, matching how the
+  // hero itself only ever fires this once, on submit).
+  const [searchParams] = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
+  const [whereText, setWhereText] = useState(() => searchParams.get('where') ?? '');
+  const [debouncedWhere, setDebouncedWhere] = useState(whereText);
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -113,6 +121,11 @@ const PublicJobs = () => {
     return () => clearTimeout(t);
   }, [query]);
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedWhere(whereText), 300);
+    return () => clearTimeout(t);
+  }, [whereText]);
+
   const buildQuery = useCallback((withCount: boolean) => {
     let q = supabase
       .from('job_postings')
@@ -126,8 +139,10 @@ const PublicJobs = () => {
     if (cityFilter) q = q.ilike('city', cityFilter);
     const term = safeLike(debouncedQuery);
     if (term) q = q.or(`title.ilike.%${term}%,company.ilike.%${term}%,location.ilike.%${term}%`);
+    const whereTerm = safeLike(debouncedWhere);
+    if (whereTerm) q = q.ilike('location', `%${whereTerm}%`);
     return q;
-  }, [debouncedQuery, categorySlug, cityFilter]);
+  }, [debouncedQuery, debouncedWhere, categorySlug, cityFilter]);
 
   // First page, and every search change.
   useEffect(() => {
@@ -312,14 +327,27 @@ const PublicJobs = () => {
             Every listing is sourced straight from the company that posted it, and pruned within 3 days of going stale.
           </p>
 
-          <div className="mt-8 relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by title, company, or location..."
-              className="pl-9"
-            />
+          <div className="mt-8 flex flex-col sm:flex-row gap-3 max-w-2xl">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Job title, keyword, or company"
+                className="pl-9"
+              />
+            </div>
+            {!cityFilter && (
+              <div className="relative flex-1 sm:max-w-[220px]">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={whereText}
+                  onChange={(e) => setWhereText(e.target.value)}
+                  placeholder="City or remote"
+                  className="pl-9"
+                />
+              </div>
+            )}
           </div>
 
           {/* v3.205.0 -- hub-and-spoke internal linking into the new
