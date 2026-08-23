@@ -25,6 +25,8 @@ import {
   InboxMockup,
 } from './AppMockups';
 import { BeforeAfterProof } from './BeforeAfterProof';
+import { KineticHeadline } from './KineticHeadline';
+import { TrustBento } from './TrustBento';
 
 type Props = { onStartFree?: (role?: Audience) => void };
 
@@ -301,21 +303,28 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
 };
 
 const HERO: Record<Audience, {
-  headline: JSX.Element;
+  headline: string;
+  emphasis?: string;
   lead: string;
   cta: string;
   note: string;
   art?: JSX.Element;
 }> = {
   job_seeker: {
-    headline: <>Every real job, scored against you. <em>Before you write a word.</em></>,
-    lead: "Company career pages only, refreshed continuously. Never LinkedIn or Indeed.",
+    headline: 'Every real job, scored against you.',
+    emphasis: 'Before you write a word.',
+    // v3.204.0 -- SEO/positioning research, Aug 2026: "ghost jobs" is now
+    // a named, widely-recognized term (47-67% of seekers report hitting
+    // one), not just a mechanism to describe. Naming it directly matches
+    // what people are actually searching for and already frustrated by.
+    lead: "No ghost jobs. Company career pages only, refreshed continuously, never LinkedIn or Indeed.",
     cta: 'Start free',
     note: 'You review and send every application yourself. AYN never auto-applies for you.',
     art: <BrowseJobsMockup />,
   },
   employer: {
-    headline: <>AI-powered hiring built by engineers, <em>for modern employers.</em></>,
+    headline: 'AI-powered hiring built by engineers,',
+    emphasis: 'for modern employers.',
     lead: "The smartest way to hunt, screen, and hire top engineering talent.",
     cta: 'Request employer access',
     note: 'Contact stays private until the candidate accepts.',
@@ -444,8 +453,8 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
             </div>
 
             <div className="lp-audience" key={audience}>
-              <h1 className="lp-display lp-h1" style={{ marginTop: 22 }}>{hero.headline}</h1>
-              
+              <KineticHeadline text={hero.headline} emphasis={hero.emphasis} />
+
               <p className="lp-lead" style={{ maxWidth: 660 }}>{hero.lead}</p>
 
               <div className="lp-cta-row" style={{ marginTop: 30 }}>
@@ -471,14 +480,25 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
       {/* Everything below belongs to the chosen audience only. */}
       <div className="lp-audience" key={`body-${audience}`}>
         {/* ── PROOF STRIP ────────────────────────────────────── */}
-        <div className="lp-strip">
-          <div className="lp-shell lp-strip-inner">
-            <span className="lp-strip-label">{strip.label}</span>
-            {strip.marks.map((n) => (
-              <span key={n} className="lp-strip-mark">{n}</span>
-            ))}
+        {seeker ? (
+          // v3.204.0 -- design-audit finding, Aug 2026: the same freshness/
+          // sourcing numbers this flat strip used to state as faint text
+          // were repeated as low-weight cards on two other pages too, none
+          // of them given real visual weight. One bento module, sized by
+          // what actually matters, replaces all three for the seeker side.
+          <div className="lp-shell">
+            <TrustBento />
           </div>
-        </div>
+        ) : (
+          <div className="lp-strip">
+            <div className="lp-shell lp-strip-inner">
+              <span className="lp-strip-label">{strip.label}</span>
+              {strip.marks.map((n) => (
+                <span key={n} className="lp-strip-mark">{n}</span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── BEFORE AND AFTER ───────────────────────────────── */}
         {seeker && (

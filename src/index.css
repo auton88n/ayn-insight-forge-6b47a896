@@ -1790,6 +1790,31 @@ button, a, input, textarea, select {
   .lp-span-2 { grid-column: span 2; }
 }
 
+/* --- stat tiles: the hero trust bento (TrustBento.tsx). Same .lp-bento/
+   .lp-tile/.lp-span-* grid the Features section already uses, a big
+   number + a short line instead of an icon + heading + paragraph. --- */
+.is-stat-bento { margin-top: clamp(28px, 4vw, 40px); }
+.lp-tile.is-stat { gap: 8px; }
+.lp-tile.is-stat.is-lead {
+  background: var(--lp-gradient-ember); border-color: transparent; color: hsl(0 0% 100%);
+}
+.lp-stat-k {
+  font-family: 'Outfit', system-ui, sans-serif; font-weight: 800; letter-spacing: -0.02em;
+  font-size: clamp(26px, 3vw, 34px); font-variant-numeric: tabular-nums;
+}
+.is-lead .lp-stat-k { font-size: clamp(30px, 3.4vw, 40px); }
+.lp-stat-l { font-size: 14.5px; line-height: 1.5; color: hsl(var(--lp-muted)); }
+.is-lead .lp-stat-l { color: hsl(0 0% 100% / 0.88); }
+
+/* --- kinetic headline: words light up on load, replay on hover. Off
+   entirely under prefers-reduced-motion (component renders every word
+   already .is-lit, so this transition never has anything to animate). --- */
+.lp-kinetic-word { display: inline-block; opacity: 0.16; filter: blur(3px); transform: translateY(0.14em); transition: opacity .5s cubic-bezier(.2,.8,.2,1), filter .5s cubic-bezier(.2,.8,.2,1), transform .5s cubic-bezier(.2,.8,.2,1); }
+.lp-kinetic-word.is-lit { opacity: 1; filter: blur(0); transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .lp-kinetic-word { transition: none; opacity: 1; filter: none; transform: none; }
+}
+
 /* --- steps --- */
 .lp-steps { display: grid; gap: 16px; grid-template-columns: 1fr; }
 @media (min-width: 768px) { .lp-steps { grid-template-columns: repeat(3, 1fr); } }
