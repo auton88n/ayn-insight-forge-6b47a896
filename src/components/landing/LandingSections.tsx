@@ -28,6 +28,7 @@ import { KineticHeadline } from './KineticHeadline';
 import { TrustBento } from './TrustBento';
 import { LiveJobsPreview } from './LiveJobsPreview';
 import { HeroJobSearch } from './HeroJobSearch';
+import { HeadToHead } from './HeadToHead';
 
 type Props = { onStartFree?: (role?: Audience) => void };
 
@@ -75,6 +76,33 @@ const PAIN: Record<Audience, { eyebrow: string; title: string; lead: string; who
       'The right people never see your ad.',
       'Confidence on paper proves nothing.',
       'Or you hand it to an agency and pay a cut of the salary to skip the pile.',
+    ],
+  },
+};
+
+// v3.208.0 -- real marketing content, not another feature list. Every
+// line restates a claim already made elsewhere on this page (PAIN,
+// AI_CONTRAST, EASY_HIRING_CHIPS) in the one format that actually
+// persuades: a direct, named comparison, not a description in the
+// abstract.
+const HEAD_TO_HEAD: Record<Audience, { themLabel: string; rows: { them: string; us: string }[] }> = {
+  job_seeker: {
+    themLabel: 'Other job boards',
+    rows: [
+      { them: "Listings pulled in from anywhere, some already filled, some never real to begin with.", us: "Sourced straight from the company's own career page, pruned within 3 days if it's not reconfirmed live." },
+      { them: 'One resume, sent to every posting, competing with hundreds of others.', us: 'A resume rewritten for the one job in front of you, from your real experience.' },
+      { them: 'No idea what you are missing until the rejection arrives.', us: 'See exactly what matches and what is missing before you apply.' },
+      { them: 'Recruiters skim keyword stuffed resumes for seconds.', us: 'Employers see an evidence based profile, gaps stated plainly.' },
+      { them: 'Free to browse, but paid tiers push sponsored listings ahead of real ones.', us: 'Free to search, browse, and check your resume against a job. No account needed.' },
+    ],
+  },
+  employer: {
+    themLabel: 'A recruiter or staffing agency',
+    rows: [
+      { them: "A cut of the new hire's first year salary, often 15 to 25 percent.", us: 'One flat monthly rate, no matter how many people you hire.' },
+      { them: 'Weeks of back and forth before you see a real candidate.', us: 'A shortlist of three people to read, in minutes.' },
+      { them: 'A pile of resumes to sort through yourself.', us: 'Each name comes with its evidence and its gaps already named.' },
+      { them: 'Confidence on paper, unverified until the interview.', us: "A short assessment built from that person's own claims, before you commit." },
     ],
   },
 };
@@ -545,6 +573,13 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                   {pain.lines.map((l) => <li key={l}>{l}</li>)}
                 </ul>
               </div>
+            </div>
+
+            {/* v3.208.0 -- the direct comparison, deliberately a different
+                visual shape from the alternating .lp-split sections that
+                make up most of the rest of this page. */}
+            <div className="lp-reveal" style={{ marginTop: 40 }}>
+              <HeadToHead themLabel={HEAD_TO_HEAD[audience].themLabel} rows={HEAD_TO_HEAD[audience].rows} />
             </div>
           </div>
         </section>

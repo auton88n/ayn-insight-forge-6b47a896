@@ -99,31 +99,40 @@ export function TailoredDocsMockup({ style }: { style?: React.CSSProperties }) {
 }
 
 /* ── 3. Employer candidate card ────────────────────────────── */
+// v3.208.0 -- reported directly: no invented people. A real candidate
+// card can't be shown here honestly -- that data is private, not public
+// like a job posting, so there's no live source to pull from the way
+// LiveJobsPreview does for jobs. Redrawn as a labeled diagram instead of
+// a fake screenshot: every field now names what it IS ("A named,
+// concrete accomplishment"), not a specific invented person, number, or
+// sentence standing in for one. The shape stays -- score ring, why-they-
+// matched, matched skills, stated gaps -- because that structure is real
+// and true of every real card; only the specific, fabricated content
+// underneath it is gone.
 export function CandidateCardMockup({ style }: { style?: React.CSSProperties }) {
   const W = 760, H = 420;
   return (
-    <svg {...a11y} aria-label="An employer candidate card with a match score, evidence, gaps and where each skill came from" viewBox={`0 0 ${W} ${H}`} style={{ ...svgBase, ...style }} preserveAspectRatio="xMidYMid meet">
+    <svg {...a11y} aria-label="A diagram of an employer candidate card: a match score, why they matched, matched skills, and gaps stated plainly" viewBox={`0 0 ${W} ${H}`} style={{ ...svgBase, ...style }} preserveAspectRatio="xMidYMid meet">
       <rect x="0.5" y="0.5" width={W - 1} height={H - 1} rx="18" fill={T.paper} stroke={T.borderMd} />
 
       {/* head */}
-      <circle cx="58" cy="58" r="22" fill="rgba(232,93,58,0.14)" stroke="rgba(232,93,58,0.3)" />
-      <text x="58" y="64" textAnchor="middle" fontFamily={FD} fontSize="16" fontWeight="700" fill={T.emberDeep}>M</text>
-      <text x="92" y="52" fontFamily={FD} fontSize="18" fontWeight="700" fill={T.ink}>Maya</text>
-      <text x="92" y="72" fontFamily={F} fontSize="11.5" fill={T.inkSub}>7 years · Toronto · open to hybrid</text>
+      <circle cx="58" cy="58" r="22" fill="rgba(232,93,58,0.14)" stroke="rgba(232,93,58,0.3)" strokeDasharray="3 3" />
+      <text x="92" y="52" fontFamily={FD} fontSize="15" fontWeight="700" fill={T.inkSub}>A candidate, anonymized</text>
+      <text x="92" y="72" fontFamily={F} fontSize="11.5" fill={T.inkSub} opacity="0.75">Years, location and availability, from their profile</text>
 
       <circle cx="690" cy="58" r="30" fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth="7" />
       <circle cx="690" cy="58" r="30" fill="none" stroke={T.ember} strokeWidth="7" strokeLinecap="round"
-        strokeDasharray={`${2 * Math.PI * 30 * 0.91} ${2 * Math.PI * 30}`} transform="rotate(-90 690 58)" />
-      <text x="690" y="64" textAnchor="middle" fontFamily={FD} fontSize="18" fontWeight="700" fill={T.ink}>91</text>
+        strokeDasharray={`${2 * Math.PI * 30 * 0.7} ${2 * Math.PI * 30}`} transform="rotate(-90 690 58)" />
+      <text x="690" y="63" textAnchor="middle" fontFamily={FD} fontSize="12" fontWeight="700" fill={T.inkSub}>Score</text>
 
       <line x1="28" y1="98" x2={W - 28} y2="98" stroke={T.border} />
 
       {/* why */}
-      <text x="28" y="126" fontFamily={F} fontSize="10" fontWeight="700" fill={T.inkSub} letterSpacing="1">WHY AYN PICKED MAYA</text>
+      <text x="28" y="126" fontFamily={F} fontSize="10" fontWeight="700" fill={T.inkSub} letterSpacing="1">WHY AYN MATCHED THEM</text>
       {[
-        'Led the rebuild of a design system used by four product teams.',
-        'Seven years in React and TypeScript, last used this year.',
-        'Has shipped to the same customer size you are hiring for.',
+        'A named, concrete accomplishment from their real history.',
+        'A specific skill, and how recently they used it.',
+        'Evidence they have worked at the scale you are hiring for.',
       ].map((line, i) => (
         <text key={i} x="28" y={148 + i * 20} fontFamily={F} fontSize="12" fill={T.inkMid}>{line}</text>
       ))}
@@ -131,10 +140,10 @@ export function CandidateCardMockup({ style }: { style?: React.CSSProperties }) 
       {/* matched / gaps columns */}
       <rect x="28" y="214" width="336" height="112" rx="12" fill={T.surface} stroke={T.border} />
       <text x="46" y="238" fontFamily={F} fontSize="10" fontWeight="700" fill={T.inkSub} letterSpacing="1">FROM THEIR RESUME</text>
-      {['React', 'TypeScript', 'Design systems', 'Accessibility'].map((s, i) => {
+      {['Skill, claimed', 'Skill, inferred', 'Skill, claimed', 'Skill, inferred'].map((s, i) => {
         const x = 46 + (i % 2) * 150, y = 252 + Math.floor(i / 2) * 32;
         return (
-          <g key={s}>
+          <g key={`${s}-${i}`}>
             <rect x={x} y={y} width="136" height="24" rx="12" fill="#fff" stroke={T.border} />
             <text x={x + 68} y={y + 16} textAnchor="middle" fontFamily={F} fontSize="11" fill={T.inkMid}>{s}</text>
           </g>
@@ -143,7 +152,7 @@ export function CandidateCardMockup({ style }: { style?: React.CSSProperties }) 
 
       <rect x="396" y="214" width="336" height="112" rx="12" fill="#fff" stroke={T.border} />
       <text x="414" y="238" fontFamily={F} fontSize="10" fontWeight="700" fill={T.inkSub} letterSpacing="1">GAPS, STATED PLAINLY</text>
-      {['No Kubernetes anywhere in their history', 'Team lead title, not manager title'].map((s, i) => (
+      {['Whatever the role needs that they have not shown', 'Named directly, never guessed at'].map((s, i) => (
         <g key={s}>
           <circle cx="420" cy={258 + i * 26} r="4" fill="none" stroke={T.ember} strokeWidth="1.6" />
           <text x="434" y={262 + i * 26} fontFamily={F} fontSize="11.5" fill={T.inkMid}>{s}</text>
@@ -156,7 +165,7 @@ export function CandidateCardMockup({ style }: { style?: React.CSSProperties }) 
       <text x="118" y="376" textAnchor="middle" fontFamily={F} fontSize="12.5" fontWeight="700" fill="#fff">Send an assessment</text>
       <rect x="220" y="352" width="170" height="38" rx="10" fill="none" stroke={T.borderMd} />
       <text x="305" y="376" textAnchor="middle" fontFamily={F} fontSize="12.5" fontWeight="600" fill={T.inkMid}>Send a proposal</text>
-      <text x="410" y="376" fontFamily={F} fontSize="11" fill={T.inkSub}>Email and phone stay private until Maya accepts.</text>
+      <text x="410" y="376" fontFamily={F} fontSize="11" fill={T.inkSub}>Email and phone stay private until they accept.</text>
     </svg>
   );
 }

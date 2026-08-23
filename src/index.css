@@ -1861,13 +1861,19 @@ button, a, input, textarea, select {
 .lp-stat-l { font-size: 14.5px; line-height: 1.5; color: hsl(var(--lp-muted)); }
 .is-lead .lp-stat-l { color: hsl(0 0% 100% / 0.88); }
 
-/* --- kinetic headline: words light up on load, replay on hover. Off
-   entirely under prefers-reduced-motion (component renders every word
-   already .is-lit, so this transition never has anything to animate). --- */
-.lp-kinetic-word { display: inline-block; opacity: 0.16; filter: blur(3px); transform: translateY(0.14em); transition: opacity .5s cubic-bezier(.2,.8,.2,1), filter .5s cubic-bezier(.2,.8,.2,1), transform .5s cubic-bezier(.2,.8,.2,1); }
-.lp-kinetic-word.is-lit { opacity: 1; filter: blur(0); transform: translateY(0); }
+/* --- kinetic headline: words fade up once on load, replay on hover.
+   v3.208.0 -- reported directly against a screenshot: the headline's
+   first letter rendered as a smeared, glitchy swoosh instead of text.
+   Root cause was filter: blur() transitioning on a text glyph -- a real,
+   known CSS risk (blur-on-text compositing is inconsistent across
+   browsers/GPUs and can visibly distort a glyph mid-transition, exactly
+   what got captured). Removed the blur entirely; opacity + a small
+   vertical shift alone is enough motion to read as "reveals in," with
+   zero risk of a letterform ever rendering as anything but a letter. --- */
+.lp-kinetic-word { display: inline-block; opacity: 0.16; transform: translateY(0.14em); transition: opacity .4s ease, transform .4s ease; }
+.lp-kinetic-word.is-lit { opacity: 1; transform: translateY(0); }
 @media (prefers-reduced-motion: reduce) {
-  .lp-kinetic-word { transition: none; opacity: 1; filter: none; transform: none; }
+  .lp-kinetic-word { transition: none; opacity: 1; transform: none; }
 }
 
 /* --- steps --- */
@@ -1886,6 +1892,25 @@ button, a, input, textarea, select {
 }
 .lp-chip { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; padding: 8px 16px; border-radius: 999px; border: 1px solid hsl(var(--lp-border-soft)); background: hsl(var(--lp-fg) / 0.03); font-size: 14px; line-height: 1.2; color: hsl(var(--lp-muted)); }
 .lp-chip svg { flex: none; color: hsl(var(--lp-accent, var(--lp-fg))); opacity: .75; }
+
+/* --- head-to-head comparison: real content, not another feature list.
+   Deliberately a different shape from .lp-split (used everywhere else
+   on this page) so the page doesn't read as the same section repeated. --- */
+.lp-vs { display: grid; grid-template-columns: 1fr 1fr; border-radius: 22px; overflow: hidden; border: 1px solid hsl(var(--lp-border)); box-shadow: var(--lp-shadow-lift); }
+.lp-vs-col { padding: clamp(24px, 3.4vw, 34px) clamp(22px, 3vw, 30px); }
+.lp-vs-them { background: hsl(var(--lp-surface)); }
+.lp-vs-us { background: var(--lp-gradient-ember); }
+.lp-vs-head { font-family: 'Outfit', system-ui, sans-serif; font-weight: 700; font-size: 12.5px; letter-spacing: .07em; text-transform: uppercase; margin-bottom: 18px; }
+.lp-vs-them .lp-vs-head { color: hsl(var(--lp-dim)); }
+.lp-vs-us .lp-vs-head { color: rgba(255,255,255,0.85); }
+.lp-vs-row { display: flex; align-items: flex-start; gap: 10px; font-size: 14.5px; line-height: 1.5; padding: 12px 0; border-top: 1px solid; }
+.lp-vs-row:first-of-type { border-top: none; padding-top: 0; }
+.lp-vs-them .lp-vs-row { color: hsl(var(--lp-muted)); border-color: hsl(var(--lp-border-soft)); }
+.lp-vs-us .lp-vs-row { color: #fff; border-color: rgba(255,255,255,0.18); font-weight: 500; }
+.lp-vs-row svg { flex-shrink: 0; margin-top: 2px; }
+.lp-vs-them .lp-vs-row svg { color: hsl(var(--lp-dim)); }
+.lp-vs-us .lp-vs-row svg { color: #fff; }
+@media (max-width: 680px) { .lp-vs { grid-template-columns: 1fr; } .lp-vs-them { order: 2; } .lp-vs-us { order: 1; } }
 @media (max-width: 520px) { .lp-chip { white-space: normal; } }
 
 /* --- faq --- */
