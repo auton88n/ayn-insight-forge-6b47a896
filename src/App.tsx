@@ -141,6 +141,8 @@ const AnimatedRoutes = () => {
       <Route path="/contact" element={<Suspense fallback={<PageLoader />}><ContactPage /></Suspense>} />
       <Route path="/check-resume" element={<Suspense fallback={<PageLoader />}><CheckResumePage /></Suspense>} />
       <Route path="/jobs" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
+      <Route path="/jobs/category/:category" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
+      <Route path="/jobs/location/:location" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
       <Route path="/jobs/:id" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
       <Route path="/resume-hub" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />

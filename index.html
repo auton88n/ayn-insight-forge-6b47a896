@@ -12,6 +12,16 @@
     <link rel="icon" href="/ayn-mark.svg?v=6" type="image/svg+xml">
     <link rel="alternate icon" href="/favicon.png?v=6" type="image/png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=6">
+    <!-- v3.205.0 -- these two are the pre-JS/no-JS fallback only. Every
+         real page's own <SEO> component (src/components/shared/SEO.tsx)
+         removes both of these on mount (react-helmet-async manages tags
+         it renders itself but has no way to know a raw static tag like
+         this even exists, so it never replaced these -- confirmed live,
+         every route was carrying two competing description tags, and six
+         real pages with no explicit canonical of their own were
+         inheriting this literal href, telling Google their canonical
+         version IS the homepage). See SEO.tsx's own comment for the
+         full story and why the fix lives there, not here. -->
     <link rel="canonical" href="https://ayn.careers/" />
     <meta name="description" content="AYN sources real jobs straight from company career pages, never LinkedIn or Indeed, so you never waste an application on a ghost job. Score the match, then get a tailored resume and cover letter from your real history. Nothing invented.">
     <meta name="author" content="AYN" />

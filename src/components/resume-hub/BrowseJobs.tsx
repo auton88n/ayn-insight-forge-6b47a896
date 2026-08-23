@@ -91,7 +91,7 @@ function humanizeSlug(s: string) {
 // knowing "AI" is an acronym -- confirmed live as "Aiinfrastructure
 // Operations," a genuine quirk of one company's own internal naming, not
 // something guessable from the slug alone.
-function humanizeCategory(s: string) {
+export function humanizeCategory(s: string) {
   return s
     .replace(/_/g, " ")
     .replace(/&/g, " and ")

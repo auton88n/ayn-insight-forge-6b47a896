@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 
 interface SEOProps {
@@ -30,8 +31,43 @@ export const SEO = ({
   const canonicalUrl = canonical ? `${SITE_URL}${canonical}` : undefined;
   const ogLocale = language === 'ar' ? 'ar_SA' : language === 'fr' ? 'fr_FR' : 'en_US';
 
+  // v3.205.0 -- index.html ships a static <link rel="canonical"> and
+  // <meta name="description"> as a pre-JS/no-JS fallback (a real crawler
+  // or link-unfurler that never runs JavaScript still needs something).
+  // react-helmet-async only ever manages tags it renders itself -- it has
+  // no way to know a raw static tag baked into the served HTML exists at
+  // all, so it was never replacing these, only adding alongside them.
+  // Confirmed live: every route carried two competing description tags,
+  // and worse, every page with no explicit `canonical` prop of its own
+  // was silently inheriting the static tag's literal href pointing at
+  // the homepage -- telling Google that page's canonical version IS "/",
+  // a real de-indexing risk. Helmet marks every tag it renders with
+  // data-rh="true"; removing anything WITHOUT that marker, once, on the
+  // first real SEO mount, leaves exactly one of each behind from then on
+  // and needs no change to index.html or to any of the 15 call sites.
+  useEffect(() => {
+    document.querySelectorAll('link[rel="canonical"]:not([data-rh])').forEach((el) => el.remove());
+    document.querySelectorAll('meta[name="description"]:not([data-rh])').forEach((el) => el.remove());
+    // index.html's own static robots tag is always "index, follow" -- fine
+    // as the default, but a real conflict on a page that sets noIndex:
+    // confirmed live, a thin category/location hub correctly grew its own
+    // "noindex, nofollow" tag while the static "index, follow" one sat
+    // right alongside it, unmanaged, undermined. Same fix, same reason.
+    document.querySelectorAll('meta[name="robots"]:not([data-rh])').forEach((el) => el.remove());
+  }, []);
+
   return (
-    <Helmet>
+    // v3.205.0 -- found live on routes that re-render several times in
+    // quick succession while their own data loads (/jobs and /jobs/:id,
+    // each with 2-3 chained fetch effects): Helmet's default behavior
+    // defers its real DOM commit to a requestAnimationFrame batch, and a
+    // fast-enough stream of new renders kept rescheduling that batch
+    // before it ever fired -- confirmed live, the component's own props
+    // (checked directly) were correct on every render, only the actual
+    // <head> tags never landed. defer={false} is Helmet's own documented
+    // opt-out of that batching, committing synchronously on every render
+    // instead: the fix, not a workaround.
+    <Helmet defer={false}>
       {/* Basic Meta Tags */}
       <title>{fullTitle}</title>
       <meta name="description" content={description} />

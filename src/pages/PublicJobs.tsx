@@ -11,9 +11,57 @@ import { AuthModal } from '@/components/auth/AuthModal';
 import type { JobPosting } from '@/lib/resumeHub';
 import {
   companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike,
-  JobDescriptionBody, EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS,
+  JobDescriptionBody, EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeCategory,
 } from '@/components/resume-hub/BrowseJobs';
-import { Search, ExternalLink, ShieldCheck, Loader2, Sparkles, MapPin, Briefcase } from 'lucide-react';
+import { Search, ExternalLink, ShieldCheck, Loader2, Sparkles, MapPin, Briefcase, ArrowLeft } from 'lucide-react';
+
+// v3.205.0 -- the positioning brief's Tier 2: category and location pages,
+// the actual page types job boards rank for, that this table's real
+// category/city data was already sitting on top of unused. A location
+// slug is derived from the real city text (lowercase, spaces to hyphens);
+// there's no slug column to round-trip, so the reverse direction just
+// un-hyphenates for an ILIKE match rather than a stored lookup table --
+// safe here because the real city values are already plain names with no
+// punctuation (confirmed live: "New York City", "San Francisco", ...).
+// category is used as-is: job_postings.category IS already a slug
+// (freehire's own enrichment field / ats-direct-sync's toSlug()), so no
+// conversion is needed in either direction.
+function slugifyCity(city: string): string {
+  return city.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+function unslugifyCity(slug: string): string {
+  // Real, live city values are already properly cased ("Austin", "New
+  // York City") -- title-casing here matches that in the common case, so
+  // the header copy reads right even before the real row data (whose own
+  // `city` field is the actual source of truth) has loaded.
+  return slug.replace(/-+/g, ' ').trim().split(' ')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+// v3.205.0 -- the exact number the programmatic-SEO research names: don't
+// let Google index a page with fewer than 5 real, live listings behind it
+// -- a thin page drains the whole site's quality signal. The page still
+// renders normally for a human who lands on it directly; noIndex only
+// tells a crawler not to treat it as a real destination yet.
+const MIN_INDEXABLE_LISTINGS = 5;
+
+// v3.205.0 -- hub-and-spoke internal linking, the other half of the
+// programmatic-SEO playbook: a crawler (and a real visitor) needs a path
+// INTO these new pages, not just a URL that resolves if you already know
+// it. Real category slugs and city names, confirmed live against the
+// actual table rather than guessed (each one comfortably clears
+// MIN_INDEXABLE_LISTINGS by a wide margin -- the smallest here still had
+// 150+ real rows). A curated, hand-picked set rather than a live query
+// against distinct values: this list changes slowly in practice, and a
+// public-page discovery strip isn't worth a second Supabase round trip.
+const BROWSE_CATEGORIES = [
+  'software_engineering', 'sales', 'marketing', 'design', 'data_analytics',
+  'product', 'operations', 'finance', 'customer_success', 'devops',
+];
+const BROWSE_CITIES = [
+  'New York City', 'San Francisco', 'Austin', 'Toronto', 'Boston',
+  'Chicago', 'Los Angeles', 'Seattle',
+];
 
 const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
 const PAGE_SIZE = 25;
@@ -38,8 +86,12 @@ const COLS = 'id, source, company, company_slug, company_logo_url, title, descri
 // browse, read the full posting, and apply -- the same honest floor every
 // real public job board offers before asking for an account.
 const PublicJobs = () => {
-  const { id: routeId } = useParams<{ id?: string }>();
+  const { id: routeId, category: categorySlug, location: locationSlug } = useParams<{
+    id?: string; category?: string; location?: string;
+  }>();
   const navigate = useNavigate();
+  const cityFilter = locationSlug ? unslugifyCity(locationSlug) : null;
+  const categoryLabel = categorySlug ? humanizeCategory(categorySlug) : null;
 
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -70,10 +122,12 @@ const PublicJobs = () => {
       // already enforces this, this just keeps the query itself honest
       // about what it's asking for.
       .or('scam_suspected.is.null,scam_suspected.eq.false');
+    if (categorySlug) q = q.eq('category', categorySlug);
+    if (cityFilter) q = q.ilike('city', cityFilter);
     const term = safeLike(debouncedQuery);
     if (term) q = q.or(`title.ilike.%${term}%,company.ilike.%${term}%,location.ilike.%${term}%`);
     return q;
-  }, [debouncedQuery]);
+  }, [debouncedQuery, categorySlug, cityFilter]);
 
   // First page, and every search change.
   useEffect(() => {
@@ -119,7 +173,17 @@ const PublicJobs = () => {
   };
 
   const jsonLd = useMemo(() => {
-    if (!selected) return undefined;
+    // v3.205.0 -- a real, if subtle, pre-existing bug found while adding
+    // category/location pages: this used to key off `selected`, which
+    // auto-populates to the list's own first row even on the plain /jobs
+    // hub (and would have done the same on every new category/location
+    // hub page) -- meaning JobPosting schema was being injected on a
+    // LISTING page, which Google's own docs are explicit is wrong:
+    // "Google requires JobPosting schema on individual job pages only.
+    // Never on search results, category, or list pages." Gated on
+    // routeId instead -- true only when the URL itself is a real
+    // /jobs/:id, matching what the canonical tag below also asserts.
+    if (!selected || !routeId) return undefined;
     // v3.203.0 -- Google's own JobPosting docs, read directly rather than
     // guessed at: validThrough is recommended, and its absence isn't a
     // gap most job boards think about, but AYN has a real, honest answer
@@ -176,29 +240,72 @@ const PublicJobs = () => {
         },
       } : {}),
     };
-  }, [selected]);
+  }, [selected, routeId]);
 
-  const pageTitle = selected ? `${selected.title} at ${selected.company}` : 'Browse Real Jobs';
-  const pageDescription = selected
+  // v3.205.0 -- SEO identity now branches in priority order: a real
+  // individual job (routeId set) first, then a category or location hub,
+  // then the plain /jobs hub. Deliberately not keyed off `selected` --
+  // see the jsonLd comment above for why that was wrong.
+  const pageTitle = routeId && selected
+    ? `${selected.title} at ${selected.company}`
+    : categoryLabel
+      ? `${categoryLabel} Jobs`
+      : cityFilter
+        ? `Jobs in ${cityFilter}`
+        : 'Browse Real Jobs';
+  const pageDescription = routeId && selected
     ? `${selected.title} at ${selected.company}${selected.location ? `, ${selected.location}` : ''}. Sourced directly from the company's own career page.`
-    : "Real postings sourced directly from company career pages, never LinkedIn or Indeed. Search and read the full posting free, no account needed.";
+    : categoryLabel
+      ? `Real ${categoryLabel.toLowerCase()} jobs, sourced directly from company career pages. Never LinkedIn or Indeed. Free to search, no account needed.`
+      : cityFilter
+        ? `Real jobs in ${cityFilter}, sourced directly from company career pages. Never LinkedIn or Indeed. Free to search, no account needed.`
+        : "Real postings sourced directly from company career pages, never LinkedIn or Indeed. Search and read the full posting free, no account needed.";
+  const canonicalPath = routeId && selected
+    ? `/jobs/${selected.id}`
+    : categorySlug
+      ? `/jobs/category/${categorySlug}`
+      : locationSlug
+        ? `/jobs/location/${locationSlug}`
+        : '/jobs';
+  // Programmatic-SEO research, Aug 2026: never let a crawler index a
+  // category/location page with fewer than MIN_INDEXABLE_LISTINGS real
+  // listings behind it -- a thin page drags down the whole site's
+  // quality signal. Only applies to the hub pages this pass adds; the
+  // plain /jobs page and a real individual job are never gated.
+  const isThinHub = (categorySlug || locationSlug) && !loading && total < MIN_INDEXABLE_LISTINGS;
 
   return (
     <>
       <SEO
         title={pageTitle}
         description={pageDescription}
-        canonical={selected ? `/jobs/${selected.id}` : '/jobs'}
+        canonical={canonicalPath}
         jsonLd={jsonLd}
+        noIndex={!!isThinHub}
       />
       <div className="contact-surface min-h-screen bg-background">
         <Header />
 
         <main className="container mx-auto max-w-6xl px-4 sm:px-6 pt-28 sm:pt-32 pb-24">
+          {(categoryLabel || cityFilter) && (
+            <button
+              type="button"
+              onClick={() => navigate('/jobs')}
+              className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> All jobs
+            </button>
+          )}
           <span className="inline-block h-1 w-14 rounded-full mb-6" style={{ background: EMBER }} aria-hidden="true" />
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Browse real jobs</h1>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
+            {categoryLabel ? `${categoryLabel} jobs` : cityFilter ? `Jobs in ${cityFilter}` : 'Browse real jobs'}
+          </h1>
           <p className="mt-3 text-lg text-muted-foreground max-w-2xl">
-            Sourced directly from company career pages, never LinkedIn or Indeed. No account needed to search and read the full posting.
+            {categoryLabel
+              ? `Real ${categoryLabel.toLowerCase()} roles, sourced directly from company career pages. Never LinkedIn or Indeed.`
+              : cityFilter
+                ? `Real jobs based in ${cityFilter}, sourced directly from company career pages. Never LinkedIn or Indeed.`
+                : 'Sourced directly from company career pages, never LinkedIn or Indeed. No account needed to search and read the full posting.'}
           </p>
           <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
             <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: '#2f6f5e' }} />
@@ -214,6 +321,36 @@ const PublicJobs = () => {
               className="pl-9"
             />
           </div>
+
+          {/* v3.205.0 -- hub-and-spoke internal linking into the new
+              category/location pages, shown only on the plain hub so a
+              leaf page's own "All jobs" link is the way back, not a
+              second copy of this same strip. */}
+          {!categoryLabel && !cityFilter && (
+            <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <span className="text-muted-foreground shrink-0">Browse:</span>
+              {BROWSE_CATEGORIES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => navigate(`/jobs/category/${c}`)}
+                  className="text-muted-foreground hover:text-[#e85d3a] underline underline-offset-2 decoration-transparent hover:decoration-current"
+                >
+                  {humanizeCategory(c)}
+                </button>
+              ))}
+              {BROWSE_CITIES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => navigate(`/jobs/location/${slugifyCity(c)}`)}
+                  className="text-muted-foreground hover:text-[#e85d3a] underline underline-offset-2 decoration-transparent hover:decoration-current"
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="mt-8 grid lg:grid-cols-[380px_1fr] gap-8">
             {/* List */}
