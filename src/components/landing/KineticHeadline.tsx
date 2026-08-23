@@ -2,17 +2,38 @@
  * KineticHeadline — the hero headline reveals word by word instead of
  * sitting static on load, and replays on hover.
  *
- * Design-audit finding (Aug 2026): AYN's type is bold but never moves,
- * while 2026's own research names reactive, scroll/hover-responsive type
- * as the defining typographic move of the year. This is the cheapest,
- * highest-visibility version of that fix — same real headline text, same
- * font, same size, just given a reason to keep looking at it.
+ * v3.211.0 -- rebuilt after the v3.208.0 blur fix didn't hold: the same
+ * smeared-letter glitch on "Search" was reported again, twice, on the
+ * live site with the blur already removed. Two real, compounding causes,
+ * both from the same root habit: putting the separating space INSIDE
+ * each word's own `display: inline-block` span, as trailing content
+ * right before the closing tag.
  *
- * Respects prefers-reduced-motion: the words render fully lit, no stagger,
- * no hover replay, matching the site's existing .lp-reveal fallback for
- * IntersectionObserver-less environments.
+ * One, .lp-h1's own `text-wrap: balance` forces the browser to recompute
+ * line-balancing against the current text -- the old version grew the
+ * revealed text one word at a time via a JS setInterval driving React
+ * state, so that recompute was firing on every word added mid-animation,
+ * not once, fighting a live opacity/transform transition on the same
+ * glyphs. Fixed by never growing the DOM incrementally: the full, final
+ * text is present from the very first paint (so balance computes exactly
+ * once, like any static heading), and each word's reveal is a pure CSS
+ * animation (animation-delay staggers them) instead of a JS class
+ * mutation.
+ *
+ * Two, confirmed live after that fix: a trailing space as the LAST thing
+ * inside an inline-block span, immediately followed by another
+ * inline-block span with no whitespace between them in the source (which
+ * is exactly what JSX's array-mapped output produces), is not reliably
+ * preserved -- confirmed live as "Searchrealjobs." rendering with the
+ * words run together, no space at all. That same unreliable boundary is
+ * the more likely real explanation for the original glyph-fragment
+ * report too, not the animation. Fixed by making the space its own
+ * sibling text node BETWEEN the two spans instead of trailing content
+ * inside one of them -- normal inter-element whitespace, which every
+ * browser preserves the same, ordinary way it always handles text.
  */
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useState } from 'react';
+import type { ReactNode } from 'react';
 
 type Props = {
   text: string;
@@ -24,76 +45,42 @@ function splitWords(s: string): string[] {
   return s.split(/\s+/).filter(Boolean);
 }
 
+// Each word its own animated span; the space between two words is a plain
+// sibling text node, never trailing content inside a span.
+function renderWords(words: string[], startIdx: number): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  words.forEach((w, i) => {
+    const wordIdx = startIdx + i;
+    nodes.push(
+      <span key={`w-${wordIdx}`} className="lp-kinetic-word" style={{ animationDelay: `${wordIdx * 90}ms` }}>
+        {w}
+      </span>,
+    );
+    if (i < words.length - 1) nodes.push(' ');
+  });
+  return nodes;
+}
+
 export const KineticHeadline = memo(({ text, emphasis, className }: Props) => {
-  const ref = useRef<HTMLHeadingElement>(null);
-  const [lit, setLit] = useState(-1);
+  // Bumping this remounts the heading, which restarts every word's CSS
+  // animation-delay from zero -- the hover "replay" effect, with no manual
+  // animation-restart bookkeeping needed.
+  const [playKey, setPlayKey] = useState(0);
   const words = splitWords(text);
   const emphasisWords = emphasis ? splitWords(emphasis) : [];
-  const total = words.length + emphasisWords.length;
-
-  const reducedMotion = typeof window !== 'undefined'
-    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
-  useEffect(() => {
-    if (reducedMotion) {
-      setLit(total);
-      return;
-    }
-    let i = -1;
-    const id = window.setInterval(() => {
-      i += 1;
-      setLit(i);
-      if (i >= total) window.clearInterval(id);
-    }, 90);
-    return () => window.clearInterval(id);
-    // Runs once on mount only -- a hero headline plays once when the page
-    // loads, replay is the hover handler below, not a re-run of this effect.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const replay = () => {
-    if (reducedMotion) return;
-    let i = -1;
-    setLit(-1);
-    const id = window.setInterval(() => {
-      i += 1;
-      setLit(i);
-      if (i >= total) window.clearInterval(id);
-    }, 70);
-  };
-
-  let idx = -1;
 
   return (
     <h1
-      ref={ref}
+      key={playKey}
       className={`lp-display lp-h1 lp-kinetic ${className || ''}`}
       style={{ marginTop: 22 }}
-      onMouseEnter={replay}
+      onMouseEnter={() => setPlayKey((k) => k + 1)}
     >
-      {words.map((w, i) => {
-        idx += 1;
-        const isLit = reducedMotion || idx <= lit;
-        return (
-          <span key={`w-${i}`} className={`lp-kinetic-word ${isLit ? 'is-lit' : ''}`}>
-            {w}{i < words.length - 1 ? ' ' : ''}
-          </span>
-        );
-      })}
+      {renderWords(words, 0)}
       {emphasisWords.length > 0 && (
         <>
           {' '}
-          <em>
-            {emphasisWords.map((w, i) => {
-              idx += 1;
-              const isLit = reducedMotion || idx <= lit;
-              return (
-                <span key={`e-${i}`} className={`lp-kinetic-word ${isLit ? 'is-lit' : ''}`}>
-                  {w}{i < emphasisWords.length - 1 ? ' ' : ''}
-                </span>
-              );
-            })}
-          </em>
+          <em>{renderWords(emphasisWords, words.length)}</em>
         </>
       )}
     </h1>

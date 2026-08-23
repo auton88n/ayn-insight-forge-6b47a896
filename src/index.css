@@ -1873,10 +1873,18 @@ button, a, input, textarea, select {
    what got captured). Removed the blur entirely; opacity + a small
    vertical shift alone is enough motion to read as "reveals in," with
    zero risk of a letterform ever rendering as anything but a letter. --- */
-.lp-kinetic-word { display: inline-block; opacity: 0.16; transform: translateY(0.14em); transition: opacity .4s ease, transform .4s ease; }
-.lp-kinetic-word.is-lit { opacity: 1; transform: translateY(0); }
+/* v3.211.0 -- a pure CSS, one-shot animation instead of a JS-driven class
+   toggle. The full word is in the DOM and laid out from the first frame
+   (see KineticHeadline.tsx for why that matters for text-wrap: balance);
+   animation-delay staggers each word's own reveal, still opacity and
+   transform only. */
+@keyframes lpKineticIn {
+  from { opacity: 0.16; transform: translateY(0.14em); }
+  to { opacity: 1; transform: none; }
+}
+.lp-kinetic-word { display: inline-block; animation: lpKineticIn .4s ease both; }
 @media (prefers-reduced-motion: reduce) {
-  .lp-kinetic-word { transition: none; opacity: 1; transform: none; }
+  .lp-kinetic-word { animation: none; opacity: 1; transform: none; }
 }
 
 /* --- steps --- */
