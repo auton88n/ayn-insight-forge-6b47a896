@@ -268,54 +268,12 @@ export function ShortlistMockup({ style }: { style?: React.CSSProperties }) {
   );
 }
 
-/* ── 6. Browse jobs, sourced automatically ─────────────────── */
-export function BrowseJobsMockup({ style }: { style?: React.CSSProperties }) {
-  const W = 900, H = 420;
-  const jobs: { initial: string; title: string; meta: string; score: number; isNew: boolean }[] = [
-    { initial: 'A', title: 'Senior Frontend Engineer', meta: 'Acme · Toronto, hybrid', score: 88, isNew: true },
-    { initial: 'H', title: 'Product Designer', meta: 'Halcyon · Remote, Canada', score: 74, isNew: true },
-    { initial: 'N', title: 'Staff Backend Engineer', meta: 'Northline · Austin, hybrid', score: 65, isNew: false },
-    { initial: 'C', title: 'Engineering Manager', meta: 'Cobalt · New York, onsite', score: 52, isNew: false },
-  ];
-  return (
-    <svg {...a11y} aria-label="A feed of real job postings, sourced automatically, each with a quick match score" viewBox={`0 0 ${W} ${H}`} style={{ ...svgBase, ...style }} preserveAspectRatio="xMidYMid meet">
-      <rect x="0.5" y="0.5" width={W - 1} height={H - 1} rx="16" fill={T.paper} stroke={T.borderMd} />
-      <clipPath id="mk6"><rect x="0" y="0" width={W} height={H} rx="16" /></clipPath>
-      <g clipPath="url(#mk6)">
-        <AppChrome label="Browse jobs" w={W} />
-
-        <text x="30" y="66" fontFamily={FD} fontSize="17" fontWeight="700" fill={T.ink}>Real postings, refreshed automatically</text>
-        <text x="30" y="86" fontFamily={F} fontSize="11.5" fill={T.inkSub}>Company career pages only. Never LinkedIn or Indeed.</text>
-
-        {jobs.map((j, i) => {
-          const y = 110 + i * 74;
-          return (
-            <g key={j.title}>
-              <rect x="30" y={y} width={W - 60} height="62" rx="12" fill={i === 0 ? T.surface : '#fff'} stroke={T.border} />
-              <circle cx="66" cy={y + 31} r="18" fill="rgba(232,93,58,0.14)" stroke="rgba(232,93,58,0.3)" />
-              <text x="66" y={y + 36} textAnchor="middle" fontFamily={FD} fontSize="13" fontWeight="700" fill={T.emberDeep}>{j.initial}</text>
-
-              <text x="98" y={y + 26} fontFamily={FD} fontSize="14" fontWeight="700" fill={T.ink}>{j.title}</text>
-              {j.isNew && (
-                <>
-                  <rect x="98" y={y + 34} width="40" height="16" rx="8" fill="rgba(63,157,106,0.14)" stroke="rgba(63,157,106,0.35)" />
-                  <text x="118" y={y + 46} textAnchor="middle" fontFamily={F} fontSize="9" fontWeight="700" fill={T.green}>NEW</text>
-                  <text x="146" y={y + 46} fontFamily={F} fontSize="11" fill={T.inkSub}>{j.meta}</text>
-                </>
-              )}
-              {!j.isNew && (
-                <text x="98" y={y + 46} fontFamily={F} fontSize="11" fill={T.inkSub}>{j.meta}</text>
-              )}
-
-              <rect x={W - 130} y={y + 15} width="64" height="32" rx="10" fill="#fff" stroke={T.borderMd} />
-              <text x={W - 98} y={y + 36} textAnchor="middle" fontFamily={FD} fontSize="14" fontWeight="700" fill={T.ink}>{j.score}<tspan fontSize="9" fontWeight="600" fill={T.inkSub}>%</tspan></text>
-            </g>
-          );
-        })}
-      </g>
-    </svg>
-  );
-}
+// v3.206.0 -- BrowseJobsMockup deleted. It was a hand-authored SVG
+// showing invented companies ("Acme," "Halcyon," "Northline," "Cobalt")
+// and invented match percentages, in a product whose entire pitch is
+// "nothing invented." Replaced by LiveJobsPreview.tsx, fed by AYN's own
+// real, live job_postings data through the same anon-readable query
+// TrustBento.tsx already proved out.
 
 /* ── 7. The inbox: safe, screened, employer controlled ─────── */
 export function InboxMockup({ style }: { style?: React.CSSProperties }) {

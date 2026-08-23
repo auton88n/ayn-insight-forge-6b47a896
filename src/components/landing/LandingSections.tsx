@@ -21,12 +21,12 @@ import {
   CandidateCardMockup,
   AssessmentMockup,
   ShortlistMockup,
-  BrowseJobsMockup,
   InboxMockup,
 } from './AppMockups';
 import { BeforeAfterProof } from './BeforeAfterProof';
 import { KineticHeadline } from './KineticHeadline';
 import { TrustBento } from './TrustBento';
+import { LiveJobsPreview } from './LiveJobsPreview';
 
 type Props = { onStartFree?: (role?: Audience) => void };
 
@@ -320,7 +320,7 @@ const HERO: Record<Audience, {
     lead: "No ghost jobs. Company career pages only, refreshed continuously, never LinkedIn or Indeed.",
     cta: 'Start free',
     note: 'You review and send every application yourself. AYN never auto-applies for you.',
-    art: <BrowseJobsMockup />,
+    art: <LiveJobsPreview />,
   },
   employer: {
     headline: 'AI-powered hiring built by engineers,',
@@ -531,7 +531,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
             <div className="lp-shell">
               <div className="lp-split lp-reveal">
                 <div className="lp-art lp-art-plain">
-                  <BrowseJobsMockup />
+                  <LiveJobsPreview />
                 </div>
                 <div>
                   <p className="lp-eyebrow">Where the jobs come from</p>
