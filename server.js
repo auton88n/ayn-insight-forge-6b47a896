@@ -82,6 +82,79 @@ app.use(express.static(DIST, {
   },
 }));
 
+// v3.202.0 — real, individually-crawlable content (~23,000 job postings
+// right now) that no sitemap has ever listed. A static file can't hold
+// these: the catalog changes constantly (a posting is pruned within 3
+// days of going stale — see job-board-sync's FRESHNESS_DAYS), so this
+// queries job_postings live, the exact same public, scam-excluded anon
+// read the /jobs page itself already uses (job_postings_select_anon RLS
+// policy, v3.201.0) — no new backend surface, no new risk. Capped at
+// 45,000 rows, a safety margin under the sitemap protocol's real
+// 50,000-URL ceiling; today's real count is well under half that.
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY
+  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg2ODg5MDQyLCJleHAiOjIxMDIyNDkwNDJ9.AmUVtzKLnrXO_ubBNxSDCBDnI7jJyNkGfK9p7nrzkGI';
+
+let jobsSitemapCache = { xml: null, at: 0 };
+// A crawler refetching more often than this is rare, and this only ever
+// protects the database from repeat load on a hot crawl — a posting stays
+// live for days, so 10 minutes of sitemap staleness never matters.
+const JOBS_SITEMAP_CACHE_MS = 10 * 60 * 1000;
+
+function escapeXml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+app.get('/sitemap-jobs.xml', async (req, res) => {
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  const now = Date.now();
+  if (jobsSitemapCache.xml && now - jobsSitemapCache.at < JOBS_SITEMAP_CACHE_MS) {
+    res.send(jobsSitemapCache.xml);
+    return;
+  }
+  try {
+    // PostgREST caps rows per request at its own configured max (1000 on
+    // this instance) regardless of the "limit" query param requested --
+    // confirmed live testing this route: asking for 45,000 silently came
+    // back as exactly 1,000. Page through with the Range header instead,
+    // up to the same 45,000 safety cap.
+    const PAGE = 1000;
+    const CAP = 45000;
+    const rows = [];
+    for (let offset = 0; offset < CAP; offset += PAGE) {
+      const url = `${SUPABASE_ORIGIN}/rest/v1/job_postings`
+        + `?select=id,posted_at&order=posted_at.desc`
+        + `&or=(scam_suspected.is.null,scam_suspected.eq.false)`;
+      const r = await fetch(url, {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Range: `${offset}-${offset + PAGE - 1}`,
+        },
+      });
+      if (!r.ok) throw new Error(`job_postings fetch failed: ${r.status}`);
+      const page = await r.json();
+      rows.push(...page);
+      if (page.length < PAGE) break;
+    }
+    const urls = rows.map((j) => (
+      `  <url>\n`
+      + `    <loc>https://ayn.careers/jobs/${escapeXml(j.id)}</loc>\n`
+      + `    <lastmod>${new Date(j.posted_at).toISOString().slice(0, 10)}</lastmod>\n`
+      + `    <changefreq>daily</changefreq>\n`
+      + `    <priority>0.6</priority>\n`
+      + `  </url>`
+    )).join('\n');
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+    jobsSitemapCache = { xml, at: now };
+    res.send(xml);
+  } catch (err) {
+    console.error('sitemap-jobs.xml failed:', err.message);
+    // Fail safe: a valid, empty sitemap rather than a 500 a crawler might
+    // hold against the whole site's crawl health.
+    res.send('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n');
+  }
+});
+
 // Every real route in src/App.tsx. Anything not in here is a genuine 404,
 // so we still serve the SPA shell but with a 404 status, otherwise Google
 // indexes every junk path as a live page.

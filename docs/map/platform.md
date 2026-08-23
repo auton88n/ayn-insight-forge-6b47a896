@@ -1,3 +1,11 @@
+# v3.203.0 JobPosting structured data hardened against Google's own documented requirements
+
+Full writeup lives in CLAUDE.md's own v3.203.0 entry. `/jobs/:id`'s `jsonLd` (`PublicJobs.tsx`) now sets `validThrough` (posted_at + `FRESHNESS_DAYS`, a real expiry, not invented), `jobLocationType: 'TELECOMMUTE'` + `applicantLocationRequirements` for `work_mode === 'remote'` postings (Google's own docs name a missing TELECOMMUTE flag as the most common real-world JobPosting error), `directApply: false` (accurate — AYN always sends the applicant to the employer's own site), and a real `identifier`. Verified live against the actual rendered `application/ld+json` tag, not assumed from the code.
+
+# v3.202.0 SEO cleanup finished and shipped: stale Chrome-extension copy removed, a live per-job sitemap added
+
+Full writeup lives in CLAUDE.md's own v3.202.0 entry. `index.html`'s structured data no longer describes the retired Chrome extension. New `/sitemap-jobs.xml` route in `server.js`, generated live from the same public anon-readable `job_postings` query `/jobs` itself uses, paginated past PostgREST's 1,000-row-per-request cap, cached 10 minutes. `robots.txt`/`sitemap.xml` updated to point at it and at `/check-resume`/`/jobs`. Verified live against the real production database (23,375 real URLs, valid XML) before shipping.
+
 # v3.191.0 All remaining flat-colored employer primary buttons brought onto the seeker side's gradient treatment
 
 Full writeup lives in CLAUDE.md's own v3.191.0 entry. 7 primary `<Button>`s across `IntakeWizard.tsx`, `AssessmentDialog.tsx` and `EmployerHub.tsx` were still falling through to `.resume-hub-theme button.bg-foreground`'s flat `--rh-accent` fallback fill instead of the explicit `style={{ background: "var(--rh-gradient)", boxShadow: "var(--rh-glow)" }}` override every seeker-side primary CTA already carries. All 7 now match. Outline/ghost/icon buttons on both surfaces were already consistent — the mismatch was primary buttons only.

@@ -120,13 +120,42 @@ const PublicJobs = () => {
 
   const jsonLd = useMemo(() => {
     if (!selected) return undefined;
+    // v3.203.0 -- Google's own JobPosting docs, read directly rather than
+    // guessed at: validThrough is recommended, and its absence isn't a
+    // gap most job boards think about, but AYN has a real, honest answer
+    // most sites don't -- job-board-sync's FRESHNESS_DAYS (3) is exactly
+    // when this listing gets pruned from job_postings if it isn't
+    // reconfirmed live, so posted_at + 3 days is a real expiry, not a
+    // guess. jobLocationType/applicantLocationRequirements is Google's
+    // documented fix for the single most common remote-job schema error
+    // (putting "Remote" in a Place address instead of the TELECOMMUTE
+    // flag); scoped to US/CA since that's job-board-sync's own real
+    // sourcing scope, not a guess about any specific posting.
+    const isRemote = selected.work_mode === 'remote';
+    const postedMs = Date.parse(selected.posted_at);
+    const validThrough = Number.isNaN(postedMs)
+      ? undefined
+      : new Date(postedMs + 3 * 24 * 60 * 60 * 1000).toISOString();
     return {
       '@context': 'https://schema.org/',
       '@type': 'JobPosting',
       title: selected.title,
       description: selected.description,
       datePosted: selected.posted_at,
+      ...(validThrough ? { validThrough } : {}),
       hiringOrganization: { '@type': 'Organization', name: selected.company },
+      identifier: { '@type': 'PropertyValue', name: 'AYN', value: selected.id },
+      // AYN always sends the applicant to the employer's own site to
+      // apply -- never a fill-and-submit flow of AYN's own -- so this is
+      // an honest false, not an omission.
+      directApply: false,
+      ...(isRemote ? {
+        jobLocationType: 'TELECOMMUTE',
+        applicantLocationRequirements: [
+          { '@type': 'Country', name: 'US' },
+          { '@type': 'Country', name: 'CA' },
+        ],
+      } : {}),
       ...(selected.location ? {
         jobLocation: {
           '@type': 'Place',
