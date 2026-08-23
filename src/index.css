@@ -1703,38 +1703,6 @@ button, a, input, textarea, select {
 .lp-btn-ghost:hover { background: hsl(var(--lp-fg) / 0.09); border-color: hsl(var(--lp-fg) / 0.35); }
 .lp-btn-invert { background: hsl(var(--lp-fg)); color: hsl(var(--lp-bg)); }
 
-/* --- hero job search: the landing page's own real search, not a
-   preview of one. Two fields (title/keyword, location) plus a submit
-   that lands on /jobs with both applied -- the same real, working
-   search that page already runs, not a separate demo of it. --- */
-.lp-hero-search {
-  display: flex; align-items: stretch; gap: 0; margin-top: 30px; text-align: left;
-  background: hsl(var(--lp-card)); border: 1px solid hsl(var(--lp-border));
-  border-radius: 18px; box-shadow: var(--lp-shadow-lift); padding: 6px;
-  max-width: 640px;
-}
-.lp-hero-search-field { flex: 1; display: flex; align-items: center; gap: 9px; padding: 0 14px; min-width: 0; }
-.lp-hero-search-field svg { flex-shrink: 0; color: hsl(var(--lp-dim)); }
-.lp-hero-search-field + .lp-hero-search-field { border-left: 1px solid hsl(var(--lp-border-soft)); }
-.lp-hero-search-field input {
-  flex: 1; min-width: 0; border: none; outline: none; background: transparent;
-  font-family: 'Figtree', system-ui, sans-serif; font-size: 15px; color: hsl(var(--lp-fg));
-  padding: 13px 0;
-}
-.lp-hero-search-field input::placeholder { color: hsl(var(--lp-dim)); }
-.lp-hero-search-btn {
-  display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;
-  background: var(--lp-gradient-ember); color: #fff; border: none; border-radius: 13px;
-  padding: 0 22px; font-family: 'Figtree', system-ui, sans-serif; font-weight: 700; font-size: 14.5px;
-  cursor: pointer; transition: transform .18s ease, box-shadow .25s ease;
-}
-.lp-hero-search-btn:hover { transform: translateY(-1px); box-shadow: 0 12px 26px -12px hsl(var(--lp-ember) / 0.9); }
-@media (max-width: 640px) {
-  .lp-hero-search { flex-direction: column; padding: 8px; gap: 6px; }
-  .lp-hero-search-field + .lp-hero-search-field { border-left: none; border-top: 1px solid hsl(var(--lp-border-soft)); }
-  .lp-hero-search-btn { width: 100%; justify-content: center; padding: 13px 0; margin-top: 4px; }
-}
-
 /* --- hero live results: real postings sitting directly on the page,
    not framed as a screenshot of the app. --- */
 .lp-hero-results { margin-top: 34px; max-width: 640px; text-align: left; }
@@ -1811,6 +1779,81 @@ button, a, input, textarea, select {
 @keyframes lpAudienceIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .lp-audience { animation: lpAudienceIn .38s cubic-bezier(.22,1,.36,1) both; }
 
+/* --- job browser: v3.213.0, the real search/browse experience embedded
+   directly as the home page's primary content (JobsBrowser.tsx), not just
+   linked to from a hero. Same .lp color tokens as everywhere else on the
+   page, never a new palette -- only the layout is new. --- */
+.lp-browser-back {
+  display: inline-flex; align-items: center; gap: 6px; margin-bottom: 16px;
+  font-size: 14px; color: hsl(var(--lp-muted)); background: none; border: none; cursor: pointer;
+}
+.lp-browser-back:hover { color: hsl(var(--lp-fg)); }
+.lp-browser-trust {
+  display: flex; align-items: center; gap: 7px; font-size: 14px; color: hsl(var(--lp-dim));
+  margin: 6px 0 26px;
+}
+.lp-browser-trust svg { color: #2f6f5e; flex-shrink: 0; }
+.lp-browser-search { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; max-width: 720px; }
+.lp-browser-field { position: relative; flex: 1 1 260px; }
+.lp-browser-field-where { flex: 0 1 220px; }
+.lp-browser-field-icon {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  width: 16px; height: 16px; color: hsl(var(--lp-dim)); pointer-events: none;
+}
+.lp-browser-field input {
+  height: 50px; padding-inline-start: 40px; border-radius: 14px;
+  border: 1px solid hsl(var(--lp-border)); background: hsl(var(--lp-card));
+  font-size: 15px; color: hsl(var(--lp-fg));
+}
+.lp-browser-field input:focus-visible { outline: 2px solid hsl(var(--lp-ember)); outline-offset: 1px; }
+.lp-browser-chips-row { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13.5px; margin-bottom: 34px; }
+.lp-browser-chips-label { color: hsl(var(--lp-dim)); flex-shrink: 0; }
+.lp-browser-chip-link {
+  color: hsl(var(--lp-muted)); background: none; border: none; cursor: pointer; padding: 0;
+  text-underline-offset: 3px; text-decoration: underline; text-decoration-color: transparent;
+  transition: color .15s ease, text-decoration-color .15s ease;
+}
+.lp-browser-chip-link:hover { color: hsl(var(--lp-ember)); text-decoration-color: currentColor; }
+.lp-browser-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
+@media (min-width: 1024px) { .lp-browser-grid { grid-template-columns: 380px 1fr; } }
+.lp-browser-list { display: flex; flex-direction: column; gap: 12px; }
+.lp-browser-empty { color: hsl(var(--lp-dim)); font-size: 14.5px; padding-block: 32px; }
+.lp-browser-card {
+  width: 100%; text-align: left; border-radius: 18px; padding: 16px;
+  border: 1px solid hsl(var(--lp-border-soft)); background: hsl(var(--lp-card));
+  cursor: pointer; transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.lp-browser-card:hover { border-color: hsl(var(--lp-ember) / 0.45); transform: translateY(-1px); }
+.lp-browser-card.is-active { border-color: hsl(var(--lp-ember)); background: hsl(var(--lp-ember) / 0.06); box-shadow: var(--lp-shadow-lift); }
+.lp-browser-card-row { display: flex; align-items: flex-start; gap: 12px; }
+.lp-browser-logo, .lp-browser-avatar {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0; object-fit: contain; background: #fff;
+  border: 1px solid hsl(var(--lp-border-soft));
+}
+.lp-browser-avatar { display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; }
+.lp-browser-card-text { min-width: 0; flex: 1; }
+.lp-browser-card-title { font-size: 14.5px; font-weight: 600; color: hsl(var(--lp-fg)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-browser-card-company { font-size: 13.5px; color: hsl(var(--lp-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-browser-card-meta { display: flex; gap: 6px; margin-top: 4px; font-size: 12.5px; color: hsl(var(--lp-dim)); }
+.lp-browser-detail-card { border-radius: 24px; border: 1px solid hsl(var(--lp-border-soft)); background: hsl(var(--lp-card)); padding: clamp(22px, 3vw, 30px); }
+.lp-browser-detail-empty { border-radius: 24px; border: 1px solid hsl(var(--lp-border-soft)); background: hsl(var(--lp-surface) / 0.5); padding: 60px 24px; text-align: center; font-size: 14.5px; color: hsl(var(--lp-dim)); }
+.lp-browser-detail-head { display: flex; align-items: flex-start; gap: 16px; }
+.lp-browser-detail-logo, .lp-browser-detail-avatar {
+  width: 56px; height: 56px; border-radius: 15px; flex-shrink: 0; object-fit: contain; background: #fff;
+  border: 1px solid hsl(var(--lp-border-soft));
+}
+.lp-browser-detail-avatar { display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 600; }
+.lp-browser-detail-company { color: hsl(var(--lp-muted)); margin: 2px 0 0; }
+.lp-browser-pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.lp-browser-pill {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; padding: 6px 12px;
+  border-radius: 999px; border: 1px solid hsl(var(--lp-border)); color: hsl(var(--lp-muted));
+}
+.lp-browser-pill-gold { color: hsl(38 55% 42%); border-color: hsl(38 55% 42% / 0.35); }
+.lp-browser-posted { margin-top: 14px; font-size: 13px; color: hsl(var(--lp-dim)); }
+.lp-browser-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+.lp-browser-jd { margin-top: 30px; padding-top: 24px; border-top: 1px solid hsl(var(--lp-border-soft)); }
+@media (max-width: 640px) { .lp-browser-field-where { flex-basis: 100%; } }
 
 /* --- logo strip --- */
 .lp-strip { border-block: 1px solid hsl(var(--lp-border-soft)); background: hsl(var(--lp-surface) / 0.5); }
@@ -2222,7 +2265,6 @@ button, a, input, textarea, select {
 .lp-hero-center .lp-lead { text-wrap: balance; margin-inline: auto; }
 .lp-hero-center .lp-cta-row { justify-content: center; }
 .lp-hero-center .lp-hero-art { width: 100%; margin-top: clamp(36px, 6vw, 64px); }
-.lp-hero-center .lp-hero-search,
 .lp-hero-center .lp-hero-results,
 .lp-hero-center .lp-note { margin-inline: auto; }
 @media (max-width: 520px) {

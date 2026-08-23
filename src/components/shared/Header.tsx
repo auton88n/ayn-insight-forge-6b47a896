@@ -18,7 +18,7 @@ const SEEKER_LINKS = [
 { path: '/', en: 'Home' },
 { path: '/jobs', en: 'Browse jobs' },
 { path: '/salary-guide', en: 'Salary guide' },
-{ path: '/#proof', en: 'How it works' },
+{ path: '/#how-it-works', en: 'How it works' },
 { path: '/#features', en: 'Features' },
 { path: '/pricing', en: 'Pricing' },
 { path: '/contact', en: 'Contact' }];

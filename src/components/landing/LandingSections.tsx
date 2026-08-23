@@ -27,8 +27,8 @@ import { BeforeAfterProof } from './BeforeAfterProof';
 import { KineticHeadline } from './KineticHeadline';
 import { TrustBento } from './TrustBento';
 import { LiveJobsPreview } from './LiveJobsPreview';
-import { HeroJobSearch } from './HeroJobSearch';
 import { HeadToHead } from './HeadToHead';
+import { JobsBrowser } from './JobsBrowser';
 
 // v3.210.0 -- the structural rework: AYN is no longer one page trying to be
 // legible to two different buyers via an in-place toggle. "/" commits to
@@ -452,7 +452,7 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
   useEffect(() => {
     const id = location.hash.replace('#', '');
     if (id === 'employers' || id === 'employers-how' || id === 'employers-features') setAudienceForHash('employer');
-    else if (id === 'features' || id === 'proof') setAudienceForHash('job_seeker');
+    else if (id === 'features' || id === 'proof' || id === 'how-it-works') setAudienceForHash('job_seeker');
   }, [location.hash, setAudienceForHash]);
 
   // Scrolls to the hash target once it exists. Runs after every audience
@@ -471,6 +471,35 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
   const pain = PAIN[audience];
   const trust = TRUST[audience];
   const seeker = audience === 'job_seeker';
+
+  // v3.213.0 -- rendered in a different position per audience (employer
+  // keeps its original spot right after the hero; seeker's own copy of
+  // this same section moved to sit after Features/How it works, per the
+  // requested home -> features -> how it works -> the rest order), so it's
+  // one element referenced twice rather than duplicated JSX.
+  const painSection = (
+    <section className="lp-section">
+      <div className="lp-shell">
+        <div className="lp-reveal" style={{ marginBottom: 38 }}>
+          <p className="lp-eyebrow">{pain.eyebrow}</p>
+          <h2 className="lp-display lp-h2">{pain.title}</h2>
+          <p className="lp-lead">{pain.lead}</p>
+        </div>
+        <div className="lp-reveal">
+          <div className="lp-pain lp-pain-solo">
+            <h3 className="lp-display">{pain.who}</h3>
+            <ul>
+              {pain.lines.map((l) => <li key={l}>{l}</li>)}
+            </ul>
+          </div>
+        </div>
+
+        <div className="lp-reveal" style={{ marginTop: 40 }}>
+          <HeadToHead themLabel={HEAD_TO_HEAD[audience].themLabel} rows={HEAD_TO_HEAD[audience].rows} />
+        </div>
+      </div>
+    </section>
+  );
 
   return (
     <div className="lp" ref={root}>
@@ -515,27 +544,7 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
 
               <p className="lp-lead" style={{ maxWidth: 660 }}>{hero.lead}</p>
 
-              {seeker ? (
-                <>
-                  {/* v3.207.0 -- the search bar IS the hero now, not a
-                      preview of one. Submitting lands on the real,
-                      already-built /jobs search with both fields
-                      applied; no account needed to use it. */}
-                  <HeroJobSearch />
-                  <p className="lp-note" style={{ marginTop: 16 }}>
-                    {hero.note} Want AYN to score every job against your resume automatically?{' '}
-                    <button
-                      type="button"
-                      className="lp-quiet-link"
-                      style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
-                      onClick={() => onStartFree?.(audience)}
-                    >
-                      Start free
-                    </button>.
-                  </p>
-                  <LiveJobsPreview />
-                </>
-              ) : (
+              {!seeker && (
                 <>
                   <div className="lp-cta-row" style={{ marginTop: 30 }}>
                     <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.(audience)}>
@@ -556,19 +565,34 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
         </div>
       </header>
 
+      {/* v3.213.0 -- "make home the browser page": the real search/browse
+          experience sits right under the headline as the home page's own
+          primary content, not a preview of it elsewhere. Full .lp-shell
+          width, not the narrower centered hero column, since a real
+          list-plus-detail layout needs the room. Employer's hero is
+          untouched above; this only ever renders for the seeker route. */}
+      {seeker && (
+        <div className="lp-shell" style={{ marginTop: 8 }}>
+          <JobsBrowser showHeading={false} />
+          <p className="lp-note" style={{ marginTop: 22, textAlign: 'center' }}>
+            {hero.note} Want AYN to score every job against your resume automatically?{' '}
+            <button
+              type="button"
+              className="lp-quiet-link"
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
+              onClick={() => onStartFree?.(audience)}
+            >
+              Start free
+            </button>.
+          </p>
+        </div>
+      )}
+
       {/* Everything below belongs to the chosen audience only. */}
       <div className="lp-audience" key={`body-${audience}`}>
-        {/* ── PROOF STRIP ────────────────────────────────────── */}
-        {seeker ? (
-          // v3.204.0 -- design-audit finding, Aug 2026: the same freshness/
-          // sourcing numbers this flat strip used to state as faint text
-          // were repeated as low-weight cards on two other pages too, none
-          // of them given real visual weight. One bento module, sized by
-          // what actually matters, replaces all three for the seeker side.
-          <div className="lp-shell">
-            <TrustBento />
-          </div>
-        ) : (
+        {/* ── PROOF STRIP (employer only here -- seeker's TrustBento moves
+             into the seeker "rest of things" block further down) ─────── */}
+        {!seeker && (
           <div className="lp-strip">
             <div className="lp-shell lp-strip-inner">
               <span className="lp-strip-label">{strip.label}</span>
@@ -579,37 +603,97 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
           </div>
         )}
 
-        {/* ── BEFORE AND AFTER ───────────────────────────────── */}
+        {/* ── THE PAIN (employer position -- unchanged. Seeker's own copy
+             of this same section renders again further down, in its new,
+             requested position, using the same painSection element). ── */}
+        {!seeker && painSection}
+
+        {/* ── FEATURES (seeker, position 2 as asked: home, then features,
+             then how it works, then the rest) ─────────────────────────── */}
+        {seeker && (
+          <section id="features" className="lp-section">
+            <div className="lp-shell">
+              <div className="lp-reveal" style={{ marginBottom: 38 }}>
+                <p className="lp-eyebrow">Features</p>
+                <h2 className="lp-display lp-h2">Everything AYN actually does for you</h2>
+                <p className="lp-lead">
+                  One posting in, one real application out. Nothing here is a preview, it is what you get.
+                </p>
+              </div>
+              <div className="lp-bento lp-reveal">
+                {SEEKER_TILES.map((tile) => {
+                  const Icon = tile.icon;
+                  return (
+                    <article key={tile.title} className={`lp-tile ${tile.span}`}>
+                      <span className="lp-tile-icon" aria-hidden="true">
+                        <Icon size={20} strokeWidth={1.75} />
+                      </span>
+                      <h3>{tile.title}</h3>
+                      <p>{tile.desc}</p>
+                      {'meta' in tile && (
+                        <div className="lp-tile-meta">
+                          {(tile as { meta: string[] }).meta.map((m) => <span key={m}>{m}</span>)}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── HOW IT WORKS (seeker, position 3) ───────────────────────── */}
+        {seeker && (
+          <section id="how-it-works" className="lp-section" style={{ paddingBlockStart: 0 }}>
+            <div className="lp-shell">
+              <div className="lp-split lp-reveal">
+                <div>
+                  <p className="lp-eyebrow">How it works</p>
+                  <h2 className="lp-display lp-h2">One posting in, one application out</h2>
+                  <p className="lp-lead">
+                    Open a job from the browser above. Get a score, a resume and a cover letter for it.
+                  </p>
+                  <div className="lp-cta-row" style={{ marginTop: 26 }}>
+                    <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('job_seeker')}>
+                      Start free <ArrowRight size={15} />
+                    </button>
+                  </div>
+                </div>
+                <div className="lp-art lp-art-plain">
+                  <TailoredDocsMockup />
+                </div>
+              </div>
+
+              <div className="lp-flow lp-reveal" style={{ marginTop: 44 }}>
+                {SEEKER_STEPS.map((s, i) => {
+                  const Icon = s.icon;
+                  return (
+                    <div className="lp-flow-step" key={s.title}>
+                      <span className="lp-tile-icon" aria-hidden="true"><Icon size={18} strokeWidth={1.75} /></span>
+                      <span className="lp-step-n">STEP {i + 1}</span>
+                      <h3 className="lp-display">{s.title}</h3>
+                      <p>{s.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── THE REST OF THINGS (seeker, position 4 onward) ──────────── */}
+        {seeker && (
+          <div className="lp-shell" style={{ paddingBlockStart: 'clamp(72px, 11vw, 132px)' }}>
+            <TrustBento />
+          </div>
+        )}
+
         {seeker && (
           <div id="proof"><BeforeAfterProof /></div>
         )}
 
-
-        {/* ── THE PAIN ───────────────────────────────────────── */}
-        <section className="lp-section">
-          <div className="lp-shell">
-            <div className="lp-reveal" style={{ marginBottom: 38 }}>
-              <p className="lp-eyebrow">{pain.eyebrow}</p>
-              <h2 className="lp-display lp-h2">{pain.title}</h2>
-              <p className="lp-lead">{pain.lead}</p>
-            </div>
-            <div className="lp-reveal">
-              <div className="lp-pain lp-pain-solo">
-                <h3 className="lp-display">{pain.who}</h3>
-                <ul>
-                  {pain.lines.map((l) => <li key={l}>{l}</li>)}
-                </ul>
-              </div>
-            </div>
-
-            {/* v3.208.0 -- the direct comparison, deliberately a different
-                visual shape from the alternating .lp-split sections that
-                make up most of the rest of this page. */}
-            <div className="lp-reveal" style={{ marginTop: 40 }}>
-              <HeadToHead themLabel={HEAD_TO_HEAD[audience].themLabel} rows={HEAD_TO_HEAD[audience].rows} />
-            </div>
-          </div>
-        </section>
+        {seeker && painSection}
 
         {/* ── WHERE JOBS COME FROM ────────────────────────────── */}
         {seeker && (
@@ -714,68 +798,6 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
                     {c}
                   </span>
                 ))}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── SEEKER SHOWCASE ────────────────────────────────── */}
-        {seeker && (
-          <section id="features" className="lp-section" style={{ paddingBlockStart: 0 }}>
-            <div className="lp-shell">
-              <div className="lp-split lp-reveal">
-                <div>
-                  <p className="lp-eyebrow">For job seekers</p>
-                  <h2 className="lp-display lp-h2">One posting in, one application out</h2>
-                  <p className="lp-lead">
-                    Open a job. Get a score, a resume and a cover letter for it.
-                  </p>
-                  <div className="lp-cta-row" style={{ marginTop: 26 }}>
-                    <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('job_seeker')}>
-                      Start free <ArrowRight size={15} />
-                    </button>
-                  </div>
-                </div>
-                <div className="lp-art lp-art-plain">
-                  <TailoredDocsMockup />
-                </div>
-              </div>
-
-              <div className="lp-reveal" style={{ marginTop: 48, marginBottom: 4 }}>
-                <p className="lp-eyebrow">How AYN's AI helps you</p>
-              </div>
-              <div className="lp-flow lp-reveal">
-                {SEEKER_STEPS.map((s, i) => {
-                  const Icon = s.icon;
-                  return (
-                    <div className="lp-flow-step" key={s.title}>
-                      <span className="lp-tile-icon" aria-hidden="true"><Icon size={18} strokeWidth={1.75} /></span>
-                      <span className="lp-step-n">STEP {i + 1}</span>
-                      <h3 className="lp-display">{s.title}</h3>
-                      <p>{s.desc}</p>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="lp-bento lp-reveal" style={{ marginTop: 44 }}>
-                {SEEKER_TILES.map((tile) => {
-                  const Icon = tile.icon;
-                  return (
-                    <article key={tile.title} className={`lp-tile ${tile.span}`}>
-                      <span className="lp-tile-icon" aria-hidden="true">
-                        <Icon size={20} strokeWidth={1.75} />
-                      </span>
-                      <h3>{tile.title}</h3>
-                      <p>{tile.desc}</p>
-                      {'meta' in tile && (
-                        <div className="lp-tile-meta">
-                          {(tile as { meta: string[] }).meta.map((m) => <span key={m}>{m}</span>)}
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
               </div>
             </div>
           </section>
