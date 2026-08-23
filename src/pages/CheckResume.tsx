@@ -1,0 +1,182 @@
+import { useEffect, useState } from 'react';
+import { SEO, createBreadcrumbSchema } from '@/components/shared/SEO';
+import { Header } from '@/components/shared/Header';
+import { Footer } from '@/components/shared/Footer';
+import { SectionHeading } from '@/components/shared/SectionHeading';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { AuthModal } from '@/components/auth/AuthModal';
+import { resumeCheckPublic, type ResumeCheckPublicResult } from '@/lib/resumeHub';
+import { CheckCircle2, XCircle, Sparkles, Loader2 } from 'lucide-react';
+
+const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
+
+// v3.200.0 — the public resume-vs-job checker. No account needed to use
+// it: paste a resume and a job description, get the same literal keyword
+// match AYN already runs internally for free (computeGap, zero AI cost,
+// zero auth). The deeper AI-powered layer (catches a real match even when
+// the wording doesn't line up, e.g. "led a team of 3" satisfying "team
+// leadership experience") is the one thing gated behind signing up --
+// same credit-metered pipeline every other AI action in the product
+// already uses, not a new cost surface.
+const CheckResume = () => {
+  const [resumeText, setResumeText] = useState('');
+  const [jdText, setJdText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<ResumeCheckPublicResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.add('contact-surface');
+    return () => document.body.classList.remove('contact-surface');
+  }, []);
+
+  const jsonLd = createBreadcrumbSchema([
+    { name: 'Home', url: 'https://ayn.careers/' },
+    { name: 'Check your resume', url: 'https://ayn.careers/check-resume' },
+  ]);
+
+  const canCheck = resumeText.trim().length > 0 && jdText.trim().length > 0 && !loading;
+
+  const runCheck = async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const r = await resumeCheckPublic(resumeText.trim(), jdText.trim());
+      setResult(r);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <SEO
+        title="Check Your Resume Against a Job — Free"
+        description="Paste your resume and a real job description. See exactly which requirements you match and which you're missing, free, no account needed."
+        canonical="/check-resume"
+        jsonLd={jsonLd}
+      />
+      <div className="contact-surface min-h-screen bg-background">
+        <Header />
+
+        <main className="container mx-auto max-w-3xl px-6 pt-32 pb-24">
+          <span className="inline-block h-1 w-14 rounded-full mb-6" style={{ background: EMBER }} aria-hidden="true" />
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Does your resume match this job?</h1>
+          <p className="mt-3 text-lg text-muted-foreground">
+            Paste your resume and a real job description below. See exactly which requirements you match and which you're missing — free, no account needed.
+          </p>
+
+          <div className="mt-10 grid gap-6 sm:grid-cols-2">
+            <div>
+              <label htmlFor="resume-text" className="block text-sm font-semibold mb-2">Your resume</label>
+              <Textarea
+                id="resume-text"
+                value={resumeText}
+                onChange={(e) => setResumeText(e.target.value)}
+                placeholder="Paste your resume text here..."
+                className="min-h-[220px]"
+                maxLength={20000}
+              />
+            </div>
+            <div>
+              <label htmlFor="jd-text" className="block text-sm font-semibold mb-2">The job description</label>
+              <Textarea
+                id="jd-text"
+                value={jdText}
+                onChange={(e) => setJdText(e.target.value)}
+                placeholder="Paste the job posting text here..."
+                className="min-h-[220px]"
+                maxLength={20000}
+              />
+            </div>
+          </div>
+
+          <Button
+            className="mt-6 w-full sm:w-auto"
+            disabled={!canCheck}
+            onClick={runCheck}
+            style={canCheck ? { background: EMBER, color: '#fff' } : undefined}
+          >
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+            {loading ? 'Checking...' : 'Check my resume'}
+          </Button>
+
+          {error && (
+            <p className="mt-4 text-sm text-destructive" role="alert">{error}</p>
+          )}
+
+          {result && (
+            <div className="mt-10 space-y-8">
+              {result.matchPct !== null && (
+                <div className="rounded-xl border p-5" style={{ background: 'var(--accent, #fdf3ee)' }}>
+                  <div className="text-sm font-semibold text-muted-foreground">Literal keyword match</div>
+                  <div className="text-4xl font-bold mt-1" style={{ color: '#e85d3a' }}>{result.matchPct}%</div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Based on exact wording overlap only — the same check most real ATS keyword filters run.
+                  </p>
+                </div>
+              )}
+
+              {result.matched.length > 0 && (
+                <div>
+                  <SectionHeading>You match these</SectionHeading>
+                  <ul className="mt-3 space-y-2">
+                    {result.matched.map((m, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm">
+                        <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" />
+                        <span>{m}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {result.missing.length > 0 && (
+                <div>
+                  <SectionHeading>Missing, by exact wording</SectionHeading>
+                  <ul className="mt-3 space-y-2">
+                    {result.missing.map((m, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm">
+                        <XCircle className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
+                        <span>{m}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {result.matched.length === 0 && result.missing.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Couldn't find clearly listed requirements in that job description — try pasting a posting with a bulleted "Requirements" or "Qualifications" section for a real read.
+                </p>
+              )}
+
+              <div className="rounded-xl border p-6" style={{ background: 'var(--accent, #fdf3ee)' }}>
+                <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#e85d3a' }}>
+                  <Sparkles className="w-4 h-4" />
+                  This is the literal match only
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  A real ATS or recruiter often credits you for something worded differently — "led a team of 3" satisfies "team leadership experience" even though the words don't match. AYN's AI-powered check catches that too, and can tailor your resume for this exact job. Free to try once you sign up.
+                </p>
+                <Button className="mt-4" onClick={() => setAuthOpen(true)} style={{ background: EMBER, color: '#fff' }}>
+                  See the deeper match, free
+                </Button>
+              </div>
+            </div>
+          )}
+        </main>
+
+        <Footer />
+      </div>
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
+    </>
+  );
+};
+
+export default CheckResume;

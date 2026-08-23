@@ -75,7 +75,7 @@ app.use(express.static(DIST, {
 // so we still serve the SPA shell but with a 404 status, otherwise Google
 // indexes every junk path as a live page.
 const ROUTES = [
-  '/', '/pricing', '/resume-hub', '/contact', '/support', '/help', '/about',
+  '/', '/pricing', '/resume-hub', '/contact', '/support', '/help', '/about', '/check-resume',
   '/terms', '/privacy', '/settings', '/billing',
   '/employer/pending', '/reset-password',
   '/approval-result', '/subscription-success', '/subscription-canceled',

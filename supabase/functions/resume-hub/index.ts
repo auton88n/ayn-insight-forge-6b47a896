@@ -99,6 +99,39 @@ Deno.serve(async (req) => {
     const { action, ...payload } = body;
     erroredAction = typeof action === "string" ? action : undefined;
 
+    // v3.200.0 — the one deliberate, explicit exception to "every action
+    // requires a JWT" (see the header comment above). A small, hardcoded
+    // allowlist checked before the auth requirement, not a broad bypass --
+    // mirrors the same shape the extension's own retired PUBLIC LINK FLOW
+    // used for its pre-auth actions. Anything added here must be safe to
+    // run with zero cost and zero account, by construction: no AI call, no
+    // outbound fetch, no write. resume_check_public is pure text-in,
+    // deterministic-logic-out (computeGap, already free elsewhere in this
+    // file) -- real accuracy same as the signed-in quick score, zero
+    // dollar cost regardless of how many strangers call it.
+    const PUBLIC_ACTIONS = new Set(["resume_check_public"]);
+    if (PUBLIC_ACTIONS.has(action)) {
+      if (action === "resume_check_public") {
+        const { resumeText, jdText } = payload as { resumeText?: string; jdText?: string };
+        if (!resumeText || !jdText) {
+          return json({ error: "resumeText and jdText are both required" }, 400);
+        }
+        if (resumeText.length > 20_000 || jdText.length > 20_000) {
+          return json({ error: "That's longer than a real resume or job description ever needs to be. Please paste the real text, not a whole page." }, 413);
+        }
+        const bundle = buildSections(null, null, resumeText);
+        const gap = computeGap(jdText, bundle);
+        return json({
+          matched: gap.matched.map((r) => r.text),
+          missing: gap.missing.map((r) => r.text),
+          niceToHave: gap.niceToHave.map((r) => r.text),
+          matchPct: gap.matched.length + gap.missing.length > 0
+            ? Math.round((gap.matched.length / (gap.matched.length + gap.missing.length)) * 100)
+            : null,
+        });
+      }
+    }
+
     // ============ DASHBOARD ACTIONS (Supabase JWT) ============
     const auth = req.headers.get("Authorization") ?? "";
     const jwt = auth.replace(/^Bearer\s+/i, "");

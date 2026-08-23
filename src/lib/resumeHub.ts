@@ -39,6 +39,37 @@ async function call<T>(fn: string, body: unknown): Promise<T> {
   return data as T;
 }
 
+// v3.200.0 — the one action on this whole page that deliberately works
+// with no session: resume_check_public. Calling call() would throw "Not
+// signed in" before the request ever goes out, so this is its own small
+// helper -- same fetch, same apikey header every call already needs, just
+// no Authorization header to omit.
+export interface ResumeCheckPublicResult {
+  matched: string[];
+  missing: string[];
+  niceToHave: string[];
+  matchPct: number | null;
+}
+
+export async function resumeCheckPublic(resumeText: string, jdText: string): Promise<ResumeCheckPublicResult> {
+  const r = await fetch(`${FUNCTIONS_BASE}/resume-hub`, {
+    method: "POST",
+    headers: {
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ action: "resume_check_public", resumeText, jdText }),
+  });
+  const text = await r.text();
+  let data: unknown;
+  try { data = JSON.parse(text); } catch { data = { error: text }; }
+  if (!r.ok) {
+    const coded = data as { error?: string };
+    throw new Error(coded?.error || `Request failed (${r.status})`);
+  }
+  return data as ResumeCheckPublicResult;
+}
+
 export interface GuidedIntakeExtraction {
   experiences: Array<{ company: string; title: string; location?: string; start?: string; end?: string; current?: boolean; bullets: string[] }>;
   education: Array<{ school: string; degree?: string; field?: string; start?: string; end?: string }>;
