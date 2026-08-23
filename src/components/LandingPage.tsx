@@ -2,6 +2,7 @@ import { memo, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { SEO, organizationSchema, websiteSchema, softwareApplicationSchema, createFAQSchema } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
+import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { AuthModal } from './auth/AuthModal';
 import { LandingSections } from '@/components/landing/LandingSections';
 import type { Audience } from '@/lib/landingAudience';
@@ -78,14 +79,35 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
       />
 
       <div dir={direction} style={{ background: '#faf8f3', minHeight: '100vh' }}>
-        <Header />
-        <LandingSections
-          forcedAudience={forcedAudience}
-          onStartFree={(role) => {
-            setAuthRole(role || forcedAudience);
-            setShowAuthModal(true);
-          }}
-        />
+        {forcedAudience === 'employer' ? (
+          <>
+            <Header />
+            <LandingSections
+              forcedAudience={forcedAudience}
+              onStartFree={(role) => {
+                setAuthRole(role || forcedAudience);
+                setShowAuthModal(true);
+              }}
+            />
+          </>
+        ) : (
+          // v3.215.0 -- "home is the job search, other pages have the
+          // explanations, reached from a sidebar" -- the same shell the
+          // nine explanation pages use (MarketingPageShell), so signing
+          // in never means landing on a differently-shaped site.
+          <div className="lp lp-shell-with-sidebar">
+            <SeekerSidebar />
+            <main className="lp-sidebar-main">
+              <LandingSections
+                forcedAudience={forcedAudience}
+                onStartFree={(role) => {
+                  setAuthRole(role || forcedAudience);
+                  setShowAuthModal(true);
+                }}
+              />
+            </main>
+          </div>
+        )}
         <AuthModal key={authRole} open={showAuthModal} onOpenChange={setShowAuthModal} initialRole={authRole} />
       </div>
     </>

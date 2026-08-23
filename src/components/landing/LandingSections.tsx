@@ -18,7 +18,6 @@ import { KineticHeadline } from './KineticHeadline';
 import { TrustBento } from './TrustBento';
 import { HeadToHead } from './HeadToHead';
 import { JobsBrowser } from './JobsBrowser';
-import { MarketingSubNav, MARKETING_PAGES } from './MarketingSubNav';
 import { LandingFooter } from './LandingFooter';
 import { PAIN, HEAD_TO_HEAD, TRUST, FAQS } from './landingContent';
 
@@ -317,12 +316,6 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
         </div>
       </header>
 
-      {/* v3.214.0 -- "think of it like Indeed's design, even if you sign
-          in": the same consistent nav strip on Home as on every one of the
-          nine pages the rest of this content split into, so the site
-          reads as one connected product, not a scattering of pages. */}
-      {seeker && <MarketingSubNav atPageTop={false} />}
-
       {/* v3.213.0 -- "make home the browser page": the real search/browse
           experience sits right under the headline as the home page's own
           primary content, not a preview of it elsewhere. Full .lp-shell
@@ -375,30 +368,9 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
           </div>
         )}
 
-        {/* ── EXPLORE (seeker) -- v3.214.0: every remaining section is now
-             its own real page (Features, How it works, Why AYN, Real AI,
-             Get discovered, Messaging, Where jobs come from, Proof, FAQ),
-             linked here and in MarketingSubNav on every one of them. ─── */}
-        {seeker && (
-          <section className="lp-section" style={{ paddingBlockStart: 0 }}>
-            <div className="lp-shell">
-              <div className="lp-reveal" style={{ marginBottom: 30 }}>
-                <p className="lp-eyebrow">Keep exploring</p>
-                <h2 className="lp-display lp-h2">See exactly what AYN does, and why</h2>
-              </div>
-              <div className="lp-bento lp-reveal">
-                {MARKETING_PAGES.filter((p) => p.to !== '/').map((p) => (
-                  <Link key={p.to} to={p.to} className="lp-tile lp-span-2" style={{ textDecoration: 'none' }}>
-                    <h3>{p.label}</h3>
-                    <p style={{ color: 'hsl(var(--lp-ember))', fontSize: 13.5, fontWeight: 600 }}>
-                      Read more <ArrowRight size={13} style={{ display: 'inline', verticalAlign: -1 }} />
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
+        {/* v3.215.0 -- the "Keep exploring" tile grid that used to live
+             here is gone: SeekerSidebar is now the one place these nine
+             pages are linked from, not repeated again in the page body. */}
 
         {/* ── EASY HIRING, NOT AN INDUSTRY ────────────────────── */}
         {!seeker && (

@@ -1856,28 +1856,80 @@ button, a, input, textarea, select {
 @media (max-width: 640px) { .lp-browser-field-where { flex-basis: 100%; } }
 
 /* --- logo strip --- */
-/* --- marketing sub-nav: v3.214.0, the same strip of links on every seeker
-   page (MarketingSubNav.tsx) so the split-into-real-pages site still reads
-   as one connected product, Indeed-style consistency rather than a
-   scattering of standalone URLs. Sits directly under the fixed header. --- */
-.lp-subnav {
-  position: sticky; top: 0; z-index: 20;
-  background: hsl(var(--lp-bg) / 0.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid hsl(var(--lp-border-soft));
+/* --- seeker sidebar shell: v3.215.0, the collapsible left nav that
+   replaces the fixed top Header + MarketingSubNav strip for Home and the
+   nine explanation pages. Same .lp color tokens as everywhere else --
+   the ask was the STRUCTURE (a collapsible sidebar, the pattern Resume
+   Hub's own icon rail already uses once signed in), never a new palette.
+   A plain flex row: the sidebar is a flex child whose own width changes
+   on collapse, so the main pane reflows for free, no manual margin math
+   or state syncing between the two. --- */
+.lp-shell-with-sidebar { display: flex; align-items: stretch; min-height: 100vh; background: hsl(var(--lp-bg)); }
+.lp-sidebar {
+  flex: 0 0 244px; width: 244px; position: sticky; top: 0; align-self: flex-start; height: 100vh;
+  display: flex; flex-direction: column; overflow-y: auto;
+  background: hsl(var(--lp-card)); border-right: 1px solid hsl(var(--lp-border-soft));
+  transition: flex-basis .18s ease, width .18s ease;
 }
-.lp-subnav.is-at-top { padding-top: clamp(76px, 10vw, 96px); }
-.lp-subnav-inner {
-  display: flex; gap: clamp(14px, 2vw, 26px); overflow-x: auto; scrollbar-width: none;
-  padding-block: 14px;
+.lp-sidebar.is-collapsed { flex-basis: 68px; width: 68px; }
+.lp-sidebar-main { flex: 1 1 auto; min-width: 0; }
+.lp-sidebar-top { display: flex; align-items: center; justify-content: space-between; padding: 18px 16px; flex-shrink: 0; }
+.lp-sidebar-brand { display: flex; align-items: center; }
+.lp-sidebar-toggle {
+  display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px;
+  background: none; border: none; cursor: pointer; color: hsl(var(--lp-dim)); flex-shrink: 0;
 }
-.lp-subnav-inner::-webkit-scrollbar { display: none; }
-.lp-subnav-link {
-  flex-shrink: 0; font-size: 13.5px; font-weight: 500; color: hsl(var(--lp-muted));
-  text-decoration: none; white-space: nowrap; padding-bottom: 4px; border-bottom: 2px solid transparent;
-  transition: color .15s ease, border-color .15s ease;
+.lp-sidebar-toggle:hover { background: hsl(var(--lp-fg) / 0.06); color: hsl(var(--lp-fg)); }
+.lp-sidebar.is-collapsed .lp-sidebar-top { flex-direction: column; gap: 10px; }
+.lp-sidebar-mobile-close { display: none; background: none; border: none; cursor: pointer; color: hsl(var(--lp-muted)); }
+.lp-sidebar-nav { flex: 1 1 auto; overflow-y: auto; padding: 6px 10px; }
+.lp-sidebar-group { padding-block: 8px; border-top: 1px solid hsl(var(--lp-border-soft)); }
+.lp-sidebar-group:first-child { border-top: none; padding-top: 0; }
+.lp-sidebar-link {
+  display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 9px;
+  font-size: 14px; font-weight: 500; color: hsl(var(--lp-muted)); text-decoration: none;
+  white-space: nowrap; overflow: hidden;
 }
-.lp-subnav-link:hover { color: hsl(var(--lp-fg)); }
-.lp-subnav-link.is-active { color: hsl(var(--lp-ember)); border-color: hsl(var(--lp-ember)); font-weight: 600; }
+.lp-sidebar-link:hover { background: hsl(var(--lp-fg) / 0.05); color: hsl(var(--lp-fg)); }
+.lp-sidebar-link.is-active { background: hsl(var(--lp-ember) / 0.12); color: hsl(var(--lp-ember)); font-weight: 600; }
+.lp-sidebar-link-icon { flex-shrink: 0; }
+.lp-sidebar.is-collapsed .lp-sidebar-link-label { display: none; }
+.lp-sidebar.is-collapsed .lp-sidebar-link { justify-content: center; }
+.lp-sidebar-bottom { flex-shrink: 0; padding: 14px 10px; border-top: 1px solid hsl(var(--lp-border-soft)); }
+.lp-sidebar-cta { width: 100%; justify-content: center; }
+.lp-sidebar.is-collapsed .lp-sidebar-cta .lp-sidebar-link-label { display: none; }
+.lp-sidebar-user { display: flex; align-items: center; gap: 8px; font-size: 13px; color: hsl(var(--lp-muted)); }
+.lp-sidebar-user-avatar {
+  width: 26px; height: 26px; border-radius: 999px; background: hsl(var(--lp-ember) / 0.14); color: hsl(var(--lp-ember));
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.lp-sidebar-user-email { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lp-sidebar-signout { background: none; border: none; cursor: pointer; color: hsl(var(--lp-dim)); flex-shrink: 0; }
+.lp-sidebar.is-collapsed .lp-sidebar-user-email, .lp-sidebar.is-collapsed .lp-sidebar-signout { display: none; }
+
+.lp-sidebar-mobile-bar, .lp-sidebar-scrim { display: none; }
+.lp-sidebar-mobile { display: none; }
+
+@media (max-width: 900px) {
+  .lp-shell-with-sidebar { display: block; }
+  .lp-sidebar:not(.lp-sidebar-mobile) { display: none; }
+  .lp-sidebar-mobile-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 16px; position: sticky; top: 0; z-index: 30;
+    background: hsl(var(--lp-bg) / 0.95); backdrop-filter: blur(8px);
+    border-bottom: 1px solid hsl(var(--lp-border-soft));
+  }
+  .lp-sidebar-mobile-trigger { background: none; border: none; cursor: pointer; color: hsl(var(--lp-fg)); }
+  .lp-sidebar-mobile {
+    display: flex; position: fixed; inset-block: 0; left: 0; width: 268px; z-index: 50;
+    transform: translateX(-100%); transition: transform .22s ease; flex-basis: auto; height: 100vh;
+  }
+  .lp-sidebar-mobile.is-open { transform: translateX(0); }
+  .lp-sidebar-mobile .lp-sidebar-toggle { display: none; }
+  .lp-sidebar-mobile .lp-sidebar-mobile-close { display: flex; align-items: center; justify-content: center; }
+  .lp-sidebar-mobile .lp-sidebar-link-label { display: inline; }
+  .lp-sidebar-scrim { display: block; position: fixed; inset: 0; background: hsl(0 0% 0% / 0.4); z-index: 45; }
+}
 
 .lp-strip { border-block: 1px solid hsl(var(--lp-border-soft)); background: hsl(var(--lp-surface) / 0.5); }
 .lp-strip-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: clamp(18px, 4vw, 52px); padding-block: 22px; }

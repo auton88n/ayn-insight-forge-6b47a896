@@ -1,16 +1,21 @@
 /**
  * MarketingPageShell -- the one wrapper every seeker marketing page uses:
- * SEO, Header, the consistent MarketingSubNav, a closing "Start free"
- * band, and the shared LandingFooter. One shell means every one of the
- * nine pages split out at v3.214.0 reads as the same site, not nine
- * separately hand-built pages that drift apart over time.
+ * SEO, the collapsible SeekerSidebar, a closing "Start free" band, and
+ * the shared LandingFooter. One shell means every one of the nine pages
+ * split out at v3.214.0 reads as the same site, not nine separately
+ * hand-built pages that drift apart over time.
+ *
+ * v3.215.0 -- the fixed top Header + horizontal MarketingSubNav strip is
+ * gone, replaced by SeekerSidebar: a collapsible left nav, the same
+ * structural shape Resume Hub's own icon rail already uses once someone
+ * signs in, so these signed-out pages stop reading as a different kind
+ * of site from the one behind sign-in.
  */
 import { useState, type ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { SEO } from '@/components/shared/SEO';
-import { Header } from '@/components/shared/Header';
 import { AuthModal } from '@/components/auth/AuthModal';
-import { MarketingSubNav } from './MarketingSubNav';
+import { SeekerSidebar } from './SeekerSidebar';
 import { LandingFooter } from './LandingFooter';
 
 type Props = {
@@ -39,27 +44,28 @@ export const MarketingPageShell = ({ title, description, canonical, jsonLd, chil
   return (
     <>
       <SEO title={title} description={description} canonical={canonical} jsonLd={jsonLd} />
-      <div className="lp">
-        <Header />
-        <MarketingSubNav />
+      <div className="lp lp-shell-with-sidebar">
+        <SeekerSidebar />
 
-        {children(() => setAuthOpen(true))}
+        <main className="lp-sidebar-main">
+          {children(() => setAuthOpen(true))}
 
-        <section className="lp-section" style={{ paddingBlockStart: 0 }}>
-          <div className="lp-shell">
-            <div className="lp-closing lp-reveal">
-              <h2 className="lp-display lp-h2" style={{ maxWidth: 760, marginInline: 'auto' }}>{c.headline}</h2>
-              <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>{c.lead}</p>
-              <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
-                <button type="button" className="lp-btn lp-btn-invert" onClick={() => setAuthOpen(true)}>
-                  Start free <ArrowRight size={15} />
-                </button>
+          <section className="lp-section" style={{ paddingBlockStart: 0 }}>
+            <div className="lp-shell">
+              <div className="lp-closing lp-reveal">
+                <h2 className="lp-display lp-h2" style={{ maxWidth: 760, marginInline: 'auto' }}>{c.headline}</h2>
+                <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>{c.lead}</p>
+                <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
+                  <button type="button" className="lp-btn lp-btn-invert" onClick={() => setAuthOpen(true)}>
+                    Start free <ArrowRight size={15} />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <LandingFooter />
+          <LandingFooter />
+        </main>
       </div>
       <AuthModal open={authOpen} onOpenChange={setAuthOpen} initialRole="job_seeker" />
     </>

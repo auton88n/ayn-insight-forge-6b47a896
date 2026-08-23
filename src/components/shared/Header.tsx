@@ -17,8 +17,13 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 // v3.214.0 -- Features/How it works are real pages now (/features,
 // /how-it-works), not hash anchors on "/". The rest of what used to be
 // sections on this page (Why AYN, Get discovered, Messaging, etc.) are
-// also real pages, reachable via MarketingSubNav on every one of these,
-// not crammed into the primary header nav too.
+// also real pages now.
+// v3.215.0 -- Home and the nine explanation pages moved off this fixed
+// top Header entirely, onto SeekerSidebar (see MarketingPageShell.tsx and
+// LandingPage.tsx) -- this component still renders on every page that
+// hasn't made that move yet (Pricing, Contact, /jobs, /check-resume,
+// /salary-guide, and the rest of the still-standalone pages), plus
+// /employers, which keeps this exact layout on purpose.
 const SEEKER_LINKS = [
 { path: '/', en: 'Home' },
 { path: '/jobs', en: 'Browse jobs' },
@@ -82,11 +87,11 @@ export const Header = () => {
   };
 
   // The landing page runs the warm Ember system, other marketing pages stay on
-  // the light surface, so the bar flips its palette by route. "/employers" and
-  // the nine pages split out of the old single seeker page at v3.214.0 all
-  // use the same .lp system Home does, so they all get the same treatment.
-  const MARKETING_ROUTES = ['/features', '/how-it-works', '/why-ayn', '/real-ai', '/get-discovered', '/messaging', '/sourcing', '/proof', '/faq'];
-  const onLanding = location.pathname === '/' || isEmployerRoute || MARKETING_ROUTES.includes(location.pathname);
+  // the light surface, so the bar flips its palette by route. "/employers" gets
+  // the same treatment. The nine explanation pages moved onto SeekerSidebar at
+  // v3.215.0 and no longer render this Header at all, so they don't need an
+  // entry here any more.
+  const onLanding = location.pathname === '/' || isEmployerRoute;
   const inkStrong = '#0a0a0f';
   const inkSoft = onLanding ? 'rgba(10,10,15,0.55)' : 'rgba(10,10,15,0.50)';
   const pillBg = onLanding ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.95)';
