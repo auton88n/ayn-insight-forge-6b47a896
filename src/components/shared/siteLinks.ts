@@ -24,6 +24,7 @@ export const LEGAL_LINKS: SiteLink[] = [
 export const NAV_LINKS: SiteLink[] = [
   { to: '/', label: 'Home' },
   { to: '/#how', label: 'How it works' },
+  { to: '/salary-guide', label: 'Salary guide' },
   { to: '/pricing', label: 'Pricing' },
 ];
 

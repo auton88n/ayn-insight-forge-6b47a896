@@ -518,9 +518,14 @@ const PublicJobs = () => {
             <p className="text-sm text-muted-foreground mt-2">
               Paste your resume and any job description to see exactly which requirements you match, free, no account needed.
             </p>
-            <Button className="mt-4" variant="outline" onClick={() => navigate('/check-resume')}>
-              Check my resume against a job
-            </Button>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button variant="outline" onClick={() => navigate('/check-resume')}>
+                Check my resume against a job
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/salary-guide')}>
+                See real salary data by role
+              </Button>
+            </div>
           </div>
         </main>
 

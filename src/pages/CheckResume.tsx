@@ -56,7 +56,7 @@ const CheckResume = () => {
   return (
     <>
       <SEO
-        title="Check Your Resume Against a Job — Free"
+        title="Check Your Resume Against a Job, Free"
         description="Paste your resume and a real job description. See exactly which requirements you match and which you're missing, free, no account needed."
         canonical="/check-resume"
         jsonLd={jsonLd}
@@ -68,7 +68,7 @@ const CheckResume = () => {
           <span className="inline-block h-1 w-14 rounded-full mb-6" style={{ background: EMBER }} aria-hidden="true" />
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Does your resume match this job?</h1>
           <p className="mt-3 text-lg text-muted-foreground">
-            Paste your resume and a real job description below. See exactly which requirements you match and which you're missing — free, no account needed.
+            Paste your resume and a real job description below. See exactly which requirements you match and which you're missing, free, no account needed.
           </p>
 
           <div className="mt-10 grid gap-6 sm:grid-cols-2">
@@ -117,7 +117,7 @@ const CheckResume = () => {
                   <div className="text-sm font-semibold text-muted-foreground">Literal keyword match</div>
                   <div className="text-4xl font-bold mt-1" style={{ color: '#e85d3a' }}>{result.matchPct}%</div>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Based on exact wording overlap only — the same check most real ATS keyword filters run.
+                    Based on exact wording overlap only, the same check most real ATS keyword filters run.
                   </p>
                 </div>
               )}
@@ -152,7 +152,7 @@ const CheckResume = () => {
 
               {result.matched.length === 0 && result.missing.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Couldn't find clearly listed requirements in that job description — try pasting a posting with a bulleted "Requirements" or "Qualifications" section for a real read.
+                  Couldn't find clearly listed requirements in that job description. Try pasting a posting with a bulleted "Requirements" or "Qualifications" section for a real read.
                 </p>
               )}
 
@@ -162,7 +162,7 @@ const CheckResume = () => {
                   This is the literal match only
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
-                  A real ATS or recruiter often credits you for something worded differently — "led a team of 3" satisfies "team leadership experience" even though the words don't match. AYN's AI-powered check catches that too, and can tailor your resume for this exact job. Free to try once you sign up.
+                  A real ATS or recruiter often credits you for something worded differently. "Led a team of 3" satisfies "team leadership experience" even though the words don't match. AYN's AI-powered check catches that too, and can tailor your resume for this exact job. Free to try once you sign up.
                 </p>
                 <Button className="mt-4" onClick={() => setAuthOpen(true)} style={{ background: EMBER, color: '#fff' }}>
                   See the deeper match, free

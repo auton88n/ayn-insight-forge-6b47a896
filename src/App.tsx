@@ -76,6 +76,7 @@ const EmployerPending = lazy(() => import("./pages/EmployerPending"));
 const ContactPage = lazy(() => import("./pages/Contact"));
 const CheckResumePage = lazy(() => import("./pages/CheckResume"));
 const PublicJobsPage = lazy(() => import("./pages/PublicJobs"));
+const SalaryGuidePage = lazy(() => import("./pages/SalaryGuide"));
 const ResumeHub = lazy(() => import("./pages/ResumeHub"));
 // const AIAgents = lazy(() => import("./pages/services/AIAgents"));
 // const AIAgentsApply = lazy(() => import("./pages/services/AIAgentsApply"));
@@ -144,6 +145,7 @@ const AnimatedRoutes = () => {
       <Route path="/jobs/category/:category" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
       <Route path="/jobs/location/:location" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
       <Route path="/jobs/:id" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
+      <Route path="/salary-guide" element={<Suspense fallback={<PageLoader />}><SalaryGuidePage /></Suspense>} />
       <Route path="/resume-hub" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/employer/pending" element={<Suspense fallback={<PageLoader />}><EmployerPending /></Suspense>} />
