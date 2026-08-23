@@ -30,7 +30,15 @@ import { LiveJobsPreview } from './LiveJobsPreview';
 import { HeroJobSearch } from './HeroJobSearch';
 import { HeadToHead } from './HeadToHead';
 
-type Props = { onStartFree?: (role?: Audience) => void };
+// v3.210.0 -- the structural rework: AYN is no longer one page trying to be
+// legible to two different buyers via an in-place toggle. "/" commits to
+// the job seeker identity (the side with no cold-start problem, since jobs
+// are sourced independently of any employer using AYN); "/employers" is
+// its own real route with its own door in from the seeker experience,
+// not a switch fighting for the same hero. forcedAudience locks this
+// component to whichever identity its route owns -- the toggle only
+// renders when it's left unset, which no real route does any more.
+type Props = { onStartFree?: (role?: Audience) => void; forcedAudience?: Audience };
 
 // v3.48.0 — same social icons as src/components/shared/Footer.tsx, so the
 // footer here matches instead of just showing bare legal links.
@@ -354,9 +362,16 @@ const HERO: Record<Audience, {
     note: 'You review and send every application yourself. AYN never auto-applies for you.',
   },
   employer: {
-    headline: 'AI-powered hiring built by engineers,',
-    emphasis: 'for modern employers.',
-    lead: "The smartest way to hunt, screen, and hire top engineering talent.",
+    // v3.210.0 -- honest, concierge framing instead of generic
+    // "smartest way to hire" SaaS copy. AYN's employer side is genuinely
+    // early: every company is reviewed by hand before it can search, real
+    // volume is still small. That is not a weakness to paper over with a
+    // bigger-sounding headline, it is why a company that joins now gets
+    // real attention instead of getting lost in an already-crowded
+    // self-serve product.
+    headline: 'We review every company ourselves.',
+    emphasis: 'Then you get three real people to read, not a resume pile.',
+    lead: 'Describe the role once. AYN matches it against real candidates who chose to be found, verifies them before you ever see a name, and every company is approved by hand before it can search.',
     cta: 'Request employer access',
     note: 'Contact stays private until the candidate accepts.',
     art: <CandidateCardMockup />,
@@ -364,11 +379,11 @@ const HERO: Record<Audience, {
 };
 
 
-export const LandingSections = memo(({ onStartFree }: Props) => {
+export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => {
   const root = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
-  const [audience, setAudience] = useState<Audience>(readAudience);
+  const [audience, setAudience] = useState<Audience>(forcedAudience ?? readAudience);
 
   /**
    * Reveal on scroll. Re-runs whenever the audience changes, because the
@@ -398,6 +413,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
   }, [audience]);
 
   const pickAudience = useCallback((next: Audience) => {
+    if (forcedAudience) return; // locked by the route; no toggle to switch
     setAudience((cur) => {
       if (cur === next) return cur;
       writeAudience(next);
@@ -412,18 +428,19 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
       }
       return next;
     });
-  }, [navigate]);
+  }, [navigate, forcedAudience]);
 
   // Same as pickAudience but without the scroll-to-top: used when a hash
   // link is driving the switch, since the effect below scrolls to the
   // actual target section once it has mounted, not the top of the page.
   const setAudienceForHash = useCallback((next: Audience) => {
+    if (forcedAudience) return; // this route only ever has one audience's ids to scroll to
     setAudience((cur) => {
       if (cur === next) return cur;
       writeAudience(next);
       return next;
     });
-  }, []);
+  }, [forcedAudience]);
 
   /**
    * The header nav links to #proof, #features and #employers. All three only
@@ -462,26 +479,36 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
         <div className="lp-hero-aura" aria-hidden="true" />
         <div className="lp-shell lp-hero-center">
           <div className="lp-hero-copy">
-            <div className="lp-switch" role="tablist" aria-label="Who are you">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={audience === 'job_seeker'}
-                className={`lp-switch-btn ${audience === 'job_seeker' ? 'is-on' : ''}`}
-                onClick={() => pickAudience('job_seeker')}
-              >
-                I am looking for a job
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={audience === 'employer'}
-                className={`lp-switch-btn ${audience === 'employer' ? 'is-on' : ''}`}
-                onClick={() => pickAudience('employer')}
-              >
-                I am hiring
-              </button>
-            </div>
+            {forcedAudience ? (
+              // v3.210.0 -- a real, labeled door to the other identity
+              // instead of a toggle sharing the same hero. This route has
+              // already committed to one audience; the other one gets a
+              // quiet way out, not equal billing.
+              <Link to={forcedAudience === 'job_seeker' ? '/employers' : '/'} className="lp-quiet-link lp-audience-door">
+                {forcedAudience === 'job_seeker' ? 'Hiring instead? See AYN for employers' : 'Looking for a job instead? See AYN for job seekers'}
+              </Link>
+            ) : (
+              <div className="lp-switch" role="tablist" aria-label="Who are you">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={audience === 'job_seeker'}
+                  className={`lp-switch-btn ${audience === 'job_seeker' ? 'is-on' : ''}`}
+                  onClick={() => pickAudience('job_seeker')}
+                >
+                  I am looking for a job
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={audience === 'employer'}
+                  className={`lp-switch-btn ${audience === 'employer' ? 'is-on' : ''}`}
+                  onClick={() => pickAudience('employer')}
+                >
+                  I am hiring
+                </button>
+              </div>
+            )}
 
             <div className="lp-audience" key={audience}>
               <KineticHeadline text={hero.headline} emphasis={hero.emphasis} />

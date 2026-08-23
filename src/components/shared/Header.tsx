@@ -1,27 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, LogOut, User } from 'lucide-react';
+import { Menu, LogOut, User, ArrowRight } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { supabase } from '@/integrations/supabase/client';
-import { readAudience, onAudienceChange } from '@/lib/landingAudience';
 import aynLogo from '@/assets/ayn-logo.png';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
-// Hash links point at LandingSections' own anchors. Scrolling to the target
-// (and flipping the page's audience toggle first so the right one is even
-// mounted) is LandingSections' job, driven off useLocation().hash — not this
-// component's, since Header renders on every page and a plain <Link to="/#x">
-// already navigates there correctly on its own, cross-page or same-page,
-// with no manual scroll/timeout logic needed.
-//
-// The link set itself is audience-relative rather than one fixed list: each
-// audience gets its own "How it works" and "Features" anchor (#proof/
-// #features are seeker-only, #employers-how/#employers-features are
-// employer-only — see LandingSections.tsx), placed in the same top-to-bottom
-// order they actually appear on the page so the nav scrolls forward, never
-// jumps back up. "For employers" as its own permanent link is gone;
-// switching to employer mode already gets you the employer section.
+// v3.210.0 -- "/" and "/employers" are now two separate, committed pages,
+// not one page toggling between two audiences. Which nav list renders is
+// decided by the actual route, not a stored preference: every job-seeker
+// route (which is most of the site) gets SEEKER_LINKS, and only "/employers"
+// itself gets EMPLOYER_LINKS. Each audience's "How it works"/"Features"
+// anchors now live on that audience's own single-identity route, so a
+// hash link never has to flip anything else into view first.
 const SEEKER_LINKS = [
 { path: '/', en: 'Home' },
 { path: '/jobs', en: 'Browse jobs' },
@@ -32,9 +24,9 @@ const SEEKER_LINKS = [
 { path: '/contact', en: 'Contact' }];
 
 const EMPLOYER_LINKS = [
-{ path: '/', en: 'Home' },
-{ path: '/#employers-how', en: 'How it works' },
-{ path: '/#employers-features', en: 'Features' },
+{ path: '/employers', en: 'Home' },
+{ path: '/employers#employers-how', en: 'How it works' },
+{ path: '/employers#employers-features', en: 'Features' },
 { path: '/pricing', en: 'Pricing' },
 { path: '/contact', en: 'Contact' }];
 
@@ -45,7 +37,6 @@ export const Header = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [audience, setAudience] = useState(readAudience);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -59,13 +50,8 @@ export const Header = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Stays in sync with the landing page's own switch — a same-tab custom
-  // event when it changes here, a storage event when it changed in another
-  // tab. Header remounts on every route change anyway, so this only matters
-  // while it's mounted alongside LandingSections (i.e. on "/" itself).
-  useEffect(() => onAudienceChange(setAudience), []);
-
-  const navLinks = audience === 'employer' ? EMPLOYER_LINKS : SEEKER_LINKS;
+  const isEmployerRoute = location.pathname.startsWith('/employers');
+  const navLinks = isEmployerRoute ? EMPLOYER_LINKS : SEEKER_LINKS;
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -81,7 +67,7 @@ export const Header = () => {
   // whenever the click target is the page we're already sitting on.
   const handleNavClick = useCallback((path: string) => {
     closeSheet();
-    if (path === '/' && location.pathname === '/') {
+    if (!path.includes('#') && path === location.pathname) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [closeSheet, location.pathname]);
@@ -92,8 +78,10 @@ export const Header = () => {
   };
 
   // The landing page runs the warm Ember system, other marketing pages stay on
-  // the light surface, so the bar flips its palette by route.
-  const onLanding = location.pathname === '/';
+  // the light surface, so the bar flips its palette by route. "/employers" is
+  // a landing page too now, not a toggle state on "/", so it gets the same
+  // treatment.
+  const onLanding = location.pathname === '/' || isEmployerRoute;
   const inkStrong = '#0a0a0f';
   const inkSoft = onLanding ? 'rgba(10,10,15,0.55)' : 'rgba(10,10,15,0.50)';
   const pillBg = onLanding ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.95)';
@@ -171,6 +159,26 @@ export const Header = () => {
 
         {/* Right cell — auth on desktop, menu button below lg */}
         <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12 }}>
+
+          {/* The other audience's door — a real, labeled link, not a toggle
+              sharing the nav's weight. Only shown signed out, since a
+              signed-in visitor already has a real destination via the auth
+              block next to it. */}
+          {!user && (
+            <Link
+              to={isEmployerRoute ? '/' : '/employers'}
+              className="hidden lg:inline-flex"
+              style={{
+                alignItems: 'center', gap: 4,
+                fontFamily: headFont, fontSize: 13, color: inkSoft,
+                textDecoration: 'none', whiteSpace: 'nowrap', letterSpacing: '-0.01em',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = inkStrong)}
+              onMouseLeave={e => (e.currentTarget.style.color = inkSoft)}
+            >
+              {isEmployerRoute ? 'Job seeker?' : 'Hiring?'} <ArrowRight size={12} />
+            </Link>
+          )}
 
           {/* Auth — desktop */}
           <div className="hidden lg:block">
@@ -279,6 +287,20 @@ export const Header = () => {
                       );
                     })}
                   </div>
+
+                  {!user && (
+                    <Link
+                      to={isEmployerRoute ? '/' : '/employers'}
+                      onClick={closeSheet}
+                      style={{
+                        fontFamily: headFont, fontSize: 14, color: inkSoft,
+                        textDecoration: 'none', padding: '0 14px',
+                        display: 'flex', alignItems: 'center', gap: 4,
+                      }}
+                    >
+                      {isEmployerRoute ? 'Looking for a job instead?' : 'Hiring instead?'} <ArrowRight size={12} />
+                    </Link>
+                  )}
 
                   <div className="h-px" style={{ background: 'rgba(10,10,15,0.08)' }} />
 

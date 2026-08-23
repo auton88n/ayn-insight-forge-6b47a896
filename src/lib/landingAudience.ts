@@ -10,8 +10,14 @@ const KEY = 'ayn_landing_audience';
 const EVENT = 'ayn:landing-audience-change';
 
 export function readAudience(): Audience {
-  if (typeof window === 'undefined') return 'employer';
-  return localStorage.getItem(KEY) === 'job_seeker' ? 'job_seeker' : 'employer';
+  // A visitor with nothing stored yet is a first-time visitor, and the
+  // job-seeker product is the one with no cold-start dependency on any
+  // employer ever using AYN -- it's the default identity now, not a coin
+  // flip. Confirmed live before this fix: a cleared localStorage landed on
+  // the EMPLOYER hero, the opposite of what every seeker-facing SEO and
+  // copy decision in this app's history has assumed was the default.
+  if (typeof window === 'undefined') return 'job_seeker';
+  return localStorage.getItem(KEY) === 'employer' ? 'employer' : 'job_seeker';
 }
 
 export function writeAudience(next: Audience) {

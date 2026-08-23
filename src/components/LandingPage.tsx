@@ -4,11 +4,50 @@ import { SEO, organizationSchema, websiteSchema, softwareApplicationSchema, crea
 import { Header } from '@/components/shared/Header';
 import { AuthModal } from './auth/AuthModal';
 import { LandingSections } from '@/components/landing/LandingSections';
+import type { Audience } from '@/lib/landingAudience';
 import { useState } from 'react';
 
-const LandingPage = memo(() => {
+// v3.210.0 -- "/" and "/employers" are now two real, separately-identified
+// pages sharing one component, not one page describing two audiences at
+// once. Each gets its own canonical, title, description and FAQ schema
+// matching what actually renders in that audience, the same discipline
+// this app already applies to every other route (see the JobPosting-
+// schema-on-listing-pages fix, v3.205.0): structured data has to match
+// the real page, never describe a second page bolted on beside it.
+const SEEKER_FAQ = createFAQSchema([
+  { question: 'What is AYN?', answer: 'AYN reads a real job posting in full and scores you against it. Then it writes a one page resume and a cover letter from your own history.' },
+  { question: 'Where do the jobs come from?', answer: 'Real company career pages, sourced automatically and refreshed every two hours, never LinkedIn or Indeed.' },
+  { question: 'Does AYN apply for me?', answer: 'No. It only reads the page. It never types into a form and never submits anything for you.' },
+  { question: 'Can employers see my name and email?', answer: 'Not until you accept their proposal. Before that they see your profile and your match evidence only.' },
+  { question: 'Is AYN free to try?', answer: 'Yes, free to start and no credit card needed.' },
+]);
+
+const EMPLOYER_FAQ = createFAQSchema([
+  { question: 'How does AYN find candidates?', answer: 'From people who built a profile and turned on discovery. Nobody is scraped.' },
+  { question: 'How does this compare to a recruiter?', answer: 'There is no placement fee. You pay a flat monthly rate no matter how many people you hire.' },
+  { question: 'What is a verification assessment?', answer: 'A short set of questions built from a candidate’s own background and your role. You see the score and the observations, the candidate sees growth notes only.' },
+  { question: 'When do I get contact details?', answer: 'Only when the candidate accepts. Everything before that is anonymous, enforced on the server.' },
+  { question: 'How do I get access?', answer: 'Request employer access. Every company is reviewed and approved by hand, one at a time.' },
+]);
+
+const COPY: Record<Audience, { title: string; description: string; canonical: string; keywords: string }> = {
+  job_seeker: {
+    title: 'AYN, real jobs and a resume tailored to every one you apply to',
+    description: "AYN sources real jobs straight from company career pages, never LinkedIn or Indeed, so you never waste an application on a ghost job. Score the match, then get a tailored resume and cover letter from your real history, free to try.",
+    canonical: '/',
+    keywords: 'real job postings, no ghost jobs, tailored resume for a job description, AI cover letter, job match score',
+  },
+  employer: {
+    title: 'AYN for employers, verified candidates who chose to be found',
+    description: "Describe a role once. AYN searches candidates who opted into discovery, verifies them with an assessment built from their own background, and every company is approved by hand before it can search. No placement fee.",
+    canonical: '/employers',
+    keywords: 'candidate sourcing, verified candidates, hiring without a staffing agency, candidate assessment',
+  },
+};
+
+const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: Audience }) => {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authRole, setAuthRole] = useState<'job_seeker' | 'employer'>('employer');
+  const [authRole, setAuthRole] = useState<Audience>(forcedAudience);
   const { direction } = useLanguage();
 
   // The landing page owns a warm paper canvas, independent of app theme.
@@ -25,30 +64,25 @@ const LandingPage = memo(() => {
     };
   }, []);
 
-  const faqSchema = createFAQSchema([
-    { question: 'What is AYN?', answer: 'Two products, one profile. For job seekers, AYN reads a posting and writes a resume and cover letter for it. For employers, AYN returns the strongest fits from people who chose to be found.' },
-    { question: 'Which job sites does it work on?', answer: 'Greenhouse, Lever, Workday, Ashby, iCIMS, SmartRecruiters and most company career pages.' },
-    { question: 'Does AYN apply for me?', answer: 'No. It only reads the page. It never types into a form and never submits anything for you.' },
-    { question: 'Can employers see my name and email?', answer: 'Not until you accept their proposal. Before that they see your profile and your match evidence only.' },
-    { question: 'What is a verification assessment?', answer: 'A short set of questions built from a candidate own background. The employer sees the score, the candidate sees growth notes only.' },
-    { question: 'Is AYN free to try?', answer: 'Yes, free to start and no credit card needed. Employers are onboarded one at a time.' },
-  ]);
+  const copy = COPY[forcedAudience];
+  const faqSchema = forcedAudience === 'employer' ? EMPLOYER_FAQ : SEEKER_FAQ;
 
   return (
     <>
       <SEO
-        title="AYN, tailored applications for job seekers, verified candidates for employers"
-        description="AYN sources real jobs straight from company career pages, never LinkedIn or Indeed, so you never waste an application on a ghost job. Score the match, then get a tailored resume and cover letter from your real history. Employers search candidates who chose to be found and verify them before reaching out."
-        canonical="/"
-        keywords="tailored resume for a job description, AI cover letter, job match score, candidate sourcing, verified candidates, hiring without job boards"
+        title={copy.title}
+        description={copy.description}
+        canonical={copy.canonical}
+        keywords={copy.keywords}
         jsonLd={{ '@graph': [organizationSchema, websiteSchema, softwareApplicationSchema, faqSchema] }}
       />
 
       <div dir={direction} style={{ background: '#faf8f3', minHeight: '100vh' }}>
         <Header />
         <LandingSections
+          forcedAudience={forcedAudience}
           onStartFree={(role) => {
-            setAuthRole(role || 'employer');
+            setAuthRole(role || forcedAudience);
             setShowAuthModal(true);
           }}
         />

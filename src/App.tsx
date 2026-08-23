@@ -66,6 +66,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ApprovalResult = lazy(() => import("./pages/ApprovalResult"));
 const EmployerPending = lazy(() => import("./pages/EmployerPending"));
+const Employers = lazy(() => import("./pages/Employers"));
 
 // const AIEmployee = lazy(() => import("./pages/services/AIEmployee"));
 // const AIEmployeeApply = lazy(() => import("./pages/services/AIEmployeeApply"));
@@ -149,6 +150,7 @@ const AnimatedRoutes = () => {
       <Route path="/resume-hub" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/employer/pending" element={<Suspense fallback={<PageLoader />}><EmployerPending /></Suspense>} />
+      <Route path="/employers" element={<Suspense fallback={<PageLoader />}><Employers /></Suspense>} />
       <Route path="/help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
       <Route path="/support" element={<Navigate to="/help" replace />} />
       <Route path="/about" element={<Suspense fallback={<PageLoader />}><About /></Suspense>} />

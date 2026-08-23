@@ -161,7 +161,7 @@ app.get('/sitemap-jobs.xml', async (req, res) => {
 const ROUTES = [
   '/', '/pricing', '/resume-hub', '/contact', '/support', '/help', '/about', '/check-resume', '/jobs', '/salary-guide',
   '/terms', '/privacy', '/settings', '/billing',
-  '/employer/pending', '/reset-password',
+  '/employer/pending', '/employers', '/reset-password',
   '/approval-result', '/subscription-success', '/subscription-canceled',
   '/dashboard', '/admin',
 ];

@@ -1805,6 +1805,9 @@ button, a, input, textarea, select {
   box-shadow: 0 6px 16px -8px hsl(var(--lp-ember) / 0.8);
 }
 .lp-switch-btn:focus-visible { outline: 2px solid hsl(var(--lp-ember)); outline-offset: 2px; }
+/* v3.210.0 -- the labeled door that replaces the toggle once a route has
+   committed to one audience: quiet, not competing with the hero. */
+.lp-audience-door { display: inline-block; margin-bottom: 22px; }
 @keyframes lpAudienceIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .lp-audience { animation: lpAudienceIn .38s cubic-bezier(.22,1,.36,1) both; }
 
