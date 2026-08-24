@@ -1678,8 +1678,19 @@ button, a, input, textarea, select {
 .lp .lp-display { font-family: 'Outfit', system-ui, sans-serif; letter-spacing: -0.035em; font-weight: 700; }
 .lp ::selection { background: hsl(var(--lp-ember) / 0.35); }
 
-/* --- layout helpers --- */
-.lp-shell { width: 100%; max-width: 1200px; margin: 0 auto; padding-inline: clamp(20px, 5vw, 48px); }
+/* --- layout helpers ---
+   v3.224.0 -- reported directly against a real wide monitor: "the text
+   the mackup and everything feels small compare to the page... not
+   small in a big space." Measured live at 1920px: the sidebar took
+   244px, .lp-shell capped at a flat 1200px, leaving 238px of pure dead
+   margin on EACH side of the actual content -- nearly a quarter of the
+   available width unused on both flanks. 1200px only ever mattered as
+   a ceiling on very wide screens (min() means it's a strict no-op on
+   anything narrower, so a normal 1280-1440px laptop renders byte-for-
+   byte identical to before); widened to 1360px so a wide monitor's
+   mockups, bento tiles and FAQ grid actually use more of the room
+   they're given instead of floating in it. */
+.lp-shell { width: 100%; max-width: 1360px; margin: 0 auto; padding-inline: clamp(20px, 5vw, 48px); }
 .lp-section { padding-block: clamp(72px, 11vw, 132px); position: relative; }
 .lp-eyebrow {
   display: inline-flex; align-items: center; gap: 8px;
@@ -1972,6 +1983,22 @@ button.lp-sidebar-link {
   .lp-span-3 { grid-column: span 3; }
   .lp-span-2 { grid-column: span 2; }
 }
+
+/* v3.224.0 -- FeaturesTab's own lead tile (lp-span-6, full width) held the
+   same icon/heading/paragraph sizing as every other tile, so on a wide
+   shell it measured a real, live 1104x248px, a 4.4:1 flat bar with three
+   small pills huddled in the top-left corner and nothing using the other
+   half of its own width. Given real visual priority to match the span it
+   already claims -- a bigger icon badge, a bigger heading and body copy,
+   more generous padding, and its meta pills grown to match -- rather than
+   narrowing the span itself, which would have meant reworking the whole
+   6+3+3+2+2+2 grid balance for a change that's really about this one
+   tile's own content density, not the grid's shape. */
+.lp-tile.lp-span-6 { padding: clamp(28px, 3.4vw, 48px); }
+.lp-tile.lp-span-6 .lp-tile-icon { width: 52px; height: 52px; border-radius: 15px; }
+.lp-tile.lp-span-6 h3 { font-size: clamp(20px, 2.2vw, 26px); }
+.lp-tile.lp-span-6 p { font-size: 16.5px; max-width: 560px; }
+.lp-tile.lp-span-6 .lp-tile-meta span { font-size: 13.5px; padding: 8px 16px; }
 
 /* --- stat tiles: the hero trust bento (TrustBento.tsx). Same .lp-bento/
    .lp-tile/.lp-span-* grid the Features section already uses, a big
