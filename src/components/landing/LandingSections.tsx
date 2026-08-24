@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { CandidateCardMockup, AssessmentMockup, ShortlistMockup, InboxMockup } from './AppMockups';
 import { KineticHeadline } from './KineticHeadline';
-import { TrustBento } from './TrustBento';
 import { HeadToHead } from './HeadToHead';
 import { JobsBrowser } from './JobsBrowser';
 import { LandingFooter } from './LandingFooter';
@@ -402,14 +401,10 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
              requested position, using the same painSection element). ── */}
         {!seeker && painSection}
 
-        {/* ── TRUST STRIP (seeker, kept on Home -- five stat tiles are too
-             thin to earn their own page, everything else genuinely earned
-             a real page and moved to one, see MARKETING_PAGES) ────────── */}
-        {seeker && (
-          <div className="lp-shell" style={{ paddingBlockStart: 'clamp(56px, 8vw, 96px)' }}>
-            <TrustBento />
-          </div>
-        )}
+        {/* v3.222.0 -- the seeker TrustBento stat strip that used to sit
+             here moved into HomeTabs.tsx's FeaturesTab, alongside its own
+             closing CTA (see below) -- direct instruction: this block was
+             showing up on Home and it needed to live on Features only. */}
 
         {/* v3.215.0 -- the "Keep exploring" tile grid that used to live
              here is gone: SeekerSidebar is now the one place these nine
@@ -608,20 +603,22 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
       </>
       )}
 
-      {/* ── CLOSING ─────────────────────────────────────────── the one
-          CTA every tab and every audience ends on, not repeated per tab. */}
+      {/* ── CLOSING (employer only) ─────────────────────────────
+          v3.222.0 -- the seeker version of this closer moved into
+          HomeTabs.tsx's FeaturesTab, the one tab it's now scoped to, per a
+          direct instruction that it was repeating on Home and on every
+          other tab. Employer's own single-page /employers route still ends
+          on it unconditionally -- there's no tab system there to scope it
+          to, and this route genuinely needs its own real closer. */}
+      {!seeker && (
       <section className="lp-section" style={{ paddingBlockStart: 0 }}>
         <div className="lp-shell">
           <div className="lp-closing lp-reveal">
             <h2 className="lp-display lp-h2" style={{ maxWidth: 760, marginInline: 'auto' }}>
-              {seeker
-                ? 'Stop sending the same resume into the dark.'
-                : 'Stop digging through a pile of resumes to find three people.'}
+              Stop digging through a pile of resumes to find three people.
             </h2>
             <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
-              {seeker
-                ? 'Add your background once. Every application after that is written for the job, and every employer searching finds you too.'
-                : 'Describe the role once. No agency fee, just the evidence.'}
+              Describe the role once. No agency fee, just the evidence.
             </p>
             <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
               <button type="button" className="lp-btn lp-btn-invert" onClick={() => onStartFree?.(audience)}>
@@ -631,6 +628,7 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
           </div>
         </div>
       </section>
+      )}
 
       <LandingFooter />
     </div>
