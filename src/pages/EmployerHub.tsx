@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Send, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
   Brain, Search as SearchIcon, Mail, ClipboardCheck, ArrowLeft, Settings, Zap,
+  PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 
 import IntakeWizard from "@/components/employer/IntakeWizard";
@@ -71,6 +72,12 @@ const EMPLOYER_NAV: { key: EmployerTab; label: string; icon: typeof Brain; hint:
   { key: "company", label: "Company", hint: "What candidates see about you", icon: Building2 },
 ];
 
+// v3.217.0 — the icon-only mark, same asset the public site's collapsed
+// SeekerSidebar uses (a public/ file, referenced by path, not imported —
+// this is Vite's own convention for anything already served from public/).
+const AYN_ICON = "/ayn-mark.svg";
+const RAIL_COLLAPSE_KEY = "ayn_employer_rail_collapsed";
+
 
 
 function ScoreRing({ score }: { score: number }) {
@@ -86,22 +93,10 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
-// v3.188.0 — same fix as ResumeHub.tsx's own rail mark, see its comment:
-// the rounded-square single-letter mark reads as a personal avatar, so it
-// should actually be one. Duplicated rather than imported since it's three
-// lines and importing a helper out of a sibling page component for this
-// would be the wrong kind of coupling.
-function initialFromIdentity(name: string | null | undefined, email: string | null | undefined): string {
-  const source = (name || "").trim() || (email || "").trim();
-  return source ? source[0].toUpperCase() : "A";
-}
-
 export default function EmployerHub({ companyName }: { companyName?: string | null }) {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string | null>(null);
   // v3.192.0 — the Settings tab (below) needs a full Session (access
   // token, PrivacySettings' export/delete flow), same as ResumeHub.tsx's
   // own settings-carrying state has always needed. Deliberately not a
@@ -129,6 +124,19 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   const [tab, setTab] = useState<EmployerTab>("search");
   const [stage, setStage] = useState<"spec" | "results">("spec");
   const navListRef = useRef<HTMLElement>(null);
+  // v3.217.0 — the rail's own collapse state, the same "slider" concept
+  // the public site's SeekerSidebar has, just a separate localStorage key
+  // since this is a structurally different, employer-only component.
+  const [railCollapsed, setRailCollapsed] = useState(() => {
+    try { return localStorage.getItem(RAIL_COLLAPSE_KEY) === "1"; } catch { return false; }
+  });
+  const toggleRailCollapsed = useCallback(() => {
+    setRailCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem(RAIL_COLLAPSE_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
 
   // v3.39.0 — a bare signOut() cleared the session but never navigated
   // anywhere, so this whole gated view stayed on screen looking untouched.
@@ -251,10 +259,6 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   }, []);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserEmail(data.user?.email ?? null);
-      setUserName((data.user?.user_metadata?.full_name as string | undefined) ?? null);
-    });
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
   }, []);
 
@@ -386,21 +390,101 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
   return (
     <div className="resume-hub-theme">
-      <div className="rh-shell">
-        {/* v3.181.0 — the exact rh-topbar markup ResumeHub.tsx uses, not a
-            lookalike. "Hiring"/company-name text dropped, matching the
-            same "the logo alone is enough" call made on the seeker side
-            (v3.176.0) -- org.name still carries as the page's sr-only
-            heading and the logo's alt text, so it's not lost, just not
-            rendered as a redundant label next to its own mark. */}
-        <div className="rh-topbar">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex items-center shrink-0" aria-label="AYN">
-              <img src={aynLogo} alt="AYN" className="h-7 w-auto" />
+      <div className="rh-app-shell">
+        {/* v3.217.0 -- the employer's own full-height, edge-to-edge,
+            collapsible rail. Reported directly against two screenshots:
+            the old .rh-aside-left (a floating rounded card in a centered
+            column) read as "a different dashboard" next to the public
+            site's own collapsible SeekerSidebar. Same structural shape
+            here -- full height, no floating card, a real collapse toggle
+            -- rebuilt on the resume-hub token system (not SeekerSidebar's
+            own --lp-* classes, which are scoped to .lp and would reopen
+            the two-systems problem v3.181.0 already closed). Resume Hub's
+            own signed-in shell is untouched; this is employer-only. Hidden
+            during onboarding, same as the old .rh-grid nav was -- there's
+            nothing to navigate to yet. */}
+        {profileComplete && (
+          <aside className={`rh-rail ${railCollapsed ? "is-collapsed" : ""}`} aria-label="Employer navigation">
+            <div className="rh-rail-top">
+              <div className="flex items-center shrink-0" aria-label="AYN">
+                {railCollapsed
+                  ? <img src={AYN_ICON} alt="" style={{ height: 24, width: 24 }} />
+                  : <img src={aynLogo} alt="AYN" className="h-6 w-auto" />}
+              </div>
+              <button
+                type="button"
+                className="rh-rail-toggle"
+                onClick={toggleRailCollapsed}
+                aria-label={railCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                title={railCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                {railCollapsed ? <PanelLeftOpen className="w-[17px] h-[17px]" /> : <PanelLeftClose className="w-[17px] h-[17px]" />}
+              </button>
             </div>
+            <nav className="rh-rail-nav rh-navlist" ref={navListRef}>
+              {EMPLOYER_NAV.map(item => {
+                const Icon = item.icon;
+                const active = tab === item.key;
+                const badge = item.key === "proposals" ? pendingSent : 0;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => setTab(item.key)}
+                    className={`rh-navitem ${active ? "active" : ""}`}
+                    aria-label={item.label + (badge > 0 ? ` (${badge} new)` : "")}
+                    title={railCollapsed ? item.label : undefined}
+                  >
+                    <Icon className="w-[18px] h-[18px] shrink-0" />
+                    <span className="rh-navlabel">{item.label}</span>
+                    {badge > 0 && (
+                      <span className="rh-navbadge" aria-hidden>{badge > 9 ? "9+" : badge}</span>
+                    )}
+                  </button>
+                );
+              })}
+              {/* v3.189.0 — Settings moved from a standalone topbar icon
+                  into a real rail row.
+                  v3.192.0 — reported directly, live: "two different
+                  designs... I don't go a different page." It still
+                  navigated to /settings, a route that was never brought
+                  inside .resume-hub-theme (plain white, generic Inter,
+                  a flat non-gradient active tab) — confirmed by
+                  inspecting the real computed styles on a live account,
+                  not guessed at. Now a real tab switch, same as every
+                  other item, rendering SettingsPanel inline — matching
+                  the seeker side's own Home-as-settings tab, which
+                  never left the page in the first place. */}
+              <button
+                onClick={() => setTab("settings")}
+                className={`rh-navitem ${tab === "settings" ? "active" : ""}`}
+                aria-label="Settings"
+                title={railCollapsed ? "Settings" : undefined}
+              >
+                <Settings className="w-[18px] h-[18px] shrink-0" />
+                <span className="rh-navlabel">Settings</span>
+              </button>
+            </nav>
+          </aside>
+        )}
+
+        <div className="rh-app-main">
+          {/* v3.181.0 — the exact rh-topbar markup ResumeHub.tsx uses, not a
+              lookalike. "Hiring"/company-name text dropped, matching the
+              same "the logo alone is enough" call made on the seeker side
+              (v3.176.0) -- org.name still carries as the page's sr-only
+              heading and the logo's alt text, so it's not lost, just not
+              rendered as a redundant label next to its own mark.
+              v3.217.0 -- the brand mark itself moved into the new rail
+              above (once profileComplete); this bar is now just the
+              account-scoped stuff -- usage, org logo, sign out -- plus the
+              brand during onboarding, when the rail doesn't render yet. */}
+          <div className="rh-app-topbar">
+            {!profileComplete && (
+              <div className="flex items-center shrink-0 mr-auto" aria-label="AYN">
+                <img src={aynLogo} alt="AYN" className="h-7 w-auto" />
+              </div>
+            )}
             <h1 className="sr-only">{org.name} — AYN for employers</h1>
-          </div>
-          <div className="flex items-center gap-2">
             {/* v3.35.0 — the same usage numbers Billing already shows, right
                 where searches, proposals and assessments actually get spent.
                 v3.190.0 — actually matched to the seeker credit pill's real
@@ -438,81 +522,18 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               <LogOut className="w-4 h-4" />
             </Button>
           </div>
-        </div>
 
-        {/**
-         * v3.11.0 — the gate. While a required company field is missing the
-         * onboarding profile is the ONLY thing rendered, and v3.12.0 keeps the
-         * nav out of the page too. The backend enforces the same rule.
-         */}
-        {!profileComplete ? (
-          <div className="rh-main max-w-2xl mx-auto">
-            <CompanyProfile org={org} onSaved={handleOrgSaved} onboarding />
-          </div>
-        ) : (
-          <div className="rh-grid">
-            {/* v3.14.0 — icon rail, same language as the seeker Resume Hub.
-                v3.181.0 — now the literal same classes (.rh-aside-left/
-                .rh-navlist/.rh-navitem), not a parallel reimplementation,
-                and the same responsive collapse to a horizontal row on
-                mobile that ResumeHub.tsx already gets for free from
-                resume-hub.css, so the separate fixed-bottom mobile nav
-                this page used to hand-roll is gone; there's nothing left
-                for it to do differently.
-                v3.187.0 — labels are now always visible, not a hover-only
-                tooltip; see resume-hub.css's own note on why. */}
-            <aside className="rh-aside-left" aria-label="Employer navigation">
-              <div
-                className="rh-rail-mark"
-                title={userEmail || undefined}
-                aria-label={userEmail ? `Signed in as ${userEmail}` : "Account"}
-              >
-                {initialFromIdentity(userName, userEmail)}
-              </div>
-              <div className="rh-rail-sep" aria-hidden />
-              <nav className="rh-navlist" ref={navListRef}>
-                {EMPLOYER_NAV.map(item => {
-                  const Icon = item.icon;
-                  const active = tab === item.key;
-                  const badge = item.key === "proposals" ? pendingSent : 0;
-                  return (
-                    <button
-                      key={item.key}
-                      onClick={() => setTab(item.key)}
-                      className={`rh-navitem ${active ? "active" : ""}`}
-                      aria-label={item.label + (badge > 0 ? ` (${badge} new)` : "")}
-                    >
-                      <Icon className="w-[18px] h-[18px] shrink-0" />
-                      <span className="rh-navlabel">{item.label}</span>
-                      {badge > 0 && (
-                        <span className="rh-navbadge" aria-hidden>{badge > 9 ? "9+" : badge}</span>
-                      )}
-                    </button>
-                  );
-                })}
-                {/* v3.189.0 — Settings moved from a standalone topbar icon
-                    into a real rail row.
-                    v3.192.0 — reported directly, live: "two different
-                    designs... I don't go a different page." It still
-                    navigated to /settings, a route that was never brought
-                    inside .resume-hub-theme (plain white, generic Inter,
-                    a flat non-gradient active tab) — confirmed by
-                    inspecting the real computed styles on a live account,
-                    not guessed at. Now a real tab switch, same as every
-                    other item, rendering SettingsPanel inline — matching
-                    the seeker side's own Home-as-settings tab, which
-                    never left the page in the first place. */}
-                <button
-                  onClick={() => setTab("settings")}
-                  className={`rh-navitem ${tab === "settings" ? "active" : ""}`}
-                  aria-label="Settings"
-                >
-                  <Settings className="w-[18px] h-[18px] shrink-0" />
-                  <span className="rh-navlabel">Settings</span>
-                </button>
-              </nav>
-            </aside>
-
+          <div className="rh-app-content">
+          {/**
+           * v3.11.0 — the gate. While a required company field is missing the
+           * onboarding profile is the ONLY thing rendered. The backend
+           * enforces the same rule.
+           */}
+          {!profileComplete ? (
+            <div className="rh-main max-w-2xl mx-auto">
+              <CompanyProfile org={org} onSaved={handleOrgSaved} onboarding />
+            </div>
+          ) : (
             <section className="rh-main">
               {/* v3.192.0 — Settings carries its own heading (SettingsPanel
                   is shared with the seeker side's Home tab, which never had
@@ -658,11 +679,10 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                   </div>
             )}
             </section>
+          )}
           </div>
-        )}
+        </div>
       </div>
-
-
 
 
       {/* Candidate detail. No name, email, phone, or user id at this stage. */}
