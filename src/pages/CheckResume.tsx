@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SEO, createBreadcrumbSchema } from '@/components/shared/SEO';
-import { Header } from '@/components/shared/Header';
-import { Footer } from '@/components/shared/Footer';
+import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
+import { LandingFooter } from '@/components/landing/LandingFooter';
 import { SectionHeading } from '@/components/shared/SectionHeading';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -61,10 +61,10 @@ const CheckResume = () => {
         canonical="/check-resume"
         jsonLd={jsonLd}
       />
-      <div className="contact-surface min-h-screen bg-background">
-        <Header />
-
-        <main className="container mx-auto max-w-3xl px-6 pt-32 pb-24">
+      <div className="lp lp-shell-with-sidebar contact-surface">
+        <SeekerSidebar />
+        <main className="lp-sidebar-main">
+        <div className="container mx-auto max-w-3xl px-6 pt-10 pb-24">
           <span className="inline-block h-1 w-14 rounded-full mb-6" style={{ background: EMBER }} aria-hidden="true" />
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Does your resume match this job?</h1>
           <p className="mt-3 text-lg text-muted-foreground">
@@ -170,9 +170,9 @@ const CheckResume = () => {
               </div>
             </div>
           )}
+        </div>
+        <LandingFooter />
         </main>
-
-        <Footer />
       </div>
       <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
     </>

@@ -62,6 +62,13 @@ export const MORE_TAB_META: { id: HomeTabId; label: string }[] = [
   { id: 'help', label: 'Help' },
 ];
 
+// v3.219.0 -- the sessionStorage key LandingPage.tsx reads on mount to land
+// on a specific tab, used by HomeTabRedirect (old /pricing etc. links) and,
+// as of v3.220.0, by SeekerSidebar itself when it's rendered on a real,
+// separate route (like /jobs) rather than on Home -- clicking a tab button
+// there has to navigate to "/" first, so it stashes the target the same way.
+export const HOME_TAB_HANDOFF_KEY = 'ayn_home_tab';
+
 export const FeaturesTab = () => (
   <section className="lp-section">
     <div className="lp-shell">

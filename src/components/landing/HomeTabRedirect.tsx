@@ -8,8 +8,7 @@
  * straight off to the real tab instead of rendering their own page.
  */
 import { Navigate } from 'react-router-dom';
-import { HOME_TAB_HANDOFF_KEY } from '@/components/LandingPage';
-import type { HomeTabId } from './HomeTabs';
+import { HOME_TAB_HANDOFF_KEY, type HomeTabId } from './HomeTabs';
 
 export const HomeTabRedirect = ({ tab }: { tab: HomeTabId }) => {
   try { sessionStorage.setItem(HOME_TAB_HANDOFF_KEY, tab); } catch { /* ignore */ }

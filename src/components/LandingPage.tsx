@@ -6,14 +6,18 @@ import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { AuthModal } from './auth/AuthModal';
 import { LandingSections } from '@/components/landing/LandingSections';
 import type { Audience } from '@/lib/landingAudience';
-import { TAB_META, MORE_TAB_META, type HomeTabId } from '@/components/landing/HomeTabs';
+import { TAB_META, MORE_TAB_META, HOME_TAB_HANDOFF_KEY, type HomeTabId } from '@/components/landing/HomeTabs';
 import { useState } from 'react';
 
 // v3.219.0 -- /pricing, /contact, /about and /help still exist as real
 // routes (old links and bookmarks keep working), but now redirect here
 // with the tab to land on stashed first -- the same cross-page handoff
 // pattern EmployerHub/ResumeHub already use for "land on this exact tab."
-export const HOME_TAB_HANDOFF_KEY = 'ayn_home_tab';
+// v3.220.0 -- HOME_TAB_HANDOFF_KEY itself moved into HomeTabs.tsx: this
+// file already imports from there, and SeekerSidebar needs the same key
+// for its own standalone-route fallback -- importing it back from here
+// would be a circular dependency (LandingPage -> SeekerSidebar ->
+// LandingPage), since LandingPage already imports SeekerSidebar directly.
 const ALL_TAB_IDS = new Set<HomeTabId>(['search', ...TAB_META.map((t) => t.id), ...MORE_TAB_META.map((t) => t.id)]);
 function readHandoffTab(): HomeTabId {
   try {

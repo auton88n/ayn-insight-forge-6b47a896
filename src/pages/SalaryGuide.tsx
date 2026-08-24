@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { SEO } from '@/components/shared/SEO';
-import { Header } from '@/components/shared/Header';
-import { Footer } from '@/components/shared/Footer';
+import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
+import { LandingFooter } from '@/components/landing/LandingFooter';
 import { SectionHeading } from '@/components/shared/SectionHeading';
 import { Skeleton } from '@/components/ui/skeleton';
 import { humanizeCategory } from '@/components/resume-hub/BrowseJobs';
@@ -81,10 +81,10 @@ const SalaryGuide = () => {
         canonical="/salary-guide"
         jsonLd={jsonLd}
       />
-      <div className="contact-surface min-h-screen bg-background">
-        <Header />
-
-        <main className="container mx-auto max-w-4xl px-6 pt-32 pb-24">
+      <div className="lp lp-shell-with-sidebar contact-surface">
+        <SeekerSidebar />
+        <main className="lp-sidebar-main">
+        <div className="container mx-auto max-w-4xl px-6 pt-10 pb-24">
           <span className="inline-block h-1 w-14 rounded-full mb-6" style={{ background: EMBER }} aria-hidden="true" />
           <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-balance">
             What roles actually pay, right now
@@ -239,9 +239,9 @@ const SalaryGuide = () => {
               </div>
             </>
           )}
+        </div>
+        <LandingFooter />
         </main>
-
-        <Footer />
       </div>
     </>
   );

@@ -17,7 +17,7 @@
  * page in its own right, not an explanation of the product.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, Briefcase, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
   MessageSquare, CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, PanelLeftClose,
@@ -26,7 +26,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/AuthModal';
 import aynWordmark from '@/assets/ayn-logo.png';
-import { TAB_META, MORE_TAB_META, type HomeTabId } from './HomeTabs';
+import { TAB_META, MORE_TAB_META, HOME_TAB_HANDOFF_KEY, type HomeTabId } from './HomeTabs';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 // v3.216.0 -- the full wordmark reads broken/clipped at collapsed rail
@@ -56,13 +56,22 @@ const TOOL_LINKS = [
 
 const COLLAPSE_KEY = 'ayn_sidebar_collapsed';
 
+// v3.220.0 -- both now optional: /jobs, /salary-guide and /check-resume
+// stay real, separate, SEO-crawlable routes (JobPosting schema, the
+// sitemap and the category/location hub pages all need a real URL) but
+// still render this exact sidebar, not the old Header/Footer chrome, so
+// it's never gone just because you're on a page that isn't Home. On one
+// of those routes there's no local tab state to flip -- clicking a tab
+// button there hands off to Home the same way an old /pricing link does.
 type Props = {
-  activeTab: HomeTabId;
-  onSelectTab: (tab: HomeTabId) => void;
+  activeTab?: HomeTabId;
+  onSelectTab?: (tab: HomeTabId) => void;
 };
 
 export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const onHome = location.pathname === '/';
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
   });
@@ -89,7 +98,12 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
   };
 
   const selectTab = (tab: HomeTabId) => {
-    onSelectTab(tab);
+    if (onHome && onSelectTab) {
+      onSelectTab(tab);
+    } else {
+      try { sessionStorage.setItem(HOME_TAB_HANDOFF_KEY, tab); } catch { /* ignore */ }
+      navigate('/');
+    }
     setMobileOpen(false);
   };
 
@@ -119,7 +133,7 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
         <div className="lp-sidebar-group">
           <button
             type="button"
-            className={`lp-sidebar-link ${activeTab === 'search' && location.pathname === '/' ? 'is-active' : ''}`}
+            className={`lp-sidebar-link ${onHome && activeTab === 'search' ? 'is-active' : ''}`}
             onClick={() => selectTab('search')}
             title={collapsed ? 'Job search' : undefined}
           >
@@ -146,7 +160,7 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
         <div className="lp-sidebar-group">
           {TAB_META.map((item) => {
             const Icon = TAB_ICONS[item.id as Exclude<HomeTabId, 'search'>];
-            const active = location.pathname === '/' && activeTab === item.id;
+            const active = onHome && activeTab === item.id;
             return (
               <button
                 key={item.id}
@@ -165,7 +179,7 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
         <div className="lp-sidebar-group">
           {MORE_TAB_META.map((item) => {
             const Icon = TAB_ICONS[item.id as Exclude<HomeTabId, 'search'>];
-            const active = location.pathname === '/' && activeTab === item.id;
+            const active = onHome && activeTab === item.id;
             return (
               <button
                 key={item.id}

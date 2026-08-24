@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SEO } from '@/components/shared/SEO';
-import { Header } from '@/components/shared/Header';
-import { Footer } from '@/components/shared/Footer';
+import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
+import { LandingFooter } from '@/components/landing/LandingFooter';
 import { Button } from '@/components/ui/button';
 import { JobsBrowser, unslugifyCity } from '@/components/landing/JobsBrowser';
 import { humanizeCategory } from '@/components/resume-hub/BrowseJobs';
@@ -123,30 +123,32 @@ const PublicJobs = () => {
   return (
     <>
       <SEO title={pageTitle} description={pageDescription} canonical={canonicalPath} jsonLd={jsonLd} noIndex={!!isThinHub} />
-      <div className="contact-surface min-h-screen bg-background">
-        <Header />
-        <main className="container mx-auto max-w-6xl px-4 sm:px-6 pt-28 sm:pt-32 pb-24">
-          <JobsBrowser routeId={routeId} categorySlug={categorySlug} locationSlug={locationSlug} />
+      <div className="lp lp-shell-with-sidebar contact-surface">
+        <SeekerSidebar />
+        <main className="lp-sidebar-main">
+          <div className="container mx-auto max-w-6xl px-4 sm:px-6 pt-10 sm:pt-12 pb-24">
+            <JobsBrowser routeId={routeId} categorySlug={categorySlug} locationSlug={locationSlug} asH1 />
 
-          <div className="mt-16 rounded-xl border p-6" style={{ background: 'var(--accent, #fdf3ee)' }}>
-            <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#e85d3a' }}>
-              <Sparkles className="w-4 h-4" />
-              Already have a job in mind?
-            </div>
-            <p className="text-sm text-muted-foreground mt-2">
-              Paste your resume and any job description to see exactly which requirements you match, free, no account needed.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Button variant="outline" onClick={() => navigate('/check-resume')}>
-                Check my resume against a job
-              </Button>
-              <Button variant="outline" onClick={() => navigate('/salary-guide')}>
-                See real salary data by role
-              </Button>
+            <div className="mt-16 rounded-xl border p-6" style={{ background: 'var(--accent, #fdf3ee)' }}>
+              <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#e85d3a' }}>
+                <Sparkles className="w-4 h-4" />
+                Already have a job in mind?
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Paste your resume and any job description to see exactly which requirements you match, free, no account needed.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Button variant="outline" onClick={() => navigate('/check-resume')}>
+                  Check my resume against a job
+                </Button>
+                <Button variant="outline" onClick={() => navigate('/salary-guide')}>
+                  See real salary data by role
+                </Button>
+              </div>
             </div>
           </div>
+          <LandingFooter />
         </main>
-        <Footer />
       </div>
     </>
   );
