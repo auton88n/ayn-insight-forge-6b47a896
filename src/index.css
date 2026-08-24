@@ -2102,29 +2102,13 @@ button.lp-sidebar-link {
 .lp-closing p { color: hsl(0 0% 100% / 0.82); margin-inline: auto; }
 
 /* --- footer --- */
-.lp-footer { border-top: 1px solid hsl(var(--lp-border-soft)); padding-block: 56px 28px; }
-.lp-footer-top { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 40px clamp(48px, 9vw, 140px); padding-bottom: 40px; }
-.lp-footer-brand { max-width: 300px; }
-.lp-footer-brand img { display: block; margin-bottom: 16px; }
-.lp-footer-tagline { font-size: 14px; line-height: 1.6; color: hsl(var(--lp-dim)); margin: 0 0 18px; }
-.lp-footer-social { display: flex; align-items: center; gap: 14px; }
-.lp-footer-social a { color: hsl(var(--lp-dim)); transition: color .2s ease; }
-.lp-footer-social a:hover { color: hsl(var(--lp-ember)); }
-.lp-footer-cols { display: flex; flex-wrap: wrap; gap: 40px 56px; }
-.lp-footer-col h4 {
-  font-family: 'Outfit', system-ui, sans-serif; font-size: 12px; font-weight: 600;
-  letter-spacing: 0.08em; text-transform: uppercase; color: hsl(var(--lp-ember));
-  margin: 0 0 16px;
-}
-.lp-footer-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
-.lp-footer-col a, .lp-footer-col button {
-  font-size: 14px; color: hsl(var(--lp-muted)); text-decoration: none;
-  background: none; border: 0; padding: 0; cursor: pointer; text-align: left; font-family: inherit;
-  transition: color .2s ease;
-}
-.lp-footer-col a:hover, .lp-footer-col button:hover { color: hsl(var(--lp-ember)); }
+/* v3.221.0 -- the footer is now just the bottom bar (copyright + Privacy
+   Policy + Cookie choices); the brand block, social icons and Navigate/
+   Company columns are gone, redundant with SeekerSidebar's own brand mark
+   and nav links on every page this renders on. One border, one padding,
+   not two stacked rows worth. */
+.lp-footer { border-top: 1px solid hsl(var(--lp-border-soft)); padding-block: 28px; }
 .lp-footer-bottom {
-  border-top: 1px solid hsl(var(--lp-border-soft)); padding-top: 24px;
   font-size: 13px; color: hsl(var(--lp-dim));
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px;
 }
