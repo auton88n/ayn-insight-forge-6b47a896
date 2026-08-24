@@ -1890,6 +1890,13 @@ button, a, input, textarea, select {
   font-size: 14px; font-weight: 500; color: hsl(var(--lp-muted)); text-decoration: none;
   white-space: nowrap; overflow: hidden;
 }
+/* v3.216.0 -- several sidebar items are now <button> (the tab-switching
+   entries), not <a>; reset the native button chrome so they render
+   identically to the Link-based entries beside them. */
+button.lp-sidebar-link {
+  width: 100%; background: none; border: none; cursor: pointer; text-align: left;
+  font-family: inherit;
+}
 .lp-sidebar-link:hover { background: hsl(var(--lp-fg) / 0.05); color: hsl(var(--lp-fg)); }
 .lp-sidebar-link.is-active { background: hsl(var(--lp-ember) / 0.12); color: hsl(var(--lp-ember)); font-weight: 600; }
 .lp-sidebar-link-icon { flex-shrink: 0; }

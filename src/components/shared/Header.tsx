@@ -14,21 +14,17 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 // itself gets EMPLOYER_LINKS. Each audience's "How it works"/"Features"
 // anchors now live on that audience's own single-identity route, so a
 // hash link never has to flip anything else into view first.
-// v3.214.0 -- Features/How it works are real pages now (/features,
-// /how-it-works), not hash anchors on "/". The rest of what used to be
-// sections on this page (Why AYN, Get discovered, Messaging, etc.) are
-// also real pages now.
-// v3.215.0 -- Home and the nine explanation pages moved off this fixed
-// top Header entirely, onto SeekerSidebar (see MarketingPageShell.tsx and
-// LandingPage.tsx) -- this component still renders on every page that
-// hasn't made that move yet (Pricing, Contact, /jobs, /check-resume,
-// /salary-guide, and the rest of the still-standalone pages), plus
-// /employers, which keeps this exact layout on purpose.
+// v3.215.0 -- Home moved off this fixed top Header entirely, onto
+// SeekerSidebar (see LandingPage.tsx) -- this component still renders on
+// every page that hasn't made that move yet (Pricing, Contact, /jobs,
+// /check-resume, /salary-guide, and the rest of the still-standalone
+// pages), plus /employers, which keeps this exact layout on purpose.
+// v3.216.0 -- Features and How it works are gone as routes; that content
+// now lives as tabs on Home itself, reachable from SeekerSidebar once
+// you're there, not from this fixed bar on a different page.
 const SEEKER_LINKS = [
 { path: '/', en: 'Home' },
 { path: '/jobs', en: 'Browse jobs' },
-{ path: '/features', en: 'Features' },
-{ path: '/how-it-works', en: 'How it works' },
 { path: '/pricing', en: 'Pricing' },
 { path: '/contact', en: 'Contact' }];
 

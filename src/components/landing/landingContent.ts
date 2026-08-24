@@ -1,9 +1,9 @@
 /**
  * landingContent -- the seeker/employer copy records shared between
  * LandingSections.tsx (which still owns the employer route's single-page
- * layout) and the individual seeker pages under src/pages/marketing/
- * (v3.214.0 split each former section into its own real route). One
- * source for this content so a copy edit never has to be made twice.
+ * layout) and HomeTabs.tsx (the seeker Home page's own explanation tabs,
+ * v3.216.0). One source for this content so a copy edit never has to be
+ * made twice.
  */
 import type { Audience } from '@/lib/landingAudience';
 import { Target, ShieldCheck, Radar, Search, FileText, MessagesSquare, Eye } from 'lucide-react';

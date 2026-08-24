@@ -20,6 +20,7 @@ import { HeadToHead } from './HeadToHead';
 import { JobsBrowser } from './JobsBrowser';
 import { LandingFooter } from './LandingFooter';
 import { PAIN, HEAD_TO_HEAD, TRUST, FAQS } from './landingContent';
+import { HOME_TAB_CONTENT, type HomeTabId } from './HomeTabs';
 
 // v3.210.0 -- the structural rework: AYN is no longer one page trying to be
 // legible to two different buyers via an in-place toggle. "/" commits to
@@ -29,7 +30,7 @@ import { PAIN, HEAD_TO_HEAD, TRUST, FAQS } from './landingContent';
 // not a switch fighting for the same hero. forcedAudience locks this
 // component to whichever identity its route owns -- the toggle only
 // renders when it's left unset, which no real route does any more.
-type Props = { onStartFree?: (role?: Audience) => void; forcedAudience?: Audience };
+type Props = { onStartFree?: (role?: Audience) => void; forcedAudience?: Audience; activeTab?: HomeTabId };
 
 const SOURCING_MARKS = ['Real company career pages', 'Never LinkedIn or Indeed', 'Refreshed every 2 hours', 'Or paste any posting yourself'];
 const POOL_MARKS = ['Opted in candidates', 'Skill provenance', 'Match evidence', 'Verification assessments'];
@@ -60,9 +61,9 @@ const EASY_HIRING_CHIPS = [
   { icon: Users, text: 'Three people to read, not a pile of resumes' },
 ];
 
-// v3.214.0 -- SEEKER_TILES and SEEKER_STEPS moved to landingContent.ts;
-// they're used by src/pages/marketing/Features.tsx and HowItWorks.tsx now,
-// not rendered directly on this page any more.
+// v3.214.0 -- SEEKER_TILES and SEEKER_STEPS moved to landingContent.ts.
+// v3.216.0 -- read by HomeTabs.tsx's FeaturesTab/HowItWorksTab now, not
+// rendered directly on this page any more.
 
 const EMPLOYER_STEPS = [
   {
@@ -87,8 +88,9 @@ const EMPLOYER_STEPS = [
   },
 ];
 
-// v3.214.0 -- TRUST and FAQS moved to landingContent.ts; seeker's own
-// copies now live on src/pages/marketing/Proof.tsx and Faq.tsx.
+// v3.214.0 -- TRUST and FAQS moved to landingContent.ts.
+// v3.216.0 -- seeker's own copies now render inside HomeTabs.tsx's
+// ProofTab/FaqTab, a tab on Home, not a separate route.
 
 const HERO: Record<Audience, {
   headline: string;
@@ -130,7 +132,7 @@ const HERO: Record<Audience, {
 };
 
 
-export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => {
+export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 'search' }: Props) => {
   const root = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -223,6 +225,16 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
   const trust = TRUST[audience];
   const seeker = audience === 'job_seeker';
 
+  // v3.216.0 -- "keep within the same page, all sections should open
+  // within it": Features through FAQ are no longer routes, they're a tab
+  // selection SeekerSidebar drives. A non-search tab replaces the hero and
+  // browser entirely, the same full-swap Resume Hub's own tabs already do,
+  // rather than stacking a second page's worth of content below the hero.
+  // The employer route never passes activeTab, so this is always 'search'
+  // there and this whole branch is a no-op for it.
+  const showTabContent = seeker && activeTab !== 'search';
+  const TabContent = showTabContent ? HOME_TAB_CONTENT[activeTab as Exclude<HomeTabId, 'search'>] : null;
+
   // v3.213.0 -- rendered in a different position per audience (employer
   // keeps its original spot right after the hero; seeker's own copy of
   // this same section moved to sit after Features/How it works, per the
@@ -254,6 +266,14 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
 
   return (
     <div className="lp" ref={root}>
+      {showTabContent && TabContent && (
+        <div className="lp-audience" key={`tab-${activeTab}`} style={{ paddingBlockStart: 'clamp(40px, 6vw, 72px)' }}>
+          <TabContent />
+        </div>
+      )}
+
+      {!showTabContent && (
+      <>
       {/* ── HERO ─────────────────────────────────────────────── */}
       <header className="lp-hero">
         <div className="lp-hero-aura" aria-hidden="true" />
@@ -561,29 +581,33 @@ export const LandingSections = memo(({ onStartFree, forcedAudience }: Props) => 
           </section>
         )}
 
-        {/* ── CLOSING ────────────────────────────────────────── */}
-        <section className="lp-section" style={{ paddingBlockStart: 0 }}>
-          <div className="lp-shell">
-            <div className="lp-closing lp-reveal">
-              <h2 className="lp-display lp-h2" style={{ maxWidth: 760, marginInline: 'auto' }}>
-                {seeker
-                  ? 'Stop sending the same resume into the dark.'
-                  : 'Stop digging through a pile of resumes to find three people.'}
-              </h2>
-              <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
-                {seeker
-                  ? 'Add your background once. Every application after that is written for the job, and every employer searching finds you too.'
-                  : 'Describe the role once. No agency fee, just the evidence.'}
-              </p>
-              <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
-                <button type="button" className="lp-btn lp-btn-invert" onClick={() => onStartFree?.(audience)}>
-                  {hero.cta} <ArrowRight size={15} />
-                </button>
-              </div>
+      </div>
+      </>
+      )}
+
+      {/* ── CLOSING ─────────────────────────────────────────── the one
+          CTA every tab and every audience ends on, not repeated per tab. */}
+      <section className="lp-section" style={{ paddingBlockStart: 0 }}>
+        <div className="lp-shell">
+          <div className="lp-closing lp-reveal">
+            <h2 className="lp-display lp-h2" style={{ maxWidth: 760, marginInline: 'auto' }}>
+              {seeker
+                ? 'Stop sending the same resume into the dark.'
+                : 'Stop digging through a pile of resumes to find three people.'}
+            </h2>
+            <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
+              {seeker
+                ? 'Add your background once. Every application after that is written for the job, and every employer searching finds you too.'
+                : 'Describe the role once. No agency fee, just the evidence.'}
+            </p>
+            <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
+              <button type="button" className="lp-btn lp-btn-invert" onClick={() => onStartFree?.(audience)}>
+                {hero.cta} <ArrowRight size={15} />
+              </button>
             </div>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
 
       <LandingFooter />
     </div>

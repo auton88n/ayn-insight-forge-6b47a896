@@ -6,6 +6,7 @@ import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { AuthModal } from './auth/AuthModal';
 import { LandingSections } from '@/components/landing/LandingSections';
 import type { Audience } from '@/lib/landingAudience';
+import type { HomeTabId } from '@/components/landing/HomeTabs';
 import { useState } from 'react';
 
 // v3.210.0 -- "/" and "/employers" are now two real, separately-identified
@@ -49,6 +50,7 @@ const COPY: Record<Audience, { title: string; description: string; canonical: st
 const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: Audience }) => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authRole, setAuthRole] = useState<Audience>(forcedAudience);
+  const [activeTab, setActiveTab] = useState<HomeTabId>('search');
   const { direction } = useLanguage();
 
   // The landing page owns a warm paper canvas, independent of app theme.
@@ -91,15 +93,20 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
             />
           </>
         ) : (
-          // v3.215.0 -- "home is the job search, other pages have the
-          // explanations, reached from a sidebar" -- the same shell the
-          // nine explanation pages use (MarketingPageShell), so signing
-          // in never means landing on a differently-shaped site.
+          // v3.215.0 -- "home is the job search, other sections have the
+          // explanations, reached from a sidebar" -- the same collapsible
+          // shell Resume Hub's own icon rail already uses once someone
+          // signs in, so signing in never means landing on a differently
+          // shaped site.
+          // v3.216.0 -- the explanations are tabs on this one page now
+          // (activeTab, owned here), not separate routes: clicking one in
+          // SeekerSidebar swaps the main pane's content in place.
           <div className="lp lp-shell-with-sidebar">
-            <SeekerSidebar />
+            <SeekerSidebar activeTab={activeTab} onSelectTab={setActiveTab} />
             <main className="lp-sidebar-main">
               <LandingSections
                 forcedAudience={forcedAudience}
+                activeTab={activeTab}
                 onStartFree={(role) => {
                   setAuthRole(role || forcedAudience);
                   setShowAuthModal(true);

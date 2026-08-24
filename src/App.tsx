@@ -78,15 +78,6 @@ const ContactPage = lazy(() => import("./pages/Contact"));
 const CheckResumePage = lazy(() => import("./pages/CheckResume"));
 const PublicJobsPage = lazy(() => import("./pages/PublicJobs"));
 const SalaryGuidePage = lazy(() => import("./pages/SalaryGuide"));
-const FeaturesPage = lazy(() => import("./pages/marketing/Features"));
-const HowItWorksPage = lazy(() => import("./pages/marketing/HowItWorks"));
-const WhyAynPage = lazy(() => import("./pages/marketing/WhyAyn"));
-const RealAiPage = lazy(() => import("./pages/marketing/RealAi"));
-const GetDiscoveredPage = lazy(() => import("./pages/marketing/GetDiscovered"));
-const MessagingPage = lazy(() => import("./pages/marketing/Messaging"));
-const SourcingPage = lazy(() => import("./pages/marketing/Sourcing"));
-const ProofPage = lazy(() => import("./pages/marketing/Proof"));
-const FaqPage = lazy(() => import("./pages/marketing/Faq"));
 const ResumeHub = lazy(() => import("./pages/ResumeHub"));
 // const AIAgents = lazy(() => import("./pages/services/AIAgents"));
 // const AIAgentsApply = lazy(() => import("./pages/services/AIAgentsApply"));
@@ -156,15 +147,11 @@ const AnimatedRoutes = () => {
       <Route path="/jobs/location/:location" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
       <Route path="/jobs/:id" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
       <Route path="/salary-guide" element={<Suspense fallback={<PageLoader />}><SalaryGuidePage /></Suspense>} />
-      <Route path="/features" element={<Suspense fallback={<PageLoader />}><FeaturesPage /></Suspense>} />
-      <Route path="/how-it-works" element={<Suspense fallback={<PageLoader />}><HowItWorksPage /></Suspense>} />
-      <Route path="/why-ayn" element={<Suspense fallback={<PageLoader />}><WhyAynPage /></Suspense>} />
-      <Route path="/real-ai" element={<Suspense fallback={<PageLoader />}><RealAiPage /></Suspense>} />
-      <Route path="/get-discovered" element={<Suspense fallback={<PageLoader />}><GetDiscoveredPage /></Suspense>} />
-      <Route path="/messaging" element={<Suspense fallback={<PageLoader />}><MessagingPage /></Suspense>} />
-      <Route path="/sourcing" element={<Suspense fallback={<PageLoader />}><SourcingPage /></Suspense>} />
-      <Route path="/proof" element={<Suspense fallback={<PageLoader />}><ProofPage /></Suspense>} />
-      <Route path="/faq" element={<Suspense fallback={<PageLoader />}><FaqPage /></Suspense>} />
+      {/* v3.216.0 -- /features, /how-it-works, /why-ayn, /real-ai,
+          /get-discovered, /messaging, /sourcing, /proof and /faq are gone.
+          That content now lives as tabs on Home itself (SeekerSidebar +
+          HomeTabs.tsx), never a route change -- "keep within the same
+          page, all sections should open within it." */}
       <Route path="/resume-hub" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/employer/pending" element={<Suspense fallback={<PageLoader />}><EmployerPending /></Suspense>} />

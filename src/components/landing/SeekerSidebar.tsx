@@ -1,63 +1,68 @@
 /**
- * SeekerSidebar -- the collapsible left nav shell for every seeker page
- * (Home plus the nine explanation pages), replacing the old fixed top
- * Header + horizontal MarketingSubNav strip.
+ * SeekerSidebar -- the collapsible left nav for the seeker home page.
  *
  * v3.215.0 -- direct instruction, with a reference screenshot: the site
  * needs a slider-collapsible sidebar, home is the job search, the other
  * pages are the explanations, reached from the sidebar -- the same
- * STRUCTURAL pattern (not the reference's own dark purple branding) that
- * Resume Hub's own icon rail already uses once someone signs in. This is
- * the fix for the standing complaint that signing in shows "a different
- * dashboard": both now share the same shell shape, a collapsible sidebar
- * plus a main content pane, not a fixed top bar for one and a sidebar for
- * the other.
+ * STRUCTURAL pattern Resume Hub's own icon rail already uses once someone
+ * signs in.
+ *
+ * v3.216.0 -- "when you make a page open dont take me to new page keep
+ * within the same page all sections should open within it." The seven
+ * explanation items (Features through FAQ) are no longer routes at all;
+ * they're plain buttons that flip local tab state on Home, the identical
+ * mechanism Resume Hub's own tabs use (never a URL change). Job search,
+ * Browse jobs, Check my resume, Salary guide, Pricing and Contact stay
+ * real routes -- each is a substantial, independently useful, SEO-real
+ * page in its own right, not an explanation of the product.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Search, Briefcase, FileCheck2, Tag, Sparkles, Route, Scale, Bot, Radar,
-  MessageSquare, Building2, CheckCircle2, HelpCircle, Mail, PanelLeftClose,
+  Search, Briefcase, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
+  MessageSquare, CheckCircle2, HelpCircle, Mail, PanelLeftClose,
   PanelLeftOpen, LogOut, User, Menu, X,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/AuthModal';
-import aynMark from '@/assets/ayn-logo.png';
+import aynWordmark from '@/assets/ayn-logo.png';
+import { TAB_META, type HomeTabId } from './HomeTabs';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
-const NAV_GROUPS: { items: { to: string; label: string; icon: typeof Search }[] }[] = [
-  {
-    items: [
-      { to: '/', label: 'Job search', icon: Search },
-      { to: '/jobs', label: 'Browse jobs', icon: Briefcase },
-      { to: '/check-resume', label: 'Check my resume', icon: FileCheck2 },
-      { to: '/salary-guide', label: 'Salary guide', icon: Tag },
-    ],
-  },
-  {
-    items: [
-      { to: '/features', label: 'Features', icon: Sparkles },
-      { to: '/how-it-works', label: 'How it works', icon: Route },
-      { to: '/why-ayn', label: 'Why AYN', icon: Scale },
-      { to: '/real-ai', label: 'Real AI', icon: Bot },
-      { to: '/get-discovered', label: 'Get discovered', icon: Radar },
-      { to: '/messaging', label: 'Messaging', icon: MessageSquare },
-      { to: '/sourcing', label: 'Where jobs come from', icon: Building2 },
-      { to: '/proof', label: 'Proof', icon: CheckCircle2 },
-      { to: '/faq', label: 'FAQ', icon: HelpCircle },
-    ],
-  },
-  {
-    items: [
-      { to: '/pricing', label: 'Pricing', icon: Tag },
-      { to: '/contact', label: 'Contact', icon: Mail },
-    ],
-  },
+// v3.216.0 -- the full wordmark reads broken/clipped at collapsed rail
+// width; the icon-only mark (already used by AdminApp/AynLoader/
+// ErrorBoundary) is the correct asset once there's no room for text.
+const AYN_ICON = '/ayn-mark.svg';
+
+const TAB_ICONS: Record<Exclude<HomeTabId, 'search'>, typeof Search> = {
+  features: Sparkles,
+  'how-it-works': Route,
+  'why-ayn': Scale,
+  'get-discovered': Radar,
+  messaging: MessageSquare,
+  proof: CheckCircle2,
+  faq: HelpCircle,
+};
+
+const TOOL_LINKS = [
+  { to: '/jobs', label: 'Browse jobs', icon: Briefcase },
+  { to: '/check-resume', label: 'Check my resume', icon: FileCheck2 },
+  { to: '/salary-guide', label: 'Salary guide', icon: Tag },
+];
+
+const UTILITY_LINKS = [
+  { to: '/pricing', label: 'Pricing', icon: Tag },
+  { to: '/contact', label: 'Contact', icon: Mail },
 ];
 
 const COLLAPSE_KEY = 'ayn_sidebar_collapsed';
 
-export const SeekerSidebar = () => {
+type Props = {
+  activeTab: HomeTabId;
+  onSelectTab: (tab: HomeTabId) => void;
+};
+
+export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
@@ -84,11 +89,18 @@ export const SeekerSidebar = () => {
     await supabase.auth.signOut();
   };
 
+  const selectTab = (tab: HomeTabId) => {
+    onSelectTab(tab);
+    setMobileOpen(false);
+  };
+
   const nav = (
     <>
       <div className="lp-sidebar-top">
-        <Link to="/" className="lp-sidebar-brand" aria-label="AYN home">
-          <img src={aynMark} alt="" style={{ height: 26, width: 'auto' }} />
+        <Link to="/" className="lp-sidebar-brand" aria-label="AYN home" onClick={() => selectTab('search')}>
+          {collapsed
+            ? <img src={AYN_ICON} alt="" style={{ height: 26, width: 26 }} />
+            : <img src={aynWordmark} alt="AYN" style={{ height: 24, width: 'auto' }} />}
         </Link>
         <button
           type="button"
@@ -105,26 +117,69 @@ export const SeekerSidebar = () => {
       </div>
 
       <nav className="lp-sidebar-nav" aria-label="AYN">
-        {NAV_GROUPS.map((group, gi) => (
-          <div className="lp-sidebar-group" key={gi}>
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              const active = location.pathname === item.to;
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className={`lp-sidebar-link ${active ? 'is-active' : ''}`}
-                  onClick={() => setMobileOpen(false)}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <Icon size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-                  <span className="lp-sidebar-link-label">{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+        <div className="lp-sidebar-group">
+          <button
+            type="button"
+            className={`lp-sidebar-link ${activeTab === 'search' && location.pathname === '/' ? 'is-active' : ''}`}
+            onClick={() => selectTab('search')}
+            title={collapsed ? 'Job search' : undefined}
+          >
+            <Search size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+            <span className="lp-sidebar-link-label">Job search</span>
+          </button>
+          {TOOL_LINKS.map((item) => {
+            const Icon = item.icon;
+            const active = location.pathname === item.to;
+            return (
+              <Link
+                key={item.to} to={item.to}
+                className={`lp-sidebar-link ${active ? 'is-active' : ''}`}
+                onClick={() => setMobileOpen(false)}
+                title={collapsed ? item.label : undefined}
+              >
+                <Icon size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                <span className="lp-sidebar-link-label">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+
+        <div className="lp-sidebar-group">
+          {TAB_META.map((item) => {
+            const Icon = TAB_ICONS[item.id as Exclude<HomeTabId, 'search'>];
+            const active = location.pathname === '/' && activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`lp-sidebar-link ${active ? 'is-active' : ''}`}
+                onClick={() => selectTab(item.id)}
+                title={collapsed ? item.label : undefined}
+              >
+                <Icon size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                <span className="lp-sidebar-link-label">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="lp-sidebar-group">
+          {UTILITY_LINKS.map((item) => {
+            const Icon = item.icon;
+            const active = location.pathname === item.to;
+            return (
+              <Link
+                key={item.to} to={item.to}
+                className={`lp-sidebar-link ${active ? 'is-active' : ''}`}
+                onClick={() => setMobileOpen(false)}
+                title={collapsed ? item.label : undefined}
+              >
+                <Icon size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                <span className="lp-sidebar-link-label">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
       </nav>
 
       <div className="lp-sidebar-bottom">
@@ -152,8 +207,8 @@ export const SeekerSidebar = () => {
         <button type="button" onClick={() => setMobileOpen(true)} aria-label="Open menu" className="lp-sidebar-mobile-trigger">
           <Menu size={20} />
         </button>
-        <Link to="/" aria-label="AYN home">
-          <img src={aynMark} alt="AYN" style={{ height: 24, width: 'auto' }} />
+        <Link to="/" aria-label="AYN home" onClick={() => selectTab('search')}>
+          <img src={aynWordmark} alt="AYN" style={{ height: 24, width: 'auto' }} />
         </Link>
         <span style={{ width: 20 }} />
       </div>
