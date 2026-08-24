@@ -12,14 +12,26 @@
  * explanation items (Features through FAQ) are no longer routes at all;
  * they're plain buttons that flip local tab state on Home, the identical
  * mechanism Resume Hub's own tabs use (never a URL change). Job search,
- * Browse jobs, Check my resume, Salary guide, Pricing and Contact stay
- * real routes -- each is a substantial, independently useful, SEO-real
- * page in its own right, not an explanation of the product.
+ * Check my resume, Salary guide, Pricing and Contact stay real routes --
+ * each is a substantial, independently useful, SEO-real page in its own
+ * right, not an explanation of the product.
+ *
+ * v3.223.0 -- "Browse jobs" (-> /jobs) is gone as its own nav item.
+ * Reported directly: "why we have job search and browser delete the
+ * browser only the job search is the browser not having two" -- Job
+ * search (this button, right below) already renders the exact same
+ * JobsBrowser component /jobs does, just embedded on Home instead of
+ * wrapped in its own route, so the two entries read as two different
+ * tools when they're the same one. /jobs itself is untouched -- it's
+ * still a real, separately reachable, SEO-crawlable route (JobPosting
+ * schema, the sitemap, category/location hub pages, CheckResume and
+ * SalaryGuide's own cross-links into it all still work), it's just not
+ * repeated a second time in this list next to its own duplicate.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Search, Briefcase, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
+  Search, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
   MessageSquare, CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, PanelLeftClose,
   PanelLeftOpen, LogOut, User, Menu, X,
 } from 'lucide-react';
@@ -49,7 +61,6 @@ const TAB_ICONS: Record<Exclude<HomeTabId, 'search'>, typeof Search> = {
 };
 
 const TOOL_LINKS = [
-  { to: '/jobs', label: 'Browse jobs', icon: Briefcase },
   { to: '/check-resume', label: 'Check my resume', icon: FileCheck2 },
   { to: '/salary-guide', label: 'Salary guide', icon: Tag },
 ];
