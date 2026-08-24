@@ -160,7 +160,8 @@ app.get('/sitemap-jobs.xml', async (req, res) => {
 // indexes every junk path as a live page.
 const ROUTES = [
   '/', '/pricing', '/resume-hub', '/contact', '/support', '/help', '/about', '/check-resume', '/jobs', '/salary-guide',
-  '/terms', '/privacy', '/settings', '/billing',
+  '/terms', '/privacy', '/legal', '/cookies', '/security', '/subprocessors', '/dpa', '/sla', '/copyright', '/do-not-sell',
+  '/settings', '/billing',
   '/employer/pending', '/employers', '/reset-password',
   '/approval-result', '/subscription-success', '/subscription-canceled',
   '/dashboard', '/admin',
