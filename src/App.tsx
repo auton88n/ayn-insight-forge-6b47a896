@@ -46,7 +46,6 @@ function PreloadRoutes() {
       // Warm chunks for the routes users actually click between, so
       // navigations don't flash the Suspense PageLoader.
       warm(() => import('./pages/Settings'));
-      warm(() => import('./pages/Pricing'));
     };
     const idleId = 'requestIdleCallback' in window
       ? window.requestIdleCallback(preload, { timeout: 3000 })
@@ -74,7 +73,6 @@ const Employers = lazy(() => import("./pages/Employers"));
 // const InfluencerSites = lazy(() => import("./pages/services/InfluencerSites"));
 // const InfluencerSitesApply = lazy(() => import("./pages/services/InfluencerSitesApply"));
 // const SolutionsPage = lazy(() => import("./pages/Solutions"));
-const ContactPage = lazy(() => import("./pages/Contact"));
 const CheckResumePage = lazy(() => import("./pages/CheckResume"));
 const PublicJobsPage = lazy(() => import("./pages/PublicJobs"));
 const SalaryGuidePage = lazy(() => import("./pages/SalaryGuide"));
@@ -85,9 +83,7 @@ const ResumeHub = lazy(() => import("./pages/ResumeHub"));
 // const AutomationApply = lazy(() => import("./pages/services/AutomationApply"));
 // const Ticketing = lazy(() => import("./pages/services/Ticketing"));
 // const TicketingApply = lazy(() => import("./pages/services/TicketingApply"));
-const Help = lazy(() => import("./pages/Help"));
-const About = lazy(() => import("./pages/About"));
-const Pricing = lazy(() => import("./pages/Pricing"));
+const HomeTabRedirect = lazy(() => import("./components/landing/HomeTabRedirect").then(m => ({ default: m.HomeTabRedirect })));
 const Billing = lazy(() => import("./pages/Billing"));
 const SubscriptionSuccess = lazy(() => import("./pages/SubscriptionSuccess"));
 const SubscriptionCanceled = lazy(() => import("./pages/SubscriptionCanceled"));
@@ -133,14 +129,14 @@ const AnimatedRoutes = () => {
       <Route path="/dashboard/*" element={<Navigate to="/" replace />} />
       {/* Fast routes - no animation wrapper */}
       <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
-      <Route path="/pricing" element={<Suspense fallback={<PageLoader />}><Pricing /></Suspense>} />
+      <Route path="/pricing" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="pricing" /></Suspense>} />
 
       <Route path="/billing" element={<Suspense fallback={<PageLoader />}><Billing /></Suspense>} />
       <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>} />
 
 
 
-      <Route path="/contact" element={<Suspense fallback={<PageLoader />}><ContactPage /></Suspense>} />
+      <Route path="/contact" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="contact" /></Suspense>} />
       <Route path="/check-resume" element={<Suspense fallback={<PageLoader />}><CheckResumePage /></Suspense>} />
       <Route path="/jobs" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
       <Route path="/jobs/category/:category" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
@@ -156,9 +152,9 @@ const AnimatedRoutes = () => {
       <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/employer/pending" element={<Suspense fallback={<PageLoader />}><EmployerPending /></Suspense>} />
       <Route path="/employers" element={<Suspense fallback={<PageLoader />}><Employers /></Suspense>} />
-      <Route path="/help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
-      <Route path="/support" element={<Navigate to="/help" replace />} />
-      <Route path="/about" element={<Suspense fallback={<PageLoader />}><About /></Suspense>} />
+      <Route path="/help" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="help" /></Suspense>} />
+      <Route path="/support" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="help" /></Suspense>} />
+      <Route path="/about" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="about" /></Suspense>} />
       <Route path="/approval-result" element={<ApprovalResult />} />
       <Route path="/subscription-success" element={<SubscriptionSuccess />} />
       <Route path="/subscription-canceled" element={<SubscriptionCanceled />} />

@@ -30,7 +30,12 @@ import { HOME_TAB_CONTENT, type HomeTabId } from './HomeTabs';
 // not a switch fighting for the same hero. forcedAudience locks this
 // component to whichever identity its route owns -- the toggle only
 // renders when it's left unset, which no real route does any more.
-type Props = { onStartFree?: (role?: Audience) => void; forcedAudience?: Audience; activeTab?: HomeTabId };
+type Props = {
+  onStartFree?: (role?: Audience) => void;
+  forcedAudience?: Audience;
+  activeTab?: HomeTabId;
+  onSelectTab?: (id: HomeTabId) => void;
+};
 
 const SOURCING_MARKS = ['Real company career pages', 'Never LinkedIn or Indeed', 'Refreshed every 2 hours', 'Or paste any posting yourself'];
 const POOL_MARKS = ['Opted in candidates', 'Skill provenance', 'Match evidence', 'Verification assessments'];
@@ -132,16 +137,26 @@ const HERO: Record<Audience, {
 };
 
 
-export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 'search' }: Props) => {
+export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 'search', onSelectTab }: Props) => {
   const root = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const [audience, setAudience] = useState<Audience>(forcedAudience ?? readAudience);
 
   /**
-   * Reveal on scroll. Re-runs whenever the audience changes, because the
-   * sections below the hero are unmounted and remounted on a switch and would
-   * otherwise stay invisible.
+   * Reveal on scroll. Re-runs whenever the audience OR the active tab
+   * changes, because the sections below the hero (and every HomeTabs tab's
+   * own content) are unmounted and remounted on either kind of switch and
+   * would otherwise stay invisible -- a real, live bug found while
+   * verifying v3.219.0's new tabs: this effect only depended on audience,
+   * which for both real routes (forcedAudience always set) never changes
+   * after mount, so the observer that started running here ran exactly
+   * once, for whatever .lp-reveal nodes existed at that first render (the
+   * "search" tab). Every other tab's own .lp-reveal blocks were newly
+   * mounted DOM nodes the observer never knew to watch, so they sat at
+   * opacity: 0 forever -- confirmed live (0 of 3 revealed on Features),
+   * not previously caught because verification checked .innerText, which
+   * reads text regardless of the element's actual opacity.
    */
   useEffect(() => {
     const nodes = root.current?.querySelectorAll('.lp-reveal:not(.is-in)');
@@ -163,7 +178,7 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
     );
     nodes.forEach((n) => io.observe(n));
     return () => io.disconnect();
-  }, [audience]);
+  }, [audience, activeTab]);
 
   const pickAudience = useCallback((next: Audience) => {
     if (forcedAudience) return; // locked by the route; no toggle to switch
@@ -268,7 +283,10 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
     <div className="lp" ref={root}>
       {showTabContent && TabContent && (
         <div className="lp-audience" key={`tab-${activeTab}`} style={{ paddingBlockStart: 'clamp(40px, 6vw, 72px)' }}>
-          <TabContent />
+          <TabContent
+            onSelectTab={(id) => onSelectTab?.(id)}
+            onStartFree={(role) => onStartFree?.(role)}
+          />
         </div>
       )}
 

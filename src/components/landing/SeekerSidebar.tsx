@@ -20,13 +20,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Search, Briefcase, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
-  MessageSquare, CheckCircle2, HelpCircle, Mail, PanelLeftClose,
+  MessageSquare, CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, PanelLeftClose,
   PanelLeftOpen, LogOut, User, Menu, X,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/AuthModal';
 import aynWordmark from '@/assets/ayn-logo.png';
-import { TAB_META, type HomeTabId } from './HomeTabs';
+import { TAB_META, MORE_TAB_META, type HomeTabId } from './HomeTabs';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 // v3.216.0 -- the full wordmark reads broken/clipped at collapsed rail
@@ -42,17 +42,16 @@ const TAB_ICONS: Record<Exclude<HomeTabId, 'search'>, typeof Search> = {
   messaging: MessageSquare,
   proof: CheckCircle2,
   faq: HelpCircle,
+  pricing: Tag,
+  contact: Mail,
+  about: Info,
+  help: LifeBuoy,
 };
 
 const TOOL_LINKS = [
   { to: '/jobs', label: 'Browse jobs', icon: Briefcase },
   { to: '/check-resume', label: 'Check my resume', icon: FileCheck2 },
   { to: '/salary-guide', label: 'Salary guide', icon: Tag },
-];
-
-const UTILITY_LINKS = [
-  { to: '/pricing', label: 'Pricing', icon: Tag },
-  { to: '/contact', label: 'Contact', icon: Mail },
 ];
 
 const COLLAPSE_KEY = 'ayn_sidebar_collapsed';
@@ -164,19 +163,20 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
         </div>
 
         <div className="lp-sidebar-group">
-          {UTILITY_LINKS.map((item) => {
-            const Icon = item.icon;
-            const active = location.pathname === item.to;
+          {MORE_TAB_META.map((item) => {
+            const Icon = TAB_ICONS[item.id as Exclude<HomeTabId, 'search'>];
+            const active = location.pathname === '/' && activeTab === item.id;
             return (
-              <Link
-                key={item.to} to={item.to}
+              <button
+                key={item.id}
+                type="button"
                 className={`lp-sidebar-link ${active ? 'is-active' : ''}`}
-                onClick={() => setMobileOpen(false)}
+                onClick={() => selectTab(item.id)}
                 title={collapsed ? item.label : undefined}
               >
                 <Icon size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
                 <span className="lp-sidebar-link-label">{item.label}</span>
-              </Link>
+              </button>
             );
           })}
         </div>

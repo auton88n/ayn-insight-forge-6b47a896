@@ -6,8 +6,25 @@ import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { AuthModal } from './auth/AuthModal';
 import { LandingSections } from '@/components/landing/LandingSections';
 import type { Audience } from '@/lib/landingAudience';
-import type { HomeTabId } from '@/components/landing/HomeTabs';
+import { TAB_META, MORE_TAB_META, type HomeTabId } from '@/components/landing/HomeTabs';
 import { useState } from 'react';
+
+// v3.219.0 -- /pricing, /contact, /about and /help still exist as real
+// routes (old links and bookmarks keep working), but now redirect here
+// with the tab to land on stashed first -- the same cross-page handoff
+// pattern EmployerHub/ResumeHub already use for "land on this exact tab."
+export const HOME_TAB_HANDOFF_KEY = 'ayn_home_tab';
+const ALL_TAB_IDS = new Set<HomeTabId>(['search', ...TAB_META.map((t) => t.id), ...MORE_TAB_META.map((t) => t.id)]);
+function readHandoffTab(): HomeTabId {
+  try {
+    const v = sessionStorage.getItem(HOME_TAB_HANDOFF_KEY);
+    if (v && ALL_TAB_IDS.has(v as HomeTabId)) {
+      sessionStorage.removeItem(HOME_TAB_HANDOFF_KEY);
+      return v as HomeTabId;
+    }
+  } catch { /* ignore */ }
+  return 'search';
+}
 
 // v3.210.0 -- "/" and "/employers" are now two real, separately-identified
 // pages sharing one component, not one page describing two audiences at
@@ -50,7 +67,7 @@ const COPY: Record<Audience, { title: string; description: string; canonical: st
 const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: Audience }) => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authRole, setAuthRole] = useState<Audience>(forcedAudience);
-  const [activeTab, setActiveTab] = useState<HomeTabId>('search');
+  const [activeTab, setActiveTab] = useState<HomeTabId>(readHandoffTab);
   const { direction } = useLanguage();
 
   // The landing page owns a warm paper canvas, independent of app theme.
@@ -107,6 +124,7 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
               <LandingSections
                 forcedAudience={forcedAudience}
                 activeTab={activeTab}
+                onSelectTab={setActiveTab}
                 onStartFree={(role) => {
                   setAuthRole(role || forcedAudience);
                   setShowAuthModal(true);

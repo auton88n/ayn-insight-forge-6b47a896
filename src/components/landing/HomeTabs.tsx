@@ -15,16 +15,35 @@
  * every real fact from both survives, just placed where it earns its
  * spot rather than padded into a page of its own.
  */
-import { ShieldCheck, Eye, Ban } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Search as SearchIcon, ChevronDown, Check, Loader2, ShieldCheck, Eye, Ban } from 'lucide-react';
 import { HeadToHead } from './HeadToHead';
 import { BeforeAfterProof } from './BeforeAfterProof';
 import { LiveJobsPreview } from './LiveJobsPreview';
 import { CandidateCardMockup, InboxMockup } from './AppMockups';
 import { PAIN, HEAD_TO_HEAD, AI_CONTRAST, DISCOVER_CHIPS, TRUST, FAQS, SEEKER_TILES, SEEKER_STEPS } from './landingContent';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { SectionHeading } from '@/components/shared/SectionHeading';
+import TicketForm from '@/components/support/TicketForm';
+import { supabase } from '@/integrations/supabase/client';
+import { billingApi, priceLabel, type SeekerBilling } from '@/lib/billing';
+import { toast } from 'sonner';
+import type { Audience } from '@/lib/landingAudience';
 
 export type HomeTabId =
   | 'search' | 'features' | 'how-it-works' | 'why-ayn'
-  | 'get-discovered' | 'messaging' | 'proof' | 'faq';
+  | 'get-discovered' | 'messaging' | 'proof' | 'faq'
+  | 'pricing' | 'contact' | 'about' | 'help';
+
+// v3.219.0 -- every tab now takes the same two callbacks, whether it needs
+// them or not (a plain () => JSX.Element is still a valid value here --
+// TypeScript allows a function that takes fewer parameters wherever one
+// taking more is expected). onSelectTab lets a tab link to another tab
+// without ever leaving the page (Help -> Contact); onStartFree opens the
+// one AuthModal the shell owns, instead of a tab mounting a second one.
+export type TabProps = { onSelectTab: (id: HomeTabId) => void; onStartFree: (role?: Audience) => void };
 
 export const TAB_META: { id: HomeTabId; label: string }[] = [
   { id: 'features', label: 'Features' },
@@ -34,6 +53,13 @@ export const TAB_META: { id: HomeTabId; label: string }[] = [
   { id: 'messaging', label: 'Messaging' },
   { id: 'proof', label: 'Proof' },
   { id: 'faq', label: 'FAQ' },
+];
+
+export const MORE_TAB_META: { id: HomeTabId; label: string }[] = [
+  { id: 'pricing', label: 'Pricing' },
+  { id: 'contact', label: 'Contact' },
+  { id: 'about', label: 'About' },
+  { id: 'help', label: 'Help' },
 ];
 
 export const FeaturesTab = () => (
@@ -250,7 +276,327 @@ export const FaqTab = () => {
   );
 };
 
-export const HOME_TAB_CONTENT: Record<Exclude<HomeTabId, 'search'>, () => JSX.Element> = {
+// v3.219.0 -- Pricing, Contact, About and Help all used to be real routes
+// with their own <Header/>/<Footer/> chrome -- exactly the thing reported
+// directly: "i click pricing... i dont see the sidebar anymore." Same
+// content, same real logic (Pricing's billing state, Help's search),
+// just rendered as a tab instead of a page. /pricing, /contact, /about
+// and /help still exist as real URLs (old links/bookmarks keep working)
+// but now redirect into this same tab, never their own separate chrome.
+
+const PLANS = [
+  { key: 'seeker_free', name: 'Free', cents: 0, interval: 'month', credits: 6, line: 'Three tailored resumes a month, or six cover letters.' },
+  { key: 'seeker_week', name: 'Week pass', cents: 499, interval: 'week', credits: 30, line: 'For the week you are applying hard.' },
+  { key: 'seeker_starter', name: 'Starter', cents: 1200, interval: 'month', credits: 80, line: 'A steady search, around forty tailored resumes.' },
+  { key: 'seeker_pro', name: 'Pro', cents: 2400, interval: 'month', credits: 200, line: 'A full time search with room to spare.' },
+];
+
+const FREE_FOREVER = [
+  'Match scoring on any job you add',
+  'Your profile and your resume',
+  'Being discovered by employers',
+  'Receiving and answering proposals',
+  'Taking assessments',
+  'Downloading every document you make',
+];
+
+export const PricingTab = ({ onStartFree }: TabProps) => {
+  const [signedIn, setSignedIn] = useState(false);
+  const [billing, setBilling] = useState<SeekerBilling | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) { setSignedIn(false); return; }
+      setSignedIn(true);
+      try { setBilling(await billingApi.seeker()); } catch { /* silent */ }
+    })();
+  }, []);
+
+  const choose = async (key: string) => {
+    if (!signedIn) { onStartFree(); return; }
+    if (key === 'seeker_free') return;
+    setBusy(key);
+    try {
+      const url = await billingApi.checkout(key);
+      window.location.href = url;
+    } catch (e) {
+      toast.error((e as Error).message);
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section className="lp-section">
+      <div className="lp-shell" style={{ maxWidth: 1080 }}>
+        <div className="lp-reveal" style={{ marginBottom: 34, textAlign: 'center' }}>
+          <Badge className="ayn-ember-badge">Pricing for job seekers</Badge>
+          <h2 className="lp-display lp-h2" style={{ marginTop: 14 }}>Less time formatting. More time applying.</h2>
+          <p className="lp-lead" style={{ maxWidth: 620, marginInline: 'auto' }}>
+            A tailored resume costs 2 credits. A cover letter costs 1. Everything else is free.
+          </p>
+        </div>
+
+        {billing && (
+          <div className="lp-reveal" style={{ marginBottom: 34, marginInline: 'auto', maxWidth: 480, textAlign: 'center' }}>
+            <p className="lp-note">
+              You are on {billing.plan?.name || 'Free'} with{' '}
+              <strong>{billing.balance} credits</strong> left.
+              {billing.current_period_end
+                ? ` Credits reset on ${new Date(billing.current_period_end).toLocaleDateString()}.`
+                : ''}
+            </p>
+          </div>
+        )}
+
+        <div className="lp-reveal" style={{ display: 'grid', gap: 18, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+          {PLANS.map((p) => {
+            const current = billing?.plan?.key === p.key;
+            return (
+              <div key={p.key} className="lp-tile" style={p.key === 'seeker_starter' ? { borderColor: 'hsl(var(--lp-ember))' } : undefined}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h3 style={{ margin: 0 }}>{p.name}</h3>
+                  {current && <span className="lp-chip">Your plan</span>}
+                </div>
+                <p style={{ fontSize: 24, fontWeight: 700, margin: '10px 0 0' }}>{priceLabel(p.cents, p.interval)}</p>
+                <p style={{ color: 'hsl(var(--lp-ember))', fontWeight: 600, fontSize: 14, margin: '6px 0 0' }}>{p.credits} credits</p>
+                <p style={{ flex: 1, margin: '10px 0 0' }}>{p.line}</p>
+                <button
+                  type="button"
+                  className={`lp-btn ${p.key === 'seeker_starter' ? 'lp-btn-primary' : 'lp-btn-ghost'}`}
+                  style={{ width: '100%', justifyContent: 'center', marginTop: 16 }}
+                  disabled={current || busy === p.key}
+                  onClick={() => choose(p.key)}
+                >
+                  {busy === p.key ? <Loader2 size={15} className="animate-spin" /> : current ? 'Current plan' : p.cents === 0 ? 'Start free' : 'Choose plan'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="lp-reveal" style={{ marginTop: 40 }}>
+          <h3 className="lp-display" style={{ fontSize: 18 }}>Free on every plan, including Free</h3>
+          <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginTop: 16 }}>
+            {FREE_FOREVER.map((f) => (
+              <div key={f} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <Check size={16} style={{ color: 'hsl(var(--lp-ember))', flexShrink: 0, marginTop: 2 }} />
+                <span className="lp-note" style={{ margin: 0 }}>{f}</span>
+              </div>
+            ))}
+          </div>
+          <p className="lp-note" style={{ marginTop: 18 }}>
+            Regenerating the same document is free. Failed generations are not charged. Credits reset each period and do not roll over.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export const ContactTab = () => {
+  useEffect(() => {
+    document.body.classList.add('contact-surface');
+    return () => document.body.classList.remove('contact-surface');
+  }, []);
+
+  return (
+    <section className="lp-section">
+      <div className="lp-shell" style={{ maxWidth: 720 }}>
+        <div className="lp-reveal" style={{ marginBottom: 28 }}>
+          <p className="lp-eyebrow">Contact</p>
+          <h2 className="lp-display lp-h2">Contact us</h2>
+          <p className="lp-lead">Send a message. A real person reads it.</p>
+        </div>
+        <div className="lp-reveal">
+          <SectionHeading>Send us a message</SectionHeading>
+          <div className="rounded-2xl border border-border bg-card p-2">
+            <TicketForm onSuccess={() => undefined} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export const AboutTab = () => (
+  <section className="lp-section">
+    <div className="lp-shell" style={{ maxWidth: 720 }}>
+      <div className="lp-reveal" style={{ marginBottom: 8 }}>
+        <p className="lp-eyebrow">About AYN</p>
+        <h2 className="lp-display lp-h2">Hiring runs on volume. We think it should run on evidence.</h2>
+        <p className="lp-lead">AYN is built by a team in Canada.</p>
+      </div>
+      <div className="lp-reveal" style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <p className="lp-note" style={{ fontSize: 15 }}>
+          AI made it effortless to apply everywhere, so everyone did. Hiring drowned in noise, and a hiring
+          manager who used to read forty applications started opening six hundred and reading none of them
+          properly. Somewhere in that pile was the one person who could actually do the job. Nobody had time
+          to find them.
+        </p>
+        <p className="lp-note" style={{ fontSize: 15 }}>
+          We built AYN because that person should not have to out-send a machine to be seen.
+        </p>
+        <div>
+          <h3 className="lp-display" style={{ fontSize: 17, marginBottom: 8 }}>Mission and vision</h3>
+          <p className="lp-note" style={{ fontSize: 15 }}>
+            Replace volume with evidence. Build a hiring market where being seen depends on what you have
+            done, not on how many places you applied.
+          </p>
+        </div>
+        <p className="lp-note" style={{ fontSize: 15 }}>
+          For job seekers, AYN reads a job posting, shows how you line up against it, and writes a resume
+          and cover letter from your real experience for that specific role. For employers, describe a role
+          once and AYN finds the people worth talking to, with the evidence behind each match and what they
+          are missing, instead of six hundred resumes and a guess.
+        </p>
+        <p className="lp-note" style={{ fontSize: 15 }}>
+          Switch discoverability on and employers see your background, not your name, email, or phone, until
+          you accept an offer.
+        </p>
+      </div>
+    </div>
+  </section>
+);
+
+export const HelpTab = ({ onSelectTab }: TabProps) => {
+  const [query, setQuery] = useState('');
+  const hasQuery = query.trim().length > 0;
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return SECTIONS;
+    return SECTIONS
+      .map((s) => ({ ...s, entries: s.entries.filter((e) => (e.q + ' ' + e.a).toLowerCase().includes(q)) }))
+      .filter((s) => s.entries.length > 0);
+  }, [query]);
+
+  return (
+    <section className="lp-section">
+      <div className="lp-shell" style={{ maxWidth: 720 }}>
+        <div className="lp-reveal" style={{ marginBottom: 28 }}>
+          <p className="lp-eyebrow">Help Center</p>
+          <h2 className="lp-display lp-h2">Help Center</h2>
+          <p className="lp-lead">Search for an answer, or open a question below. Anything else goes to a real person on the team.</p>
+        </div>
+
+        <div className="lp-reveal" style={{ position: 'relative', marginBottom: 32 }}>
+          <SearchIcon size={16} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--lp-dim))' }} aria-hidden="true" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search for an answer"
+            aria-label="Search for an answer"
+            className="pl-11 h-12 rounded-full"
+          />
+        </div>
+
+        <div className="lp-reveal" style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+          {results.map((section) => (
+            <div key={section.title}>
+              <SectionHeading className="mb-3">{section.title}</SectionHeading>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {section.entries.map((e) => (
+                  <details key={e.q} open={hasQuery || undefined} className="group rounded-2xl border border-border bg-card p-5">
+                    <summary className="flex items-center justify-between gap-4 cursor-pointer list-none font-semibold marker:content-none">
+                      {e.q}
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+                    </summary>
+                    <p className="mt-2.5 text-muted-foreground leading-relaxed">{e.a}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {results.length === 0 && (
+            <p className="lp-note">
+              Nothing matched that.{' '}
+              <button type="button" className="lp-quiet-link" style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }} onClick={() => onSelectTab('contact')}>
+                Contact us
+              </button>{' '}
+              and a real person will read it.
+            </p>
+          )}
+        </div>
+
+        <div className="lp-reveal" style={{ marginTop: 40 }}>
+          <SectionHeading className="mb-3">Still stuck</SectionHeading>
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <p className="lp-note" style={{ margin: 0 }}>
+              A real person reads every message. Include what you were doing and what happened, and a
+              screenshot if you have one.
+            </p>
+            <p className="lp-note" style={{ marginTop: 10, fontSize: 13 }}>
+              Response aims: free plan best effort, Starter 3 business days, Growth 2, Scale 1. These are
+              aims and not commitments.
+            </p>
+            <button type="button" className="lp-btn lp-btn-primary" style={{ marginTop: 16 }} onClick={() => onSelectTab('contact')}>
+              Contact us
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+type HelpEntry = { q: string; a: string };
+type HelpSection = { title: string; entries: HelpEntry[] };
+
+const SECTIONS: HelpSection[] = [
+  {
+    title: 'Getting started',
+    entries: [
+      { q: 'How do I start?', a: 'Create a free account, add your resume, and either browse real postings or add one yourself by link or by pasting the text.' },
+      { q: 'Do I need a card?', a: 'No, and the free plan does not expire.' },
+      { q: 'Where do the postings come from?', a: 'Real company career pages, sourced automatically and refreshed every two hours. Never LinkedIn or Indeed. You can also add any posting yourself.' },
+      { q: 'Does it apply for me?', a: 'No. It writes the resume and the cover letter. You review them and submit the application yourself, on the company’s own site.' },
+    ],
+  },
+  {
+    title: 'Credits and billing',
+    entries: [
+      { q: 'What do credits pay for?', a: 'AI writing. A tailored resume is 2 credits, a cover letter is 1.' },
+      { q: 'What is free?', a: 'Scoring, gaps, reading postings, discoverability, offers, and assessments. Every plan.' },
+      { q: 'Do credits roll over?', a: 'No, they reset each billing period.' },
+      { q: 'Charged if generation fails?', a: 'No. Regenerating the same document is also free.' },
+      { q: 'Can I cancel or downgrade?', a: 'Yes, from Billing. Both take effect at the end of your paid period, no refund for the remainder.' },
+      { q: 'Refunds?', a: 'Not unless your local law requires one. Cancel instead and keep access until the period ends.' },
+    ],
+  },
+  {
+    title: 'Being found by employers',
+    entries: [
+      { q: 'How do employers find me?', a: 'Only if you switch discovery on. Off by default.' },
+      { q: 'What can they see?', a: 'Your background: work history, skills, education, what you want. Not your contact details.' },
+      { q: 'When do they get my contact details?', a: 'Only when you accept their offer.' },
+      { q: 'Can I turn it off?', a: 'Any time.' },
+      { q: 'What is an assessment?', a: 'Optional questions an employer can send before making an offer. You get growth notes, not the score.' },
+    ],
+  },
+  {
+    title: 'Your data',
+    entries: [
+      { q: 'Can I download my data?', a: 'Yes, from Settings.' },
+      { q: 'Can I delete my account?', a: 'Yes, from Settings. You will see what is removed before you confirm.' },
+      { q: 'Something lighter than deleting?', a: 'Yes, pause your account. Turns off discovery and emails without deleting anything.' },
+      { q: 'Where is my data stored?', a: 'United Kingdom. Details on our Subprocessors page.' },
+      { q: 'Do you train AI on my resume?', a: 'No. See our Privacy Policy for how that works.' },
+    ],
+  },
+  {
+    title: 'For employers',
+    entries: [
+      { q: 'How do I get access?', a: 'Request it. Accounts are approved individually.' },
+      { q: 'What do I get?', a: 'Describe a role and see candidates who chose to be discoverable, with the evidence behind each match.' },
+      { q: 'Does AYN decide who I hire?', a: 'No. You do.' },
+    ],
+  },
+];
+
+export const HOME_TAB_CONTENT: Record<Exclude<HomeTabId, 'search'>, (props: TabProps) => JSX.Element> = {
   features: FeaturesTab,
   'how-it-works': HowItWorksTab,
   'why-ayn': WhyAynTab,
@@ -258,4 +604,8 @@ export const HOME_TAB_CONTENT: Record<Exclude<HomeTabId, 'search'>, () => JSX.El
   messaging: MessagingTab,
   proof: ProofTab,
   faq: FaqTab,
+  pricing: PricingTab,
+  contact: ContactTab,
+  about: AboutTab,
+  help: HelpTab,
 };
