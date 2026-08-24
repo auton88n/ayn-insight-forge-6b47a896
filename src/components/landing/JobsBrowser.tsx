@@ -61,12 +61,16 @@ type Props = {
   /** Suppress the internal "Browse real jobs" heading -- used when the
    *  page embedding this already has its own headline right above it. */
   showHeading?: boolean;
+  /** v3.218.0 -- render the heading as a real <h1>, for the one caller
+   *  (the seeker home page, hero removed) where this heading IS the
+   *  page's own primary heading, not a section title sitting under one. */
+  asH1?: boolean;
   onJobsLoaded?: (args: { total: number; loading: boolean }) => void;
 };
 
 export const JobsBrowser = ({
   routeId, categorySlug, locationSlug, initialQuery = '', initialWhere = '',
-  showHeading = true, onJobsLoaded,
+  showHeading = true, asH1 = false, onJobsLoaded,
 }: Props) => {
   const navigate = useNavigate();
   const cityFilter = locationSlug ? unslugifyCity(locationSlug) : null;
@@ -165,10 +169,17 @@ export const JobsBrowser = ({
       )}
 
       {showHeading && (
-        <>
-          <h2 className="lp-display lp-h2" style={{ marginBottom: 10 }}>{heading}</h2>
-          <p className="lp-lead" style={{ marginBottom: 6 }}>{sub}</p>
-        </>
+        asH1 ? (
+          <>
+            <h1 className="lp-display lp-h2" style={{ marginBottom: 10 }}>{heading}</h1>
+            <p className="lp-lead" style={{ marginBottom: 6 }}>{sub}</p>
+          </>
+        ) : (
+          <>
+            <h2 className="lp-display lp-h2" style={{ marginBottom: 10 }}>{heading}</h2>
+            <p className="lp-lead" style={{ marginBottom: 6 }}>{sub}</p>
+          </>
+        )
       )}
       <p className="lp-browser-trust">
         <ShieldCheck className="w-4 h-4 shrink-0" />

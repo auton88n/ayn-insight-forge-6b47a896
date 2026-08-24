@@ -274,7 +274,14 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
 
       {!showTabContent && (
       <>
-      {/* ── HERO ─────────────────────────────────────────────── */}
+      {/* ── HERO (employer only) ────────────────────────────────
+          v3.218.0 -- "remove the hero from job seekers": this is our
+          real dashboard now, not a landing page selling the seeker on
+          using it, so a marketing headline above the actual search tool
+          no longer earns its place. Employer's own hero is untouched --
+          this instruction was scoped to seekers, and /employers still
+          needs a real pitch for a visitor who hasn't signed up yet. */}
+      {!seeker && (
       <header className="lp-hero">
         <div className="lp-hero-aura" aria-hidden="true" />
         <div className="lp-shell lp-hero-center">
@@ -315,16 +322,12 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
 
               <p className="lp-lead" style={{ maxWidth: 660 }}>{hero.lead}</p>
 
-              {!seeker && (
-                <>
-                  <div className="lp-cta-row" style={{ marginTop: 30 }}>
-                    <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.(audience)}>
-                      {hero.cta} <ArrowRight size={15} />
-                    </button>
-                  </div>
-                  <p className="lp-note">{hero.note}</p>
-                </>
-              )}
+              <div className="lp-cta-row" style={{ marginTop: 30 }}>
+                <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.(audience)}>
+                  {hero.cta} <ArrowRight size={15} />
+                </button>
+              </div>
+              <p className="lp-note">{hero.note}</p>
             </div>
           </div>
 
@@ -335,16 +338,18 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
           )}
         </div>
       </header>
+      )}
 
       {/* v3.213.0 -- "make home the browser page": the real search/browse
-          experience sits right under the headline as the home page's own
-          primary content, not a preview of it elsewhere. Full .lp-shell
-          width, not the narrower centered hero column, since a real
-          list-plus-detail layout needs the room. Employer's hero is
-          untouched above; this only ever renders for the seeker route. */}
+          experience is the seeker home page's own primary content, not a
+          preview of it elsewhere. Full .lp-shell width, not a narrower
+          hero column, since a real list-plus-detail layout needs the
+          room. v3.218.0 -- with the hero gone, this is now the very first
+          thing on the page, so it carries the real page heading itself
+          (showHeading + asH1) instead of sitting under one. */}
       {seeker && (
-        <div className="lp-shell" style={{ marginTop: 8 }}>
-          <JobsBrowser showHeading={false} />
+        <div className="lp-shell" style={{ paddingBlockStart: 'clamp(40px, 6vw, 72px)' }}>
+          <JobsBrowser showHeading asH1 />
           <p className="lp-note" style={{ marginTop: 22, textAlign: 'center' }}>
             {hero.note} Want AYN to score every job against your resume automatically?{' '}
             <button
