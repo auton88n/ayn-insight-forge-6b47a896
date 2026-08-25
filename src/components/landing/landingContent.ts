@@ -74,9 +74,17 @@ export const DISCOVER_CHIPS = [
   { icon: ShieldCheck, text: 'Your name and contact stay private until you accept' },
 ];
 
+// v3.227.0 -- the lead tile was lp-span-6 (the full 1260px row width on a
+// wide shell), and its own content -- an icon, one heading line, one
+// description line, three short pills -- maxed out at 609px, leaving a
+// real, measured 651px of empty card to its right. Every OTHER tile in
+// this same grid, all narrower spans, filled their own width properly
+// (33px of slack, not 651). Rebalanced all six to the one width (span-3,
+// 622px) already proven in this exact grid to fit icon+title+description
+// (+pills) content with no dead space, instead of one oversized outlier.
 export const SEEKER_TILES = [
   {
-    span: 'lp-span-6',
+    span: 'lp-span-3',
     icon: Search,
     title: 'The posting, read in full',
     desc: 'Browse real postings or add your own. See where you stand out of 10.',
@@ -97,19 +105,19 @@ export const SEEKER_TILES = [
     meta: ['Named company', 'Grounded in the posting'],
   },
   {
-    span: 'lp-span-2',
+    span: 'lp-span-3',
     icon: Radar,
     title: 'Found while you sleep',
     desc: 'Turn on discovery. Employers see the evidence first, you decide who gets your contact.',
   },
   {
-    span: 'lp-span-2',
+    span: 'lp-span-3',
     icon: Target,
     title: 'The honest gap list',
     desc: 'Matched, missing and nice to have, before a word is written.',
   },
   {
-    span: 'lp-span-2',
+    span: 'lp-span-3',
     icon: ShieldCheck,
     title: 'Nothing invented',
     desc: 'No skill, number or title that is not already yours.',

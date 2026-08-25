@@ -1984,21 +1984,14 @@ button.lp-sidebar-link {
   .lp-span-2 { grid-column: span 2; }
 }
 
-/* v3.224.0 -- FeaturesTab's own lead tile (lp-span-6, full width) held the
-   same icon/heading/paragraph sizing as every other tile, so on a wide
-   shell it measured a real, live 1104x248px, a 4.4:1 flat bar with three
-   small pills huddled in the top-left corner and nothing using the other
-   half of its own width. Given real visual priority to match the span it
-   already claims -- a bigger icon badge, a bigger heading and body copy,
-   more generous padding, and its meta pills grown to match -- rather than
-   narrowing the span itself, which would have meant reworking the whole
-   6+3+3+2+2+2 grid balance for a change that's really about this one
-   tile's own content density, not the grid's shape. */
-.lp-tile.lp-span-6 { padding: clamp(28px, 3.4vw, 48px); }
-.lp-tile.lp-span-6 .lp-tile-icon { width: 52px; height: 52px; border-radius: 15px; }
-.lp-tile.lp-span-6 h3 { font-size: clamp(20px, 2.2vw, 26px); }
-.lp-tile.lp-span-6 p { font-size: 16.5px; max-width: 560px; }
-.lp-tile.lp-span-6 .lp-tile-meta span { font-size: 13.5px; padding: 8px 16px; }
+/* v3.224.0 gave the lp-span-6 lead tile bigger type/padding to match its
+   own full-row width, on the theory that its content just needed more
+   visual weight. Measured live afterward (v3.227.0) and that theory was
+   wrong: even with the bigger type, its actual content still maxed out at
+   609 of 1260px, 651px of real dead space, while every OTHER (narrower)
+   tile in the same grid filled its own row with only ~33px to spare. The
+   real fix was the span itself, not the type scale -- see landingContent.ts,
+   SEEKER_TILES now all span-3, and these overrides are gone with it. */
 
 /* --- stat tiles: the hero trust bento (TrustBento.tsx). Same .lp-bento/
    .lp-tile/.lp-span-* grid the Features section already uses, a big
