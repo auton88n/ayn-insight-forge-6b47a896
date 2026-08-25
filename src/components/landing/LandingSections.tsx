@@ -376,9 +376,19 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
           hero column, since a real list-plus-detail layout needs the
           room. v3.218.0 -- with the hero gone, this is now the very first
           thing on the page, so it carries the real page heading itself
-          (showHeading + asH1) instead of sitting under one. */}
+          (showHeading + asH1) instead of sitting under one.
+          v3.240.0 -- reported directly: "diffrent hight like the old
+          problem." Measured live: this view's own `paddingBlockStart:
+          clamp(40px, 6vw, 72px)` topped out 32px shorter than
+          `.lp-section`'s `padding-block: clamp(72px, 11vw, 132px)`,
+          the shared top spacing v3.226.0 and v3.237.0 already gave
+          every other tab and standalone page -- this one early-return
+          seeker branch sat between both fixes' scope and never picked
+          it up. Same `.lp-section`/`.lp-shell` pair now, no bespoke
+          padding of its own. */}
       {seeker && (
-        <div className="lp-shell" style={{ paddingBlockStart: 'clamp(40px, 6vw, 72px)' }}>
+        <section className="lp-section" style={{ paddingBlockEnd: 0 }}>
+        <div className="lp-shell">
           <JobsBrowser showHeading asH1 />
           <p className="lp-note" style={{ marginTop: 22, textAlign: 'center' }}>
             {hero.note} Want AYN to score every job against your resume automatically?{' '}
@@ -392,6 +402,7 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
             </button>.
           </p>
         </div>
+        </section>
       )}
 
       {/* Everything below belongs to the chosen audience only. */}
