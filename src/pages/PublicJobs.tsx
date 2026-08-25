@@ -38,15 +38,14 @@ const PublicJobs = () => {
     return () => document.body.classList.remove('contact-surface');
   }, []);
 
-  useEffect(() => {
-    if (!routeId) { setSelected(null); return; }
-    let cancelled = false;
-    supabase.from('job_postings').select('id, title, company, location, description, posted_at, work_mode, employment_type, salary_min, salary_max, salary_currency')
-      .eq('id', routeId).maybeSingle().then(({ data }) => {
-        if (!cancelled && data) setSelected(data as unknown as JobPosting);
-      });
-    return () => { cancelled = true; };
-  }, [routeId]);
+  // v3.244.0 -- this used to independently fetch the same row JobsBrowser's
+  // own routeId-driven effect already fetches, kept in sync only because a
+  // click used to trigger a real route change. Now that a click never
+  // navigates (see JobsBrowser's own openJob), that route-only sync would
+  // leave this page's title/schema stuck on whatever job it first mounted
+  // with. Dropped the duplicate fetch entirely; onSelectedChange below is
+  // the one source of truth, and it fires for both a fresh /jobs/:id
+  // mount and a real in-app click, so the SEO tags stay correct either way.
 
   useEffect(() => {
     let cancelled = false;
@@ -64,10 +63,15 @@ const PublicJobs = () => {
   }, [categorySlug, cityFilter]);
 
   const jsonLd = useMemo(() => {
-    // v3.205.0 -- gated on routeId, not `selected` alone: Google's own docs
-    // are explicit that JobPosting schema belongs on an individual job page
-    // only, never a search/category/list page.
-    if (!selected || !routeId) return undefined;
+    // v3.205.0 -- Google's own docs are explicit that JobPosting schema
+    // belongs on an individual job page only, never a search/category/
+    // list page. v3.244.0 -- the gate is `selected` alone now, not
+    // `selected && routeId`: JobsBrowser's onSelectedChange only ever
+    // fires this for a genuine explicit focus (a real /jobs/:id mount, or
+    // an actual click), never for the "show something in the preview
+    // pane" default on a bare list -- selected being non-null already
+    // means the same thing routeId used to gate on.
+    if (!selected) return undefined;
     const isRemote = selected.work_mode === 'remote';
     const postedMs = Date.parse(selected.posted_at);
     const validThrough = Number.isNaN(postedMs)
@@ -102,19 +106,19 @@ const PublicJobs = () => {
         },
       } : {}),
     };
-  }, [selected, routeId]);
+  }, [selected]);
 
-  const pageTitle = routeId && selected
+  const pageTitle = selected
     ? `${selected.title} at ${selected.company}`
     : categoryLabel ? `${categoryLabel} Jobs` : cityFilter ? `Jobs in ${cityFilter}` : 'Browse Real Jobs';
-  const pageDescription = routeId && selected
+  const pageDescription = selected
     ? `${selected.title} at ${selected.company}${selected.location ? `, ${selected.location}` : ''}. Sourced directly from the company's own career page.`
     : categoryLabel
       ? `Real ${categoryLabel.toLowerCase()} jobs, sourced directly from company career pages. Never LinkedIn or Indeed. Free to search, no account needed.`
       : cityFilter
         ? `Real jobs in ${cityFilter}, sourced directly from company career pages. Never LinkedIn or Indeed. Free to search, no account needed.`
         : "Real postings sourced directly from company career pages, never LinkedIn or Indeed. Search and read the full posting free, no account needed.";
-  const canonicalPath = routeId && selected
+  const canonicalPath = selected
     ? `/jobs/${selected.id}`
     : categorySlug ? `/jobs/category/${categorySlug}` : locationSlug ? `/jobs/location/${locationSlug}` : '/jobs';
   const isThinHub = (categorySlug || locationSlug) && !loading && total !== null && total < MIN_INDEXABLE_LISTINGS;
@@ -132,7 +136,13 @@ const PublicJobs = () => {
               .lp-section pair every other page now uses. */}
           <section className="lp-section">
           <div className="lp-shell">
-            <JobsBrowser routeId={routeId} categorySlug={categorySlug} locationSlug={locationSlug} asH1 />
+            <JobsBrowser
+              routeId={routeId}
+              categorySlug={categorySlug}
+              locationSlug={locationSlug}
+              asH1
+              onSelectedChange={setSelected}
+            />
 
             <div className="mt-16 rounded-xl border p-6" style={{ background: 'var(--accent, #fdf3ee)' }}>
               <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#e85d3a' }}>

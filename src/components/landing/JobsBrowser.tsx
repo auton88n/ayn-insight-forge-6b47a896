@@ -66,11 +66,20 @@ type Props = {
    *  page's own primary heading, not a section title sitting under one. */
   asH1?: boolean;
   onJobsLoaded?: (args: { total: number; loading: boolean }) => void;
+  /** v3.244.0 -- fired only when a job becomes the genuine, explicit
+   *  focus (a direct routeId on mount, or a real click), never for the
+   *  auto-picked "show something in the preview pane" default on a bare
+   *  list. PublicJobs.tsx uses this instead of its own second, duplicate
+   *  fetch-by-routeId to know when it's safe to emit JobPosting schema --
+   *  it works entirely off local state, so the tab title and meta tags
+   *  stay correct as you click through jobs even though the URL itself
+   *  deliberately never moves (see the note on openJob below for why). */
+  onSelectedChange?: (job: JobPosting | null) => void;
 };
 
 export const JobsBrowser = ({
   routeId, categorySlug, locationSlug, initialQuery = '', initialWhere = '',
-  showHeading = true, asH1 = false, onJobsLoaded,
+  showHeading = true, asH1 = false, onJobsLoaded, onSelectedChange,
 }: Props) => {
   const navigate = useNavigate();
   const cityFilter = locationSlug ? unslugifyCity(locationSlug) : null;
@@ -136,9 +145,12 @@ export const JobsBrowser = ({
     let cancelled = false;
     supabase.from('job_postings').select(COLS).eq('id', routeId).maybeSingle().then(({ data }) => {
       if (cancelled || !data) return;
-      setSelected(data as unknown as JobPosting);
+      const job = data as unknown as JobPosting;
+      setSelected(job);
+      onSelectedChange?.(job);
     });
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeId]);
 
   const loadMore = async () => {
@@ -148,9 +160,33 @@ export const JobsBrowser = ({
     setJobs((prev) => [...prev, ...((data as unknown as JobPosting[]) ?? [])]);
   };
 
+  // v3.244.0 -- reported directly: "job search i feel it have two pages
+  // also dose not behave like indeed." Traced live: every job click, from
+  // Home's embedded view AND from the standalone /jobs page itself, called
+  // navigate(`/jobs/${id}`) -- a real react-router route transition, not
+  // an in-place update. /jobs, /jobs/:id, /jobs/category/:x and
+  // /jobs/location/:x are four separate <Route> entries in App.tsx, each
+  // rendering this component fresh, so react-router remounts the whole
+  // thing on every single transition between them, discarding the typed
+  // search, filters, and loaded list every time. Real Indeed never does
+  // this: selecting a result updates the detail pane without ever
+  // treating it as leaving the results page.
+  //
+  // Fixed by never touching the URL on a plain selection at all: local
+  // state alone drives both the detail pane and, via onSelectedChange,
+  // the tab title and meta tags -- so browsing stays on one continuous,
+  // correctly-titled page with the address bar simply not moving.
+  // Verified with real, trusted clicks (a synthetic .value + dispatchEvent
+  // simulation of typing turned out to be unreliable for this check --
+  // it doesn't reliably register as a real React state change, so an
+  // earlier pass through this fix chased a false lead that traced the
+  // wrong cause before this was caught and re-verified properly). A
+  // genuine hard navigation -- a shared link, a bookmark, browser back/
+  // forward -- still lands on a fresh, correctly-rendered /jobs/:id
+  // exactly as before, since that path never goes through openJob.
   const openJob = (job: JobPosting) => {
     setSelected(job);
-    navigate(`/jobs/${job.id}`, { replace: true });
+    onSelectedChange?.(job);
   };
 
   const heading = categoryLabel ? `${categoryLabel} jobs` : cityFilter ? `Jobs in ${cityFilter}` : 'Browse real jobs';
