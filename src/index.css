@@ -1896,6 +1896,17 @@ button, a, input, textarea, select {
 .lp-sidebar-nav { flex: 1 1 auto; overflow-y: auto; padding: 6px 10px; }
 .lp-sidebar-group { padding-block: 8px; border-top: 1px solid hsl(var(--lp-border-soft)); }
 .lp-sidebar-group:first-child { border-top: none; padding-top: 0; }
+/* v3.229.0 -- reported directly: reorganize the sidebar for a better
+   experience. A flat 19-item list read as one undifferentiated wall of
+   links; a plain uppercase label above each real cluster (already
+   visually separated by the border-top above) costs nothing and makes
+   the actual structure -- your account, learn about AYN, company --
+   legible at a glance instead of inferred from gaps alone. */
+.lp-sidebar-group-label {
+  display: block; padding: 4px 12px 6px; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: hsl(var(--lp-dim));
+}
+.lp-sidebar.is-collapsed .lp-sidebar-group-label { display: none; }
 .lp-sidebar-link {
   display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 9px;
   font-size: 14px; font-weight: 500; color: hsl(var(--lp-muted)); text-decoration: none;

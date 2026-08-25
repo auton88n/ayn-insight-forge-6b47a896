@@ -39,7 +39,7 @@ import type { Audience } from '@/lib/landingAudience';
 
 export type HomeTabId =
   | 'search' | 'features' | 'how-it-works' | 'why-ayn'
-  | 'get-discovered' | 'messaging' | 'proof' | 'faq'
+  | 'get-discovered' | 'proof' | 'faq'
   | 'pricing' | 'contact' | 'about' | 'help'
   | 'profile' | 'matched-jobs' | 'saved-jobs' | 'proposals' | 'assessments' | 'account-settings';
 
@@ -51,12 +51,14 @@ export type HomeTabId =
 // one AuthModal the shell owns, instead of a tab mounting a second one.
 export type TabProps = { onSelectTab: (id: HomeTabId) => void; onStartFree: (role?: Audience) => void };
 
+// v3.229.0 -- Messaging removed as its own entry, folded into Get
+// discovered (one continuous story: turn on discovery, then here's what
+// happens once someone reaches out), part of the same sidebar reorg pass.
 export const TAB_META: { id: HomeTabId; label: string }[] = [
   { id: 'features', label: 'Features' },
   { id: 'how-it-works', label: 'How it works' },
   { id: 'why-ayn', label: 'Why AYN' },
   { id: 'get-discovered', label: 'Get discovered' },
-  { id: 'messaging', label: 'Messaging' },
   { id: 'proof', label: 'Proof' },
   { id: 'faq', label: 'FAQ' },
 ];
@@ -196,14 +198,21 @@ export const WhyAynTab = () => (
       </div>
 
       {/* v3.216.0 -- Real AI, folded in here rather than its own thin page:
-          the same "why choose AYN" positioning, one section down. */}
+          the same "why choose AYN" positioning, one section down.
+          v3.229.0 -- reported directly: this section still read like it was
+          describing the retired Chrome extension ("the posting you have
+          open," "the job in front of you" -- language for a tool that
+          watched a live browser tab). AYN has no such mechanism any more;
+          a job is something you add to AYN (browse it, paste a link, or
+          paste the text), not something "open" elsewhere. Reworded to
+          describe the real, current flow. */}
       <div className="lp-reveal" style={{ marginTop: 56 }}>
         <p className="lp-eyebrow">The AI, and what it refuses to do</p>
-        <h2 className="lp-display lp-h2">Real AI, aimed at <em>the one job in front of you.</em></h2>
+        <h2 className="lp-display lp-h2">Real AI, aimed at <em>one job at a time.</em></h2>
         <p className="lp-lead" style={{ maxWidth: 680 }}>
           Some tools use AI to auto-apply to hundreds of postings a day and hope volume gets you an interview.
           Low quality, unread by anyone, and it is not even looking for the right job, just applying to all of them.
-          AYN's AI does the opposite: it reads the specific posting you have open, writes your resume and
+          AYN's AI does the opposite: it reads the specific posting you added, writes your resume and
           cover letter from your real experience for that job, and stops there.
         </p>
         <div className="lp-chips" style={{ marginTop: 22 }}>
@@ -216,53 +225,61 @@ export const WhyAynTab = () => (
   </section>
 );
 
+// v3.229.0 -- Messaging folded in here, not its own tab any more. Reported
+// directly: reorganize the sidebar for a better experience, and the two
+// were always one real story told in two parts -- turn on discovery, then
+// here's what happens once someone actually reaches out. Splitting them
+// meant reading two separate tabs to get the whole picture; one tab now
+// tells it start to finish, discovery first, the inbox as its direct
+// continuation ("once someone reaches out" picks up exactly where
+// discovery's own copy leaves off).
 export const GetDiscoveredTab = () => (
-  <section className="lp-section">
-    <div className="lp-shell">
-      <div className="lp-split lp-reveal">
-        <div>
-          <p className="lp-eyebrow">The other half of AYN</p>
-          <h2 className="lp-display lp-h2">You do not have to find every job. <em>Some of them can find you.</em></h2>
-          <p className="lp-lead">
-            Applying is one job at a time, the one you found. Discovery works the other way: turn it on once,
-            and employers searching for people with your background find you first, evidence and all,
-            before they ever see your name.
-          </p>
-          <div className="lp-chips" style={{ marginTop: 22 }}>
-            {DISCOVER_CHIPS.map((c) => (
-              <span className="lp-chip" key={c.text}><c.icon size={14} />{c.text}</span>
-            ))}
+  <>
+    <section className="lp-section" style={{ paddingBlockEnd: 0 }}>
+      <div className="lp-shell">
+        <div className="lp-split lp-reveal">
+          <div>
+            <p className="lp-eyebrow">The other half of AYN</p>
+            <h2 className="lp-display lp-h2">You do not have to find every job. <em>Some of them can find you.</em></h2>
+            <p className="lp-lead">
+              Applying is one job at a time, the one you found. Discovery works the other way: turn it on once,
+              and employers searching for people with your background find you first, evidence and all,
+              before they ever see your name.
+            </p>
+            <div className="lp-chips" style={{ marginTop: 22 }}>
+              {DISCOVER_CHIPS.map((c) => (
+                <span className="lp-chip" key={c.text}><c.icon size={14} />{c.text}</span>
+              ))}
+            </div>
           </div>
+          <div className="lp-art lp-art-plain"><CandidateCardMockup /></div>
         </div>
-        <div className="lp-art lp-art-plain"><CandidateCardMockup /></div>
       </div>
-    </div>
-  </section>
-);
+    </section>
 
-export const MessagingTab = () => (
-  <section className="lp-section">
-    <div className="lp-shell">
-      <div className="lp-split lp-reveal">
-        <div>
-          <p className="lp-eyebrow">When an employer reaches out</p>
-          <h2 className="lp-display lp-h2">A real inbox, not your personal email. <em>Screened both ways.</em></h2>
-          <p className="lp-lead">
-            Every employer is checked before they can search or message anyone: their email has to match
-            their own company's website, personal email addresses are refused. Once they reach out, you talk
-            right inside AYN, one way until you choose to open it up, and every message either side sends is
-            screened before it arrives, no links, no phone numbers, nothing routed off the platform.
-          </p>
-          <div className="lp-chips" style={{ marginTop: 22 }}>
-            <span className="lp-chip"><ShieldCheck size={14} />Employer identity verified</span>
-            <span className="lp-chip"><Eye size={14} />You control two-way replies</span>
-            <span className="lp-chip"><Ban size={14} />No links or contact info, ever</span>
+    <section className="lp-section">
+      <div className="lp-shell">
+        <div className="lp-split lp-reveal">
+          <div>
+            <p className="lp-eyebrow">Once someone reaches out</p>
+            <h2 className="lp-display lp-h2">A real inbox, not your personal email. <em>Screened both ways.</em></h2>
+            <p className="lp-lead">
+              Every employer is checked before they can search or message anyone: their email has to match
+              their own company's website, personal email addresses are refused. Once they reach out, you talk
+              right inside AYN, one way until you choose to open it up, and every message either side sends is
+              screened before it arrives, no links, no phone numbers, nothing routed off the platform.
+            </p>
+            <div className="lp-chips" style={{ marginTop: 22 }}>
+              <span className="lp-chip"><ShieldCheck size={14} />Employer identity verified</span>
+              <span className="lp-chip"><Eye size={14} />You control two-way replies</span>
+              <span className="lp-chip"><Ban size={14} />No links or contact info, ever</span>
+            </div>
           </div>
+          <div className="lp-art lp-art-plain"><InboxMockup /></div>
         </div>
-        <div className="lp-art lp-art-plain"><InboxMockup /></div>
       </div>
-    </div>
-  </section>
+    </section>
+  </>
 );
 
 const trust = TRUST.job_seeker;
@@ -666,7 +683,6 @@ export const HOME_TAB_CONTENT: Record<Exclude<HomeTabId, 'search'>, (props: TabP
   'how-it-works': HowItWorksTab,
   'why-ayn': WhyAynTab,
   'get-discovered': GetDiscoveredTab,
-  messaging: MessagingTab,
   proof: ProofTab,
   faq: FaqTab,
   pricing: PricingTab,

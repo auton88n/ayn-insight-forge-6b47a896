@@ -32,7 +32,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
-  MessageSquare, CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, PanelLeftClose,
+  CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, PanelLeftClose,
   PanelLeftOpen, LogOut, User, Menu, X, Briefcase, Inbox, ClipboardCheck, Settings as SettingsIcon, Target,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -51,7 +51,6 @@ const TAB_ICONS: Record<Exclude<HomeTabId, 'search'>, typeof Search> = {
   'how-it-works': Route,
   'why-ayn': Scale,
   'get-discovered': Radar,
-  messaging: MessageSquare,
   proof: CheckCircle2,
   faq: HelpCircle,
   pricing: Tag,
@@ -179,6 +178,7 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
             /resume-hub shell. Always visible here, signed in or not --
             what's gated is the content each tab shows once open. */}
         <div className="lp-sidebar-group">
+          <span className="lp-sidebar-group-label">Your account</span>
           {ACCOUNT_TAB_META.map((item) => {
             const Icon = TAB_ICONS[item.id as Exclude<HomeTabId, 'search'>];
             const active = onHome && activeTab === item.id;
@@ -198,6 +198,7 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
         </div>
 
         <div className="lp-sidebar-group">
+          <span className="lp-sidebar-group-label">Learn about AYN</span>
           {TAB_META.map((item) => {
             const Icon = TAB_ICONS[item.id as Exclude<HomeTabId, 'search'>];
             const active = onHome && activeTab === item.id;
@@ -217,6 +218,7 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
         </div>
 
         <div className="lp-sidebar-group">
+          <span className="lp-sidebar-group-label">Company</span>
           {MORE_TAB_META.map((item) => {
             const Icon = TAB_ICONS[item.id as Exclude<HomeTabId, 'search'>];
             const active = onHome && activeTab === item.id;
