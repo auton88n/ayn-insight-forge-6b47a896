@@ -1692,6 +1692,18 @@ button, a, input, textarea, select {
    they're given instead of floating in it. */
 .lp-shell { width: 100%; max-width: 1360px; margin: 0 auto; padding-inline: clamp(20px, 5vw, 48px); }
 .lp-section { padding-block: clamp(72px, 11vw, 132px); position: relative; }
+/* v3.232.0 -- the sign-in gate (AccountTabs.tsx's SignInPrompt) is a few
+   lines of text and a button, top-aligned with .lp-section's own normal
+   padding, then the footer -- which meant it sat near the top of the
+   page with a large, unstyled band of empty canvas below the footer, all
+   the way down to the sidebar's own fixed 100vh height (the sidebar is
+   deliberately always full height; that's correct everywhere else, it's
+   just what makes any short main-content page look like this). Rather
+   than fight the sidebar's height, this centers the gate's own content
+   in the space actually available above the footer, the same "empty
+   state fills the screen" pattern most real apps use instead of letting
+   short content float near the top with dead space trailing below it. */
+.lp-gate { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 78px); }
 .lp-eyebrow {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
@@ -1875,7 +1887,20 @@ button, a, input, textarea, select {
    A plain flex row: the sidebar is a flex child whose own width changes
    on collapse, so the main pane reflows for free, no manual margin math
    or state syncing between the two. --- */
-.lp-shell-with-sidebar { display: flex; align-items: stretch; min-height: 100vh; background: hsl(var(--lp-bg)); }
+/* v3.232.0 -- reported directly against the Profile sign-in gate: "why the
+   footer like this not like the other pages." align-items: stretch forced
+   .lp-sidebar-main (the ONLY child that actually reads it -- .lp-sidebar
+   itself already opts out below via its own position: sticky + height:
+   100vh) to stretch to match the sidebar's full 100vh, regardless of how
+   short its real content was. On a content-rich tab this was invisible
+   (content already exceeds 100vh on its own), but a short one -- the
+   sign-in gate is a few lines of text and a button -- left a real, empty
+   stretched gap between the content and the footer instead of the footer
+   following right after it, like every longer page already does. Changed
+   to flex-start: .lp-sidebar-main now sizes to its own content, the
+   footer sits immediately after it, and the outer shell's own min-height:
+   100vh still keeps the page's background filling the screen either way. */
+.lp-shell-with-sidebar { display: flex; align-items: flex-start; min-height: 100vh; background: hsl(var(--lp-bg)); }
 .lp-sidebar {
   flex: 0 0 244px; width: 244px; position: sticky; top: 0; align-self: flex-start; height: 100vh;
   display: flex; flex-direction: column; overflow-y: auto;

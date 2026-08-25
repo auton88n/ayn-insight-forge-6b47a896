@@ -1,3 +1,7 @@
+# v3.232.0 Sign-in gate footer positioning fixed: real bug + real UX gap
+
+Full writeup in CLAUDE.md's own v3.232.0 entry. Two separate things: `.lp-shell-with-sidebar`'s `align-items: stretch` was forcing `.lp-sidebar-main` to stretch to the sidebar's full 100vh regardless of its own (possibly much shorter) content -- measured live, `.lp-sidebar-main` reported 1000px in a 1000px viewport on the Profile sign-in gate even though its real content only needed 596px. Fixed to `align-items: flex-start` (the sidebar sets its own height independently via `position: sticky` + explicit `height: 100vh`, unaffected). That alone didn't move the footer though -- the sidebar being permanently full-height means any short-content page will always show blank canvas below its footer, an unavoidable consequence, not a bug. The real fix: new `.lp-gate` class (`min-height: calc(100vh - 78px)`, flex-centered) applied to `AccountTabs.tsx`'s `SignInPrompt`, so the gate's own content centers itself in the space above the footer instead of floating near the top with dead space trailing below.
+
 # v3.231.0 /do-not-sell got the same "back to legal" link every other document has
 
 Full writeup in CLAUDE.md's own v3.231.0 entry. `LegalPage.tsx` has carried a "← All legal documents" link above every real document's heading since v3.32.0; `DoNotSell.tsx`, its own separate bespoke component, never got it. Added the identical `<Link to="/legal">` + `ArrowLeft` treatment directly above its `<h1>`. Verified live by clicking it, not just checking the DOM.

@@ -59,7 +59,7 @@ function useAccountAuth() {
 
 function SignInPrompt({ label, onStartFree }: { label: string; onStartFree: TabProps['onStartFree'] }) {
   return (
-    <section className="lp-section">
+    <section className="lp-section lp-gate">
       <div className="lp-shell" style={{ maxWidth: 640, textAlign: 'center' }}>
         <p className="lp-eyebrow" style={{ justifyContent: 'center' }}>{label}</p>
         <h2 className="lp-display lp-h2">Sign in to see this</h2>
