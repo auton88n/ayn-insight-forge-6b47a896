@@ -1906,7 +1906,26 @@ button, a, input, textarea, select {
 }
 .lp-browser-chip-link:hover { color: hsl(var(--lp-ember)); text-decoration-color: currentColor; }
 .lp-browser-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
-@media (min-width: 1024px) { .lp-browser-grid { grid-template-columns: 380px 1fr; } }
+@media (min-width: 1024px) {
+  .lp-browser-grid { grid-template-columns: 380px 1fr; }
+  /* v3.245.0 -- reported directly against a screenshot: "the section on
+     the right needs to go down when i scrol down so i can see the JD."
+     Measured live first: the page's own scroll already worked correctly
+     (no clipping, no trapped overflow anywhere in the existing CSS) --
+     the real gap was behavioral, not a bug. Both columns just scrolled
+     together as one long page, the same way a plain document does, not
+     the master/detail pattern real Indeed actually uses: the list and
+     the detail pane each pin in place and scroll their own content
+     independently, so reading a long JD never means losing the list
+     you were just browsing. Desktop only (min-width: 1024px, the same
+     breakpoint this grid already goes two-column at) -- on a stacked
+     single-column mobile layout the two "panes" are really one column,
+     where pinning either one would only get in the way. */
+  .lp-browser-detail {
+    position: sticky; top: 20px; align-self: start;
+    max-height: calc(100vh - 40px); overflow-y: auto;
+  }
+}
 .lp-browser-list { display: flex; flex-direction: column; gap: 12px; }
 .lp-browser-empty { color: hsl(var(--lp-dim)); font-size: 14.5px; padding-block: 32px; }
 .lp-browser-card {

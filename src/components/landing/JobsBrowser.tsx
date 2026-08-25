@@ -17,7 +17,7 @@
  * standalone page used, since this is now the front door, not a
  * secondary utility page.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -95,6 +95,30 @@ export const JobsBrowser = ({
   const [loadingMore, setLoadingMore] = useState(false);
   const [selected, setSelected] = useState<JobPosting | null>(null);
   const [logoFailed, setLogoFailed] = useState<Set<string>>(new Set());
+
+  // v3.245.0 -- reported directly: "the logos feel very bad quality."
+  // Traced live, not assumed: `company_logo_url` is freehire's own stored
+  // value, not something this app builds -- for a real example
+  // ("Ilderton Conversion") it was already Google's favicon service asked
+  // for a real 128px icon (`.../s2/favicons?domain=ildertonvans.com&sz=
+  // 128`), and Google's own *newer* favicon API, asked the same way for
+  // the same domain, still only had a genuine 16x16 icon to give back --
+  // confirmed by fetching it directly and checking the real PNG's own
+  // pixel dimensions, not guessed at. No favicon service, old or new, can
+  // produce detail a smaller company's own site never published. Rather
+  // than keep stretching a real 16px icon across a 56px box (exactly what
+  // reads as "bad quality"), a loaded image now checks its own real,
+  // decoded size and is treated exactly like a failed load if it's below
+  // a reasonable floor -- falling back to the same clean colored-initial
+  // avatar this app already uses for a load that fails outright, so
+  // nothing genuinely blurry is ever shown, on either code path.
+  const MIN_LOGO_PX = 48;
+  const handleLogoLoad = (key: string) => (e: SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.naturalWidth > 0 && img.naturalWidth < MIN_LOGO_PX) {
+      setLogoFailed((prev) => new Set(prev).add(key));
+    }
+  };
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), 300);
@@ -280,6 +304,7 @@ export const JobsBrowser = ({
                       <img
                         src={logoUrl} alt="" className="lp-browser-logo"
                         onError={() => setLogoFailed((prev) => new Set(prev).add(job.id))}
+                        onLoad={handleLogoLoad(job.id)}
                       />
                     ) : (
                       <div className={`lp-browser-avatar ${avatar.className}`}>{avatar.initial}</div>
@@ -314,6 +339,7 @@ export const JobsBrowser = ({
                   <img
                     src={resolveLogoUrl(selected)!} alt="" className="lp-browser-detail-logo"
                     onError={() => setLogoFailed((prev) => new Set(prev).add(`d-${selected.id}`))}
+                    onLoad={handleLogoLoad(`d-${selected.id}`)}
                   />
                 ) : (
                   <div className={`lp-browser-detail-avatar ${companyAvatar(selected.company).className}`}>
