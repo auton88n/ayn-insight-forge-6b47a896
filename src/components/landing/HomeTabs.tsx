@@ -444,15 +444,22 @@ export const ContactTab = () => {
 
   return (
     <section className="lp-section">
-      <div className="lp-shell" style={{ maxWidth: 720 }}>
-        <div className="lp-reveal" style={{ marginBottom: 28 }}>
+      {/* v3.226.0 -- reported directly: "make the contact us bigger."
+          maxWidth: 720 was a leftover from when this was its own standalone
+          route at a narrower, page-of-its-own scale; every other tab now
+          reaches the full 1360px .lp-shell. Widened to 960 -- still a
+          sensible, readable width for a form (this isn't prose that needs
+          a narrow measure), just no longer artificially squeezed to less
+          than a third of what the rest of the page uses. */}
+      <div className="lp-shell" style={{ maxWidth: 960 }}>
+        <div className="lp-reveal" style={{ marginBottom: 32 }}>
           <p className="lp-eyebrow">Contact</p>
           <h2 className="lp-display lp-h2">Contact us</h2>
           <p className="lp-lead">Send a message. A real person reads it.</p>
         </div>
         <div className="lp-reveal">
           <SectionHeading>Send us a message</SectionHeading>
-          <div className="rounded-2xl border border-border bg-card p-2">
+          <div className="rounded-2xl border border-border bg-card p-3">
             <TicketForm onSuccess={() => undefined} />
           </div>
         </div>

@@ -280,8 +280,17 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
 
   return (
     <div className="lp" ref={root}>
+      {/* v3.226.0 -- reported directly: every tab's content started well
+          below the top of the page, not at it. This wrapper's own
+          paddingBlockStart (up to 72px) was stacking on top of the FIRST
+          thing every real tab renders, its own <section className="lp-
+          section">, which already carries a padding-block up to 132px --
+          204px of pure padding before any real content, close to three
+          times Home's own 72px max. Removed here; .lp-section's own top
+          padding is already the real spacing every tab needs, the same
+          amount Home itself uses for its own first block. */}
       {showTabContent && TabContent && (
-        <div className="lp-audience" key={`tab-${activeTab}`} style={{ paddingBlockStart: 'clamp(40px, 6vw, 72px)' }}>
+        <div className="lp-audience" key={`tab-${activeTab}`}>
           <TabContent
             onSelectTab={(id) => onSelectTab?.(id)}
             onStartFree={(role) => onStartFree?.(role)}
