@@ -32,8 +32,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
-  CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, PanelLeftClose,
-  PanelLeftOpen, LogOut, User, Menu, X, Briefcase, Inbox, ClipboardCheck, Settings as SettingsIcon, Target, Gavel,
+  CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, LogIn,
+  LogOut, User, Menu, X, Briefcase, Inbox, ClipboardCheck, Settings as SettingsIcon, Target, Gavel,
   ChevronDown,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -112,6 +112,13 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
       try { localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0'); } catch { /* ignore */ }
       return next;
     });
+    // v3.242.0 -- the brand button above renders inside the mobile drawer
+    // too (same shared `nav`), where the rail never actually collapses
+    // (the mobile media query never applies `.is-collapsed` to it) -- a
+    // tap there closes the drawer instead, the one thing tapping the logo
+    // usefully does in that context, rather than silently flipping a
+    // desktop-only state that only surfaces later if the window is resized.
+    setMobileOpen(false);
   }, []);
 
   const handleSignOut = async () => {
@@ -134,19 +141,25 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
   const nav = (
     <>
       <div className="lp-sidebar-top">
-        <Link to="/" className="lp-sidebar-brand" aria-label="AYN home" onClick={() => selectTab('search')}>
-          {collapsed
-            ? <img src={AYN_ICON} alt="" style={{ height: 26, width: 26 }} />
-            : <img src={aynWordmark} alt="AYN" style={{ height: 24, width: 'auto' }} />}
-        </Link>
+        {/* v3.242.0 -- reported directly against two cropped screenshots
+            (the AYN mark, and the separate panel-collapse icon next to
+            it): make the AYN icon itself the thing that opens and closes
+            the rail. The logo no longer navigates home on desktop -- "Job
+            search", the very first nav item below, already does that
+            (selectTab('search'), the same handler this link used to
+            call), so nothing is lost by retiring the second path to the
+            same place. The standalone collapse/expand button is gone;
+            this is now the only control for it. */}
         <button
           type="button"
-          className="lp-sidebar-toggle"
+          className="lp-sidebar-brand"
           onClick={toggleCollapsed}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+          {collapsed
+            ? <img src={AYN_ICON} alt="" style={{ height: 26, width: 26 }} />
+            : <img src={aynWordmark} alt="AYN" style={{ height: 24, width: 'auto' }} />}
         </button>
         <button type="button" className="lp-sidebar-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close menu">
           <X size={18} />
@@ -289,7 +302,18 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
             </button>
           </div>
         ) : (
-          <button type="button" className="lp-btn lp-btn-primary lp-sidebar-cta" onClick={() => setAuthOpen(true)}>
+          <button
+            type="button"
+            className="lp-btn lp-btn-primary lp-sidebar-cta"
+            onClick={() => setAuthOpen(true)}
+            title={collapsed ? 'Sign in or start free' : undefined}
+          >
+            {/* v3.242.0 -- reported directly: "better icon for sign in."
+                This button had no icon at all, so collapsing the rail left
+                a solid, completely blank pill with nothing telling anyone
+                what it does -- confirmed live, the exact shape in the
+                report's own screenshot. */}
+            <LogIn size={16} className="lp-sidebar-link-icon" />
             <span className="lp-sidebar-link-label">Start free</span>
           </button>
         )}

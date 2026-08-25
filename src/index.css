@@ -1985,12 +1985,16 @@ button, a, input, textarea, select {
 .lp-sidebar.is-collapsed { flex-basis: 68px; width: 68px; }
 .lp-sidebar-main { flex: 1 1 auto; min-width: 0; }
 .lp-sidebar-top { display: flex; align-items: center; justify-content: space-between; padding: 18px 16px; flex-shrink: 0; }
-.lp-sidebar-brand { display: flex; align-items: center; }
-.lp-sidebar-toggle {
-  display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px;
-  background: none; border: none; cursor: pointer; color: hsl(var(--lp-dim)); flex-shrink: 0;
+/* v3.242.0 -- this is a <button> now, not a <Link>: it's the sidebar's
+   open/close control, the standalone .lp-sidebar-toggle it replaced is
+   gone. Same reset + hover affordance that button used to carry, applied
+   here instead so the click target still reads as interactive. */
+.lp-sidebar-brand {
+  display: flex; align-items: center; background: none; border: none; padding: 4px; margin: -4px;
+  border-radius: 8px; cursor: pointer;
 }
-.lp-sidebar-toggle:hover { background: hsl(var(--lp-fg) / 0.06); color: hsl(var(--lp-fg)); }
+.lp-sidebar-brand:hover { background: hsl(var(--lp-fg) / 0.06); }
+.lp-sidebar-brand:focus-visible { outline: 2px solid hsl(var(--lp-ember) / 0.55); outline-offset: 2px; }
 .lp-sidebar.is-collapsed .lp-sidebar-top { flex-direction: column; gap: 10px; }
 .lp-sidebar-mobile-close { display: none; background: none; border: none; cursor: pointer; color: hsl(var(--lp-muted)); }
 .lp-sidebar-nav { flex: 1 1 auto; overflow-y: auto; padding: 6px 10px; }
@@ -2077,7 +2081,6 @@ button.lp-sidebar-link {
     transform: translateX(-100%); transition: transform .22s ease; flex-basis: auto; height: 100vh;
   }
   .lp-sidebar-mobile.is-open { transform: translateX(0); }
-  .lp-sidebar-mobile .lp-sidebar-toggle { display: none; }
   .lp-sidebar-mobile .lp-sidebar-mobile-close { display: flex; align-items: center; justify-content: center; }
   .lp-sidebar-mobile .lp-sidebar-link-label { display: inline; }
   .lp-sidebar-scrim { display: block; position: fixed; inset: 0; background: hsl(0 0% 0% / 0.4); z-index: 45; }
