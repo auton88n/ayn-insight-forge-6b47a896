@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { SEO } from '@/components/shared/SEO';
 import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { LandingFooter } from '@/components/landing/LandingFooter';
-import { Button } from '@/components/ui/button';
 import { JobsBrowser, unslugifyCity } from '@/components/landing/JobsBrowser';
 import { humanizeCategory } from '@/components/resume-hub/BrowseJobs';
 import { Sparkles } from 'lucide-react';
@@ -126,7 +125,13 @@ const PublicJobs = () => {
       <div className="lp lp-shell-with-sidebar contact-surface">
         <SeekerSidebar />
         <main className="lp-sidebar-main">
-          <div className="container mx-auto max-w-6xl px-4 sm:px-6 pt-10 sm:pt-12 pb-24">
+          {/* v3.237.0 -- reported directly: every page needs to match in
+              width and positioning. `container mx-auto max-w-6xl` was its
+              own fifth width convention (1152px, centered, its own
+              smaller px-4/px-6 padding) -- swapped to the same .lp-shell/
+              .lp-section pair every other page now uses. */}
+          <section className="lp-section">
+          <div className="lp-shell">
             <JobsBrowser routeId={routeId} categorySlug={categorySlug} locationSlug={locationSlug} asH1 />
 
             <div className="mt-16 rounded-xl border p-6" style={{ background: 'var(--accent, #fdf3ee)' }}>
@@ -138,15 +143,16 @@ const PublicJobs = () => {
                 Paste your resume and any job description to see exactly which requirements you match, free, no account needed.
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
-                <Button variant="outline" onClick={() => navigate('/check-resume')}>
+                <button type="button" className="lp-btn lp-btn-ghost" onClick={() => navigate('/check-resume')}>
                   Check my resume against a job
-                </Button>
-                <Button variant="outline" onClick={() => navigate('/salary-guide')}>
+                </button>
+                <button type="button" className="lp-btn lp-btn-ghost" onClick={() => navigate('/salary-guide')}>
                   See real salary data by role
-                </Button>
+                </button>
               </div>
             </div>
           </div>
+          </section>
           <LandingFooter />
         </main>
       </div>

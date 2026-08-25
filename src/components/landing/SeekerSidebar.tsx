@@ -155,9 +155,17 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
 
       <nav className="lp-sidebar-nav" aria-label="AYN">
         <div className="lp-sidebar-group">
+          {/* v3.237.0 -- reported directly, against a screenshot of this
+              exact active-highlight pill: real routes this same tool also
+              answers to (/jobs and its /jobs/:id, /jobs/category/:x,
+              /jobs/location/:x variants -- the identical JobsBrowser
+              component this button's own Home tab embeds, per v3.223.0's
+              own history) left the whole sidebar with nothing highlighted
+              at all, since neither this check nor TOOL_LINKS' own
+              exact-pathname check ever matched them. */}
           <button
             type="button"
-            className={`lp-sidebar-link ${onHome && activeTab === 'search' ? 'is-active' : ''}`}
+            className={`lp-sidebar-link ${(onHome && activeTab === 'search') || location.pathname.startsWith('/jobs') ? 'is-active' : ''}`}
             onClick={() => selectTab('search')}
             title={collapsed ? 'Job search' : undefined}
           >

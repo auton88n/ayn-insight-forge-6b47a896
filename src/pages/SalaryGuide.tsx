@@ -84,7 +84,15 @@ const SalaryGuide = () => {
       <div className="lp lp-shell-with-sidebar contact-surface">
         <SeekerSidebar />
         <main className="lp-sidebar-main">
-        <div className="container mx-auto max-w-4xl px-6 pt-10 pb-24">
+        {/* v3.237.0 -- reported directly: every page needs to match in
+            width and positioning. `container mx-auto max-w-4xl` was its
+            own fourth width convention (896px, centered) on top of
+            Check Resume's own separate 768px and every .lp-shell tab's
+            1360px -- and the data table and stat cards here already
+            looked good with more room, not less. Same .lp-shell/
+            .lp-section pair every other page now uses, full width. */}
+        <section className="lp-section">
+        <div className="lp-shell">
           <span className="inline-block h-1 w-14 rounded-full mb-6" style={{ background: EMBER }} aria-hidden="true" />
           <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-balance">
             What roles actually pay, right now
@@ -237,6 +245,7 @@ const SalaryGuide = () => {
             </>
           )}
         </div>
+        </section>
         <LandingFooter />
         </main>
       </div>

@@ -437,17 +437,27 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
           breathe; the price itself now reads as the card's own headline
           (Outfit, larger, tighter) instead of matching the body font at
           barely more than paragraph size. */}
-      <div className="lp-shell" style={{ maxWidth: 1160 }}>
-        <div className="lp-reveal" style={{ marginBottom: 34, textAlign: 'center' }}>
+      {/* v3.237.0 -- reported directly: "every page we have it have
+          diffrent hight and wedith also difrent postiong." Measured live:
+          this shell's own 1160px cap plus .lp-shell's `margin: 0 auto`
+          centering put this tab's heading a real, confirmed 268px further
+          right than Features' own left-aligned heading in the identical
+          sidebar layout at the identical viewport, not just a difference
+          in copy or card width. Cap removed (now the same 1360px default
+          shell every left-aligned tab already uses, so every tab's
+          content starts at the same x position); the intro block
+          switched from centered to left-aligned to match. */}
+      <div className="lp-shell">
+        <div className="lp-reveal" style={{ marginBottom: 34 }}>
           <Badge className="ayn-ember-badge">Pricing for job seekers</Badge>
           <h2 className="lp-display lp-h2" style={{ marginTop: 14 }}>Less time formatting. More time applying.</h2>
-          <p className="lp-lead" style={{ maxWidth: 620, marginInline: 'auto' }}>
+          <p className="lp-lead" style={{ maxWidth: 620 }}>
             A tailored resume costs 2 credits. A cover letter costs 1. Everything else is free.
           </p>
         </div>
 
         {billing && (
-          <div className="lp-reveal" style={{ marginBottom: 34, marginInline: 'auto', maxWidth: 480, textAlign: 'center' }}>
+          <div className="lp-reveal" style={{ marginBottom: 34, maxWidth: 480 }}>
             <p className="lp-note">
               You are on {billing.plan?.name || 'Free'} with{' '}
               <strong>{billing.balance} credits</strong> left.
@@ -523,14 +533,19 @@ export const ContactTab = () => {
 
   return (
     <section className="lp-section">
-      {/* v3.226.0 -- reported directly: "make the contact us bigger."
-          maxWidth: 720 was a leftover from when this was its own standalone
-          route at a narrower, page-of-its-own scale; every other tab now
-          reaches the full 1360px .lp-shell. Widened to 960 -- still a
-          sensible, readable width for a form (this isn't prose that needs
-          a narrow measure), just no longer artificially squeezed to less
-          than a third of what the rest of the page uses. */}
-      <div className="lp-shell" style={{ maxWidth: 960 }}>
+      {/* v3.226.0 gave this shell its own 960px cap so the form wasn't
+          squeezed to a third of the page. v3.237.0 -- reported directly
+          that every tab needs to match in width and positioning: a
+          narrower shell still gets centered by .lp-shell's own `margin: 0
+          auto`, which measured live as a real 268px rightward shift on
+          About's own heading versus Features' identical left-aligned one
+          at the same viewport -- the same shift was happening here. The
+          shell itself is now the same 1360px default every left-aligned
+          tab uses (same starting x position everywhere); the actual form
+          keeps a sensible, non-stretched width via maxWidth on .lp-panel
+          directly instead of the whole shell, still left-aligned, not
+          centered, so it starts at that same shared x position too. */}
+      <div className="lp-shell">
         <div className="lp-reveal" style={{ marginBottom: 32 }}>
           <p className="lp-eyebrow">Contact</p>
           <h2 className="lp-display lp-h2">Contact us</h2>
@@ -538,12 +553,7 @@ export const ContactTab = () => {
         </div>
         <div className="lp-reveal">
           <SectionHeading>Send us a message</SectionHeading>
-          {/* v3.234.0 -- was a bare rounded-2xl/border/p-3 wrapper (12px of
-              padding around a form sitting inside a 960px-wide shell), the
-              generic shadcn card look rather than this page's own design
-              language. .lp-panel gives it the same considered depth as
-              every other content block on the page. */}
-          <div className="lp-panel">
+          <div className="lp-panel" style={{ maxWidth: 640 }}>
             <TicketForm onSuccess={() => undefined} />
           </div>
         </div>
@@ -552,15 +562,25 @@ export const ContactTab = () => {
   );
 };
 
+// v3.237.0 -- reported directly: every tab needs to match in layout
+// height, width and positioning. This shell's own 720px cap, centered by
+// .lp-shell's `margin: 0 auto`, measured live at a real 268px rightward
+// shift on this exact heading versus Features' left-aligned one at the
+// same viewport -- not a difference in copy, a difference in where the
+// title actually starts on screen. The shell is now the same 1360px
+// default every left-aligned tab uses; the narrow reading measure this
+// prose still genuinely benefits from moved onto the two content blocks
+// directly, left-aligned (no auto-centering), so they start at that same
+// shared x position instead of floating further right.
 export const AboutTab = () => (
   <section className="lp-section">
-    <div className="lp-shell" style={{ maxWidth: 720 }}>
-      <div className="lp-reveal" style={{ marginBottom: 8 }}>
+    <div className="lp-shell">
+      <div className="lp-reveal" style={{ marginBottom: 8, maxWidth: 720 }}>
         <p className="lp-eyebrow">About AYN</p>
         <h2 className="lp-display lp-h2">Hiring runs on volume. We think it should run on evidence.</h2>
         <p className="lp-lead">AYN is built by a team in Canada.</p>
       </div>
-      <div className="lp-reveal" style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="lp-reveal" style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 }}>
         <p className="lp-note" style={{ fontSize: 15 }}>
           AI made it effortless to apply everywhere, so everyone did. Hiring drowned in noise, and a hiring
           manager who used to read forty applications started opening six hundred and reading none of them
@@ -606,14 +626,22 @@ export const HelpTab = ({ onSelectTab }: TabProps) => {
 
   return (
     <section className="lp-section">
-      <div className="lp-shell" style={{ maxWidth: 720 }}>
-        <div className="lp-reveal" style={{ marginBottom: 28 }}>
+      {/* v3.237.0 -- reported directly: every tab needs to match in width
+          and positioning. This shell's own 720px cap centered its content
+          268px further right than Features' left-aligned equivalent at
+          the same viewport, measured live on this exact class of bug on
+          About's own heading. This content is a search box and an
+          accordion list, not prose needing a narrow reading measure --
+          the same shape as FAQ, already at the full 1360px shell -- so
+          the cap is dropped outright rather than moved to an inner wrap. */}
+      <div className="lp-shell">
+        <div className="lp-reveal" style={{ marginBottom: 28, maxWidth: 720 }}>
           <p className="lp-eyebrow">Help Center</p>
           <h2 className="lp-display lp-h2">Help Center</h2>
           <p className="lp-lead">Search for an answer, or open a question below. Anything else goes to a real person on the team.</p>
         </div>
 
-        <div className="lp-reveal" style={{ position: 'relative', marginBottom: 32 }}>
+        <div className="lp-reveal" style={{ position: 'relative', marginBottom: 32, maxWidth: 480 }}>
           <SearchIcon size={16} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--lp-dim))' }} aria-hidden="true" />
           <Input
             value={query}
@@ -624,7 +652,7 @@ export const HelpTab = ({ onSelectTab }: TabProps) => {
           />
         </div>
 
-        <div className="lp-reveal" style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+        <div className="lp-reveal" style={{ display: 'flex', flexDirection: 'column', gap: 32, maxWidth: 720 }}>
           {results.map((section) => (
             <div key={section.title}>
               <SectionHeading className="mb-3">{section.title}</SectionHeading>

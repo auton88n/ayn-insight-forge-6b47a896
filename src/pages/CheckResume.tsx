@@ -63,7 +63,15 @@ const CheckResume = () => {
       <div className="lp lp-shell-with-sidebar contact-surface">
         <SeekerSidebar />
         <main className="lp-sidebar-main">
-        <div className="container mx-auto max-w-3xl px-6 pt-10 pb-24">
+        {/* v3.237.0 -- reported directly: every page needs to match in
+            width and positioning. `container mx-auto max-w-3xl` was its
+            own third convention (768px, centered), neither this page's
+            own tabs' 1360px .lp-shell nor any other standalone route's
+            width -- and the two-column resume/JD paste layout genuinely
+            wants more room than 768px gives it, not less. Swapped to the
+            same .lp-shell/.lp-section every tab uses, full width, no cap. */}
+        <section className="lp-section">
+        <div className="lp-shell">
           <span className="inline-block h-1 w-14 rounded-full mb-6" style={{ background: EMBER }} aria-hidden="true" />
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Does your resume match this job?</h1>
           <p className="mt-3 text-lg text-muted-foreground">
@@ -173,6 +181,7 @@ const CheckResume = () => {
             </div>
           )}
         </div>
+        </section>
         <LandingFooter />
         </main>
       </div>

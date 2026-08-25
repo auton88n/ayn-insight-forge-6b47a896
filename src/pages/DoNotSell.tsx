@@ -30,7 +30,17 @@ export default function DoNotSell() {
       />
       <SeekerSidebar />
       <main className="lp-sidebar-main">
-      <div className="max-w-3xl w-full mx-auto px-6 pt-10 sm:pt-12 pb-24">
+      {/* v3.237.0 -- reported directly: every page needs to match in width
+          and positioning. `max-w-3xl w-full mx-auto` centered this page's
+          own content, shifting it right of where every other page's
+          heading starts at the same viewport (confirmed live, the exact
+          same class of bug fixed across every other route this pass). Now
+          the same .lp-shell/.lp-section pair everyone else uses, with the
+          same 720px reading measure the real legal documents use, but
+          left-aligned instead of centered. */}
+      <section className="lp-section">
+      <div className="lp-shell">
+      <div style={{ maxWidth: 720 }}>
         {/* v3.231.0 -- reported directly: "this page needs to have a way
             back." LegalPage.tsx already has this exact link above every
             document's own heading; this page never got the same treatment
@@ -100,6 +110,8 @@ export default function DoNotSell() {
           </p>
         </div>
       </div>
+      </div>
+      </section>
       <LandingFooter />
       </main>
     </div>

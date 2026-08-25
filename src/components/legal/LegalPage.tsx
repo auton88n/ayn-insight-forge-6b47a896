@@ -80,7 +80,9 @@ export default function LegalPage({ slug }: Props) {
         <SEO title={`${title} | AYN`} description={doc?.description || 'AYN legal documents.'} />
         <SeekerSidebar />
         <main className="lp-sidebar-main">
-          <div className="legal-measure px-6 pt-10 sm:pt-12 pb-24">
+          <section className="lp-section">
+          <div className="lp-shell">
+          <div className="legal-measure">
             <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
             <p className="mt-4 text-sm text-muted-foreground">
               This document is being finalised and will appear here shortly. In the meantime,
@@ -90,6 +92,8 @@ export default function LegalPage({ slug }: Props) {
               <Link to="/legal" className="text-sm underline">All legal documents</Link>
             </p>
           </div>
+          </div>
+          </section>
           <LandingFooter />
         </main>
       </div>
@@ -128,7 +132,9 @@ export default function LegalPage({ slug }: Props) {
       <SeekerSidebar />
 
       <main className="lp-sidebar-main">
-        <div className="legal-measure px-6 pt-10 sm:pt-12 pb-24">
+        <section className="lp-section">
+        <div className="lp-shell">
+        <div className="legal-measure">
           <div className="legal-noprint">
             <Link to="/legal" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
               <ArrowLeft className="w-3.5 h-3.5" /> All legal documents
@@ -203,6 +209,8 @@ export default function LegalPage({ slug }: Props) {
             </ReactMarkdown>
           </article>
         </div>
+        </div>
+        </section>
         <LandingFooter />
       </main>
     </div>

@@ -2676,11 +2676,18 @@ button.lp-sidebar-link {
    readable measure on screen, tables that survive a phone, an anchor on
    every clause, and something sane on paper because procurement prints it.
    ───────────────────────────────────────────────────────────── */
+/* v3.237.0 -- reported directly: every page needs to match in width and
+   positioning. This class used to BE the outer wrapper (its own px-6/
+   pt-10 padding, `margin: 0 auto` centering it within .lp-sidebar-main
+   directly) -- now it sits nested inside the same .lp-shell/.lp-section
+   pair every other page uses (which already supplies the shared padding
+   and left-aligned starting position), and only provides the narrower
+   reading measure real legal-document prose still genuinely benefits
+   from. No auto-centering here anymore -- a block element with a
+   max-width and no margin already sits flush left within its parent. */
 .legal-measure {
   width: 100%;
   max-width: 46rem;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .legal-doc {

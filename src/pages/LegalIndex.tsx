@@ -35,8 +35,21 @@ export default function LegalIndex() {
             trace of the site's own Charcoal & Ember identity. Heading now
             matches every other tab's .lp-eyebrow/.lp-display treatment;
             each row is a real .lp-panel-style card with an ember accent on
-            hover instead of a flat divided list. */}
-        <div className="legal-measure px-6 pt-10 sm:pt-12 pb-24">
+            hover instead of a flat divided list.
+            v3.237.0 -- reported directly: every page needs to match in
+            width and positioning. legal-measure's own centering
+            (`margin-left/right: auto`) plus its narrower 46rem cap and a
+            flat 24px px-6 (versus .lp-shell's clamp(20px,5vw,48px)) put
+            this page's own heading at a different x position and a
+            different top padding than every tab built on .lp-shell.
+            Swapped to the same .lp-shell/.lp-section pair every tab
+            already uses, so this page shares the identical outer padding
+            and starting position; the list itself keeps a comfortable,
+            left-aligned reading width via maxWidth directly, not the
+            centering legal-measure used to apply. */}
+        <section className="lp-section">
+        <div className="lp-shell">
+          <div style={{ maxWidth: 720 }}>
           <p className="lp-eyebrow">Legal</p>
           <h1 className="lp-display" style={{ fontSize: 'clamp(30px, 4.4vw, 44px)', lineHeight: 1.05, margin: '0 0 14px' }}>
             Every document, in one place
@@ -90,7 +103,9 @@ export default function LegalIndex() {
             Questions about any of these, write to{' '}
             <a href="mailto:legal@ayn.careers" className="underline" style={{ color: 'hsl(var(--lp-fg))' }}>legal@ayn.careers</a>.
           </p>
+          </div>
         </div>
+        </section>
         <LandingFooter />
       </main>
     </div>
