@@ -8,8 +8,6 @@ import { AuthModal } from '@/components/auth/AuthModal';
 import { resumeCheckPublic, type ResumeCheckPublicResult } from '@/lib/resumeHub';
 import { CheckCircle2, XCircle, Sparkles, Loader2 } from 'lucide-react';
 
-const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
-
 // v3.200.0 — the public resume-vs-job checker. No account needed to use
 // it: paste a resume and a job description, get the same literal keyword
 // match AYN already runs internally for free (computeGap, zero AI cost,
@@ -72,7 +70,11 @@ const CheckResume = () => {
             same .lp-shell/.lp-section every tab uses, full width, no cap. */}
         <section className="lp-section">
         <div className="lp-shell">
-          <span className="inline-block h-1 w-14 rounded-full mb-6" style={{ background: EMBER }} aria-hidden="true" />
+          {/* v3.239.0 -- reported directly against a live screenshot: "missing
+              highlitghts." Same gap as Salary guide -- a bare decorative bar
+              with no label, never reached by the v3.236.0 eyebrow rebuild
+              since this is its own standalone route, not a HomeTabs tab. */}
+          <p className="lp-eyebrow">Check my resume</p>
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Does your resume match this job?</h1>
           <p className="mt-3 text-lg text-muted-foreground">
             Paste your resume and a real job description below. See exactly which requirements you match and which you're missing, free, no account needed.

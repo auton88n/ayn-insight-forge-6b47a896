@@ -171,11 +171,18 @@ export const JobsBrowser = ({
       {showHeading && (
         asH1 ? (
           <>
+            {/* v3.239.0 -- reported directly against a live screenshot:
+                "missing highlitghts." This was the one heading on the
+                whole site with no eyebrow label above it at all, not
+                even the bare decorative bar Salary guide/Check my resume
+                had -- fixed alongside those two same-report gaps. */}
+            <p className="lp-eyebrow">Job search</p>
             <h1 className="lp-display lp-h2" style={{ marginBottom: 10 }}>{heading}</h1>
             <p className="lp-lead" style={{ marginBottom: 6 }}>{sub}</p>
           </>
         ) : (
           <>
+            <p className="lp-eyebrow">Job search</p>
             <h2 className="lp-display lp-h2" style={{ marginBottom: 10 }}>{heading}</h2>
             <p className="lp-lead" style={{ marginBottom: 6 }}>{sub}</p>
           </>

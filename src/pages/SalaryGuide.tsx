@@ -93,7 +93,13 @@ const SalaryGuide = () => {
             .lp-section pair every other page now uses, full width. */}
         <section className="lp-section">
         <div className="lp-shell">
-          <span className="inline-block h-1 w-14 rounded-full mb-6" style={{ background: EMBER }} aria-hidden="true" />
+          {/* v3.239.0 -- reported directly against a live screenshot: "missing
+              highlitghts." This page and Check Resume were the two real
+              standalone routes the v3.236.0 eyebrow-chip rebuild never
+              reached (that pass only covered the 25 HomeTabs/AccountTabs/
+              Legal call sites) -- a bare decorative bar with no label,
+              where every other page now has a real named chip. */}
+          <p className="lp-eyebrow">Salary guide</p>
           <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-balance">
             What roles actually pay, right now
           </h1>
