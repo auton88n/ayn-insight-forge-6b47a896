@@ -28,28 +28,36 @@ export default function LegalIndex() {
       />
       <SeekerSidebar />
       <main className="lp-sidebar-main">
+        {/* v3.234.0 -- reported directly: "you are just keeping using what
+            we built... better pages design." This page ran on plain
+            shadcn tokens (divide-border, hover:bg-muted/40) despite living
+            inside .lp -- the one page on the whole sidebar shell with no
+            trace of the site's own Charcoal & Ember identity. Heading now
+            matches every other tab's .lp-eyebrow/.lp-display treatment;
+            each row is a real .lp-panel-style card with an ember accent on
+            hover instead of a flat divided list. */}
         <div className="legal-measure px-6 pt-10 sm:pt-12 pb-24">
-          <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">Legal</h1>
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p className="lp-eyebrow">Legal</p>
+          <h1 className="lp-display" style={{ fontSize: 'clamp(30px, 4.4vw, 44px)', lineHeight: 1.05, margin: '0 0 14px' }}>
+            Every document, in one place
+          </h1>
+          <p className="text-[15.5px] leading-relaxed" style={{ color: 'hsl(var(--lp-muted))' }}>
             Every document that governs your use of AYN. Each one carries its version and
             effective date at the top.
           </p>
 
-          <ul className="mt-10 divide-y divide-border border-y border-border">
+          <ul className="mt-9 flex flex-col gap-3">
             {LEGAL_DOCS.map((d) => {
               const raw = rawMarkdown(d.slug);
               const meta = raw ? parseDocMeta(raw) : null;
               return (
                 <li key={d.slug}>
-                  <Link
-                    to={d.path}
-                    className="group flex items-start gap-4 py-5 hover:bg-muted/40 transition-colors px-2 -mx-2 rounded"
-                  >
+                  <Link to={d.path} className="lp-legal-row group">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{d.title}</p>
-                      <p className="text-sm text-muted-foreground mt-1">{d.description}</p>
+                      <p className="lp-legal-row-title">{d.title}</p>
+                      <p className="lp-legal-row-desc">{d.description}</p>
                       {meta?.version && (
-                        <p className="text-xs text-muted-foreground mt-2">
+                        <p className="lp-legal-row-meta">
                           Version {meta.version}
                           {meta.effective
                             ? `, effective ${meta.effective}`
@@ -58,9 +66,8 @@ export default function LegalIndex() {
                               : ''}
                         </p>
                       )}
-
                     </div>
-                    <ChevronRight className="w-4 h-4 mt-0.5 text-muted-foreground group-hover:text-foreground shrink-0" />
+                    <ChevronRight className="lp-legal-row-chev" />
                   </Link>
                 </li>
               );
@@ -69,22 +76,19 @@ export default function LegalIndex() {
                 is its own bespoke page -- so it's listed here directly rather
                 than folded into that registry. */}
             <li>
-              <Link
-                to="/do-not-sell"
-                className="group flex items-start gap-4 py-5 hover:bg-muted/40 transition-colors px-2 -mx-2 rounded"
-              >
+              <Link to="/do-not-sell" className="lp-legal-row group">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">Do Not Sell or Share My Info</p>
-                  <p className="text-sm text-muted-foreground mt-1">Your CCPA rights, and confirmation that AYN does not sell or share personal information.</p>
+                  <p className="lp-legal-row-title">Do Not Sell or Share My Info</p>
+                  <p className="lp-legal-row-desc">Your CCPA rights, and confirmation that AYN does not sell or share personal information.</p>
                 </div>
-                <ChevronRight className="w-4 h-4 mt-0.5 text-muted-foreground group-hover:text-foreground shrink-0" />
+                <ChevronRight className="lp-legal-row-chev" />
               </Link>
             </li>
           </ul>
 
-          <p className="mt-8 text-sm text-muted-foreground">
+          <p className="mt-8 text-sm" style={{ color: 'hsl(var(--lp-dim))' }}>
             Questions about any of these, write to{' '}
-            <a href="mailto:legal@ayn.careers" className="underline">legal@ayn.careers</a>.
+            <a href="mailto:legal@ayn.careers" className="underline" style={{ color: 'hsl(var(--lp-fg))' }}>legal@ayn.careers</a>.
           </p>
         </div>
         <LandingFooter />

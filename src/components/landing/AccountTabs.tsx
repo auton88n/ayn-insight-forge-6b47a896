@@ -74,7 +74,7 @@ function SignInPrompt({ label, onStartFree }: { label: string; onStartFree: TabP
           {label} is part of your own account. Sign in, or start free in a few seconds, to open it.
         </p>
         <div className="lp-cta-row" style={{ flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 26 }}>
-          <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree('job_seeker', 'signup')}>
+          <button type="button" className="lp-btn lp-btn-primary lp-btn-lg" onClick={() => onStartFree('job_seeker', 'signup')}>
             Start free
           </button>
           <button

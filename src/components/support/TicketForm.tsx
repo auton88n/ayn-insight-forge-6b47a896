@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Send, CheckCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Send, CheckCircle, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -241,20 +240,22 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
           />
         </div>
 
-        <Button
+        {/* v3.234.0 -- was a shadcn <Button>, the one control on this page
+            not shaped like every other call-to-action on the site (a pill,
+            .lp-btn). This is the same class every other primary action on
+            Home uses, since this form now only ever renders on Contact. */}
+        <button
           type="submit"
-          className="w-full gap-2"
+          className="lp-btn lp-btn-primary"
+          style={{ width: '100%' }}
           disabled={isSubmitting}
         >
           {isSubmitting ? (
-            <>Sending...</>
+            <><Loader2 className="h-4 w-4 animate-spin" /> Sending</>
           ) : (
-            <>
-              <Send className="h-4 w-4" />
-              Send message
-            </>
+            <><Send className="h-4 w-4" /> Send message</>
           )}
-        </Button>
+        </button>
       </form>
     </ScrollArea>
   );

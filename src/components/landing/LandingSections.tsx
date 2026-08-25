@@ -353,8 +353,8 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
               <p className="lp-lead" style={{ maxWidth: 660 }}>{hero.lead}</p>
 
               <div className="lp-cta-row" style={{ marginTop: 30 }}>
-                <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.(audience)}>
-                  {hero.cta} <ArrowRight size={15} />
+                <button type="button" className="lp-btn lp-btn-primary lp-btn-lg" onClick={() => onStartFree?.(audience)}>
+                  {hero.cta} <ArrowRight size={16} />
                 </button>
               </div>
               <p className="lp-note">{hero.note}</p>
@@ -634,8 +634,8 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
               Describe the role once. No agency fee, just the evidence.
             </p>
             <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
-              <button type="button" className="lp-btn lp-btn-invert" onClick={() => onStartFree?.(audience)}>
-                {hero.cta} <ArrowRight size={15} />
+              <button type="button" className="lp-btn lp-btn-invert lp-btn-lg" onClick={() => onStartFree?.(audience)}>
+                {hero.cta} <ArrowRight size={16} />
               </button>
             </div>
           </div>

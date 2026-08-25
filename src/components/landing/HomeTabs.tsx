@@ -147,8 +147,8 @@ export const FeaturesTab = ({ onStartFree }: TabProps) => (
             Add your background once. Every application after that is written for the job, and every employer searching finds you too.
           </p>
           <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
-            <button type="button" className="lp-btn lp-btn-invert" onClick={() => onStartFree?.('job_seeker')}>
-              Start free <ArrowRight size={15} />
+            <button type="button" className="lp-btn lp-btn-invert lp-btn-lg" onClick={() => onStartFree?.('job_seeker')}>
+              Start free <ArrowRight size={16} />
             </button>
           </div>
         </div>
@@ -414,7 +414,15 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
 
   return (
     <section className="lp-section">
-      <div className="lp-shell" style={{ maxWidth: 1080 }}>
+      {/* v3.234.0 -- reported directly: "layout sizes... you are just
+          keeping using what we built." 1080px across four cards at a
+          220px floor left each card around 256px wide, tight for a price,
+          a credit line, a description and a full-width button. Widened
+          the shell and the column floor so a card actually has room to
+          breathe; the price itself now reads as the card's own headline
+          (Outfit, larger, tighter) instead of matching the body font at
+          barely more than paragraph size. */}
+      <div className="lp-shell" style={{ maxWidth: 1160 }}>
         <div className="lp-reveal" style={{ marginBottom: 34, textAlign: 'center' }}>
           <Badge className="ayn-ember-badge">Pricing for job seekers</Badge>
           <h2 className="lp-display lp-h2" style={{ marginTop: 14 }}>Less time formatting. More time applying.</h2>
@@ -435,11 +443,19 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
           </div>
         )}
 
-        <div className="lp-reveal" style={{ display: 'grid', gap: 18, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+        <div className="lp-reveal" style={{ display: 'grid', gap: 20, gridTemplateColumns: 'repeat(auto-fit, minmax(248px, 1fr))' }}>
           {PLANS.map((p) => {
             const current = billing?.plan?.key === p.key;
+            const featured = p.key === 'seeker_starter';
             return (
-              <div key={p.key} className="lp-tile" style={p.key === 'seeker_starter' ? { borderColor: 'hsl(var(--lp-ember))' } : undefined}>
+              <div
+                key={p.key}
+                className="lp-tile"
+                style={featured ? {
+                  borderColor: 'hsl(var(--lp-ember))',
+                  background: 'linear-gradient(160deg, hsl(var(--lp-ember) / 0.05) 0%, hsl(var(--lp-card)) 55%)',
+                } : undefined}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <h3 style={{ margin: 0 }}>{p.name}</h3>
                   {current ? (
@@ -448,9 +464,9 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
                     <Badge className="ayn-ember-badge" style={{ fontSize: 11, padding: '3px 10px' }}>{p.tag}</Badge>
                   ) : null}
                 </div>
-                <p style={{ fontSize: 24, fontWeight: 700, margin: '10px 0 0' }}>{priceLabel(p.cents, p.interval)}</p>
-                <p style={{ color: 'hsl(var(--lp-ember))', fontWeight: 600, fontSize: 14, margin: '6px 0 0' }}>{p.credits} credits</p>
-                <p style={{ flex: 1, margin: '10px 0 0' }}>{p.line}</p>
+                <p className="lp-display" style={{ fontSize: 32, margin: '14px 0 0', lineHeight: 1 }}>{priceLabel(p.cents, p.interval)}</p>
+                <p style={{ color: 'hsl(var(--lp-ember))', fontWeight: 600, fontSize: 14, margin: '8px 0 0' }}>{p.credits} credits</p>
+                <p style={{ flex: 1, margin: '12px 0 0' }}>{p.line}</p>
                 <button
                   type="button"
                   className={`lp-btn ${p.key === 'seeker_starter' ? 'lp-btn-primary' : 'lp-btn-ghost'}`}
@@ -507,7 +523,12 @@ export const ContactTab = () => {
         </div>
         <div className="lp-reveal">
           <SectionHeading>Send us a message</SectionHeading>
-          <div className="rounded-2xl border border-border bg-card p-3">
+          {/* v3.234.0 -- was a bare rounded-2xl/border/p-3 wrapper (12px of
+              padding around a form sitting inside a 960px-wide shell), the
+              generic shadcn card look rather than this page's own design
+              language. .lp-panel gives it the same considered depth as
+              every other content block on the page. */}
+          <div className="lp-panel">
             <TicketForm onSuccess={() => undefined} />
           </div>
         </div>
