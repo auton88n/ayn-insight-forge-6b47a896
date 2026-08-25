@@ -180,7 +180,18 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
       { rootMargin: '0px 0px -8% 0px', threshold: 0.08 },
     );
     nodes.forEach((n) => io.observe(n));
-    return () => io.disconnect();
+    // v3.241.0 -- a reveal-on-scroll animation is decoration, never a gate:
+    // real content must not stay permanently invisible just because the
+    // observer never fires (a slow first paint, a backgrounded tab, or any
+    // other reason the browser skips the callback). 900ms is well past how
+    // long any above-the-fold node should ever take to intersect for real;
+    // anything still hidden past that point force-reveals instead of
+    // staying stuck, closing the exact failure mode this file's own
+    // v3.219.0 history already documents once for a different root cause.
+    const fallback = window.setTimeout(() => {
+      root.current?.querySelectorAll('.lp-reveal:not(.is-in)').forEach((n) => n.classList.add('is-in'));
+    }, 900);
+    return () => { io.disconnect(); window.clearTimeout(fallback); };
   }, [audience, activeTab]);
 
   const pickAudience = useCallback((next: Audience) => {
