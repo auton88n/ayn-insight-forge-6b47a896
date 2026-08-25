@@ -20,6 +20,10 @@ interface AuthModalProps {
   onOpenChange: (open: boolean) => void;
   /** Preselects the signup role and opens the signup tab (landing page CTAs). */
   initialRole?: 'job_seeker' | 'employer';
+  /** Overrides which tab opens, independent of initialRole -- lets a caller
+   * open straight to Sign In even though a role was also given (v3.233.0,
+   * the sign-in gate's "already have an account" link). */
+  initialTab?: 'signin' | 'signup';
 }
 
 // Mask email for privacy (john.doe@gmail.com → j***e@gmail.com)
@@ -32,7 +36,7 @@ const maskEmail = (email: string): string => {
   return `${masked}@${domain}`;
 };
 
-export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) => {
+export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthModalProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const signups = useFeature('signups');
 
@@ -522,7 +526,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue={initialRole ? 'signup' : 'signin'} className="w-full flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 pb-6">
+        <Tabs defaultValue={initialTab || (initialRole ? 'signup' : 'signin')} className="w-full flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 pb-6">
 
           <TabsList className="ayn-auth-tabs grid w-full grid-cols-2">
             <TabsTrigger value="signin">{t('auth.signIn')}</TabsTrigger>

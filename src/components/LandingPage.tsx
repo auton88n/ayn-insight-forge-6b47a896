@@ -73,6 +73,10 @@ const COPY: Record<Audience, { title: string; description: string; canonical: st
 const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: Audience }) => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authRole, setAuthRole] = useState<Audience>(forcedAudience);
+  // v3.233.0 -- onStartFree's own second argument lets a caller (the
+  // sign-in gate's "already have an account" link) open straight to the
+  // Sign In tab instead of always defaulting to Sign Up.
+  const [authTab, setAuthTab] = useState<'signin' | 'signup'>('signup');
   const [activeTab, setActiveTab] = useState<HomeTabId>(readHandoffTab);
   const { direction } = useLanguage();
 
@@ -109,8 +113,9 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
             <Header />
             <LandingSections
               forcedAudience={forcedAudience}
-              onStartFree={(role) => {
+              onStartFree={(role, tab) => {
                 setAuthRole(role || forcedAudience);
+                setAuthTab(tab || 'signup');
                 setShowAuthModal(true);
               }}
             />
@@ -131,15 +136,16 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
                 forcedAudience={forcedAudience}
                 activeTab={activeTab}
                 onSelectTab={setActiveTab}
-                onStartFree={(role) => {
+                onStartFree={(role, tab) => {
                   setAuthRole(role || forcedAudience);
+                  setAuthTab(tab || 'signup');
                   setShowAuthModal(true);
                 }}
               />
             </main>
           </div>
         )}
-        <AuthModal key={authRole} open={showAuthModal} onOpenChange={setShowAuthModal} initialRole={authRole} />
+        <AuthModal key={`${authRole}-${authTab}`} open={showAuthModal} onOpenChange={setShowAuthModal} initialRole={authRole} initialTab={authTab} />
       </div>
     </>
   );

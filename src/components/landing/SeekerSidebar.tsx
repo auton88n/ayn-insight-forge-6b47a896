@@ -34,6 +34,7 @@ import {
   Search, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
   CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, PanelLeftClose,
   PanelLeftOpen, LogOut, User, Menu, X, Briefcase, Inbox, ClipboardCheck, Settings as SettingsIcon, Target, Gavel,
+  ChevronDown,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -94,6 +95,10 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
+  // null = the visitor hasn't touched this toggle yet, so it follows the
+  // default (expanded signed out, collapsed signed in unless the active
+  // tab already lives in this group); a real click always wins after that.
+  const [learnManuallyOpen, setLearnManuallyOpen] = useState<boolean | null>(null);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user ?? null));
@@ -112,6 +117,9 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
   };
+
+  const activeInLearnGroup = onHome && TAB_META.some((t) => t.id === activeTab);
+  const learnOpen = learnManuallyOpen ?? (!user || activeInLearnGroup);
 
   const selectTab = (tab: HomeTabId) => {
     if (onHome && onSelectTab) {
@@ -198,8 +206,20 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
         </div>
 
         <div className="lp-sidebar-group">
-          <span className="lp-sidebar-group-label">Learn about AYN</span>
-          {TAB_META.map((item) => {
+          {collapsed ? (
+            <span className="lp-sidebar-group-label">Learn about AYN</span>
+          ) : (
+            <button
+              type="button"
+              className="lp-sidebar-group-toggle"
+              onClick={() => setLearnManuallyOpen(!learnOpen)}
+              aria-expanded={learnOpen}
+            >
+              <span className="lp-sidebar-group-label">Learn about AYN</span>
+              <ChevronDown size={13} strokeWidth={2.2} className={`lp-sidebar-group-chevron ${learnOpen ? 'is-open' : ''}`} />
+            </button>
+          )}
+          {(collapsed || learnOpen) && TAB_META.map((item) => {
             const Icon = TAB_ICONS[item.id as Exclude<HomeTabId, 'search'>];
             const active = onHome && activeTab === item.id;
             return (

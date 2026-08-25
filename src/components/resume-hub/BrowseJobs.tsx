@@ -219,6 +219,10 @@ export const AVATAR_PALETTE = [
   "bg-gradient-to-br from-slate-500 to-slate-700 text-white",
 ];
 
+// v3.233.0 -- every render site now uses rounded-full for this fallback,
+// not rounded-xl (still used by the real <img> logo it sits beside). A
+// letter in a circle reads unmistakably as an avatar; a bordered square at
+// list density was easy to mistake for an unchecked checkbox.
 export function companyAvatar(name: string) {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
@@ -620,7 +624,7 @@ function SwipeCardPeek({ job, style }: { job: JobPosting; style: React.CSSProper
       {logoUrl ? (
         <img src={logoUrl} alt="" className="w-12 h-12 rounded-xl object-contain bg-white p-1.5 border mb-3" style={{ borderColor: "var(--rh-hair)" }} />
       ) : (
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold shrink-0 ${avatar.className}`}>{avatar.initial}</div>
+        <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold shrink-0 ${avatar.className}`}>{avatar.initial}</div>
       )}
       <p className="rh-display text-[15px] leading-snug truncate">{job.title}</p>
       <p className="text-[12px] truncate" style={{ color: "var(--rh-muted)" }}>{job.company}</p>
@@ -780,7 +784,7 @@ function SwipeDeck({
                 onError={() => setLogoFailed((prev) => new Set(prev).add(current.id))}
               />
             ) : (
-              <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg ${avatar.className}`} style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}>
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg ${avatar.className}`} style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}>
                 {avatar.initial}
               </div>
             )}
@@ -1668,7 +1672,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             />
           ) : (
             <div
-              className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 ${companyAvatar(selected.company).className}`}
+              className={`w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${companyAvatar(selected.company).className}`}
               style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
             >
               {companyAvatar(selected.company).initial}
@@ -2221,7 +2225,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                           />
                         ) : (
                           <div
-                            className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-base shrink-0 ${avatar.className}`}
+                            className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-base shrink-0 ${avatar.className}`}
                             style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
                           >
                             {avatar.initial}

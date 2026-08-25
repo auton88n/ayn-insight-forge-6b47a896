@@ -49,7 +49,14 @@ export type HomeTabId =
 // taking more is expected). onSelectTab lets a tab link to another tab
 // without ever leaving the page (Help -> Contact); onStartFree opens the
 // one AuthModal the shell owns, instead of a tab mounting a second one.
-export type TabProps = { onSelectTab: (id: HomeTabId) => void; onStartFree: (role?: Audience) => void };
+export type TabProps = {
+  onSelectTab: (id: HomeTabId) => void;
+  // v3.233.0 -- the optional second argument lets a caller open straight
+  // to Sign In instead of the default Sign Up tab, without a second
+  // callback threaded through every tab component. Omitted, it behaves
+  // exactly as before.
+  onStartFree: (role?: Audience, tab?: 'signin' | 'signup') => void;
+};
 
 // v3.229.0 -- Messaging removed as its own entry, folded into Get
 // discovered (one continuous story: turn on discovery, then here's what
@@ -60,7 +67,10 @@ export const TAB_META: { id: HomeTabId; label: string }[] = [
   { id: 'why-ayn', label: 'Why AYN' },
   { id: 'get-discovered', label: 'Get discovered' },
   { id: 'proof', label: 'Proof' },
-  { id: 'faq', label: 'FAQ' },
+  // v3.233.0 -- renamed from "FAQ" so the nav label matches the page's own
+  // heading ("Good to know"), the friendlier of the two, rather than the
+  // reader landing on a heading that never echoes the word they clicked.
+  { id: 'faq', label: 'Good to know' },
 ];
 
 export const MORE_TAB_META: { id: HomeTabId; label: string }[] = [
@@ -359,10 +369,10 @@ export const FaqTab = () => {
 // and /help still exist as real URLs (old links/bookmarks keep working)
 // but now redirect into this same tab, never their own separate chrome.
 
-const PLANS = [
+const PLANS: { key: string; name: string; cents: number; interval: string; credits: number; line: string; tag?: string }[] = [
   { key: 'seeker_free', name: 'Free', cents: 0, interval: 'month', credits: 6, line: 'Three tailored resumes a month, or six cover letters.' },
   { key: 'seeker_week', name: 'Week pass', cents: 499, interval: 'week', credits: 30, line: 'For the week you are applying hard.' },
-  { key: 'seeker_starter', name: 'Starter', cents: 1200, interval: 'month', credits: 80, line: 'A steady search, around forty tailored resumes.' },
+  { key: 'seeker_starter', name: 'Starter', cents: 1200, interval: 'month', credits: 80, line: 'A steady search, around forty tailored resumes.', tag: 'Most chosen' },
   { key: 'seeker_pro', name: 'Pro', cents: 2400, interval: 'month', credits: 200, line: 'A full time search with room to spare.' },
 ];
 
@@ -430,9 +440,13 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
             const current = billing?.plan?.key === p.key;
             return (
               <div key={p.key} className="lp-tile" style={p.key === 'seeker_starter' ? { borderColor: 'hsl(var(--lp-ember))' } : undefined}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <h3 style={{ margin: 0 }}>{p.name}</h3>
-                  {current && <span className="lp-chip">Your plan</span>}
+                  {current ? (
+                    <span className="lp-chip">Your plan</span>
+                  ) : p.tag ? (
+                    <Badge className="ayn-ember-badge" style={{ fontSize: 11, padding: '3px 10px' }}>{p.tag}</Badge>
+                  ) : null}
                 </div>
                 <p style={{ fontSize: 24, fontWeight: 700, margin: '10px 0 0' }}>{priceLabel(p.cents, p.interval)}</p>
                 <p style={{ color: 'hsl(var(--lp-ember))', fontWeight: 600, fontSize: 14, margin: '6px 0 0' }}>{p.credits} credits</p>
@@ -444,7 +458,7 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
                   disabled={current || busy === p.key}
                   onClick={() => choose(p.key)}
                 >
-                  {busy === p.key ? <Loader2 size={15} className="animate-spin" /> : current ? 'Current plan' : p.cents === 0 ? 'Start free' : 'Choose plan'}
+                  {busy === p.key ? <Loader2 size={15} className="animate-spin" /> : current ? 'Current plan' : p.cents === 0 ? 'Start free' : `Choose ${p.name}`}
                 </button>
               </div>
             );
@@ -611,8 +625,15 @@ export const HelpTab = ({ onSelectTab }: TabProps) => {
               screenshot if you have one.
             </p>
             <p className="lp-note" style={{ marginTop: 10, fontSize: 13 }}>
-              Response aims: free plan best effort, Starter 3 business days, Growth 2, Scale 1. These are
-              aims and not commitments.
+              {/* v3.233.0 -- this line used to quote the Service Level
+                  Agreement's employer-only support table ("Growth 2, Scale
+                  1"), plan names that never appear anywhere on this page or
+                  on seeker Pricing, and the SLA itself says plainly it does
+                  not apply to job seeker plans. This is the seeker Help
+                  page, so it now states the real, honest seeker-scoped
+                  aim instead of borrowing an employer commitment. */}
+              Response aim: best effort on Free, faster on a paid plan. This is an aim, not a
+              commitment.
             </p>
             <button type="button" className="lp-btn lp-btn-primary" style={{ marginTop: 16 }} onClick={() => onSelectTab('contact')}>
               Contact us

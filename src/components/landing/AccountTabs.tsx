@@ -57,6 +57,13 @@ function useAccountAuth() {
   return { userId, session };
 }
 
+// v3.233.0 -- reported directly against the design audit: "Sign in or
+// start free" was one button asking for two different decisions. A
+// returning user and a first-time visitor now get a real choice --
+// "Start free" stays the one primary action (it's the more common case,
+// arriving here signed out), with a plain, lighter "Already have an
+// account? Sign in" underneath it that opens the same modal straight to
+// its Sign In tab instead of Sign Up.
 function SignInPrompt({ label, onStartFree }: { label: string; onStartFree: TabProps['onStartFree'] }) {
   return (
     <section className="lp-section lp-gate">
@@ -66,9 +73,17 @@ function SignInPrompt({ label, onStartFree }: { label: string; onStartFree: TabP
         <p className="lp-lead" style={{ marginInline: 'auto' }}>
           {label} is part of your own account. Sign in, or start free in a few seconds, to open it.
         </p>
-        <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 26 }}>
-          <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree('job_seeker')}>
-            Sign in or start free
+        <div className="lp-cta-row" style={{ flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 26 }}>
+          <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree('job_seeker', 'signup')}>
+            Start free
+          </button>
+          <button
+            type="button"
+            className="lp-quiet-link"
+            style={{ background: 'none', border: 'none', borderBottom: '1px solid hsl(var(--lp-border))', padding: 0, paddingBottom: 2, font: 'inherit', fontSize: 14.5, cursor: 'pointer' }}
+            onClick={() => onStartFree('job_seeker', 'signin')}
+          >
+            Already have an account? Sign in
           </button>
         </div>
       </div>

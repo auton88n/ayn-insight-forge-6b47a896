@@ -1850,10 +1850,17 @@ button, a, input, textarea, select {
 .lp-browser-card.is-active { border-color: hsl(var(--lp-ember)); background: hsl(var(--lp-ember) / 0.06); box-shadow: var(--lp-shadow-lift); }
 .lp-browser-card-row { display: flex; align-items: flex-start; gap: 12px; }
 .lp-browser-logo, .lp-browser-avatar {
-  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0; object-fit: contain; background: #fff;
+  width: 38px; height: 38px; flex-shrink: 0; object-fit: contain; background: #fff;
   border: 1px solid hsl(var(--lp-border-soft));
 }
-.lp-browser-avatar { display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; }
+.lp-browser-logo { border-radius: 11px; }
+/* v3.233.0 -- a real company logo stays a rounded square (the standard
+   app-icon shape); the letter-initial fallback is now a full circle
+   instead, so it reads unmistakably as an avatar. At list density the
+   square-with-a-border version was easy to mistake for an unchecked
+   checkbox sitting next to the job title, since it carried no other
+   visual cue (icon, texture) marking it as a mark rather than a control. */
+.lp-browser-avatar { border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; }
 .lp-browser-card-text { min-width: 0; flex: 1; }
 .lp-browser-card-title { font-size: 14.5px; font-weight: 600; color: hsl(var(--lp-fg)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lp-browser-card-company { font-size: 13.5px; color: hsl(var(--lp-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1932,6 +1939,20 @@ button, a, input, textarea, select {
   letter-spacing: 0.08em; text-transform: uppercase; color: hsl(var(--lp-dim));
 }
 .lp-sidebar.is-collapsed .lp-sidebar-group-label { display: none; }
+
+/* v3.233.0 -- "Learn about AYN" is the least useful group for a returning,
+   signed-in visitor (seven explanation tabs) but used to take the most
+   vertical room in the rail regardless. Now a real disclosure: collapsed
+   by default once signed in (unless the active tab already lives inside
+   it), always expanded signed out, where deciding whether to sign up is
+   the whole point. Same label styling as a plain <span>, just clickable. */
+.lp-sidebar-group-toggle {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  padding: 4px 12px 6px; background: none; border: none; cursor: pointer;
+}
+.lp-sidebar-group-toggle .lp-sidebar-group-label { padding: 0; }
+.lp-sidebar-group-chevron { color: hsl(var(--lp-dim)); transition: transform .2s ease; flex: none; }
+.lp-sidebar-group-chevron.is-open { transform: rotate(180deg); }
 .lp-sidebar-link {
   display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 9px;
   font-size: 14px; font-weight: 500; color: hsl(var(--lp-muted)); text-decoration: none;

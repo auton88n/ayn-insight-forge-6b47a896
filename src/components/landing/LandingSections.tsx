@@ -30,7 +30,11 @@ import { HOME_TAB_CONTENT, type HomeTabId } from './HomeTabs';
 // component to whichever identity its route owns -- the toggle only
 // renders when it's left unset, which no real route does any more.
 type Props = {
-  onStartFree?: (role?: Audience) => void;
+  // v3.233.0 -- the optional second argument (which auth tab to open on)
+  // was missing here, silently stripped by the one-argument wrapper below
+  // on its way to TabContent -- the sign-in gate's own "Sign in" link
+  // called this correctly, but it always got 'signup' regardless.
+  onStartFree?: (role?: Audience, tab?: 'signin' | 'signup') => void;
   forcedAudience?: Audience;
   activeTab?: HomeTabId;
   onSelectTab?: (id: HomeTabId) => void;
@@ -293,7 +297,7 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
         <div className="lp-audience" key={`tab-${activeTab}`}>
           <TabContent
             onSelectTab={(id) => onSelectTab?.(id)}
-            onStartFree={(role) => onStartFree?.(role)}
+            onStartFree={(role, tab) => onStartFree?.(role, tab)}
           />
         </div>
       )}

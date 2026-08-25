@@ -202,43 +202,30 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label>Category</Label>
-            <Select
-              value={formData.category}
-              onValueChange={(value) => setFormData({ ...formData, category: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="general">General</SelectItem>
-                <SelectItem value="billing">Billing</SelectItem>
-                <SelectItem value="technical">Technical</SelectItem>
-                <SelectItem value="feature_request">Feature Request</SelectItem>
-                <SelectItem value="bug_report">Bug Report</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Priority</Label>
-            <Select
-              value={formData.priority}
-              onValueChange={(value) => setFormData({ ...formData, priority: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="urgent">Urgent</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Priority removed: asking a first-time visitor to self-rate their
+            own message before anyone has read it put the wrong person in
+            charge of triage. Whoever answers can set that once they read
+            it; the field still ships with the ticket (formData.priority),
+            just at a fixed 'medium' default, never shown. Category kept,
+            but relabeled to what a visitor would actually think in, not
+            the raw admin-panel term. */}
+        <div className="space-y-2">
+          <Label>What's this about?</Label>
+          <Select
+            value={formData.category}
+            onValueChange={(value) => setFormData({ ...formData, category: value })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="general">Something else</SelectItem>
+              <SelectItem value="billing">Billing or a plan</SelectItem>
+              <SelectItem value="technical">Something isn't working</SelectItem>
+              <SelectItem value="feature_request">An idea or request</SelectItem>
+              <SelectItem value="bug_report">A bug</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">
