@@ -1,21 +1,34 @@
 // v3.32.0 — the index of every legal document.
+// v3.230.0 -- reported directly, alongside adding a Legal link to the
+// sidebar's Company group: "make it within like the other pages." This
+// page ran on the old <Header/>/<Footer/> chrome, no SeekerSidebar at all
+// -- the same "different page, sidebar gone" gap /jobs, /salary-guide and
+// /check-resume already had fixed at v3.220.0, just not yet reached here.
+// Swapped to the identical SeekerSidebar/LandingFooter + .lp shell those
+// three routes already use.
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { SEO } from '@/components/shared/SEO';
-import { Header } from '@/components/shared/Header';
-import { Footer } from '@/components/shared/Footer';
+import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
+import { LandingFooter } from '@/components/landing/LandingFooter';
 import { LEGAL_DOCS, rawMarkdown, parseDocMeta } from '@/lib/legalDocs';
 import { ChevronRight } from 'lucide-react';
 
 export default function LegalIndex() {
+  useEffect(() => {
+    document.body.classList.add('contact-surface');
+    return () => document.body.classList.remove('contact-surface');
+  }, []);
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="lp lp-shell-with-sidebar contact-surface">
       <SEO
         title="Legal | AYN"
         description="Every AYN legal document in one place: terms, privacy, cookies, security, subprocessors, data processing addendum, service level agreement and copyright."
       />
-      <Header />
-      <main className="flex-1 w-full px-6 pt-32 pb-12 sm:pb-16">
-        <div className="legal-measure">
+      <SeekerSidebar />
+      <main className="lp-sidebar-main">
+        <div className="legal-measure px-6 pt-10 sm:pt-12 pb-24">
           <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">Legal</h1>
           <p className="mt-3 text-sm text-muted-foreground">
             Every document that governs your use of AYN. Each one carries its version and
@@ -74,8 +87,8 @@ export default function LegalIndex() {
             <a href="mailto:legal@ayn.careers" className="underline">legal@ayn.careers</a>.
           </p>
         </div>
+        <LandingFooter />
       </main>
-      <Footer />
     </div>
   );
 }

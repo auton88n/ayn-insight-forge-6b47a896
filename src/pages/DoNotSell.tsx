@@ -2,20 +2,34 @@
 // information and does not share it for cross context behavioural
 // advertising, so this states that plainly instead of pretending to be a form
 // that does nothing.
+// v3.230.0 -- reported directly, alongside the same fix for /legal and its
+// document pages: linked straight off the Legal hub, so leaving this one
+// on the old Footer-only chrome would have recreated the exact "different
+// page, sidebar gone" gap one click after the page that had just been
+// fixed. Same SeekerSidebar/LandingFooter + .lp shell swap.
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { SEO } from '@/components/shared/SEO';
-import { Footer } from '@/components/shared/Footer';
+import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
+import { LandingFooter } from '@/components/landing/LandingFooter';
 import { LEGAL } from '@/lib/legal';
 import { openCookiePreferences } from '@/components/shared/CookieConsent';
 
 export default function DoNotSell() {
+  useEffect(() => {
+    document.body.classList.add('contact-surface');
+    return () => document.body.classList.remove('contact-surface');
+  }, []);
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="lp lp-shell-with-sidebar contact-surface">
       <SEO
         title="Do Not Sell or Share My Personal Information | AYN"
         description="AYN does not sell personal information and does not share it for cross context behavioural advertising. How a California resident can exercise their privacy rights."
       />
-      <main className="flex-1 max-w-3xl w-full mx-auto px-6 py-16">
+      <SeekerSidebar />
+      <main className="lp-sidebar-main">
+      <div className="max-w-3xl w-full mx-auto px-6 pt-10 sm:pt-12 pb-24">
         <h1 className="text-3xl font-semibold tracking-tight">
           Do Not Sell or Share My Personal Information
         </h1>
@@ -76,8 +90,9 @@ export default function DoNotSell() {
             <Link className="text-foreground underline underline-offset-2" to="/terms">Terms of Service</Link>.
           </p>
         </div>
+      </div>
+      <LandingFooter />
       </main>
-      <Footer />
     </div>
   );
 }

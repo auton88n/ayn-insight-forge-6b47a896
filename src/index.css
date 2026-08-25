@@ -2585,7 +2585,15 @@ button.lp-sidebar-link {
 }
 
 @media print {
-  .legal-noprint, .legal-toc, .legal-anchor-link { display: none !important; }
+  /* v3.230.0 -- LegalPage/LegalIndex swapped Header/Footer (each wrapped in
+     .legal-noprint by hand) for SeekerSidebar/LandingFooter, which aren't
+     wrapped the same way -- an extra wrapper div around SeekerSidebar
+     would have broken .lp-shell-with-sidebar's own flex layout, since its
+     children need to be the real sidebar/main elements, not a wrapper.
+     Hidden here instead, sitewide: chrome that's never wanted on a
+     printed page regardless of which route it's rendered from. */
+  .legal-noprint, .legal-toc, .legal-anchor-link,
+  .lp-sidebar, .lp-sidebar-mobile-bar, .lp-footer { display: none !important; }
   body { background: #fff !important; }
   .legal-measure { max-width: none; }
   .legal-doc, .legal-doc p, .legal-doc li, .legal-doc th, .legal-doc td,

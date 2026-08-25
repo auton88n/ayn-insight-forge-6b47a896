@@ -33,7 +33,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
   CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, PanelLeftClose,
-  PanelLeftOpen, LogOut, User, Menu, X, Briefcase, Inbox, ClipboardCheck, Settings as SettingsIcon, Target,
+  PanelLeftOpen, LogOut, User, Menu, X, Briefcase, Inbox, ClipboardCheck, Settings as SettingsIcon, Target, Gavel,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -235,6 +235,19 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
               </button>
             );
           })}
+          {/* v3.230.0 -- Legal, added directly: a real route (the Legal hub
+              plus its own document pages), not a tab-switch, so it's a
+              <Link> matching TOOL_LINKS' own pattern above, not another
+              ACCOUNT/TAB_META button. */}
+          <Link
+            to="/legal"
+            className={`lp-sidebar-link ${location.pathname === '/legal' ? 'is-active' : ''}`}
+            onClick={() => setMobileOpen(false)}
+            title={collapsed ? 'Legal' : undefined}
+          >
+            <Gavel size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+            <span className="lp-sidebar-link-label">Legal</span>
+          </Link>
         </div>
       </nav>
 

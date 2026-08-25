@@ -10,8 +10,8 @@ import { Link, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { SEO } from '@/components/shared/SEO';
-import { Header } from '@/components/shared/Header';
-import { Footer } from '@/components/shared/Footer';
+import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
+import { LandingFooter } from '@/components/landing/LandingFooter';
 import { Link2, Printer, ArrowLeft } from 'lucide-react';
 import {
   docBySlug,
@@ -45,6 +45,15 @@ export default function LegalPage({ slug }: Props) {
   const raw = rawMarkdown(slug);
   const location = useLocation();
 
+  // v3.230.0 -- reported directly: "make it within like the other pages."
+  // Swapped the old <Header/>/<Footer/> chrome for the same SeekerSidebar/
+  // LandingFooter + .lp shell /jobs, /salary-guide and /check-resume
+  // already use, so a legal document no longer drops the sidebar.
+  useEffect(() => {
+    document.body.classList.add('contact-surface');
+    return () => document.body.classList.remove('contact-surface');
+  }, []);
+
   const parsed = useMemo(() => {
     if (!raw) return null;
     const meta = parseDocMeta(raw);
@@ -67,20 +76,22 @@ export default function LegalPage({ slug }: Props) {
 
   if (!parsed) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="lp lp-shell-with-sidebar contact-surface">
         <SEO title={`${title} | AYN`} description={doc?.description || 'AYN legal documents.'} />
-        <div className="legal-noprint"><Header /></div>
-        <main className="flex-1 legal-measure px-6 pt-32 pb-16">
-          <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-          <p className="mt-4 text-sm text-muted-foreground">
-            This document is being finalised and will appear here shortly. In the meantime,
-            write to <a className="underline" href="mailto:legal@ayn.careers">legal@ayn.careers</a>.
-          </p>
-          <p className="mt-8">
-            <Link to="/legal" className="text-sm underline">All legal documents</Link>
-          </p>
+        <SeekerSidebar />
+        <main className="lp-sidebar-main">
+          <div className="legal-measure px-6 pt-10 sm:pt-12 pb-24">
+            <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+            <p className="mt-4 text-sm text-muted-foreground">
+              This document is being finalised and will appear here shortly. In the meantime,
+              write to <a className="underline" href="mailto:legal@ayn.careers">legal@ayn.careers</a>.
+            </p>
+            <p className="mt-8">
+              <Link to="/legal" className="text-sm underline">All legal documents</Link>
+            </p>
+          </div>
+          <LandingFooter />
         </main>
-        <Footer />
       </div>
     );
   }
@@ -108,16 +119,16 @@ export default function LegalPage({ slug }: Props) {
     };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="lp lp-shell-with-sidebar contact-surface">
       <SEO
         title={`${title} | AYN`}
         description={doc?.description || `${title} for AYN.`}
       />
 
-      <div className="legal-noprint"><Header /></div>
+      <SeekerSidebar />
 
-      <main className="flex-1 w-full px-6 pt-32 pb-12 sm:pb-16">
-        <div className="legal-measure">
+      <main className="lp-sidebar-main">
+        <div className="legal-measure px-6 pt-10 sm:pt-12 pb-24">
           <div className="legal-noprint">
             <Link to="/legal" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
               <ArrowLeft className="w-3.5 h-3.5" /> All legal documents
@@ -192,11 +203,8 @@ export default function LegalPage({ slug }: Props) {
             </ReactMarkdown>
           </article>
         </div>
+        <LandingFooter />
       </main>
-
-      <div className="legal-noprint">
-        <Footer />
-      </div>
     </div>
   );
 }
