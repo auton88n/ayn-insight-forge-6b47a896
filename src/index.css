@@ -2007,6 +2007,15 @@ button, a, input, textarea, select {
 .lp-sidebar-group-toggle {
   display: flex; align-items: center; justify-content: space-between; width: 100%;
   padding: 4px 12px 6px; background: none; border: none; cursor: pointer;
+  /* v3.238.0 -- reported directly against a screenshot: this group sat
+     visibly lower than its plain-<span>-labeled siblings. Measured live:
+     a <button> with no font reset falls back to the browser's own default
+     UI font (16px/24px line-height) for its own box, even though the
+     child label span correctly renders at 11px inside it -- the invisible
+     line-box, not the visible text, was what pushed the group 6px taller.
+     `font: inherit` makes the button's own box use this page's real type
+     instead of the browser's default control font. */
+  font: inherit; line-height: 16.5px;
 }
 .lp-sidebar-group-toggle .lp-sidebar-group-label { padding: 0; }
 .lp-sidebar-group-chevron { color: hsl(var(--lp-dim)); transition: transform .2s ease; flex: none; }
