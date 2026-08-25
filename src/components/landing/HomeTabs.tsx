@@ -21,7 +21,7 @@ import { HeadToHead } from './HeadToHead';
 import { BeforeAfterProof } from './BeforeAfterProof';
 import { LiveJobsPreview } from './LiveJobsPreview';
 import { TrustBento } from './TrustBento';
-import { CandidateCardMockup, InboxMockup } from './AppMockups';
+import { CandidateCardMockup, InboxMockup, SameResumeMockup, TailoredDocsMockup } from './AppMockups';
 import { PAIN, HEAD_TO_HEAD, AI_CONTRAST, DISCOVER_CHIPS, TRUST, FAQS, SEEKER_TILES, SEEKER_STEPS } from './landingContent';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -131,10 +131,13 @@ export const FeaturesTab = ({ onStartFree }: TabProps) => (
 export const HowItWorksTab = () => (
   <section className="lp-section">
     <div className="lp-shell">
-      <div className="lp-reveal" style={{ marginBottom: 34 }}>
-        <p className="lp-eyebrow">How it works</p>
-        <h2 className="lp-display lp-h2">One posting in, one application out</h2>
-        <p className="lp-lead">Open a job from the search tab. Get a score, a resume and a cover letter for it.</p>
+      <div className="lp-split lp-reveal" style={{ marginBottom: 48 }}>
+        <div>
+          <p className="lp-eyebrow">How it works</p>
+          <h2 className="lp-display lp-h2">One posting in, one application out</h2>
+          <p className="lp-lead">Open a job from the search tab. Get a score, a resume and a cover letter for it.</p>
+        </div>
+        <div className="lp-art lp-art-plain"><TailoredDocsMockup /></div>
       </div>
       <div className="lp-flow lp-reveal">
         {SEEKER_STEPS.map((s, i) => {
@@ -159,16 +162,17 @@ const headToHead = HEAD_TO_HEAD.job_seeker;
 export const WhyAynTab = () => (
   <section className="lp-section">
     <div className="lp-shell">
-      <div className="lp-reveal" style={{ marginBottom: 38 }}>
-        <p className="lp-eyebrow">{pain.eyebrow}</p>
-        <h2 className="lp-display lp-h2">{pain.title}</h2>
-        <p className="lp-lead">{pain.lead}</p>
-      </div>
-      <div className="lp-reveal">
-        <div className="lp-pain lp-pain-solo">
-          <h3 className="lp-display">{pain.who}</h3>
-          <ul>{pain.lines.map((l) => <li key={l}>{l}</li>)}</ul>
+      <div className="lp-split lp-reveal" style={{ marginBottom: 44 }}>
+        <div>
+          <p className="lp-eyebrow">{pain.eyebrow}</p>
+          <h2 className="lp-display lp-h2">{pain.title}</h2>
+          <p className="lp-lead">{pain.lead}</p>
+          <div className="lp-pain lp-pain-solo" style={{ marginTop: 26 }}>
+            <h3 className="lp-display">{pain.who}</h3>
+            <ul>{pain.lines.map((l) => <li key={l}>{l}</li>)}</ul>
+          </div>
         </div>
+        <div className="lp-art lp-art-plain"><SameResumeMockup /></div>
       </div>
       <div className="lp-reveal" style={{ marginTop: 40 }}>
         <HeadToHead themLabel={headToHead.themLabel} rows={headToHead.rows} />

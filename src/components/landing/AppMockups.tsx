@@ -328,3 +328,56 @@ export function InboxMockup({ style }: { style?: React.CSSProperties }) {
     </svg>
   );
 }
+
+/* ── 8. One resume, sent everywhere, versus one written for the job ──
+   v3.225.0 -- WhyAynTab had no visual at all, plain text next to a huge
+   canvas. This is a labeled diagram of the tab's own opening line
+   (PAIN.job_seeker.lines[0], "Same resume, forty postings, no
+   replies.") -- the same "diagram of the real mechanism, nothing
+   invented" discipline CandidateCardMockup already established, not a
+   new claim made up for the graphic. */
+export function SameResumeMockup({ style }: { style?: React.CSSProperties }) {
+  const W = 760, H = 280;
+  const postings = [0, 1, 2, 3, 4];
+  return (
+    <svg {...a11y} aria-label="A diagram comparing one resume sent to five postings with no replies, against one resume written for a single job" viewBox={`0 0 ${W} ${H}`} style={{ ...svgBase, ...style }} preserveAspectRatio="xMidYMid meet">
+      <rect x="0.5" y="0.5" width={W - 1} height={H - 1} rx="18" fill={T.paper} stroke={T.borderMd} />
+      <line x1={W / 2} y1="28" x2={W / 2} y2={H - 28} stroke={T.border} />
+
+      {/* left: the usual way */}
+      <text x="34" y="42" fontFamily={F} fontSize="10" fontWeight="700" fill={T.inkSub} letterSpacing="1">THE USUAL WAY</text>
+      <rect x="34" y="64" width="80" height="104" rx="10" fill={T.surface} stroke={T.border} />
+      <rect x="46" y="80" width="44" height="6" rx="3" fill={T.inkSub} opacity="0.5" />
+      {[96, 108, 120, 132].map((y) => (
+        <rect key={y} x="46" y={y} width="56" height="5" rx="2.5" fill={T.inkSub} opacity="0.24" />
+      ))}
+      <line x1="122" y1="116" x2="166" y2="116" stroke={T.borderMd} strokeWidth="1.6" />
+      <polygon points="164,110 170,116 164,122" fill={T.borderMd} />
+      {postings.map((i) => {
+        const x = 180 + i * 38;
+        return (
+          <g key={i}>
+            <rect x={x} y="100" width="30" height="30" rx="7" fill="#fff" stroke={T.border} />
+            <rect x={x + 9} y="114" width="12" height="3" rx="1.5" fill={T.inkSub} opacity="0.4" />
+          </g>
+        );
+      })}
+      <text x="34" y="202" fontFamily={FD} fontSize="14" fontWeight="700" fill={T.ink}>Same resume, forty postings.</text>
+      <text x="34" y="222" fontFamily={F} fontSize="11.5" fill={T.inkSub}>No replies, and you never learn why.</text>
+
+      {/* right: the AYN way */}
+      <text x="424" y="42" fontFamily={F} fontSize="10" fontWeight="700" fill={T.emberDeep} letterSpacing="1">THE AYN WAY</text>
+      <rect x="424" y="64" width="80" height="104" rx="10" fill={T.paper} stroke={T.ember} strokeWidth="1.4" />
+      <rect x="436" y="80" width="44" height="6" rx="3" fill={T.ember} opacity="0.85" />
+      {[96, 108, 120].map((y) => (
+        <rect key={y} x="436" y={y} width="56" height="5" rx="2.5" fill={T.inkSub} opacity="0.3" />
+      ))}
+      <line x1="512" y1="116" x2="556" y2="116" stroke={T.ember} strokeWidth="1.8" />
+      <polygon points="554,109 562,116 554,123" fill={T.ember} />
+      <rect x="570" y="92" width="48" height="48" rx="12" fill={T.ember} />
+      <path d="M582,117 L591,126 L607,104" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <text x="424" y="202" fontFamily={FD} fontSize="14" fontWeight="700" fill={T.ink}>One resume, written for the job.</text>
+      <text x="424" y="222" fontFamily={F} fontSize="11.5" fill={T.inkSub}>Matched to the posting, before you send it.</text>
+    </svg>
+  );
+}
