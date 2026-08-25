@@ -2521,7 +2521,19 @@ button.lp-sidebar-link {
 .lp-pain ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .lp-pain li { position: relative; padding-inline-start: 20px; font-size: 15.5px; line-height: 1.6; color: hsl(var(--lp-muted)); }
 .lp-pain li::before { content: ''; position: absolute; inset-inline-start: 0; top: 9px; width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--lp-ember) / 0.55); }
-.lp-split { display: grid; gap: clamp(24px, 4vw, 48px); grid-template-columns: 1fr; align-items: center; }
+/* v3.243.0 -- reported directly against a screenshot of How it works:
+   "this page dose not start from the top like other pages." align-items:
+   center was a deliberate v3.225.0 choice, made when every page still
+   opened with 72-132px of top padding and a taller mockup's own extra
+   height read as a small, easily-absorbed difference. Now that every
+   page's opening line starts within a few px of the same tight top
+   spacing (v3.241.0), the identical centering pushes a shorter text
+   column down to match a taller mockup's midpoint instead -- exactly the
+   gap in the report. Top-aligned instead, so every .lp-split's own text
+   column starts flush with everything else on the page; a taller mockup
+   simply runs further down its own column, the ordinary way two columns
+   of different heights sit next to each other. */
+.lp-split { display: grid; gap: clamp(24px, 4vw, 48px); grid-template-columns: 1fr; align-items: start; }
 @media (min-width: 940px) { .lp-split { grid-template-columns: 1fr 1.05fr; } }
 .lp-art-plain { margin-top: 0; padding: clamp(12px, 2vw, 20px); }
 .lp-flow { display: grid; gap: 16px; grid-template-columns: 1fr; }
