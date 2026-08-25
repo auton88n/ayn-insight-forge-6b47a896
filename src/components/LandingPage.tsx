@@ -6,7 +6,7 @@ import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { AuthModal } from './auth/AuthModal';
 import { LandingSections } from '@/components/landing/LandingSections';
 import type { Audience } from '@/lib/landingAudience';
-import { TAB_META, MORE_TAB_META, HOME_TAB_HANDOFF_KEY, type HomeTabId } from '@/components/landing/HomeTabs';
+import { TAB_META, MORE_TAB_META, ACCOUNT_TAB_META, HOME_TAB_HANDOFF_KEY, type HomeTabId } from '@/components/landing/HomeTabs';
 import { useState } from 'react';
 
 // v3.219.0 -- /pricing, /contact, /about and /help still exist as real
@@ -18,7 +18,9 @@ import { useState } from 'react';
 // for its own standalone-route fallback -- importing it back from here
 // would be a circular dependency (LandingPage -> SeekerSidebar ->
 // LandingPage), since LandingPage already imports SeekerSidebar directly.
-const ALL_TAB_IDS = new Set<HomeTabId>(['search', ...TAB_META.map((t) => t.id), ...MORE_TAB_META.map((t) => t.id)]);
+const ALL_TAB_IDS = new Set<HomeTabId>([
+  'search', ...TAB_META.map((t) => t.id), ...MORE_TAB_META.map((t) => t.id), ...ACCOUNT_TAB_META.map((t) => t.id),
+]);
 function readHandoffTab(): HomeTabId {
   try {
     const v = sessionStorage.getItem(HOME_TAB_HANDOFF_KEY);

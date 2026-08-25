@@ -33,12 +33,12 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
   MessageSquare, CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, PanelLeftClose,
-  PanelLeftOpen, LogOut, User, Menu, X,
+  PanelLeftOpen, LogOut, User, Menu, X, Briefcase, Inbox, ClipboardCheck, Settings as SettingsIcon, Target,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/AuthModal';
 import aynWordmark from '@/assets/ayn-logo.png';
-import { TAB_META, MORE_TAB_META, HOME_TAB_HANDOFF_KEY, type HomeTabId } from './HomeTabs';
+import { TAB_META, MORE_TAB_META, ACCOUNT_TAB_META, HOME_TAB_HANDOFF_KEY, type HomeTabId } from './HomeTabs';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 // v3.216.0 -- the full wordmark reads broken/clipped at collapsed rail
@@ -58,6 +58,12 @@ const TAB_ICONS: Record<Exclude<HomeTabId, 'search'>, typeof Search> = {
   contact: Mail,
   about: Info,
   help: LifeBuoy,
+  profile: User,
+  'matched-jobs': Target,
+  'saved-jobs': Briefcase,
+  proposals: Inbox,
+  assessments: ClipboardCheck,
+  'account-settings': SettingsIcon,
 };
 
 const TOOL_LINKS = [
@@ -164,6 +170,29 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
                 <Icon size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
                 <span className="lp-sidebar-link-label">{item.label}</span>
               </Link>
+            );
+          })}
+        </div>
+
+        {/* v3.228.0 -- Profile/Saved jobs/Proposals/Assessments/Settings,
+            the pages that used to only exist behind the separate
+            /resume-hub shell. Always visible here, signed in or not --
+            what's gated is the content each tab shows once open. */}
+        <div className="lp-sidebar-group">
+          {ACCOUNT_TAB_META.map((item) => {
+            const Icon = TAB_ICONS[item.id as Exclude<HomeTabId, 'search'>];
+            const active = onHome && activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`lp-sidebar-link ${active ? 'is-active' : ''}`}
+                onClick={() => selectTab(item.id)}
+                title={collapsed ? item.label : undefined}
+              >
+                <Icon size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                <span className="lp-sidebar-link-label">{item.label}</span>
+              </button>
             );
           })}
         </div>

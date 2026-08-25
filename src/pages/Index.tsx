@@ -104,6 +104,13 @@ const Index = () => {
 // gone in favor of grounded, per-job actions (score, tailor, cover letter).
 // v3.164.0 — the Chrome extension that later carried "Ask AYN" is retired too;
 // every seeker-facing capability now lives in Resume Hub itself.
+// v3.228.0 — reported directly, the exact "sign in and I see a different
+// dashboard" complaint this whole redesign effort started from: a signed
+// in job seeker no longer gets hard-navigated to the separate /resume-hub
+// shell at all. LandingPage is the same component a signed-out visitor
+// sees; Profile, Saved jobs, Proposals, Assessments and Settings are now
+// real tabs inside it (AccountTabs.tsx), gated on auth per tab rather than
+// the whole page swapping to a different shell the moment you sign in.
 const AuthedShell = ({ user, session: _session }: { user: User; session: Session }) => {
   const { loading, role, employerStatus, companyName } = useUserRole(user.id);
   const platform = useFeature('platform');
@@ -117,7 +124,7 @@ const AuthedShell = ({ user, session: _session }: { user: User; session: Session
       </Suspense>
     );
   }
-  return <Navigate to="/resume-hub" replace />;
+  return <LandingPage />;
 };
 
 

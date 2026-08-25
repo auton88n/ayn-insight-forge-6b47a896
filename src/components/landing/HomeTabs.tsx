@@ -23,6 +23,10 @@ import { LiveJobsPreview } from './LiveJobsPreview';
 import { TrustBento } from './TrustBento';
 import { CandidateCardMockup, InboxMockup, SameResumeMockup, TailoredDocsMockup } from './AppMockups';
 import { PAIN, HEAD_TO_HEAD, AI_CONTRAST, DISCOVER_CHIPS, TRUST, FAQS, SEEKER_TILES, SEEKER_STEPS } from './landingContent';
+import {
+  ProfileAccountTab, MatchedJobsAccountTab, SavedJobsAccountTab, ProposalsAccountTab,
+  AssessmentsAccountTab, SettingsAccountTab,
+} from './AccountTabs';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +40,8 @@ import type { Audience } from '@/lib/landingAudience';
 export type HomeTabId =
   | 'search' | 'features' | 'how-it-works' | 'why-ayn'
   | 'get-discovered' | 'messaging' | 'proof' | 'faq'
-  | 'pricing' | 'contact' | 'about' | 'help';
+  | 'pricing' | 'contact' | 'about' | 'help'
+  | 'profile' | 'matched-jobs' | 'saved-jobs' | 'proposals' | 'assessments' | 'account-settings';
 
 // v3.219.0 -- every tab now takes the same two callbacks, whether it needs
 // them or not (a plain () => JSX.Element is still a valid value here --
@@ -61,6 +66,18 @@ export const MORE_TAB_META: { id: HomeTabId; label: string }[] = [
   { id: 'contact', label: 'Contact' },
   { id: 'about', label: 'About' },
   { id: 'help', label: 'Help' },
+];
+
+// v3.228.0 -- the five tabs that used to only exist behind the separate
+// /resume-hub shell (see AccountTabs.tsx). Real content, gated on being
+// signed in; the nav item itself is always visible, signed in or not.
+export const ACCOUNT_TAB_META: { id: HomeTabId; label: string }[] = [
+  { id: 'profile', label: 'Profile' },
+  { id: 'matched-jobs', label: 'Job matches' },
+  { id: 'saved-jobs', label: 'Saved jobs' },
+  { id: 'proposals', label: 'Proposals' },
+  { id: 'assessments', label: 'Assessments' },
+  { id: 'account-settings', label: 'Settings' },
 ];
 
 // v3.219.0 -- the sessionStorage key LandingPage.tsx reads on mount to land
@@ -656,4 +673,10 @@ export const HOME_TAB_CONTENT: Record<Exclude<HomeTabId, 'search'>, (props: TabP
   contact: ContactTab,
   about: AboutTab,
   help: HelpTab,
+  profile: ProfileAccountTab,
+  'matched-jobs': MatchedJobsAccountTab,
+  'saved-jobs': SavedJobsAccountTab,
+  proposals: ProposalsAccountTab,
+  assessments: AssessmentsAccountTab,
+  'account-settings': SettingsAccountTab,
 };

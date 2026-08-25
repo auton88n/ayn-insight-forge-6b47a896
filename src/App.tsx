@@ -76,7 +76,6 @@ const Employers = lazy(() => import("./pages/Employers"));
 const CheckResumePage = lazy(() => import("./pages/CheckResume"));
 const PublicJobsPage = lazy(() => import("./pages/PublicJobs"));
 const SalaryGuidePage = lazy(() => import("./pages/SalaryGuide"));
-const ResumeHub = lazy(() => import("./pages/ResumeHub"));
 // const AIAgents = lazy(() => import("./pages/services/AIAgents"));
 // const AIAgentsApply = lazy(() => import("./pages/services/AIAgentsApply"));
 // const Automation = lazy(() => import("./pages/services/Automation"));
@@ -148,8 +147,12 @@ const AnimatedRoutes = () => {
           That content now lives as tabs on Home itself (SeekerSidebar +
           HomeTabs.tsx), never a route change -- "keep within the same
           page, all sections should open within it." */}
-      <Route path="/resume-hub" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
-      <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
+      {/* v3.228.0 -- /resume-hub was its own separate shell; Profile, Saved
+          jobs, Proposals, Assessments and Settings are now real tabs inside
+          the same sidebar every other page uses (AccountTabs.tsx). Old
+          links/bookmarks still work, they just land on the unified page now. */}
+      <Route path="/resume-hub" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="saved-jobs" /></Suspense>} />
+      <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="saved-jobs" /></Suspense>} />
       <Route path="/employer/pending" element={<Suspense fallback={<PageLoader />}><EmployerPending /></Suspense>} />
       <Route path="/employers" element={<Suspense fallback={<PageLoader />}><Employers /></Suspense>} />
       <Route path="/help" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="help" /></Suspense>} />

@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { HOME_TAB_HANDOFF_KEY } from '@/components/landing/HomeTabs';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
 import { billingApi, type SeekerBilling, type EmployerBilling } from '@/lib/billing';
@@ -163,7 +164,16 @@ export const AccountPreferences = ({ userId, userEmail }: AccountPreferencesProp
           className="mt-4 gap-2"
           onClick={() => {
             // v3.74.0 — land on the actual editor, not just the app root.
-            sessionStorage.setItem('ayn_open_tab', isEmployer ? 'company' : 'profile');
+            // v3.228.0 — the seeker side now reads the same HOME_TAB_HANDOFF_KEY
+            // handoff every other cross-page tab link uses (Profile is a real
+            // tab inside the unified sidebar now, not a separate /resume-hub
+            // shell); EmployerHub still reads its own 'ayn_open_tab' key, so
+            // the employer branch here is untouched.
+            if (isEmployer) {
+              sessionStorage.setItem('ayn_open_tab', 'company');
+            } else {
+              sessionStorage.setItem(HOME_TAB_HANDOFF_KEY, 'profile');
+            }
             navigate('/');
           }}
         >
