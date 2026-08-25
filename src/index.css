@@ -1704,12 +1704,28 @@ button, a, input, textarea, select {
    state fills the screen" pattern most real apps use instead of letting
    short content float near the top with dead space trailing below it. */
 .lp-gate { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 78px); }
+/* v3.236.0 -- reported directly, against a screenshot of this exact
+   element on the Proposals sign-in gate: "all pages... dont have title
+   highlight, all they have is things like this which is bad, makes me
+   feel its powerpoint presentation." A thin hairline plus small
+   letter-spaced caps, with no fill, no weight, nothing else colored on
+   the page beside it, is exactly the "conference-slide eyebrow" look --
+   confirmed this reads identically on all 25 real call sites across the
+   site (every marketing tab, every sign-in gate, the Legal hub), not a
+   one-off. Rebuilt as a real, solid chip -- the same filled ember-
+   gradient pill `ayn-ember-badge` already uses on Pricing's own eyebrow
+   (the one place on the whole site that was never actually thin) -- so
+   this now reads as a genuine label with real presence, not a caption.
+   One CSS change; the markup at all 25 sites (`<p className="lp-
+   eyebrow">`) needed no edits since the class carries the whole look. */
 .lp-eyebrow {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
-  color: hsl(var(--lp-ember)); margin: 0 0 18px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 15px; border-radius: 999px;
+  background: var(--lp-gradient-ember); color: #fff;
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  margin: 0 0 18px;
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.22), 0 8px 20px -10px hsl(var(--lp-ember) / 0.65);
 }
-.lp-eyebrow::before { content: ''; width: 22px; height: 1px; background: hsl(var(--lp-ember) / 0.7); }
 .lp-h2 { font-size: clamp(30px, 4.4vw, 54px); line-height: 1.04; margin: 0 0 16px; color: hsl(var(--lp-fg)); }
 .lp-lead { font-size: clamp(16px, 1.6vw, 19px); line-height: 1.65; color: hsl(var(--lp-muted)); margin: 0; max-width: 640px; }
 
