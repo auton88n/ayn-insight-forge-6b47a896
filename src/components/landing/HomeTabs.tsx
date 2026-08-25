@@ -16,7 +16,7 @@
  * spot rather than padded into a page of its own.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Search as SearchIcon, ChevronDown, Check, Loader2, ShieldCheck, Eye, Ban, ArrowRight } from 'lucide-react';
+import { Search as SearchIcon, ChevronDown, Check, Loader2, ShieldCheck, Eye, Ban, ArrowRight, Sparkles, Building2, Lock, Gift, FileCheck2 } from 'lucide-react';
 import { HeadToHead } from './HeadToHead';
 import { BeforeAfterProof } from './BeforeAfterProof';
 import { LiveJobsPreview } from './LiveJobsPreview';
@@ -339,6 +339,17 @@ export const ProofTab = () => (
   </>
 );
 
+// v3.235.0 -- reported directly, alongside the standalone-page and
+// resume-hub polish: this tab was eight identical white blocks stacked
+// in one column, no visual differentiation, reading as a plain wall of
+// text next to every other tab's mockup or bento grid. Each question now
+// carries a real icon badge (matching its own actual topic, not a
+// decorative repeat of the same mark eight times) using the identical
+// .lp-tile-icon language Features' own tile grid already established,
+// and the list itself is a real two-column grid at desktop width instead
+// of one long column.
+const FAQ_ICONS = [Sparkles, Building2, Ban, Eye, Lock, ShieldCheck, FileCheck2, Gift];
+
 export const FaqTab = () => {
   const faqs = FAQS.job_seeker;
   return (
@@ -348,13 +359,17 @@ export const FaqTab = () => {
           <p className="lp-eyebrow">Questions</p>
           <h2 className="lp-display lp-h2">Good to know</h2>
         </div>
-        <div className="lp-faq lp-reveal">
-          {faqs.map((f) => (
-            <div className="lp-faq-item" key={f.q}>
-              <h3>{f.q}</h3>
-              <p>{f.a}</p>
-            </div>
-          ))}
+        <div className="lp-faq lp-faq-grid lp-reveal">
+          {faqs.map((f, i) => {
+            const Icon = FAQ_ICONS[i % FAQ_ICONS.length];
+            return (
+              <div className="lp-faq-item" key={f.q}>
+                <div className="lp-tile-icon lp-faq-item-icon"><Icon size={18} strokeWidth={1.9} /></div>
+                <h3>{f.q}</h3>
+                <p>{f.a}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>
@@ -552,7 +567,7 @@ export const AboutTab = () => (
           properly. Somewhere in that pile was the one person who could actually do the job. Nobody had time
           to find them.
         </p>
-        <p className="lp-note" style={{ fontSize: 15 }}>
+        <p className="lp-pullquote">
           We built AYN because that person should not have to out-send a machine to be seen.
         </p>
         <div>

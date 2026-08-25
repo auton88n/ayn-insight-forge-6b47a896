@@ -89,8 +89,11 @@ export default function SettingsPanel({ userId, session }: Props) {
 
   return (
     <div>
-      <h2 className="rh-display text-xl">Settings</h2>
-      <p className="text-sm mt-0.5 mb-3" style={{ color: "var(--rh-muted)" }}>
+      <h2 className="rh-display flex items-center gap-2.5 text-xl">
+        <span aria-hidden="true" style={{ width: 18, height: 3, borderRadius: 2, background: "var(--rh-accent)", flexShrink: 0 }} />
+        Settings
+      </h2>
+      <p className="text-sm mt-1.5 mb-3" style={{ color: "var(--rh-muted)" }}>
         Your plan, notifications, data, and where you're signed in.
       </p>
       <div role="tablist" aria-label="Settings sections" className="flex items-center gap-1.5 flex-wrap mb-4">

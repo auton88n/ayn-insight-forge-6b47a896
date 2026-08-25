@@ -778,7 +778,10 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     // more cards on screen at once, not one oddly stretched column.
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="rh-display text-xl">Saved jobs</h2>
+        <h2 className="rh-display flex items-center gap-2.5 text-xl">
+          <span aria-hidden="true" style={{ width: 18, height: 3, borderRadius: 2, background: "var(--rh-accent)", flexShrink: 0 }} />
+          Saved jobs
+        </h2>
       </div>
 
       {jobs.length > 0 && (

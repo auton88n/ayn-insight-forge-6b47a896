@@ -1416,6 +1416,12 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
 // near-black, not AYN's own ember — every selected chip on this entire
 // page (seniority, work eligibility, employment type, dozens of others)
 // was rendering black instead of on-brand.
+// v3.235.0 -- the heading here was plain rh-display at 15px, no accent,
+// no more visual weight than the muted description line right under it.
+// The marketing pages' own section headings all carry a short ember
+// accent mark ahead of the eyebrow text (.lp-eyebrow::before); this is
+// the same signature scaled down for a dense, repeated form section
+// rather than a full page heading.
 function Group({ id, title, line, children }: { id: string; title: string; line: string; children: React.ReactNode }) {
   const key = `ayn_profile_group_${id}`;
   const [open, setOpen] = useState(() => sessionStorage.getItem(key) !== "closed");
@@ -1424,8 +1430,11 @@ function Group({ id, title, line, children }: { id: string; title: string; line:
     <Card className="p-4 sm:p-6 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
       <button type="button" onClick={toggle} className="w-full flex items-start justify-between gap-3 text-left">
         <div>
-          <h3 className="rh-display text-[15px]">{title}</h3>
-          <p className="text-xs mt-0.5" style={{ color: "var(--rh-muted)" }}>{line}</p>
+          <h3 className="rh-display flex items-center gap-2" style={{ fontSize: 16.5 }}>
+            <span aria-hidden="true" style={{ width: 14, height: 2, borderRadius: 2, background: "var(--rh-accent)", flexShrink: 0 }} />
+            {title}
+          </h3>
+          <p className="text-xs mt-1" style={{ color: "var(--rh-muted)" }}>{line}</p>
         </div>
         <ChevronDown className={`w-4 h-4 mt-1 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} style={{ color: "var(--rh-faint)" }} />
       </button>

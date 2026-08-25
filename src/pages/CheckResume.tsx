@@ -3,7 +3,6 @@ import { SEO, createBreadcrumbSchema } from '@/components/shared/SEO';
 import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { SectionHeading } from '@/components/shared/SectionHeading';
-import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { resumeCheckPublic, type ResumeCheckPublicResult } from '@/lib/resumeHub';
@@ -96,15 +95,18 @@ const CheckResume = () => {
             </div>
           </div>
 
-          <Button
-            className="mt-6 w-full sm:w-auto"
+          {/* v3.235.0 -- was a shadcn Button with an inline background
+              override to fake the site's own pill/ember look; now the
+              real thing every other primary action already uses. */}
+          <button
+            type="button"
+            className="lp-btn lp-btn-primary mt-6"
             disabled={!canCheck}
             onClick={runCheck}
-            style={canCheck ? { background: EMBER, color: '#fff' } : undefined}
           >
-            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-            {loading ? 'Checking...' : 'Check my resume'}
-          </Button>
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {loading ? 'Checking' : 'Check my resume'}
+          </button>
 
           {error && (
             <p className="mt-4 text-sm text-destructive" role="alert">{error}</p>
@@ -164,9 +166,9 @@ const CheckResume = () => {
                 <p className="text-sm text-muted-foreground mt-2">
                   A real ATS or recruiter often credits you for something worded differently. "Led a team of 3" satisfies "team leadership experience" even though the words don't match. AYN's AI-powered check catches that too, and can tailor your resume for this exact job. Free to try once you sign up.
                 </p>
-                <Button className="mt-4" onClick={() => setAuthOpen(true)} style={{ background: EMBER, color: '#fff' }}>
+                <button type="button" className="lp-btn lp-btn-primary mt-4" onClick={() => setAuthOpen(true)}>
                   See the deeper match, free
-                </Button>
+                </button>
               </div>
             </div>
           )}

@@ -26,8 +26,16 @@
   --rh-tint: #fdece5;
   --rh-gradient: linear-gradient(135deg, #e85d3a 0%, #ff8a5c 100%);
   --rh-glow: 0 6px 16px -6px rgba(232, 93, 58, 0.5);
-  --rh-shadow-card: 0 1px 2px rgba(28, 23, 18, 0.04), 0 8px 24px -12px rgba(28, 23, 18, 0.10);
-  --rh-shadow-lift: 0 4px 8px rgba(28, 23, 18, 0.06), 0 20px 40px -16px rgba(232, 93, 58, 0.28);
+  /* v3.235.0 -- reported directly, comparing the signed-in tabs (Profile,
+     Saved jobs, Proposals, Assessments, Settings) against the marketing
+     pages just polished: same colors (confirmed -- this file's own tokens
+     already matched .lp's ember/warm-paper system, going back to
+     v3.171.0), but every card here read flatter -- --rh-shadow-card's
+     second layer sat at 0.10 opacity against .lp-panel's 0.22, nearly
+     imperceptible at normal screen brightness. Both shadow tokens
+     enriched to match the marketing pages' real, visible depth. */
+  --rh-shadow-card: 0 1px 2px rgba(28, 23, 18, 0.05), 0 18px 40px -22px rgba(28, 23, 18, 0.22);
+  --rh-shadow-lift: 0 4px 10px rgba(28, 23, 18, 0.08), 0 22px 44px -16px rgba(232, 93, 58, 0.32);
   --rh-trust: #2f6f5e;
   --rh-trust-tint: #e6f2ee;
   --rh-gold: #b8862f;
@@ -48,6 +56,14 @@
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
+/* v3.235.0 -- every card container across Profile/Saved jobs/Proposals/
+   Assessments/Settings uses Tailwind's plain `rounded-xl` (12px), a much
+   sharper corner than the marketing pages' own 22-24px card language --
+   confirmed by grep, 36 occurrences across five files, essentially all of
+   them a card or panel, not a control. Scoped override rather than
+   touching every call site individually: softens every card at once
+   without risking a mechanical edit across dozens of spots. */
+.resume-hub-theme .rounded-xl { border-radius: 18px; }
 /* v3.171.0 — a shared hover-lift utility, the one motion cue the earlier
    research flagged this app as almost entirely missing. Any card can opt
    in; nothing gets it applied automatically, so a list of 25 rows doesn't

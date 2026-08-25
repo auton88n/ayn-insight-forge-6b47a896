@@ -1808,6 +1808,18 @@ button, a, input, textarea, select {
 .lp-cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .lp-note { font-size: 13.5px; color: hsl(var(--lp-dim)); margin: 16px 0 0; }
 
+/* v3.235.0 -- About was deliberately rebuilt as a flowing narrative, not
+   tiles or a mockup (v3.54.0's own history: the earlier three-section
+   pitch-deck structure read as a sales pitch and was cut on purpose). A
+   pull-quote is the right way to add real visual interest to prose like
+   this without reintroducing that -- used once, for the one sentence the
+   whole page's argument actually turns on. */
+.lp-pullquote {
+  font-family: 'Outfit', system-ui, sans-serif; font-weight: 600; letter-spacing: -0.015em;
+  font-size: clamp(19px, 2.4vw, 24px); line-height: 1.35; color: hsl(var(--lp-fg));
+  border-inline-start: 3px solid hsl(var(--lp-ember)); padding-inline-start: 20px; margin: 6px 0;
+}
+
 /* --- audience switch --- */
 .lp-switch {
   display: inline-flex; align-items: center; gap: 4px; padding: 5px; border-radius: 999px;
@@ -2184,6 +2196,31 @@ button.lp-sidebar-link {
 .lp-faq-item { border: 1px solid hsl(var(--lp-border-soft)); border-radius: 18px; padding: 22px 24px; background: hsl(var(--lp-surface) / 0.55); }
 .lp-faq-item h3 { font-family: 'Outfit', system-ui, sans-serif; font-size: 17px; font-weight: 600; margin: 0 0 8px; color: hsl(var(--lp-fg)); }
 .lp-faq-item p { margin: 0; font-size: 15px; line-height: 1.6; color: hsl(var(--lp-muted)); }
+/* v3.235.0 -- a real two-column grid at desktop width instead of one long
+   column of eight identical cards; the icon badge (.lp-tile-icon, already
+   established by Features' own tile grid) gives each question a distinct
+   visual anchor instead of every card differing only by its own text. */
+.lp-faq-grid { grid-template-columns: 1fr; }
+@media (min-width: 760px) { .lp-faq-grid { grid-template-columns: 1fr 1fr; gap: 16px; } }
+.lp-faq-item-icon { margin-bottom: 14px; }
+/* v3.235.0 -- .lp-reveal's own fade/rise only ever moves as one block; a
+   grid of eight cards fading in together as a single flat unit doesn't
+   read as different from a single paragraph doing the same thing. Each
+   card now animates on its own, staggered, keyed off the same .is-in
+   class the existing IntersectionObserver already toggles on this exact
+   element (.lp-faq carries both .lp-faq-grid and .lp-reveal) -- no JS
+   change needed, purely additive CSS on top of the existing mechanism. */
+.lp-faq-item { opacity: 0; transform: translateY(14px); transition: opacity .5s ease, transform .5s cubic-bezier(.19,1,.22,1); }
+.lp-faq.is-in .lp-faq-item { opacity: 1; transform: none; }
+.lp-faq.is-in .lp-faq-item:nth-child(1) { transition-delay: 0ms; }
+.lp-faq.is-in .lp-faq-item:nth-child(2) { transition-delay: 60ms; }
+.lp-faq.is-in .lp-faq-item:nth-child(3) { transition-delay: 120ms; }
+.lp-faq.is-in .lp-faq-item:nth-child(4) { transition-delay: 180ms; }
+.lp-faq.is-in .lp-faq-item:nth-child(5) { transition-delay: 240ms; }
+.lp-faq.is-in .lp-faq-item:nth-child(6) { transition-delay: 300ms; }
+.lp-faq.is-in .lp-faq-item:nth-child(7) { transition-delay: 360ms; }
+.lp-faq.is-in .lp-faq-item:nth-child(8) { transition-delay: 420ms; }
+@media (prefers-reduced-motion: reduce) { .lp-faq-item { opacity: 1; transform: none; transition: none; } }
 
 /* --- before and after proof --- */
 .lp-proof { display: grid; gap: 18px; grid-template-columns: 1fr; align-items: stretch; }

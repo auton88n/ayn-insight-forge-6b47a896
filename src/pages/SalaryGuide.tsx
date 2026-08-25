@@ -222,17 +222,14 @@ const SalaryGuide = () => {
                   These are catalog-wide medians. Your own fit against a specific role, and whether your resume actually shows what it asks for, is a different question. Check that for free.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <Link
-                    to="/jobs"
-                    className="inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold text-white"
-                    style={{ background: EMBER }}
-                  >
+                  {/* v3.235.0 -- was its own third button language (rounded-lg,
+                      a bespoke px-4/py-2 shape) next to .lp-btn (pill) and
+                      shadcn's own default -- now the same primary/ghost pair
+                      every other page's CTA row uses. */}
+                  <Link to="/jobs" className="lp-btn lp-btn-primary">
                     Browse open roles
                   </Link>
-                  <Link
-                    to="/check-resume"
-                    className="inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold border"
-                  >
+                  <Link to="/check-resume" className="lp-btn lp-btn-ghost">
                     Check my resume against a job
                   </Link>
                 </div>

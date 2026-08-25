@@ -1816,7 +1816,10 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           also gets a fixed min-width so its own label change doesn't
           shift its neighbors horizontally either. */}
       <div>
-        <h3 className="rh-display text-[26px]">Browse jobs</h3>
+        <h3 className="rh-display flex items-center gap-3 text-[26px]">
+          <span aria-hidden="true" style={{ width: 22, height: 3, borderRadius: 2, background: "var(--rh-accent)", flexShrink: 0 }} />
+          Browse jobs
+        </h3>
         {/* v3.169.0 — asked directly to research what people actually say
             about LinkedIn and Indeed, then use it as an advantage. Ghost
             and fake listings came back as the single most-repeated
