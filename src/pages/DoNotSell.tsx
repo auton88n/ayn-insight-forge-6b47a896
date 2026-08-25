@@ -9,6 +9,7 @@
 // fixed. Same SeekerSidebar/LandingFooter + .lp shell swap.
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { SEO } from '@/components/shared/SEO';
 import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { LandingFooter } from '@/components/landing/LandingFooter';
@@ -30,7 +31,15 @@ export default function DoNotSell() {
       <SeekerSidebar />
       <main className="lp-sidebar-main">
       <div className="max-w-3xl w-full mx-auto px-6 pt-10 sm:pt-12 pb-24">
-        <h1 className="text-3xl font-semibold tracking-tight">
+        {/* v3.231.0 -- reported directly: "this page needs to have a way
+            back." LegalPage.tsx already has this exact link above every
+            document's own heading; this page never got the same treatment
+            since it's its own bespoke component, not rendered through that
+            shared renderer. */}
+        <Link to="/legal" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="w-3.5 h-3.5" /> All legal documents
+        </Link>
+        <h1 className="mt-6 text-3xl font-semibold tracking-tight">
           Do Not Sell or Share My Personal Information
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">

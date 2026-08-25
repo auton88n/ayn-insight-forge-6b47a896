@@ -1,3 +1,7 @@
+# v3.231.0 /do-not-sell got the same "back to legal" link every other document has
+
+Full writeup in CLAUDE.md's own v3.231.0 entry. `LegalPage.tsx` has carried a "← All legal documents" link above every real document's heading since v3.32.0; `DoNotSell.tsx`, its own separate bespoke component, never got it. Added the identical `<Link to="/legal">` + `ArrowLeft` treatment directly above its `<h1>`. Verified live by clicking it, not just checking the DOM.
+
 # v3.230.0 /legal, its document pages, and /do-not-sell moved onto SeekerSidebar
 
 Full writeup lives in CLAUDE.md's own v3.230.0 entry. `LegalIndex.tsx`, `LegalPage.tsx` (all eight documents, main render and its "not written yet" fallback both) and `DoNotSell.tsx` (linked straight off the Legal hub, found while fixing it) all swapped `Header`/`Footer` for `SeekerSidebar`/`LandingFooter` + `.lp lp-shell-with-sidebar`, the same pattern `/jobs`/`/salary-guide`/`/check-resume` already use -- the last real seeker-facing routes still on the old chrome. `Header`/`Footer` stay real, still used by `LandingPage.tsx`'s employer branch. New "Legal" link in the sidebar's Company group, a real `<Link>` (matching `TOOL_LINKS`, since these need to stay real addressable URLs) not a tab button. Print stylesheet fixed at the CSS level (`.lp-sidebar`/`.lp-sidebar-mobile-bar`/`.lp-footer` added to the existing `@media print` hide list) rather than wrapping `SeekerSidebar` in an extra div, which would have broken `.lp-shell-with-sidebar`'s own flex layout.
