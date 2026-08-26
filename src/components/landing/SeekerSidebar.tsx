@@ -358,9 +358,11 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
 
       <aside className={`lp-sidebar ${collapsed ? 'is-collapsed' : ''}`}>{nav}</aside>
 
-      {mobileOpen && (
-        <div className="lp-sidebar-scrim" onClick={() => setMobileOpen(false)} aria-hidden="true" />
-      )}
+      <div
+        className={`lp-sidebar-scrim ${mobileOpen ? 'is-open' : ''}`}
+        onClick={() => setMobileOpen(false)}
+        aria-hidden="true"
+      />
       <aside className={`lp-sidebar lp-sidebar-mobile ${mobileOpen ? 'is-open' : ''}`}>{nav}</aside>
 
       <AuthModal open={authOpen} onOpenChange={setAuthOpen} initialRole="job_seeker" />
