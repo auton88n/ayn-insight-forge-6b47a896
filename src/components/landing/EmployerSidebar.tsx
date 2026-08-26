@@ -66,13 +66,25 @@
  * a signed-out visitor arriving from /employers -- adding them there
  * would be a fresh bug, not a fix, so they're deliberately left out of
  * that state rather than guessed at.
+ *
+ * v3.255.0 -- reported directly, immediately after: "remove the leagel
+ * and about from the employer also for the user just his first alphabet
+ * icon not full email and remove the user icon." About and Legal both
+ * removed again from the Company group (Help and Contact stay); the
+ * matching "about" tab/heading/content in EmployerHub.tsx and its
+ * AboutTab import were removed too, since nothing can set that tab
+ * anymore. The account row's generic person-silhouette icon and the
+ * full email address are both gone, replaced with the one real,
+ * identifying thing about the account -- its own first letter, in the
+ * same ember circle the icon used to sit in -- with the full email still
+ * reachable as a title tooltip, not deleted outright.
  */
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Building2, Route, Tag, Mail, User as UserIcon, Search, ClipboardCheck,
+  Building2, Route, Tag, Mail, Search, ClipboardCheck,
   Settings as SettingsIcon, LogIn, LogOut, Menu, X, ArrowLeftRight,
-  Clock, Ban, ShieldAlert, ChevronDown, Info, LifeBuoy, Gavel,
+  Clock, Ban, ShieldAlert, ChevronDown, LifeBuoy,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -92,7 +104,7 @@ const STATUS_COPY: Record<EmpStatus, { label: string; icon: typeof Clock }> = {
 
 export type EmployerDashTab =
   | 'search' | 'proposals' | 'assessments' | 'company' | 'settings'
-  | 'how-it-works' | 'features' | 'contact' | 'about' | 'help';
+  | 'how-it-works' | 'features' | 'contact' | 'help';
 
 const DASHBOARD_NAV: { key: EmployerDashTab; label: string; icon: typeof Search }[] = [
   { key: 'search', label: 'Search', icon: Search },
@@ -307,15 +319,6 @@ export const EmployerSidebar = ({ status, dashboardReady, tab, onSelectTab, prop
             <>
               <button
                 type="button"
-                className={`lp-sidebar-link ${tab === 'about' ? 'is-active' : ''}`}
-                onClick={() => { onSelectTab('about'); setMobileOpen(false); }}
-                title={collapsed ? 'About' : undefined}
-              >
-                <Info size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-                <span className="lp-sidebar-link-label">About</span>
-              </button>
-              <button
-                type="button"
                 className={`lp-sidebar-link ${tab === 'help' ? 'is-active' : ''}`}
                 onClick={() => { onSelectTab('help'); setMobileOpen(false); }}
                 title={collapsed ? 'Help' : undefined}
@@ -332,18 +335,6 @@ export const EmployerSidebar = ({ status, dashboardReady, tab, onSelectTab, prop
                 <Mail size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
                 <span className="lp-sidebar-link-label">Contact</span>
               </button>
-              {/* v3.254.0 -- /legal has no redirect to dodge (a plain,
-                  unguarded route, unlike /about, /help and /contact), so
-                  this is a real link in every state, not a tab. */}
-              <Link
-                to="/legal"
-                className={`lp-sidebar-link ${location.pathname === '/legal' ? 'is-active' : ''}`}
-                onClick={() => setMobileOpen(false)}
-                title={collapsed ? 'Legal' : undefined}
-              >
-                <Gavel size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-                <span className="lp-sidebar-link-label">Legal</span>
-              </Link>
             </>
           ) : (
             <>
@@ -355,15 +346,6 @@ export const EmployerSidebar = ({ status, dashboardReady, tab, onSelectTab, prop
               >
                 <Mail size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
                 <span className="lp-sidebar-link-label">Contact</span>
-              </Link>
-              <Link
-                to="/legal"
-                className={`lp-sidebar-link ${location.pathname === '/legal' ? 'is-active' : ''}`}
-                onClick={() => setMobileOpen(false)}
-                title={collapsed ? 'Legal' : undefined}
-              >
-                <Gavel size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-                <span className="lp-sidebar-link-label">Legal</span>
               </Link>
               {/* v3.254.0 -- reported directly: "the only way the employer
                   needs leave the account is to signout." This reciprocal
@@ -391,9 +373,19 @@ export const EmployerSidebar = ({ status, dashboardReady, tab, onSelectTab, prop
         {user ? (
           <div className="lp-sidebar-user" style={{ flexDirection: statusInfo ? 'column' : undefined, alignItems: statusInfo ? 'stretch' : undefined }}>
             <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-              <span className="lp-sidebar-user-avatar"><UserIcon size={14} /></span>
-              <span className="lp-sidebar-link-label lp-sidebar-user-email">{user.email}</span>
-              <button type="button" onClick={handleSignOut} className="lp-sidebar-signout" title="Sign out" aria-label="Sign out">
+              {/* v3.255.0 -- reported directly against a screenshot of this
+                  exact row: "just his first alphabet icon not full email
+                  and remove the user icon." A generic person-silhouette
+                  icon plus the full email address, replaced with the one
+                  real, identifying thing about this account -- its own
+                  first letter -- in the same ember circle. The full email
+                  is still there for anyone who needs it, as a title
+                  tooltip on the circle itself, not gone, just not spelled
+                  out in the row by default. */}
+              <span className="lp-sidebar-user-avatar" title={user.email} aria-label={user.email} style={{ fontSize: 12, fontWeight: 700 }}>
+                {(user.email || '?')[0].toUpperCase()}
+              </span>
+              <button type="button" onClick={handleSignOut} className="lp-sidebar-signout" title="Sign out" aria-label="Sign out" style={{ marginLeft: 'auto' }}>
                 <LogOut size={15} />
               </button>
             </div>

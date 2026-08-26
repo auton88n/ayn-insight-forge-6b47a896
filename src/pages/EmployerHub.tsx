@@ -38,7 +38,6 @@ import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
 import MessageThread from "@/components/shared/MessageThread";
 import SettingsPanel from "@/components/shared/SettingsPanel";
 import TicketForm from "@/components/support/TicketForm";
-import { AboutTab } from "@/components/landing/HomeTabs";
 import { AynLoader } from "@/components/shared/AynLoader";
 import { EmployerSidebar, type EmployerDashTab } from "@/components/landing/EmployerSidebar";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
@@ -92,7 +91,7 @@ const EMPLOYER_NAV: { key: EmployerTab; label: string; hint: string }[] = [
  * mirrors LandingSections.tsx's own array), kept here rather than imported
  * since it's a handful of static strings, not shared logic.
  */
-const LEARN_META: Record<"how-it-works" | "features" | "contact" | "about" | "help", { label: string; hint: string }> = {
+const LEARN_META: Record<"how-it-works" | "features" | "contact" | "help", { label: string; hint: string }> = {
   "how-it-works": { label: "How it works", hint: "How AYN's AI helps you" },
   features: { label: "Features & pricing", hint: "Verification assessments, and what it costs" },
   // v3.253.0 -- "employer should have their own contact us": same fix as
@@ -100,11 +99,12 @@ const LEARN_META: Record<"how-it-works" | "features" | "contact" | "about" | "he
   // nowhere for a signed-in employer.
   contact: { label: "Contact", hint: "A real person reads it" },
   // v3.254.0 -- "add the other pages so they have exactly what seeker
-  // have": About and Help join Company, matching SeekerSidebar's own
-  // group. About reuses HomeTabs.tsx's real AboutTab directly (it's
-  // already audience-neutral prose); Help is its own, employer-scoped FAQ
-  // below, not the seeker HelpTab's credits/discoverability questions.
-  about: { label: "About", hint: "Who AYN is and why it exists" },
+  // have": Help joined Company, matching SeekerSidebar's own group, with
+  // its own employer-scoped FAQ below, not the seeker HelpTab's credits/
+  // discoverability questions. v3.255.0 -- About (added the same pass)
+  // and Legal (EmployerSidebar's own Company group) were both reported
+  // directly and removed again immediately: "remove the leagel and about
+  // from the employer."
   help: { label: "Help", hint: "Good to know" },
 };
 
@@ -502,11 +502,8 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               {/* v3.192.0 — Settings carries its own heading (SettingsPanel
                   is shared with the seeker side's Home tab, which never had
                   this generic row to begin with), so it's skipped here
-                  rather than shown twice.
-                  v3.254.0 -- About is the same case: HomeTabs.tsx's own
-                  AboutTab already renders a complete eyebrow-plus-heading
-                  of its own, reused as-is rather than duplicated here. */}
-              {tab !== "settings" && tab !== "about" && (
+                  rather than shown twice. */}
+              {tab !== "settings" && (
               <div className="mb-4">
                 <h2 className="rh-display text-xl">
                   {tab === "search" && stage === "results"
@@ -726,8 +723,6 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 </div>
               </div>
             )}
-
-            {tab === "about" && <AboutTab />}
 
             {tab === "help" && (
               <div className="lp-panel" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
