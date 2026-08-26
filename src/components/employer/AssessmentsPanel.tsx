@@ -4,11 +4,14 @@
  * Everything shown here comes from assessment_results, a table no client
  * role can select from: the edge function reads it with the service role
  * and only ever returns it on the employer lane.
+ *
+ * v3.251.0 -- was still a plain shadcn <Card> on the site's global default
+ * tokens, never even resume-hub-theme's own ember, let alone the real
+ * .lp-panel card the rest of the redesigned dashboard now uses. Converted
+ * to match, same as IntakeWizard.tsx and the Proposals list.
  */
 import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Loader2, ShieldAlert, Timer } from "lucide-react";
 import { assessmentApi, ASSESSMENT_LIMIT_NOTE, type EmployerAssessment } from "@/lib/assessments";
 
@@ -35,6 +38,12 @@ const WRITING_SIGNAL_LABEL: Record<string, string> = {
   unclear: "Writing pattern unclear",
 };
 
+// Matching resume-hub.css's own --rh-gold literally, since .lp has no
+// equivalent "caution/advisory" accent of its own -- this one signal is
+// deliberately not ember, the same reasoning that token was given a
+// distinct hue in the first place.
+const GOLD = "#b8862f";
+
 export default function AssessmentsPanel({ reloadKey }: { reloadKey: number }) {
   const [rows, setRows] = useState<EmployerAssessment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,9 +58,9 @@ export default function AssessmentsPanel({ reloadKey }: { reloadKey: number }) {
   }, [reloadKey]);
 
   return (
-    <Card className="p-4 sm:p-6 space-y-3">
+    <div className="lp-panel space-y-3">
       <div>
-        <h2 className="text-sm font-semibold">Assessments you sent</h2>
+        <h2 className="lp-display" style={{ fontSize: 15, color: "hsl(var(--lp-fg))" }}>Assessments you sent</h2>
         <p className="flex items-start gap-1.5 text-xs text-muted-foreground mt-1">
           <ShieldAlert className="w-3.5 h-3.5 mt-px shrink-0" />
           {ASSESSMENT_LIMIT_NOTE}
@@ -68,7 +77,7 @@ export default function AssessmentsPanel({ reloadKey }: { reloadKey: number }) {
       {rows.map(a => {
         const isOpen = openId === a.id;
         return (
-          <div key={a.id} className="rounded-lg border border-border/50 px-3 py-2.5 space-y-2">
+          <div key={a.id} className="rounded-lg px-3 py-2.5 space-y-2" style={{ border: "1px solid hsl(var(--lp-border-soft))" }}>
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">
@@ -96,21 +105,26 @@ export default function AssessmentsPanel({ reloadKey }: { reloadKey: number }) {
                     <Badge
                       variant="outline"
                       className="font-normal"
-                      style={{ color: "var(--rh-gold)", borderColor: "var(--rh-gold)" }}
+                      style={{ color: GOLD, borderColor: GOLD }}
                       title={a.result.writing_signal_note || undefined}
                     >
                       {WRITING_SIGNAL_LABEL[a.result.writing_signal] || a.result.writing_signal}
                     </Badge>
                   )}
-                  <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setOpenId(isOpen ? null : a.id)}>
+                  <button
+                    type="button"
+                    className="ml-auto text-xs"
+                    style={{ background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer", color: "hsl(var(--lp-muted))" }}
+                    onClick={() => setOpenId(isOpen ? null : a.id)}
+                  >
                     {isOpen ? "Hide detail" : "Read the detail"}
-                  </Button>
+                  </button>
                 </div>
                 {a.result.employer_summary && (
                   <p className="text-sm leading-relaxed">{a.result.employer_summary}</p>
                 )}
                 {a.result.writing_signal !== "human" && a.result.writing_signal_note && (
-                  <p className="text-xs leading-relaxed" style={{ color: "var(--rh-gold)" }}>{a.result.writing_signal_note}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: GOLD }}>{a.result.writing_signal_note}</p>
                 )}
 
                 {isOpen && (
@@ -134,7 +148,7 @@ export default function AssessmentsPanel({ reloadKey }: { reloadKey: number }) {
                     <div className="space-y-2">
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Per question</p>
                       {a.result.per_question.map(q => (
-                        <div key={q.id} className="rounded-md border border-border/50 px-3 py-2 space-y-1">
+                        <div key={q.id} className="rounded-md px-3 py-2 space-y-1" style={{ border: "1px solid hsl(var(--lp-border-soft))" }}>
                           <div className="flex items-start justify-between gap-3">
                             <p className="text-sm leading-relaxed">
                               {q.is_follow_up && (
@@ -165,6 +179,6 @@ export default function AssessmentsPanel({ reloadKey }: { reloadKey: number }) {
           </div>
         );
       })}
-    </Card>
+    </div>
   );
 }

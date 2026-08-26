@@ -14,7 +14,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -334,23 +333,23 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
       <div className="lp lp-shell-with-sidebar">
         <EmployerSidebar />
         <main className="lp-sidebar-main">
-          <div className="resume-hub-theme min-h-screen grid place-items-center p-6">
-            <Card className="w-full max-w-md p-6 space-y-4 rounded-2xl" style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+          <div className="min-h-screen grid place-items-center p-6">
+            <div className="lp-panel w-full max-w-md space-y-4">
               <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4" style={{ color: "var(--rh-accent-2)" }} />
-                <h1 className="rh-display">Name your company</h1>
+                <Building2 className="w-4 h-4" style={{ color: "hsl(var(--lp-ember-soft))" }} />
+                <h1 className="lp-display" style={{ fontSize: 20 }}>Name your company</h1>
               </div>
-              <p className="text-sm" style={{ color: "var(--rh-muted)" }}>Candidates see this name on any proposal you send.</p>
+              <p className="text-sm" style={{ color: "hsl(var(--lp-muted))" }}>Candidates see this name on any proposal you send.</p>
               <Input value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="Company name" />
-              <Button
+              <button
+                type="button"
                 onClick={createOrg}
                 disabled={orgBusy || !orgName.trim()}
-                className="w-full hover:opacity-90"
-                style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+                className="lp-btn lp-btn-primary w-full"
               >
-                {orgBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}Continue
-              </Button>
-            </Card>
+                {orgBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}Continue
+              </button>
+            </div>
           </div>
         </main>
       </div>
@@ -452,9 +451,9 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
 
             {tab === "search" && searching && (
-              <Card className="p-12 flex flex-col items-center justify-center text-center gap-4">
+              <div className="lp-panel flex flex-col items-center justify-center text-center gap-4" style={{ padding: 48 }}>
                 <AynLoader size="md" label="Loading" />
-              </Card>
+              </div>
             )}
 
 
@@ -467,19 +466,19 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             {tab === "search" && !searching && stage === "results" && (
               <div className="space-y-4">
                 <div className="flex justify-start">
-                  <Button variant="outline" size="sm" onClick={() => setStage("spec")}>
-                    <ArrowLeft className="w-4 h-4 mr-2" /> Back to the role
-                  </Button>
+                  <button type="button" className="lp-btn lp-btn-ghost lp-btn-sm" onClick={() => setStage("spec")}>
+                    <ArrowLeft className="w-4 h-4" /> Back to the role
+                  </button>
                 </div>
 
 
                 {results.length === 0 ? (
-                  <Card className="p-6 text-center space-y-1.5">
+                  <div className="lp-panel text-center space-y-1.5">
                     <p className="text-sm font-medium">Nobody in the pool matches these must haves yet</p>
                     <p className="text-sm text-muted-foreground">
                       Try relaxing one must have skill, or lowering the minimum years, and search again.
                     </p>
-                  </Card>
+                  </div>
                 ) : (
                   <>
                     {poolNote && <p className="text-sm text-muted-foreground">{poolNote}</p>}
@@ -503,21 +502,21 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
 
             {tab === "proposals" && (
-              <Card className="p-4 sm:p-6 space-y-3 rounded-2xl" style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
-                <h2 className="rh-display text-[15px]">Proposals you sent</h2>
+              <div className="lp-panel space-y-3">
+                <h2 className="lp-display" style={{ fontSize: 15, color: "hsl(var(--lp-fg))" }}>Proposals you sent</h2>
                 {sent.length === 0 && (
-                  <p className="text-sm" style={{ color: "var(--rh-muted)" }}>
+                  <p className="text-sm" style={{ color: "hsl(var(--lp-muted))" }}>
                     Nothing sent yet. Find a candidate first, then send them a proposal.
                   </p>
                 )}
                 {sent.map(s => (
-                  <div key={s.id} className="rounded-lg px-3 py-2.5 space-y-1" style={{ border: "1px solid var(--rh-hair)" }}>
+                  <div key={s.id} className="rounded-lg px-3 py-2.5 space-y-1" style={{ border: "1px solid hsl(var(--lp-border-soft))" }}>
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">
                           {s.name || s.first_name || (s.ref ? `Candidate ${s.ref}` : "Candidate")}
                         </p>
-                        <p className="text-xs truncate" style={{ color: "var(--rh-muted)" }}>
+                        <p className="text-xs truncate" style={{ color: "hsl(var(--lp-muted))" }}>
                           {[s.job_title || "Role", s.sent_at ? new Date(s.sent_at).toLocaleDateString() : ""]
                             .filter(Boolean).join(" · ")}
                         </p>
@@ -525,8 +524,8 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                       <span
                         className="text-[11px] font-semibold rounded-full px-2.5 py-1 shrink-0"
                         style={s.status === "approved"
-                          ? { background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }
-                          : { background: "var(--rh-raised)", color: "var(--rh-muted)" }}
+                          ? { background: "#e6f2ee", color: "#2f6f5e" }
+                          : { background: "hsl(var(--lp-border-soft))", color: "hsl(var(--lp-muted))" }}
                       >
                         {s.status === "pending" ? "Waiting for a reply" : s.status === "approved" ? "Accepted" : "Declined"}
                       </span>
@@ -537,15 +536,17 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                       </p>
                     )}
                     {s.status === "declined" && (
-                      <p className="text-xs" style={{ color: "var(--rh-faint)" }}>They passed on this role.</p>
+                      <p className="text-xs" style={{ color: "hsl(var(--lp-dim))" }}>They passed on this role.</p>
                     )}
-                    <Button
-                      size="sm" variant="ghost" className="h-7 px-2 text-xs"
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 text-xs h-7 px-2 rounded-md transition-colors"
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "hsl(var(--lp-muted))" }}
                       onClick={() => setOpenThread(o => o === s.id ? null : s.id)}
                     >
-                      <Mail className="w-3.5 h-3.5 mr-1.5" />
+                      <Mail className="w-3.5 h-3.5" />
                       {openThread === s.id ? "Hide messages" : "Messages"}
-                    </Button>
+                    </button>
                     {openThread === s.id && (
                       <MessageThread
                         revealRequestId={s.id}
@@ -559,7 +560,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                   </div>
                 ))}
 
-              </Card>
+              </div>
             )}
 
             {tab === "company" && <CompanyProfile org={org} onSaved={handleOrgSaved} page />}

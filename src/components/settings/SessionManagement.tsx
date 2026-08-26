@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -72,10 +71,7 @@ export const SessionManagement = ({ userId, userEmail, accessToken }: SessionMan
 
   return (
     <div className="space-y-6">
-      <Card
-        className="p-6"
-        style={{ background: "var(--rh-surface, hsl(var(--card)))", border: "1px solid var(--rh-hair, hsl(var(--border)))", boxShadow: "var(--rh-shadow-card, none)" }}
-      >
+      <div className="lp-panel">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold">{t('settings.activeSessions')}</h2>
           <AlertDialog>
@@ -112,7 +108,7 @@ export const SessionManagement = ({ userId, userEmail, accessToken }: SessionMan
               <div
                 key={session.id}
                 className="flex items-start justify-between p-4 rounded-lg border transition-colors"
-                style={{ borderColor: "var(--rh-hair, hsl(var(--border)))", background: "var(--rh-raised, transparent)" }}
+                style={{ borderColor: "hsl(var(--lp-border-soft))", background: "hsl(var(--lp-surface))" }}
               >
                 <div className="flex items-start gap-3">
                   <div className="mt-1 text-muted-foreground">
@@ -138,20 +134,20 @@ export const SessionManagement = ({ userId, userEmail, accessToken }: SessionMan
                   </div>
                 </div>
                 {!session.is_current && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <button
+                    type="button"
                     onClick={() => revokeSession(session.id)}
-                    className="text-destructive hover:text-destructive"
+                    className="text-sm text-destructive hover:underline"
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                   >
                     {t('settings.revoke')}
-                  </Button>
+                  </button>
                 )}
               </div>
             ))
           )}
         </div>
-      </Card>
+      </div>
     </div>
   );
 };

@@ -19,10 +19,23 @@
  *
  * The model is still used exactly once, on the optional opening description.
  * It never asks a question here and it never chats.
+ *
+ * v3.251.0 -- reported directly: this whole panel, and the employer
+ * dashboard's other real content, still read as a different, older visual
+ * language than the marketing pages -- shadcn's own <Card>/<Button>
+ * primitives with a per-instance inline var(--rh-gradient) override, the
+ * same workaround this file's own v3.181.0 history already documents
+ * being necessary because a bare Button never resolves to ember on its
+ * own. Every Card wrapper is now .lp-panel and every Button is now a
+ * plain <button> carrying .lp-btn/.lp-btn-primary/.lp-btn-ghost/
+ * .lp-quiet-link, the same real classes /employers and /pricing use --
+ * not a lookalike, the literal same CSS. Every --rh-* token reference
+ * swapped for its --lp-* equivalent throughout, since this file's whole
+ * tree now sits under a real .lp ancestor (EmployerHub.tsx's own shell,
+ * since v3.250.0), so those variables resolve correctly here for the
+ * first time.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -189,7 +202,7 @@ function clearStep(spec: JobSpec, key: StepKey): JobSpec {
   }
 }
 
-/** A large tappable option card with an orange selected state. */
+/** A large tappable option card with an ember selected state. */
 function OptionCard({
   label, selected, onClick,
 }: { label: string; selected: boolean; onClick: () => void }) {
@@ -200,8 +213,8 @@ function OptionCard({
       aria-pressed={selected}
       className="group relative flex items-center gap-2 rounded-xl border px-4 py-3 text-sm text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       style={selected
-        ? { background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }
-        : { borderColor: "var(--rh-hair)", background: "var(--rh-surface)" }}
+        ? { background: "var(--lp-gradient-ember)", borderColor: "transparent", color: "#fff", boxShadow: "0 6px 16px -6px hsl(var(--lp-ember) / 0.5)" }
+        : { borderColor: "hsl(var(--lp-border-soft))", background: "hsl(var(--lp-surface))" }}
     >
       {selected && <Check className="w-4 h-4 shrink-0" />}
       <span className="font-medium">{label}</span>
@@ -272,9 +285,9 @@ function SkillChips({
               <button
                 key={m.skill_norm} type="button" onClick={() => add(m.skill)}
                 className="text-xs rounded-full border px-2.5 py-1 transition-colors"
-                style={{ borderColor: "var(--rh-hair)" }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--rh-accent)"; e.currentTarget.style.background = "var(--rh-tint)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--rh-hair)"; e.currentTarget.style.background = "transparent"; }}
+                style={{ borderColor: "hsl(var(--lp-border-soft))" }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "hsl(var(--lp-ember))"; e.currentTarget.style.background = "hsl(var(--lp-ember) / 0.12)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "hsl(var(--lp-border-soft))"; e.currentTarget.style.background = "transparent"; }}
               >
                 {m.skill} <span className="text-muted-foreground">{m.count}</span>
               </button>
@@ -481,16 +494,16 @@ export default function IntakeWizard({
 
   if (phase === "loading") {
     return (
-      <Card className="p-8 flex items-center justify-center">
+      <div className="lp-panel flex items-center justify-center">
         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-      </Card>
+      </div>
     );
   }
 
   // ── Opening description ──────────────────────────────────────────
   if (phase === "opening") {
     return (
-      <Card className="p-5 sm:p-7 space-y-4 employer-step-in">
+      <div className="lp-panel space-y-4 employer-step-in">
         <div className="space-y-1">
           <h2 className="text-lg font-semibold tracking-tight">Tell AYN about the role</h2>
           <p className="text-sm text-muted-foreground">
@@ -504,20 +517,15 @@ export default function IntakeWizard({
           className="min-h-[110px]"
         />
         <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={readOpening}
-            disabled={reading}
-            className="hover:opacity-90"
-            style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
-          >
-            {reading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ArrowRight className="w-4 h-4 mr-2" />}
+          <button type="button" onClick={readOpening} disabled={reading} className="lp-btn lp-btn-primary">
+            {reading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
             Continue
-          </Button>
-          <Button variant="outline" onClick={() => { setSpec(EMPTY_SPEC); startQueue(EMPTY_SPEC); }} disabled={reading}>
+          </button>
+          <button type="button" className="lp-btn lp-btn-ghost" onClick={() => { setSpec(EMPTY_SPEC); startQueue(EMPTY_SPEC); }} disabled={reading}>
             Skip, ask me everything
-          </Button>
+          </button>
         </div>
-      </Card>
+      </div>
     );
   }
 
@@ -542,7 +550,7 @@ export default function IntakeWizard({
                   ? "rounded-full border px-2.5 py-1 text-[11px] transition-colors"
                   : "rounded-full border border-dashed px-2.5 py-1 text-[11px] transition-colors cursor-not-allowed"}
               style={active
-                ? { borderColor: "var(--rh-accent)", background: "var(--rh-tint)", color: "var(--rh-ink)" }
+                ? { borderColor: "hsl(var(--lp-ember))", background: "hsl(var(--lp-ember) / 0.12)", color: "hsl(var(--lp-fg))" }
                 : done
                   // v3.189.0 — reported directly: a completed step read as
                   // plain grey, no different from an unreachable one, so
@@ -550,8 +558,8 @@ export default function IntakeWizard({
                   // of the ember system. A light, quiet ember tint for
                   // "done" keeps it clearly a step below "active" while
                   // still reading as this app's own color, not default grey.
-                  ? { borderColor: "#e85d3a33", color: "var(--rh-accent-2)" }
-                  : { borderColor: "var(--rh-hair)", color: "var(--rh-faint)" }}
+                  ? { borderColor: "hsl(var(--lp-ember) / 0.2)", color: "hsl(var(--lp-ember-soft))" }
+                  : { borderColor: "hsl(var(--lp-border-soft))", color: "hsl(var(--lp-dim))" }}
             >
               <span className="tabular-nums mr-1 opacity-60">{i + 1}</span>
               {done && !active ? shortLabel(k, spec) : SUMMARY_LABEL[k]}
@@ -561,9 +569,9 @@ export default function IntakeWizard({
       </div>
       {/* Mobile: just where they are, plus a back arrow. */}
       <div className="sm:hidden flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={goBack} aria-label="Back">
+        <button type="button" className="lp-btn lp-btn-ghost lp-btn-sm" onClick={goBack} aria-label="Back">
           <ArrowLeft className="w-4 h-4" />
-        </Button>
+        </button>
         <span className="text-xs text-muted-foreground">
           Step {current ? STEPS.indexOf(current) + 1 : STEPS.length} of {STEPS.length}
         </span>
@@ -586,8 +594,8 @@ export default function IntakeWizard({
     );
 
     return (
-      <Card
-        className="p-5 sm:p-7 space-y-5"
+      <div
+        className="lp-panel space-y-5"
         onKeyDown={e => { if (e.key === "Escape" && editing) { setEditing(null); setPhase("summary"); } }}
       >
         {stepMap}
@@ -602,14 +610,14 @@ export default function IntakeWizard({
               <p className="text-sm text-muted-foreground">{HELPER[current]}</p>
             </div>
             {editing && (
-              <Button variant="ghost" size="sm" onClick={() => { setEditing(null); setPhase("summary"); }}>
+              <button type="button" className="lp-quiet-link" style={{ background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer" }} onClick={() => { setEditing(null); setPhase("summary"); }}>
                 Cancel
-              </Button>
+              </button>
             )}
           </div>
 
           {clearedNote && (
-            <p className="text-xs border-l-2 pl-3" style={{ color: "var(--rh-muted)", borderColor: "var(--rh-accent)" }}>{clearedNote}</p>
+            <p className="text-xs border-l-2 pl-3" style={{ color: "hsl(var(--lp-muted))", borderColor: "hsl(var(--lp-ember))" }}>{clearedNote}</p>
           )}
 
           {current === "title" && (
@@ -627,9 +635,9 @@ export default function IntakeWizard({
                   .map(t => (
                     <button key={t} type="button" onClick={() => answer({ title: t })}
                       className="text-xs rounded-full border px-2.5 py-1 transition-colors"
-                style={{ borderColor: "var(--rh-hair)" }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--rh-accent)"; e.currentTarget.style.background = "var(--rh-tint)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--rh-hair)"; e.currentTarget.style.background = "transparent"; }}>
+                style={{ borderColor: "hsl(var(--lp-border-soft))" }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "hsl(var(--lp-ember))"; e.currentTarget.style.background = "hsl(var(--lp-ember) / 0.12)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "hsl(var(--lp-border-soft))"; e.currentTarget.style.background = "transparent"; }}>
                       {t}
                     </button>
                   ))}
@@ -717,13 +725,12 @@ export default function IntakeWizard({
 
           {/* Back and Continue on every step. */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <Button variant="outline" size="sm" onClick={goBack}>
-              <ArrowLeft className="w-4 h-4 mr-1.5" /> Back
-            </Button>
-            <Button
-              size="sm"
-              className="hover:opacity-90"
-              style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+            <button type="button" className="lp-btn lp-btn-ghost lp-btn-sm" onClick={goBack}>
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+            <button
+              type="button"
+              className="lp-btn lp-btn-primary lp-btn-sm"
               disabled={
                 (current === "title" && !(typed || spec.title).trim()) ||
                 (current === "work_mode" && !spec.work_mode) ||
@@ -740,10 +747,10 @@ export default function IntakeWizard({
                 answer({});
               }}
             >
-              Continue <ArrowRight className="w-4 h-4 ml-1.5" />
-            </Button>
+              Continue <ArrowRight className="w-4 h-4" />
+            </button>
             {(current === "nice_to_have_skills" || current === "min_years") && (
-              <Button size="sm" variant="ghost" onClick={skip}>Skip</Button>
+              <button type="button" className="lp-quiet-link" style={{ background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer" }} onClick={skip}>Skip</button>
             )}
             <button type="button" onClick={startOver}
               className="ml-auto text-xs text-muted-foreground underline underline-offset-2">
@@ -751,7 +758,7 @@ export default function IntakeWizard({
             </button>
           </div>
         </div>
-      </Card>
+      </div>
     );
   }
 
@@ -762,33 +769,27 @@ export default function IntakeWizard({
   });
 
   return (
-    <Card className="p-5 sm:p-7 space-y-5 employer-step-in">
+    <div className="lp-panel space-y-5 employer-step-in">
       {stepMap}
       <div className="space-y-1">
         <h2 className="text-lg font-semibold tracking-tight">The role AYN will search for</h2>
         <p className="text-sm text-muted-foreground">Click any line to change it.</p>
       </div>
       {clearedNote && (
-        <p className="text-xs border-l-2 pl-3" style={{ color: "var(--rh-muted)", borderColor: "var(--rh-accent)" }}>{clearedNote}</p>
+        <p className="text-xs border-l-2 pl-3" style={{ color: "hsl(var(--lp-muted))", borderColor: "hsl(var(--lp-ember))" }}>{clearedNote}</p>
       )}
-      {/* v3.189.0 — reported directly: this whole block was still on plain
-          shadcn/Tailwind defaults (border-border, text-muted-foreground)
-          while the step map right above it and the rest of Resume Hub
-          already speak the ember system — the page read as grey with one
-          orange row. Switched to the same --rh-* tokens used everywhere
-          else in this file. */}
-      <div className="divide-y rounded-xl border overflow-hidden" style={{ borderColor: "var(--rh-hair)" }}>
+      <div className="divide-y rounded-xl border overflow-hidden" style={{ borderColor: "hsl(var(--lp-border-soft))" }}>
         {STEPS.map(k => (
           <button
             key={k} type="button" onClick={() => { setEditing(k); setPhase("asking"); }}
             className="w-full flex items-center justify-between gap-3 px-3.5 py-3 text-left transition-colors"
-            style={{ borderColor: "var(--rh-hair)" }}
-            onMouseEnter={e => (e.currentTarget.style.background = "var(--rh-raised)")}
+            style={{ borderColor: "hsl(var(--lp-border-soft))" }}
+            onMouseEnter={e => (e.currentTarget.style.background = "hsl(var(--lp-border-soft) / 0.4)")}
             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
           >
-            <span className="text-xs shrink-0 w-40" style={{ color: "var(--rh-muted)" }}>{SUMMARY_LABEL[k]}</span>
-            <span className="text-sm flex-1 truncate" style={{ color: "var(--rh-ink)" }}>{labelFor(k, spec)}</span>
-            <Pencil className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--rh-accent-2)" }} />
+            <span className="text-xs shrink-0 w-40" style={{ color: "hsl(var(--lp-muted))" }}>{SUMMARY_LABEL[k]}</span>
+            <span className="text-sm flex-1 truncate" style={{ color: "hsl(var(--lp-fg))" }}>{labelFor(k, spec)}</span>
+            <Pencil className="w-3.5 h-3.5 shrink-0" style={{ color: "hsl(var(--lp-ember-soft))" }} />
           </button>
         ))}
       </div>
@@ -801,25 +802,25 @@ export default function IntakeWizard({
           real gap between them, and the note on its own line. */}
       <div className="pt-1 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <Button
-            className="h-11 px-6 w-full sm:w-auto hover:opacity-90"
-            style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+          <button
+            type="button"
+            className="lp-btn lp-btn-primary lp-btn-lg w-full sm:w-auto"
             onClick={() => onSearch(spec)}
             disabled={searching || !spec.title.trim() || spec.must_have_skills.length === 0}
           >
-            {searching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+            {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Find candidates
-          </Button>
-          <Button variant="outline" className="h-11 px-5 w-full sm:w-auto" onClick={startOver}>
-            <RotateCcw className="w-4 h-4 mr-2" /> Start over
-          </Button>
+          </button>
+          <button type="button" className="lp-btn lp-btn-ghost lp-btn-lg w-full sm:w-auto" onClick={startOver}>
+            <RotateCcw className="w-4 h-4" /> Start over
+          </button>
         </div>
         <p className="text-xs text-muted-foreground flex items-center gap-1.5">
           <Sparkle className="w-3 h-3 shrink-0" /> AYN searches candidates who opted into discovery, nothing else.
         </p>
       </div>
 
-    </Card>
+    </div>
   );
 }
 
@@ -843,16 +844,15 @@ function TypeInstead({
         autoFocus
       />
       <div className="flex gap-2">
-        <Button
-          size="sm"
+        <button
+          type="button"
           disabled={!value.trim()}
           onClick={() => onSave(value.trim())}
-          className="hover:opacity-90"
-          style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+          className="lp-btn lp-btn-primary lp-btn-sm"
         >
           Save
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onBack}>Back to options</Button>
+        </button>
+        <button type="button" className="lp-btn lp-btn-ghost lp-btn-sm" onClick={onBack}>Back to options</button>
       </div>
     </div>
   );

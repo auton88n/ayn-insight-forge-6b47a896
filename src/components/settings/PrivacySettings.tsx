@@ -5,7 +5,6 @@
 // through self_delete_account. Export is new, and the dialog offers pausing
 // as the lighter thing most people clicking delete are really after.
 import { useState } from 'react';
-import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -106,10 +105,7 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
 
   return (
     <div className="space-y-6">
-      <Card
-        className="p-6"
-        style={{ background: "var(--rh-surface, hsl(var(--card)))", border: "1px solid var(--rh-hair, hsl(var(--border)))", boxShadow: "var(--rh-shadow-card, none)" }}
-      >
+      <div className="lp-panel">
         <h2 className="text-xl font-semibold mb-6">{t('settings.dataManagement')}</h2>
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4">
@@ -119,10 +115,10 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
                 One file with your profile, resume, tailored documents, saved jobs, proposals and assessment history.
               </p>
             </div>
-            <Button variant="outline" className="gap-2 shrink-0" onClick={handleExport} disabled={exporting}>
+            <button type="button" className="lp-btn lp-btn-ghost lp-btn-sm shrink-0" onClick={handleExport} disabled={exporting}>
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               {exporting ? 'Preparing' : 'Export'}
-            </Button>
+            </button>
           </div>
 
           <div className="flex items-center justify-between gap-4 pt-4 border-t border-border">
@@ -165,12 +161,18 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
                         : 'Pausing hides you from employers and turns every email off. Your resume, profile and documents stay exactly where they are, and you can turn discovery back on at any time.'}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm" onClick={handlePause} disabled={working !== null}>
+                      <button type="button" className="lp-btn lp-btn-ghost lp-btn-sm" onClick={handlePause} disabled={working !== null}>
                         {working === 'pause' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Pause instead'}
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={handleExport} disabled={exporting}>
+                      </button>
+                      <button
+                        type="button"
+                        className="lp-quiet-link"
+                        style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
+                        onClick={handleExport}
+                        disabled={exporting}
+                      >
                         {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Download my data first'}
-                      </Button>
+                      </button>
                     </div>
                   </div>
 
@@ -189,9 +191,9 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
                 </div>
 
                 <DialogFooter>
-                  <Button variant="ghost" onClick={() => setDeleteOpen(false)} disabled={working !== null}>
+                  <button type="button" className="lp-btn lp-btn-ghost" onClick={() => setDeleteOpen(false)} disabled={working !== null}>
                     {t('common.cancel')}
-                  </Button>
+                  </button>
                   <Button
                     variant="destructive"
                     onClick={handleDeleteAccount}
@@ -206,7 +208,7 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
             </Dialog>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 };

@@ -15,8 +15,6 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { HOME_TAB_HANDOFF_KEY } from '@/components/landing/HomeTabs';
 import { useToast } from '@/hooks/use-toast';
@@ -104,7 +102,7 @@ export const AccountPreferences = ({ userId, userEmail }: AccountPreferencesProp
 
   return (
     <div className="space-y-6">
-      <Card className="p-6" style={{ background: "var(--rh-surface, hsl(var(--card)))", border: "1px solid var(--rh-hair, hsl(var(--border)))", boxShadow: "var(--rh-shadow-card, none)" }}>
+      <div className="lp-panel">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h2 className="text-xl font-semibold mb-1">Plan</h2>
@@ -114,14 +112,14 @@ export const AccountPreferences = ({ userId, userEmail }: AccountPreferencesProp
               {(isEmployer ? employerBilling?.status : seekerBilling?.status) || 'active'}
             </p>
           </div>
-          <Button variant="outline" onClick={() => navigate('/billing')} className="gap-2">
+          <button type="button" className="lp-btn lp-btn-ghost lp-btn-sm" onClick={() => navigate('/billing')}>
             Manage billing <ArrowRight className="w-3.5 h-3.5" />
-          </Button>
+          </button>
         </div>
 
         {!isEmployer && (
           <div className="mt-4 flex items-center gap-2 text-sm">
-            <Sparkles className="w-4 h-4 shrink-0" style={{ color: "var(--rh-accent-2, hsl(var(--primary)))" }} />
+            <Sparkles className="w-4 h-4 shrink-0" style={{ color: "hsl(var(--lp-ember-soft))" }} />
             <span className="font-medium">{seekerBilling?.balance ?? 0} credits</span>
             <span className="text-muted-foreground">
               : {seekerBilling?.costs?.tailored_resume ?? 2} for a tailored resume, {seekerBilling?.costs?.cover_letter ?? 1} for a cover letter.
@@ -145,9 +143,9 @@ export const AccountPreferences = ({ userId, userEmail }: AccountPreferencesProp
             </div>
           </div>
         )}
-      </Card>
+      </div>
 
-      <Card className="p-6" style={{ background: "var(--rh-surface, hsl(var(--card)))", border: "1px solid var(--rh-hair, hsl(var(--border)))", boxShadow: "var(--rh-shadow-card, none)" }}>
+      <div className="lp-panel">
         <h2 className="text-xl font-semibold mb-4">Profile</h2>
         <div className="space-y-3">
           <div>
@@ -159,9 +157,9 @@ export const AccountPreferences = ({ userId, userEmail }: AccountPreferencesProp
             <p className="text-sm font-medium">{userEmail}</p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          className="mt-4 gap-2"
+        <button
+          type="button"
+          className="lp-btn lp-btn-ghost lp-btn-sm mt-4"
           onClick={() => {
             // v3.74.0 — land on the actual editor, not just the app root.
             // v3.228.0 — the seeker side now reads the same HOME_TAB_HANDOFF_KEY
@@ -178,23 +176,23 @@ export const AccountPreferences = ({ userId, userEmail }: AccountPreferencesProp
           }}
         >
           {isEmployer ? 'Edit company profile' : 'Edit in Profile'} <ArrowRight className="w-3.5 h-3.5" />
-        </Button>
-      </Card>
+        </button>
+      </div>
 
-      <Card className="p-6" style={{ background: "var(--rh-surface, hsl(var(--card)))", border: "1px solid var(--rh-hair, hsl(var(--border)))", boxShadow: "var(--rh-shadow-card, none)" }}>
+      <div className="lp-panel">
         <h2 className="text-xl font-semibold mb-6">Security</h2>
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="space-y-0.5">
             <p className="font-medium">Change password</p>
             <p className="text-sm text-muted-foreground">We'll email you a reset link.</p>
           </div>
-          <Button variant="outline" className="gap-2" onClick={handlePasswordReset} disabled={changingPassword}>
+          <button type="button" className="lp-btn lp-btn-ghost lp-btn-sm" onClick={handlePasswordReset} disabled={changingPassword}>
             {changingPassword
               ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</>
               : <><Key className="h-4 w-4" /> Change password</>}
-          </Button>
+          </button>
         </div>
-      </Card>
+      </div>
     </div>
   );
 };

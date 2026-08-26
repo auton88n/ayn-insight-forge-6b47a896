@@ -35,6 +35,14 @@
  *    Persisted to sessionStorage instead, the same pattern
  *    ResumeHub.tsx's own top-level tab already uses, read as the lazy
  *    initial state so a remount picks the real last section back up.
+ *
+ * v3.251.0 -- swapped every --rh-* token reference for its --lp-* real
+ * equivalent, matching the marketing pages' actual classes instead of
+ * resume-hub-theme's separate copy of the same colors. Safe for both
+ * callers (ResumeHub.tsx's Home tab and EmployerHub.tsx's Settings tab):
+ * both now sit under a real .lp ancestor, so --lp-* resolves correctly
+ * either way, the same reason EmployerHub.tsx's other tabs (Search,
+ * Proposals, Company) got the identical treatment in the same pass.
  */
 import { useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
@@ -89,11 +97,11 @@ export default function SettingsPanel({ userId, session }: Props) {
 
   return (
     <div>
-      <h2 className="rh-display flex items-center gap-2.5 text-xl">
-        <span aria-hidden="true" style={{ width: 18, height: 3, borderRadius: 2, background: "var(--rh-accent)", flexShrink: 0 }} />
+      <h2 className="lp-display flex items-center gap-2.5 text-xl">
+        <span aria-hidden="true" style={{ width: 18, height: 3, borderRadius: 2, background: "hsl(var(--lp-ember))", flexShrink: 0 }} />
         Settings
       </h2>
-      <p className="text-sm mt-1.5 mb-3" style={{ color: "var(--rh-muted)" }}>
+      <p className="text-sm mt-1.5 mb-3" style={{ color: "hsl(var(--lp-muted))" }}>
         Your plan, notifications, data, and where you're signed in.
       </p>
       <div role="tablist" aria-label="Settings sections" className="flex items-center gap-1.5 flex-wrap mb-4">
@@ -113,8 +121,8 @@ export default function SettingsPanel({ userId, session }: Props) {
               onKeyDown={e => onTabKeyDown(e, index)}
               className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5 transition"
               style={active
-                ? { background: "var(--rh-ink)", color: "#fff" }
-                : { background: "var(--rh-raised)", color: "var(--rh-muted)" }}
+                ? { background: "var(--lp-gradient-ember)", color: "#fff" }
+                : { background: "hsl(var(--lp-border-soft))", color: "hsl(var(--lp-muted))" }}
             >
               <Icon className="w-3.5 h-3.5" /> {label}
             </button>
@@ -123,7 +131,7 @@ export default function SettingsPanel({ userId, session }: Props) {
       </div>
 
       {!session ? (
-        <div className="flex items-center justify-center py-10" style={{ color: "var(--rh-faint)" }}>
+        <div className="flex items-center justify-center py-10" style={{ color: "hsl(var(--lp-dim))" }}>
           <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading…
         </div>
       ) : (

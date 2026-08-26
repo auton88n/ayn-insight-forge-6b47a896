@@ -2365,95 +2365,23 @@ button.lp-sidebar-link {
 }
 .lp-footer-bottom-links a:hover, .lp-footer-bottom-links button:hover { color: hsl(var(--lp-ember)); }
 
-/* ============================================================
-   HERO MOCKUP animation
-   ============================================================ */
-.lp-mockup { position: relative; }
-.lp-mockup-glow {
-  position: absolute; inset: 6% -6% -10% -6%;
-  background: radial-gradient(ellipse at 50% 60%, hsl(var(--lp-ember) / 0.28) 0%, transparent 68%);
-  filter: blur(20px); pointer-events: none;
-}
-.lp-window {
-  position: relative; border-radius: 20px; overflow: hidden;
-  border: 1px solid hsl(var(--lp-border));
-  background: hsl(var(--lp-card));
-  box-shadow: var(--lp-shadow-lift);
-}
-.lp-chrome {
-  display: flex; align-items: center; gap: 7px; padding: 11px 14px;
-  border-bottom: 1px solid hsl(var(--lp-border-soft)); background: hsl(var(--lp-surface));
-}
-.lp-dot { width: 9px; height: 9px; border-radius: 50%; background: hsl(var(--lp-border)); }
-.lp-url {
-  flex: 1; margin-inline: 10px; padding: 5px 12px; border-radius: 999px;
-  background: hsl(var(--lp-bg)); border: 1px solid hsl(var(--lp-border-soft));
-  font-size: 11.5px; color: hsl(var(--lp-dim)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.lp-badge {
-  font-family: 'Outfit', system-ui, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
-  padding: 4px 10px; border-radius: 999px; color: hsl(0 0% 100%); background: var(--lp-gradient-ember);
-}
-.lp-window-body { display: grid; grid-template-columns: 1fr; }
-@media (min-width: 560px) { .lp-window-body { grid-template-columns: 1.55fr 1fr; } }
-.lp-form { padding: clamp(16px, 2.4vw, 24px); display: flex; flex-direction: column; gap: 12px; }
-.lp-form-title { font-family: 'Outfit', system-ui, sans-serif; font-weight: 600; font-size: 13px; color: hsl(var(--lp-muted)); margin-bottom: 2px; }
-.lp-field { display: flex; flex-direction: column; gap: 5px; }
-.lp-field-label { font-size: 10.5px; letter-spacing: 0.04em; color: hsl(var(--lp-dim)); }
-.lp-input {
-  display: flex; align-items: center; gap: 8px; min-height: 34px;
-  padding: 7px 10px; border-radius: 9px;
-  background: hsl(var(--lp-bg)); border: 1px solid hsl(var(--lp-border-soft));
-  animation: lp-focus 8s ease-in-out infinite both;
-}
-.lp-input.is-skip { border-style: dashed; animation: none; }
-.lp-value {
-  flex: 1; font-size: 12.5px; color: hsl(var(--lp-fg)); white-space: nowrap; overflow: hidden;
-  animation: lp-type 8s steps(24, end) infinite both;
-}
-.lp-input.is-skip .lp-value { color: hsl(var(--lp-dim)); font-style: italic; animation: none; }
-.lp-tick { width: 15px; height: 15px; color: hsl(150 55% 55%); opacity: 0; animation: lp-pop 8s ease-out infinite both; }
-.lp-skip-mark { font-size: 10px; color: hsl(var(--lp-ember)); border: 1px solid hsl(var(--lp-ember) / 0.4); border-radius: 999px; padding: 2px 7px; }
-
-.lp-panel {
-  padding: clamp(16px, 2.4vw, 22px); display: flex; flex-direction: column; gap: 16px;
-  border-top: 1px solid hsl(var(--lp-border-soft)); background: hsl(var(--lp-surface));
-}
-@media (min-width: 560px) { .lp-panel { border-top: 0; border-inline-start: 1px solid hsl(var(--lp-border-soft)); } }
-.lp-panel-head { display: flex; align-items: center; gap: 8px; font-family: 'Outfit', system-ui, sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 0.06em; color: hsl(var(--lp-fg)); }
-.lp-panel-eye { width: 16px; height: 16px; border-radius: 50%; border: 2px solid hsl(var(--lp-ember)); box-shadow: inset 0 0 0 3px hsl(var(--lp-bg)), 0 0 12px hsl(var(--lp-ember) / 0.7); }
-.lp-score-num { font-family: 'Outfit', system-ui, sans-serif; font-weight: 700; font-size: 40px; line-height: 1; color: hsl(var(--lp-fg)); }
-.lp-score-num span { font-size: 18px; color: hsl(var(--lp-ember)); margin-inline-start: 2px; }
-.lp-score-label { font-size: 11.5px; color: hsl(var(--lp-dim)); margin-top: 4px; }
-.lp-score-bar { margin-top: 10px; height: 5px; border-radius: 999px; background: hsl(var(--lp-bg)); overflow: hidden; }
-.lp-score-bar i { display: block; height: 100%; width: 88%; border-radius: 999px; background: var(--lp-gradient-ember); transform-origin: left; animation: lp-grow 8s ease-out infinite both; }
-.lp-panel-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
-.lp-panel-list li {
-  position: relative; padding-inline-start: 20px; font-size: 12.5px; color: hsl(var(--lp-muted));
-  opacity: 0; animation: lp-rise 8s ease-out infinite both;
-}
-.lp-panel-list li::before {
-  content: ''; position: absolute; inset-inline-start: 0; top: 5px; width: 9px; height: 9px; border-radius: 50%;
-  background: hsl(150 55% 45% / 0.25); box-shadow: inset 0 0 0 2px hsl(150 55% 55%);
-}
-.lp-panel-foot {
-  margin-top: auto; padding: 10px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;
-  color: hsl(var(--lp-fg)); background: hsl(var(--lp-ember) / 0.14); border: 1px solid hsl(var(--lp-ember) / 0.3);
-  opacity: 0; animation: lp-rise 8s ease-out infinite both;
-}
-
-@keyframes lp-type { 0%, 2% { max-width: 0; } 10%, 92% { max-width: 100%; } 100% { max-width: 100%; } }
-@keyframes lp-focus {
-  0%, 1% { border-color: hsl(var(--lp-border-soft)); box-shadow: none; }
-  3%, 8% { border-color: hsl(var(--lp-ember)); box-shadow: 0 0 0 3px hsl(var(--lp-ember) / 0.14); }
-  12%, 100% { border-color: hsl(var(--lp-border-soft)); box-shadow: none; }
-}
-@keyframes lp-pop { 0%, 6% { opacity: 0; transform: scale(0.6); } 12%, 96% { opacity: 1; transform: scale(1); } 100% { opacity: 1; transform: scale(1); } }
-@keyframes lp-rise { 0%, 5% { opacity: 0; transform: translateY(6px); } 14%, 96% { opacity: 1; transform: translateY(0); } 100% { opacity: 1; transform: translateY(0); } }
-@keyframes lp-grow { 0%, 4% { transform: scaleX(0); } 30%, 100% { transform: scaleX(1); } }
-
+/* v3.251.0 -- the whole "HERO MOCKUP animation" block that used to live
+   here (.lp-mockup/.lp-window/.lp-chrome/.lp-form/.lp-input and a second,
+   colliding definition of .lp-panel with its own .lp-panel-head/-list/
+   -foot siblings) was confirmed, via a repo-wide grep, to have zero
+   remaining consumers anywhere in src/ -- a retired animated "AI filling
+   a form" hero illustration, CSS left behind after its own markup was
+   deleted. Found while building a new .lp-panel card for the employer
+   dashboard redesign: this dead block's own .lp-panel rule sat AFTER the
+   real, still-used one (the plain content-card style just above, "a
+   static content card... used first for Contact's own form wrapper"),
+   so plain CSS cascade order silently let the dead rule's padding/
+   background/border-top win over the real one for every live .lp-panel
+   on the site -- HomeTabs.tsx's Contact form and EmployerPending.tsx's
+   waiting card were both quietly rendering a smaller, greyer, flex-
+   column card with an unwanted border than either was ever meant to.
+   Removed outright rather than renamed, since nothing points at it. */
 @media (prefers-reduced-motion: reduce) {
-  .lp-input, .lp-value, .lp-tick, .lp-panel-list li, .lp-panel-foot, .lp-score-bar i { animation: none !important; opacity: 1 !important; transform: none !important; max-width: 100% !important; }
   .lp-tile:hover, .lp-btn:hover { transform: none; }
 }
 

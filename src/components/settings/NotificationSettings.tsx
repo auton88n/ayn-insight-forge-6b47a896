@@ -13,7 +13,6 @@
  * currently checks these flags before sending. The toggle saves a real value;
  * wiring the senders to respect it is a separate follow-up.
  */
-import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useUserSettings } from '@/hooks/useUserSettings';
@@ -36,13 +35,10 @@ export const NotificationSettings = ({ userId, accessToken }: NotificationSettin
   }
 
   return (
-    <Card
-      className="p-6"
-      style={{ background: "var(--rh-surface, hsl(var(--card)))", border: "1px solid var(--rh-hair, hsl(var(--border)))", boxShadow: "var(--rh-shadow-card, none)" }}
-    >
+    <div className="lp-panel">
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 rounded-xl" style={{ background: "var(--rh-tint, hsl(var(--primary) / 0.1))" }}>
-          <Mail className="w-5 h-5" style={{ color: "var(--rh-accent-2, hsl(var(--primary)))" }} />
+        <div className="p-2 rounded-xl" style={{ background: "hsl(var(--lp-ember) / 0.12)" }}>
+          <Mail className="w-5 h-5" style={{ color: "hsl(var(--lp-ember-soft))" }} />
         </div>
         <div>
           <h2 className="text-xl font-semibold">Email preferences</h2>
@@ -64,10 +60,10 @@ export const NotificationSettings = ({ userId, accessToken }: NotificationSettin
             checked={settings.email_marketing}
             onCheckedChange={(checked) => updateSettings({ email_marketing: checked })}
             disabled={updating}
-            style={settings.email_marketing ? { backgroundColor: "var(--rh-accent-2, hsl(var(--primary)))" } : undefined}
+            style={settings.email_marketing ? { backgroundColor: "hsl(var(--lp-ember))" } : undefined}
           />
         </div>
       </div>
-    </Card>
+    </div>
   );
 };

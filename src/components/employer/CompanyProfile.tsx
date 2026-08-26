@@ -9,10 +9,13 @@
  *
  * The same component renders twice: as onboarding when the required fields
  * are incomplete, and as an always editable card once they are not.
+ *
+ * v3.251.0 -- converted off the shadcn Card/Button-plus-inline-var(--rh-*)-
+ * override pattern onto .lp-panel/.lp-btn, the real classes the marketing
+ * pages use, same as IntakeWizard.tsx and AssessmentsPanel.tsx in the same
+ * pass.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,7 +29,7 @@ import {
 
 const SIZES = ["1 to 10", "11 to 50", "51 to 200", "201 to 1000", "1000 plus"];
 
-/** Same option card language as the intake wizard, orange when selected. */
+/** Same option card language as the intake wizard, ember when selected. */
 function SizeOption({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
   return (
     <button
@@ -35,8 +38,8 @@ function SizeOption({ label, selected, onClick }: { label: string; selected: boo
       aria-pressed={selected}
       className="group relative flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       style={selected
-        ? { background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }
-        : { borderColor: "var(--rh-hair)", background: "var(--rh-surface)" }}
+        ? { background: "var(--lp-gradient-ember)", borderColor: "transparent", color: "#fff", boxShadow: "0 6px 16px -6px hsl(var(--lp-ember) / 0.5)" }
+        : { borderColor: "hsl(var(--lp-border-soft))", background: "hsl(var(--lp-surface))" }}
     >
       {selected && <Check className="w-4 h-4 shrink-0" />}
       <span className="font-medium">{label}</span>
@@ -136,7 +139,7 @@ export default function CompanyProfile({
   const fields = (
     <div className="space-y-4 employer-step-in">
       {missing.length > 0 && (
-        <ul className="space-y-1 border-l-2 pl-3" style={{ borderColor: "var(--rh-accent)" }}>
+        <ul className="space-y-1 border-l-2 pl-3" style={{ borderColor: "hsl(var(--lp-ember))" }}>
           {missing.map(m => (
             <li key={m.key} className="text-xs text-muted-foreground">{m.nudge}</li>
           ))}
@@ -165,10 +168,10 @@ export default function CompanyProfile({
               ref={fileRef} type="file" accept="image/*" className="sr-only"
               onChange={e => { const f = e.target.files?.[0]; if (f) void uploadLogo(f); e.target.value = ""; }}
             />
-            <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
-              {uploading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />}
+            <button type="button" className="lp-btn lp-btn-ghost lp-btn-sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+              {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
               {org.logo_url ? "Replace" : "Upload"}
-            </Button>
+            </button>
             {org.logo_url && (
               <button type="button" className="text-xs text-muted-foreground underline underline-offset-2"
                 onClick={() => { setForm(f => ({ ...f, logo_url: "" })); void save({ logo_url: "" }); }}>
@@ -194,7 +197,7 @@ export default function CompanyProfile({
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <Label className="text-xs">About the company</Label>
-          <span className="text-[11px]" style={{ color: aboutLen > 0 && aboutLen < ABOUT_MIN ? "var(--rh-accent-2)" : "var(--rh-muted)" }}>
+          <span className="text-[11px]" style={{ color: aboutLen > 0 && aboutLen < ABOUT_MIN ? "hsl(var(--lp-ember-soft))" : "hsl(var(--lp-muted))" }}>
             {aboutLen < ABOUT_MIN ? `${aboutLen} of ${ABOUT_MIN} minimum` : `${aboutLen} of 600`}
           </span>
         </div>
@@ -214,13 +217,13 @@ export default function CompanyProfile({
 
   if (onboarding || page) {
     return (
-      <Card className="p-5 sm:p-7 space-y-5 rounded-2xl" style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+      <div className="lp-panel space-y-5">
         <div className="space-y-1.5">
           <div className="flex items-center gap-3">
             {org.logo_url
               ? <img src={org.logo_url} alt={`${org.name} logo`} className="w-10 h-10 rounded-lg object-cover border border-border/60" loading="lazy" />
-              : <span className="w-10 h-10 rounded-lg grid place-items-center" style={{ background: "var(--rh-tint)" }}><Building2 className="w-4 h-4" style={{ color: "var(--rh-accent-2)" }} /></span>}
-            <h1 className="text-lg font-semibold">
+              : <span className="w-10 h-10 rounded-lg grid place-items-center" style={{ background: "hsl(var(--lp-ember) / 0.12)" }}><Building2 className="w-4 h-4" style={{ color: "hsl(var(--lp-ember-soft))" }} /></span>}
+            <h1 className="lp-display" style={{ fontSize: 18 }}>
               {onboarding ? "Tell candidates who you are" : org.name || "Company profile"}
             </h1>
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
@@ -232,13 +235,13 @@ export default function CompanyProfile({
           </p>
         </div>
         {fields}
-      </Card>
+      </div>
     );
   }
 
 
   return (
-    <Card className="p-4 sm:p-6 space-y-4 rounded-2xl" style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+    <div className="lp-panel space-y-4">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
@@ -263,13 +266,13 @@ export default function CompanyProfile({
       </button>
 
       {missing.length > 0 && !expanded && (
-        <ul className="space-y-1 border-l-2 pl-3" style={{ borderColor: "var(--rh-accent)" }}>
+        <ul className="space-y-1 border-l-2 pl-3" style={{ borderColor: "hsl(var(--lp-ember))" }}>
           {missing.map(m => <li key={m.key} className="text-xs text-muted-foreground">{m.nudge}</li>)}
         </ul>
       )}
 
       {expanded && fields}
-    </Card>
+    </div>
   );
 }
 
