@@ -29,6 +29,21 @@
  * like SeekerSidebar's own always-there explanation tabs -- collapsed by
  * default once there's a real dashboard to show, expanded by default
  * before that, same open/closed default logic SeekerSidebar already uses.
+ *
+ * v3.252.0 -- reported directly: "these dose not work when im sign in is
+ * that for security perposes?" Not security -- a real gap. How it works/
+ * Features & pricing still pointed at /employers#employers-how and
+ * #employers-features even in dashboard mode, but Employers.tsx (and
+ * Index.tsx) render EmployerHub, never LandingSections, for a signed-in
+ * approved account -- the anchor those links pointed at was never in the
+ * DOM at all once signed in, so the link changed the URL and did nothing.
+ * In dashboard mode these are now real tab switches (onSelectTab, the
+ * same mechanism the Employer nav group above already uses) into two new
+ * EmployerHub tabs carrying the real content, not a link to a page that
+ * can't render it for this account. Signed out / pending, where /employers
+ * genuinely does render that content, they stay plain links exactly as
+ * before -- no need to duplicate content into a dashboard tab nobody in
+ * that state can even reach yet.
  */
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -53,7 +68,9 @@ const STATUS_COPY: Record<EmpStatus, { label: string; icon: typeof Clock }> = {
   suspended: { label: 'On hold', icon: ShieldAlert },
 };
 
-export type EmployerDashTab = 'search' | 'proposals' | 'assessments' | 'company' | 'settings';
+export type EmployerDashTab =
+  | 'search' | 'proposals' | 'assessments' | 'company' | 'settings'
+  | 'how-it-works' | 'features';
 
 const DASHBOARD_NAV: { key: EmployerDashTab; label: string; icon: typeof Search }[] = [
   { key: 'search', label: 'Search', icon: Search },
@@ -207,26 +224,49 @@ export const EmployerSidebar = ({ status, dashboardReady, tab, onSelectTab, prop
             </button>
           )}
           {(collapsed || learnOpen) && (
-            <>
-              <Link
-                to="/employers#employers-how"
-                className={`lp-sidebar-link ${anchorActive('#employers-how') ? 'is-active' : ''}`}
-                onClick={() => setMobileOpen(false)}
-                title={collapsed ? 'How it works' : undefined}
-              >
-                <Route size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-                <span className="lp-sidebar-link-label">How it works</span>
-              </Link>
-              <Link
-                to="/employers#employers-features"
-                className={`lp-sidebar-link ${anchorActive('#employers-features') ? 'is-active' : ''}`}
-                onClick={() => setMobileOpen(false)}
-                title={collapsed ? 'Features & pricing' : undefined}
-              >
-                <Tag size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-                <span className="lp-sidebar-link-label">Features & pricing</span>
-              </Link>
-            </>
+            dashboardReady && onSelectTab ? (
+              <>
+                <button
+                  type="button"
+                  className={`lp-sidebar-link ${tab === 'how-it-works' ? 'is-active' : ''}`}
+                  onClick={() => { onSelectTab('how-it-works'); setMobileOpen(false); }}
+                  title={collapsed ? 'How it works' : undefined}
+                >
+                  <Route size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                  <span className="lp-sidebar-link-label">How it works</span>
+                </button>
+                <button
+                  type="button"
+                  className={`lp-sidebar-link ${tab === 'features' ? 'is-active' : ''}`}
+                  onClick={() => { onSelectTab('features'); setMobileOpen(false); }}
+                  title={collapsed ? 'Features & pricing' : undefined}
+                >
+                  <Tag size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                  <span className="lp-sidebar-link-label">Features & pricing</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/employers#employers-how"
+                  className={`lp-sidebar-link ${anchorActive('#employers-how') ? 'is-active' : ''}`}
+                  onClick={() => setMobileOpen(false)}
+                  title={collapsed ? 'How it works' : undefined}
+                >
+                  <Route size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                  <span className="lp-sidebar-link-label">How it works</span>
+                </Link>
+                <Link
+                  to="/employers#employers-features"
+                  className={`lp-sidebar-link ${anchorActive('#employers-features') ? 'is-active' : ''}`}
+                  onClick={() => setMobileOpen(false)}
+                  title={collapsed ? 'Features & pricing' : undefined}
+                >
+                  <Tag size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                  <span className="lp-sidebar-link-label">Features & pricing</span>
+                </Link>
+              </>
+            )
           )}
         </div>
 

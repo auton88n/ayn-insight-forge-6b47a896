@@ -25,7 +25,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Send, Building2, MapPin, CheckCircle2, AlertCircle,
-  Mail, ClipboardCheck, ArrowLeft, Zap,
+  Mail, ClipboardCheck, ArrowLeft, ArrowRight, Zap, Search as SearchStepIcon, MailCheck, ShieldCheck,
 } from "lucide-react";
 
 import IntakeWizard from "@/components/employer/IntakeWizard";
@@ -76,6 +76,29 @@ const EMPLOYER_NAV: { key: EmployerTab; label: string; hint: string }[] = [
   { key: "proposals", label: "Proposals", hint: "What you sent, and their answers" },
   { key: "assessments", label: "Assessments", hint: "Check that their claims are real" },
   { key: "company", label: "Company", hint: "What candidates see about you" },
+];
+
+/**
+ * v3.252.0 -- reported directly: "these dose not work when im sign in is
+ * that for security perposes?" How it works/Features & pricing used to be
+ * plain links to /employers#employers-how|features, but Employers.tsx (and
+ * Index.tsx) render this component, not the marketing page, for a signed-in
+ * approved account -- that anchor is never in the DOM once signed in, so
+ * the link silently did nothing. Not security; a real gap. Real tabs now,
+ * same content /employers itself shows a signed-out visitor (EMPLOYER_STEPS
+ * mirrors LandingSections.tsx's own array), kept here rather than imported
+ * since it's a handful of static strings, not shared logic.
+ */
+const LEARN_META: Record<"how-it-works" | "features", { label: string; hint: string }> = {
+  "how-it-works": { label: "How it works", hint: "How AYN's AI helps you" },
+  features: { label: "Features & pricing", hint: "Verification assessments, and what it costs" },
+};
+
+const EMPLOYER_STEPS = [
+  { icon: Building2, title: "Describe the role once", desc: "Title, seniority, must have skills, location." },
+  { icon: SearchStepIcon, title: "Read the strongest fits", desc: "A short list, each name with its evidence and its gaps." },
+  { icon: ClipboardCheck, title: "Verify before you commit", desc: "A short assessment built from that person's own background." },
+  { icon: MailCheck, title: "Invite the right one", desc: "Send a proposal. Contact opens when they accept." },
 ];
 
 
@@ -438,13 +461,17 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 <h2 className="rh-display text-xl">
                   {tab === "search" && stage === "results"
                     ? (spec?.title || "Your role")
-                    : EMPLOYER_NAV.find(n => n.key === tab)?.label}
+                    : (tab === "how-it-works" || tab === "features")
+                      ? LEARN_META[tab].label
+                      : EMPLOYER_NAV.find(n => n.key === tab)?.label}
                 </h2>
                 <p className="text-sm mt-0.5" style={{ color: "var(--rh-muted)" }}>
                   {tab === "search" && stage === "results"
                     ? [spec?.seniority, spec?.location_preference, EMPLOYMENT_LABEL[spec?.employment_type || ""]]
                         .filter(Boolean).join(" · ")
-                    : EMPLOYER_NAV.find(n => n.key === tab)?.hint}
+                    : (tab === "how-it-works" || tab === "features")
+                      ? LEARN_META[tab].hint
+                      : EMPLOYER_NAV.find(n => n.key === tab)?.hint}
                 </p>
               </div>
               )}
@@ -566,6 +593,54 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             {tab === "company" && <CompanyProfile org={org} onSaved={handleOrgSaved} page />}
 
             {tab === "assessments" && <AssessmentsPanel reloadKey={assessKey} />}
+
+            {tab === "how-it-works" && (
+              <div className="lp-panel">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {EMPLOYER_STEPS.map((s, i) => {
+                    const Icon = s.icon;
+                    return (
+                      <div key={s.title} className="rounded-xl p-4 space-y-2" style={{ border: "1px solid hsl(var(--lp-border-soft))" }}>
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg" style={{ background: "hsl(var(--lp-ember) / 0.12)" }}>
+                          <Icon className="w-4 h-4" style={{ color: "hsl(var(--lp-ember-soft))" }} />
+                        </span>
+                        <p className="text-[11px] font-semibold" style={{ color: "hsl(var(--lp-dim))" }}>STEP {i + 1}</p>
+                        <h3 className="lp-display" style={{ fontSize: 15 }}>{s.title}</h3>
+                        <p className="text-sm" style={{ color: "hsl(var(--lp-muted))" }}>{s.desc}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button type="button" className="lp-btn lp-btn-ghost lp-btn-sm mt-4" onClick={() => setTab("search")}>
+                  Start a search <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {tab === "features" && (
+              <div className="lp-panel space-y-5">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4" style={{ color: "hsl(var(--lp-ember-soft))" }} />
+                    <h3 className="lp-display" style={{ fontSize: 15 }}>Verification assessments</h3>
+                  </div>
+                  <p className="text-sm" style={{ color: "hsl(var(--lp-muted))" }}>
+                    Send a short assessment built from a candidate's own background and your role. It checks depth of experience, not who was in the room.
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {["Score and observations", "Time spent per answer", "Server enforced timer", "Candidate sees growth notes only"].map(c => (
+                      <span key={c} className="text-xs rounded-full px-2.5 py-1" style={{ background: "hsl(var(--lp-ember) / 0.08)", color: "hsl(var(--lp-fg))" }}>{c}</span>
+                    ))}
+                  </div>
+                </div>
+                <div className="pt-1 space-y-1" style={{ borderTop: "1px solid hsl(var(--lp-border-soft))" }}>
+                  <p className="lp-display pt-4" style={{ fontSize: 17 }}>Free for your first month.</p>
+                  <p className="text-sm" style={{ color: "hsl(var(--lp-muted))" }}>
+                    Then from $199 a month. Starter gives you 100 searches and 10 proposals, Growth 400 and 40, Scale 1200 and 120. The free month gives you 25 and 5.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {tab === "settings" && (
               session
