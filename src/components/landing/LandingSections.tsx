@@ -130,9 +130,15 @@ const HERO: Record<Audience, {
     // bigger-sounding headline, it is why a company that joins now gets
     // real attention instead of getting lost in an already-crowded
     // self-serve product.
+    // v3.257.0 -- trimmed to match the seeker hero's own pace, reported
+    // directly as too much wording. The old lead ran three separate
+    // clauses into one sentence, and one of them ("every company is
+    // approved by hand before it can search") just restated the headline.
+    // "Describe the role once" already has its own dedicated step 1 card
+    // in EMPLOYER_STEPS below, so it did not need to be in the hero too.
     headline: 'We review every company ourselves.',
-    emphasis: 'Then you get three real people to read, not a resume pile.',
-    lead: 'Describe the role once. AYN matches it against real candidates who chose to be found, verifies them before you ever see a name, and every company is approved by hand before it can search.',
+    emphasis: 'Three real people to read, not a resume pile.',
+    lead: 'AYN matches your role against candidates who chose to be found. Every one is verified before you see a name.',
     cta: 'Request employer access',
     note: 'Contact stays private until the candidate accepts.',
     art: <CandidateCardMockup />,
