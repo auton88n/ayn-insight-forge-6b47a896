@@ -20,6 +20,7 @@ import { JobsBrowser } from './JobsBrowser';
 import { LandingFooter } from './LandingFooter';
 import { PAIN, HEAD_TO_HEAD, TRUST, FAQS } from './landingContent';
 import { HOME_TAB_CONTENT, type HomeTabId } from './HomeTabs';
+import { priceLabel } from '@/lib/billing';
 
 // v3.210.0 -- the structural rework: AYN is no longer one page trying to be
 // legible to two different buyers via an in-place toggle. "/" commits to
@@ -94,6 +95,26 @@ const EMPLOYER_STEPS = [
     title: 'Invite the right one',
     desc: 'Send a proposal. Contact opens when they accept.',
   },
+];
+
+// v3.260.0 -- reported directly: "we have pricing is missing." The pricing
+// this section held before was one dense paragraph tucked into a two-column
+// split next to the assessment demo ("Then from $199 a month. Starter gives
+// you 100 searches and 10 proposals..."), which reads as marketing copy, not
+// pricing -- there is nothing here that looks like a price you can scan.
+// A real, signed-in employer already gets real cards for this exact data
+// (EmployerHub.tsx's own Features & pricing tab, fed live from
+// billingApi.plans()), but that action requires a session and this is the
+// signed-out marketing page. Matching PricingTab's own precedent instead
+// (HomeTabs.tsx, the seeker side's public pricing tab, also unauthenticated
+// and also a static array, not a live fetch, for the identical reason) --
+// hardcoded here, checked directly against the live `plans` table via psql
+// before writing a single number.
+const EMPLOYER_PLANS: { key: string; name: string; cents: number; searches: number; proposals: number; assessments: number; tag?: string }[] = [
+  { key: 'employer_trial', name: 'Free month', cents: 0, searches: 25, proposals: 5, assessments: 3 },
+  { key: 'employer_starter', name: 'Starter', cents: 19900, searches: 100, proposals: 10, assessments: 5, tag: 'Most chosen' },
+  { key: 'employer_growth', name: 'Growth', cents: 49900, searches: 400, proposals: 40, assessments: 25 },
+  { key: 'employer_scale', name: 'Scale', cents: 99900, searches: 1200, proposals: 120, assessments: 80 },
 ];
 
 // v3.214.0 -- TRUST and FAQS moved to landingContent.ts.
@@ -554,23 +575,49 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
                   <p className="lp-note">
                     It checks depth of experience, not who was in the room.
                   </p>
-                  {/* v3.19.0 — employer pricing lives here, the single public
-                      source. The higher tiers stay unpublished on purpose. */}
-                  <div className="lp-reveal" style={{ marginTop: 26 }}>
-                    <p className="lp-display" style={{ fontSize: 'clamp(1.25rem, 2.4vw, 1.6rem)', fontWeight: 600, margin: 0 }}>
-                      Free for your first month.
-                    </p>
-                    <p className="lp-note" style={{ marginTop: 8 }}>
-                      Then from $199 a month. Starter gives you 100 searches and 10 proposals, Growth 400 and 40, Scale 1200 and 120. The free month gives you 25 and 5.
-                    </p>
-                  </div>
-                  <div className="lp-cta-row" style={{ marginTop: 22 }}>
-                    <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('employer')}>
-                      Request employer access <ArrowRight size={15} />
-                    </button>
-                    <span className="lp-note" style={{ margin: 0 }}>We approve employers one at a time.</span>
-                  </div>
+                </div>
+              </div>
 
+              {/* v3.260.0 -- reported directly: "we have pricing is missing."
+                  The old pricing was one paragraph tucked into the split
+                  above, next to the assessment demo -- real numbers, but
+                  nothing that actually looked like pricing. Given its own
+                  full-width section and real cards instead, matching what a
+                  signed-in employer already sees in EmployerHub.tsx's own
+                  Features & pricing tab (that one is fed live from
+                  billingApi.plans(); this one is hardcoded for the same
+                  reason PricingTab's own public seeker pricing already is --
+                  no session exists yet to fetch from). */}
+              <div className="lp-reveal" style={{ marginTop: 48 }}>
+                <p className="lp-eyebrow">Pricing</p>
+                <h2 className="lp-display lp-h2">Free for your first month.</h2>
+                <p className="lp-lead">One flat monthly rate. No placement fee, no cut of anyone's pay.</p>
+                <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginTop: 28 }}>
+                  {EMPLOYER_PLANS.map((p) => (
+                    <div
+                      key={p.key}
+                      className="lp-tile"
+                      style={p.tag ? {
+                        borderColor: 'hsl(var(--lp-ember))',
+                        background: 'linear-gradient(160deg, hsl(var(--lp-ember) / 0.05) 0%, hsl(var(--lp-card)) 55%)',
+                      } : undefined}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <h3 style={{ margin: 0 }}>{p.name}</h3>
+                        {p.tag && <span className="lp-chip" style={{ fontSize: 11 }}>{p.tag}</span>}
+                      </div>
+                      <p className="lp-display" style={{ fontSize: 32, margin: '14px 0 0', lineHeight: 1 }}>{priceLabel(p.cents, 'month')}</p>
+                      <p style={{ margin: '12px 0 0', color: 'hsl(var(--lp-muted))' }}>
+                        {p.searches} searches · {p.proposals} proposals · {p.assessments} assessments
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <div className="lp-cta-row" style={{ marginTop: 26 }}>
+                  <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('employer')}>
+                    Request employer access <ArrowRight size={15} />
+                  </button>
+                  <span className="lp-note" style={{ margin: 0 }}>We approve employers one at a time.</span>
                 </div>
               </div>
             </div>
