@@ -130,17 +130,21 @@ const HERO: Record<Audience, {
     // bigger-sounding headline, it is why a company that joins now gets
     // real attention instead of getting lost in an already-crowded
     // self-serve product.
-    // v3.257.0 -- trimmed to match the seeker hero's own pace, reported
-    // directly as too much wording. The old lead ran three separate
-    // clauses into one sentence, and one of them ("every company is
-    // approved by hand before it can search") just restated the headline.
-    // "Describe the role once" already has its own dedicated step 1 card
-    // in EMPLOYER_STEPS below, so it did not need to be in the hero too.
-    headline: 'We review every company ourselves.',
-    emphasis: 'Three real people to read, not a resume pile.',
+    // v3.257.0 -- trimmed once already, reported as still too much
+    // wording a second time: the big headline+emphasis text was still
+    // running 14 words across three lines, roughly double the seeker
+    // hero's own 7. v3.258.0 -- cut the giant text down to match the
+    // seeker's pace, and moved "we review every company ourselves" out
+    // of the huge heading entirely, into the small note line under the
+    // button, where it sits alongside every other quiet trust fact on
+    // this page (and is already restated, word for word, in the FAQ and
+    // the pricing block below, so nothing is actually lost by shrinking
+    // its weight here).
+    headline: 'Three real people to read.',
+    emphasis: 'Not a resume pile.',
     lead: 'AYN matches your role against candidates who chose to be found. Every one is verified before you see a name.',
     cta: 'Request employer access',
-    note: 'Contact stays private until the candidate accepts.',
+    note: 'Every company is reviewed by hand. Contact stays private until the candidate accepts.',
     art: <CandidateCardMockup />,
   },
 };
