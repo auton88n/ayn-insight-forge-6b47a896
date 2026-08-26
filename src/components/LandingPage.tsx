@@ -1,8 +1,8 @@
 import { memo, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { SEO, organizationSchema, websiteSchema, softwareApplicationSchema, createFAQSchema } from '@/components/shared/SEO';
-import { Header } from '@/components/shared/Header';
 import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
+import { EmployerSidebar } from '@/components/landing/EmployerSidebar';
 import { AuthModal } from './auth/AuthModal';
 import { LandingSections } from '@/components/landing/LandingSections';
 import type { Audience } from '@/lib/landingAudience';
@@ -109,17 +109,24 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
 
       <div dir={direction} style={{ background: '#faf8f3', minHeight: '100vh' }}>
         {forcedAudience === 'employer' ? (
-          <>
-            <Header />
-            <LandingSections
-              forcedAudience={forcedAudience}
-              onStartFree={(role, tab) => {
-                setAuthRole(role || forcedAudience);
-                setAuthTab(tab || 'signup');
-                setShowAuthModal(true);
-              }}
-            />
-          </>
+          // v3.249.0 -- "it needs something like joob seaker same sidebar":
+          // the employer route used to fall back to the old fixed Header
+          // chrome, the one thing every other real page moved off years
+          // ago. Same collapsible shell the seeker side already uses, just
+          // with EmployerSidebar's own nav in it instead of SeekerSidebar's.
+          <div className="lp lp-shell-with-sidebar">
+            <EmployerSidebar />
+            <main className="lp-sidebar-main">
+              <LandingSections
+                forcedAudience={forcedAudience}
+                onStartFree={(role, tab) => {
+                  setAuthRole(role || forcedAudience);
+                  setAuthTab(tab || 'signup');
+                  setShowAuthModal(true);
+                }}
+              />
+            </main>
+          </div>
         ) : (
           // v3.215.0 -- "home is the job search, other sections have the
           // explanations, reached from a sidebar" -- the same collapsible
