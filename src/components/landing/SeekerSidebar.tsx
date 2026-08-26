@@ -316,9 +316,10 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
       <div className="lp-sidebar-bottom">
         {user ? (
           <div className="lp-sidebar-user">
-            <span className="lp-sidebar-user-avatar"><User size={14} /></span>
-            <span className="lp-sidebar-link-label lp-sidebar-user-email">{user.email}</span>
-            <button type="button" onClick={handleSignOut} className="lp-sidebar-signout" title="Sign out" aria-label="Sign out">
+            <span className="lp-sidebar-user-avatar" title={user.email} aria-label={user.email} style={{ fontSize: 12, fontWeight: 700 }}>
+              {(user.email || '?')[0].toUpperCase()}
+            </span>
+            <button type="button" onClick={handleSignOut} className="lp-sidebar-signout" title="Sign out" aria-label="Sign out" style={{ marginLeft: 'auto' }}>
               <LogOut size={15} />
             </button>
           </div>

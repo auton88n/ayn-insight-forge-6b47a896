@@ -2094,9 +2094,8 @@ button.lp-sidebar-link {
   width: 26px; height: 26px; border-radius: 999px; background: hsl(var(--lp-ember) / 0.14); color: hsl(var(--lp-ember));
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.lp-sidebar-user-email { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .lp-sidebar-signout { background: none; border: none; cursor: pointer; color: hsl(var(--lp-dim)); flex-shrink: 0; }
-.lp-sidebar.is-collapsed .lp-sidebar-user-email, .lp-sidebar.is-collapsed .lp-sidebar-signout { display: none; }
+.lp-sidebar.is-collapsed .lp-sidebar-signout { display: none; }
 
 .lp-sidebar-mobile-bar, .lp-sidebar-scrim { display: none; }
 .lp-sidebar-mobile { display: none; }
