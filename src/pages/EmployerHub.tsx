@@ -10,7 +10,7 @@
  * No candidate identity is ever rendered here. Name, email and phone only
  * appear in the Sent list, and only after the candidate accepted.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,9 +25,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Loader2, Send, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
-  Brain, Search as SearchIcon, Mail, ClipboardCheck, ArrowLeft, Settings, Zap,
-  PanelLeftClose, PanelLeftOpen,
+  Loader2, Send, Building2, MapPin, CheckCircle2, AlertCircle,
+  Mail, ClipboardCheck, ArrowLeft, Zap,
 } from "lucide-react";
 
 import IntakeWizard from "@/components/employer/IntakeWizard";
@@ -39,7 +38,7 @@ import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
 import MessageThread from "@/components/shared/MessageThread";
 import SettingsPanel from "@/components/shared/SettingsPanel";
 import { AynLoader } from "@/components/shared/AynLoader";
-import aynLogo from "@/assets/ayn-logo.png";
+import { EmployerSidebar, type EmployerDashTab } from "@/components/landing/EmployerSidebar";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
@@ -63,20 +62,22 @@ import { billingApi, type EmployerBilling } from "@/lib/billing";
 import "@/styles/resume-hub.css";
 
 
-/** v3.12.0 — the employer gets a left rail in the Resume Hub language. */
-type EmployerTab = "search" | "proposals" | "assessments" | "company" | "settings";
-const EMPLOYER_NAV: { key: EmployerTab; label: string; icon: typeof Brain; hint: string }[] = [
-  { key: "search", label: "Search", hint: "Describe the role, read candidates", icon: SearchIcon },
-  { key: "proposals", label: "Proposals", hint: "What you sent, and their answers", icon: Mail },
-  { key: "assessments", label: "Assessments", hint: "Check that their claims are real", icon: ClipboardCheck },
-  { key: "company", label: "Company", hint: "What candidates see about you", icon: Building2 },
+/**
+ * v3.12.0 -- the employer used to get its own left rail, in its own
+ * Resume Hub-styled vocabulary, entirely separate from the public site's
+ * SeekerSidebar. v3.250.0 -- reported directly against a screenshot of
+ * exactly that rail: "why i have another dashboard needs to be in the
+ * same as the one we built." EmployerSidebar.tsx now owns the nav (icons
+ * included); this is just the label/hint metadata the content area's own
+ * heading row below still reads.
+ */
+type EmployerTab = EmployerDashTab;
+const EMPLOYER_NAV: { key: EmployerTab; label: string; hint: string }[] = [
+  { key: "search", label: "Search", hint: "Describe the role, read candidates" },
+  { key: "proposals", label: "Proposals", hint: "What you sent, and their answers" },
+  { key: "assessments", label: "Assessments", hint: "Check that their claims are real" },
+  { key: "company", label: "Company", hint: "What candidates see about you" },
 ];
-
-// v3.217.0 — the icon-only mark, same asset the public site's collapsed
-// SeekerSidebar uses (a public/ file, referenced by path, not imported —
-// this is Vite's own convention for anything already served from public/).
-const AYN_ICON = "/ayn-mark.svg";
-const RAIL_COLLAPSE_KEY = "ayn_employer_rail_collapsed";
 
 
 
@@ -123,27 +124,6 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   // v3.15.0 — left nav state, and the staged search flow.
   const [tab, setTab] = useState<EmployerTab>("search");
   const [stage, setStage] = useState<"spec" | "results">("spec");
-  const navListRef = useRef<HTMLElement>(null);
-  // v3.217.0 — the rail's own collapse state, the same "slider" concept
-  // the public site's SeekerSidebar has, just a separate localStorage key
-  // since this is a structurally different, employer-only component.
-  const [railCollapsed, setRailCollapsed] = useState(() => {
-    try { return localStorage.getItem(RAIL_COLLAPSE_KEY) === "1"; } catch { return false; }
-  });
-  const toggleRailCollapsed = useCallback(() => {
-    setRailCollapsed((c) => {
-      const next = !c;
-      try { localStorage.setItem(RAIL_COLLAPSE_KEY, next ? "1" : "0"); } catch { /* ignore */ }
-      return next;
-    });
-  }, []);
-
-  // v3.39.0 — a bare signOut() cleared the session but never navigated
-  // anywhere, so this whole gated view stayed on screen looking untouched.
-  const handleSignOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    navigate("/");
-  }, [navigate]);
 
   const [searching, setSearching] = useState(false);
   // v3.24.0 — maintenance switches, set from the admin panel.
@@ -177,25 +157,6 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
    * field later re-locks it, and we say which field and what it blocks.
    */
   const profileComplete = isOrgComplete(org);
-
-  // v3.193.0 — same rail, same fix as ResumeHub.tsx's own: the mobile
-  // horizontal scroll row never scrolled the active item into view, so a
-  // tab near the end of the list (Settings, now that it's a real tab
-  // switch) could render clipped at the edge with no scroll cue.
-  // orgLoading/profileComplete included alongside tab for the same reason
-  // ResumeHub.tsx's own version needed `loading` added: the rail (and
-  // navListRef) only exists once the company-profile onboarding gate
-  // opens, so the effect needs a real chance to run again once that
-  // happens, not just when tab itself changes. Declared here, after
-  // profileComplete's own const, not up near navListRef's declaration --
-  // a dependency array referencing a const before its own declaration in
-  // source order is a real temporal-dead-zone ReferenceError, the exact
-  // class of bug this codebase has hit once before (filtersOpen in
-  // BrowseJobs.tsx, per CLAUDE.md's own v3.169.0 entry).
-  useEffect(() => {
-    navListRef.current?.querySelector(".rh-navitem.active")
-      ?.scrollIntoView({ inline: "nearest", block: "nearest" });
-  }, [tab, orgLoading, profileComplete]);
 
   const handleOrgSaved = useCallback((next: Org) => {
     // v3.86.0 — toast() must never run inside a setState updater: it triggers
@@ -357,31 +318,41 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
   if (orgLoading) {
     return (
-      <div className="resume-hub-theme min-h-screen grid place-items-center" style={{ color: "var(--rh-muted)" }}>
-        <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--rh-accent)" }} />
+      <div className="lp lp-shell-with-sidebar">
+        <EmployerSidebar />
+        <main className="lp-sidebar-main">
+          <div className="resume-hub-theme min-h-screen grid place-items-center" style={{ color: "var(--rh-muted)" }}>
+            <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--rh-accent)" }} />
+          </div>
+        </main>
       </div>
     );
   }
 
   if (!org) {
     return (
-      <div className="resume-hub-theme min-h-screen grid place-items-center p-6">
-        <Card className="w-full max-w-md p-6 space-y-4 rounded-2xl" style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
-          <div className="flex items-center gap-2">
-            <Building2 className="w-4 h-4" style={{ color: "var(--rh-accent-2)" }} />
-            <h1 className="rh-display">Name your company</h1>
+      <div className="lp lp-shell-with-sidebar">
+        <EmployerSidebar />
+        <main className="lp-sidebar-main">
+          <div className="resume-hub-theme min-h-screen grid place-items-center p-6">
+            <Card className="w-full max-w-md p-6 space-y-4 rounded-2xl" style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4" style={{ color: "var(--rh-accent-2)" }} />
+                <h1 className="rh-display">Name your company</h1>
+              </div>
+              <p className="text-sm" style={{ color: "var(--rh-muted)" }}>Candidates see this name on any proposal you send.</p>
+              <Input value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="Company name" />
+              <Button
+                onClick={createOrg}
+                disabled={orgBusy || !orgName.trim()}
+                className="w-full hover:opacity-90"
+                style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
+              >
+                {orgBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}Continue
+              </Button>
+            </Card>
           </div>
-          <p className="text-sm" style={{ color: "var(--rh-muted)" }}>Candidates see this name on any proposal you send.</p>
-          <Input value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="Company name" />
-          <Button
-            onClick={createOrg}
-            disabled={orgBusy || !orgName.trim()}
-            className="w-full hover:opacity-90"
-            style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }}
-          >
-            {orgBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}Continue
-          </Button>
-        </Card>
+        </main>
       </div>
     );
   }
@@ -389,101 +360,36 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   const pendingSent = sent.filter(s => s.status === "pending").length;
 
   return (
-    <div className="resume-hub-theme">
-      <div className="rh-app-shell">
-        {/* v3.217.0 -- the employer's own full-height, edge-to-edge,
-            collapsible rail. Reported directly against two screenshots:
-            the old .rh-aside-left (a floating rounded card in a centered
-            column) read as "a different dashboard" next to the public
-            site's own collapsible SeekerSidebar. Same structural shape
-            here -- full height, no floating card, a real collapse toggle
-            -- rebuilt on the resume-hub token system (not SeekerSidebar's
-            own --lp-* classes, which are scoped to .lp and would reopen
-            the two-systems problem v3.181.0 already closed). Resume Hub's
-            own signed-in shell is untouched; this is employer-only. Hidden
-            during onboarding, same as the old .rh-grid nav was -- there's
-            nothing to navigate to yet. */}
-        {profileComplete && (
-          <aside className={`rh-rail ${railCollapsed ? "is-collapsed" : ""}`} aria-label="Employer navigation">
-            <div className="rh-rail-top">
-              <div className="flex items-center shrink-0" aria-label="AYN">
-                {railCollapsed
-                  ? <img src={AYN_ICON} alt="" style={{ height: 24, width: 24 }} />
-                  : <img src={aynLogo} alt="AYN" className="h-6 w-auto" />}
-              </div>
-              <button
-                type="button"
-                className="rh-rail-toggle"
-                onClick={toggleRailCollapsed}
-                aria-label={railCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                title={railCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              >
-                {railCollapsed ? <PanelLeftOpen className="w-[17px] h-[17px]" /> : <PanelLeftClose className="w-[17px] h-[17px]" />}
-              </button>
-            </div>
-            <nav className="rh-rail-nav rh-navlist" ref={navListRef}>
-              {EMPLOYER_NAV.map(item => {
-                const Icon = item.icon;
-                const active = tab === item.key;
-                const badge = item.key === "proposals" ? pendingSent : 0;
-                return (
-                  <button
-                    key={item.key}
-                    onClick={() => setTab(item.key)}
-                    className={`rh-navitem ${active ? "active" : ""}`}
-                    aria-label={item.label + (badge > 0 ? ` (${badge} new)` : "")}
-                    title={railCollapsed ? item.label : undefined}
-                  >
-                    <Icon className="w-[18px] h-[18px] shrink-0" />
-                    <span className="rh-navlabel">{item.label}</span>
-                    {badge > 0 && (
-                      <span className="rh-navbadge" aria-hidden>{badge > 9 ? "9+" : badge}</span>
-                    )}
-                  </button>
-                );
-              })}
-              {/* v3.189.0 — Settings moved from a standalone topbar icon
-                  into a real rail row.
-                  v3.192.0 — reported directly, live: "two different
-                  designs... I don't go a different page." It still
-                  navigated to /settings, a route that was never brought
-                  inside .resume-hub-theme (plain white, generic Inter,
-                  a flat non-gradient active tab) — confirmed by
-                  inspecting the real computed styles on a live account,
-                  not guessed at. Now a real tab switch, same as every
-                  other item, rendering SettingsPanel inline — matching
-                  the seeker side's own Home-as-settings tab, which
-                  never left the page in the first place. */}
-              <button
-                onClick={() => setTab("settings")}
-                className={`rh-navitem ${tab === "settings" ? "active" : ""}`}
-                aria-label="Settings"
-                title={railCollapsed ? "Settings" : undefined}
-              >
-                <Settings className="w-[18px] h-[18px] shrink-0" />
-                <span className="rh-navlabel">Settings</span>
-              </button>
-            </nav>
-          </aside>
-        )}
-
-        <div className="rh-app-main">
+    <div className="lp lp-shell-with-sidebar">
+      {/* v3.250.0 -- EmployerHub used to build its own, separate rail here
+          (`.rh-rail`, resume-hub-theme, dark and icon-only) -- reported
+          directly against a screenshot of exactly that rail: "why i have
+          another dashboard needs to be in the same as the one we built."
+          EmployerSidebar is now the one nav for every employer state,
+          signed out, pending, and this one, approved -- the same
+          precedent the seeker side already set at v3.228.0. Passing
+          dashboardReady=profileComplete reproduces the old rail's own
+          gating exactly: nothing functional shows until onboarding
+          clears, same as before. */}
+      <EmployerSidebar
+        dashboardReady={profileComplete}
+        tab={tab}
+        onSelectTab={setTab}
+        proposalsBadge={pendingSent}
+      />
+      <main className="lp-sidebar-main">
+        <div className="resume-hub-theme">
           {/* v3.181.0 — the exact rh-topbar markup ResumeHub.tsx uses, not a
               lookalike. "Hiring"/company-name text dropped, matching the
               same "the logo alone is enough" call made on the seeker side
               (v3.176.0) -- org.name still carries as the page's sr-only
               heading and the logo's alt text, so it's not lost, just not
               rendered as a redundant label next to its own mark.
-              v3.217.0 -- the brand mark itself moved into the new rail
-              above (once profileComplete); this bar is now just the
-              account-scoped stuff -- usage, org logo, sign out -- plus the
-              brand during onboarding, when the rail doesn't render yet. */}
+              v3.250.0 -- the brand mark and sign out both moved into
+              EmployerSidebar's own top/bottom areas; this bar is now just
+              the two things genuinely specific to the dashboard itself --
+              usage this period, and the company's own logo. */}
           <div className="rh-app-topbar">
-            {!profileComplete && (
-              <div className="flex items-center shrink-0 mr-auto" aria-label="AYN">
-                <img src={aynLogo} alt="AYN" className="h-7 w-auto" />
-              </div>
-            )}
             <h1 className="sr-only">{org.name} — AYN for employers</h1>
             {/* v3.35.0 — the same usage numbers Billing already shows, right
                 where searches, proposals and assessments actually get spent.
@@ -510,17 +416,6 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             {org.logo_url && (
               <img src={org.logo_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Sign out"
-              title="Sign out"
-              onClick={handleSignOut}
-              className="rounded-full"
-              style={{ color: "var(--rh-muted)" }}
-            >
-              <LogOut className="w-4 h-4" />
-            </Button>
           </div>
 
           <div className="rh-app-content">
@@ -682,8 +577,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
           )}
           </div>
         </div>
-      </div>
-
+      </main>
 
       {/* Candidate detail. No name, email, phone, or user id at this stage. */}
       <Dialog open={!!open && !formOpen} onOpenChange={o => { if (!o) setOpen(null); }}>

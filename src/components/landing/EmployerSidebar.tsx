@@ -1,8 +1,8 @@
 /**
- * EmployerSidebar -- the employer side's own collapsible left nav,
- * structurally the same shell as SeekerSidebar (the same .lp-sidebar*
- * classes, the same collapse-to-icons behavior, the same mobile drawer),
- * just carrying employer-appropriate content instead of the seeker's.
+ * EmployerSidebar -- the ONE employer nav, every state, structurally the
+ * same shell as SeekerSidebar (the same .lp-sidebar* classes, the same
+ * collapse-to-icons behavior, the same mobile drawer), just carrying
+ * employer-appropriate content instead of the seeker's.
  *
  * v3.249.0 -- reported directly, after being asked where the employer
  * experience felt confusing, and answered with a clarifying question first:
@@ -10,26 +10,32 @@
  * about the featuers they have everything listed once they sign in they
  * can go and see but we dont want to show everything once they sign the
  * other pages show in the sidebar but what shows for sekers diffrent for
- * employer." Read as: a persistent sidebar, same shape as the seeker's,
- * showing the marketing/explainer content before sign-in (and while a
- * signed-in account is still pending approval) -- but NOT the real
- * functional dashboard nav (Search/Proposals/Assessments/Company), which
- * stays exactly where it already lives, EmployerHub.tsx's own rh-rail,
- * shown only once an account is actually approved.
+ * employer." First pass only fixed the signed-out/pending half, leaving
+ * EmployerHub.tsx's own separate rh-rail (a completely different visual
+ * system -- dark, icon-only, resume-hub-theme) untouched for an approved
+ * account. Reported again immediately, against a screenshot of exactly
+ * that rail: "why i have another dashboard needs to be in the same as the
+ * one we built also add the questions... about AYN." One sidebar now
+ * covers every real state: signed out, pending approval, and the real
+ * approved dashboard, matching the seeker side's own v3.228.0 precedent
+ * ("Signing in no longer swaps a job seeker onto a completely separate
+ * dashboard").
  *
- * This component intentionally does NOT try to replace EmployerHub's own
- * rail -- that one is already real, already correct, and switching it to
- * this shell too would mean rebuilding a working, tested dashboard nav for
- * no reason. This is the piece that was missing: a sidebar for the state
- * BEFORE that rail exists (signed out, or signed in but not yet approved),
- * where the site used to fall back to the old fixed Header/Footer chrome
- * every other real page moved off years ago.
+ * v3.250.0 -- EmployerHub.tsx now passes `tab`/`onSelectTab`/`dashboardReady`
+ * once an account is approved: a real "Employer" nav group (Search,
+ * Proposals, Assessments, Company, Settings) renders above the marketing
+ * content instead of a second, separate rail. The "Learn about AYN" group
+ * (How it works, Features & pricing) stays present the whole time, exactly
+ * like SeekerSidebar's own always-there explanation tabs -- collapsed by
+ * default once there's a real dashboard to show, expanded by default
+ * before that, same open/closed default logic SeekerSidebar already uses.
  */
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Building2, Route, Tag, Mail, User as UserIcon,
-  LogIn, LogOut, Menu, X, ArrowLeftRight, Clock, Ban, ShieldAlert,
+  Building2, Route, Tag, Mail, User as UserIcon, Search, ClipboardCheck,
+  Settings as SettingsIcon, LogIn, LogOut, Menu, X, ArrowLeftRight,
+  Clock, Ban, ShieldAlert, ChevronDown,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -47,14 +53,31 @@ const STATUS_COPY: Record<EmpStatus, { label: string; icon: typeof Clock }> = {
   suspended: { label: 'On hold', icon: ShieldAlert },
 };
 
+export type EmployerDashTab = 'search' | 'proposals' | 'assessments' | 'company' | 'settings';
+
+const DASHBOARD_NAV: { key: EmployerDashTab; label: string; icon: typeof Search }[] = [
+  { key: 'search', label: 'Search', icon: Search },
+  { key: 'proposals', label: 'Proposals', icon: Mail },
+  { key: 'assessments', label: 'Assessments', icon: ClipboardCheck },
+  { key: 'company', label: 'Company', icon: Building2 },
+  { key: 'settings', label: 'Settings', icon: SettingsIcon },
+];
+
 type Props = {
   // Set by EmployerPending.tsx, which already polls employer_accounts for
   // this -- shown as a small status row above sign out instead of this
   // component re-querying the same table a second time.
   status?: EmpStatus | null;
+  // Set by EmployerHub.tsx once an account is real, approved, and past its
+  // own company-profile onboarding gate -- the same condition that used to
+  // decide whether the old, separate rh-rail rendered at all.
+  dashboardReady?: boolean;
+  tab?: EmployerDashTab;
+  onSelectTab?: (tab: EmployerDashTab) => void;
+  proposalsBadge?: number;
 };
 
-export const EmployerSidebar = ({ status }: Props) => {
+export const EmployerSidebar = ({ status, dashboardReady, tab, onSelectTab, proposalsBadge = 0 }: Props) => {
   const location = useLocation();
   const navigate = useNavigate();
   const onEmployers = location.pathname === '/employers';
@@ -64,6 +87,12 @@ export const EmployerSidebar = ({ status }: Props) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
+  // null = the visitor hasn't touched this toggle yet, so it follows the
+  // default (expanded until there's a real dashboard to show, collapsed
+  // once there is one); a real click always wins after that -- the exact
+  // same default logic SeekerSidebar's own "Learn about AYN" group uses.
+  const [learnManuallyOpen, setLearnManuallyOpen] = useState<boolean | null>(null);
+  const learnOpen = learnManuallyOpen ?? !dashboardReady;
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user ?? null));
@@ -116,34 +145,93 @@ export const EmployerSidebar = ({ status }: Props) => {
       </div>
 
       <nav className="lp-sidebar-nav" aria-label="AYN for employers">
+        {dashboardReady && onSelectTab ? (
+          <div className="lp-sidebar-group">
+            <span className="lp-sidebar-group-label">Employer</span>
+            {DASHBOARD_NAV.map((item) => {
+              const Icon = item.icon;
+              const active = tab === item.key;
+              const badge = item.key === 'proposals' ? proposalsBadge : 0;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`lp-sidebar-link ${active ? 'is-active' : ''}`}
+                  onClick={() => { onSelectTab(item.key); setMobileOpen(false); }}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <Icon size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                  <span className="lp-sidebar-link-label" style={{ flex: 1 }}>{item.label}</span>
+                  {badge > 0 && !collapsed && (
+                    <span
+                      aria-hidden
+                      style={{
+                        background: 'hsl(var(--lp-ember))', color: '#fff', fontSize: 10, fontWeight: 700,
+                        borderRadius: 999, minWidth: 16, height: 16, display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', padding: '0 4px', flexShrink: 0,
+                      }}
+                    >
+                      {badge > 9 ? '9+' : badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="lp-sidebar-group">
+            <button
+              type="button"
+              className={`lp-sidebar-link ${onEmployers && !location.hash ? 'is-active' : ''}`}
+              onClick={goOverview}
+              title={collapsed ? 'Overview' : undefined}
+            >
+              <Building2 size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+              <span className="lp-sidebar-link-label">Overview</span>
+            </button>
+          </div>
+        )}
+
         <div className="lp-sidebar-group">
-          <button
-            type="button"
-            className={`lp-sidebar-link ${onEmployers && !location.hash ? 'is-active' : ''}`}
-            onClick={goOverview}
-            title={collapsed ? 'Overview' : undefined}
-          >
-            <Building2 size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-            <span className="lp-sidebar-link-label">Overview</span>
-          </button>
-          <Link
-            to="/employers#employers-how"
-            className={`lp-sidebar-link ${anchorActive('#employers-how') ? 'is-active' : ''}`}
-            onClick={() => setMobileOpen(false)}
-            title={collapsed ? 'How it works' : undefined}
-          >
-            <Route size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-            <span className="lp-sidebar-link-label">How it works</span>
-          </Link>
-          <Link
-            to="/employers#employers-features"
-            className={`lp-sidebar-link ${anchorActive('#employers-features') ? 'is-active' : ''}`}
-            onClick={() => setMobileOpen(false)}
-            title={collapsed ? 'Features & pricing' : undefined}
-          >
-            <Tag size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-            <span className="lp-sidebar-link-label">Features & pricing</span>
-          </Link>
+          {collapsed ? (
+            <span className="lp-sidebar-group-label">Learn about AYN</span>
+          ) : (
+            <button
+              type="button"
+              className="lp-sidebar-group-toggle"
+              onClick={() => setLearnManuallyOpen(!learnOpen)}
+              aria-expanded={learnOpen}
+            >
+              <span className="lp-sidebar-group-label">Learn about AYN</span>
+              <ChevronDown size={13} strokeWidth={2.2} className={`lp-sidebar-group-chevron ${learnOpen ? 'is-open' : ''}`} />
+            </button>
+          )}
+          {(collapsed || learnOpen) && (
+            <>
+              <Link
+                to="/employers#employers-how"
+                className={`lp-sidebar-link ${anchorActive('#employers-how') ? 'is-active' : ''}`}
+                onClick={() => setMobileOpen(false)}
+                title={collapsed ? 'How it works' : undefined}
+              >
+                <Route size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                <span className="lp-sidebar-link-label">How it works</span>
+              </Link>
+              <Link
+                to="/employers#employers-features"
+                className={`lp-sidebar-link ${anchorActive('#employers-features') ? 'is-active' : ''}`}
+                onClick={() => setMobileOpen(false)}
+                title={collapsed ? 'Features & pricing' : undefined}
+              >
+                <Tag size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                <span className="lp-sidebar-link-label">Features & pricing</span>
+              </Link>
+            </>
+          )}
+        </div>
+
+        <div className="lp-sidebar-group">
+          <span className="lp-sidebar-group-label">Company</span>
           <Link
             to="/contact"
             className={`lp-sidebar-link ${location.pathname === '/contact' ? 'is-active' : ''}`}
@@ -153,10 +241,6 @@ export const EmployerSidebar = ({ status }: Props) => {
             <Mail size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
             <span className="lp-sidebar-link-label">Contact</span>
           </Link>
-        </div>
-
-        <div className="lp-sidebar-group">
-          <span className="lp-sidebar-group-label">Company</span>
           <Link
             to="/"
             className="lp-sidebar-link"
