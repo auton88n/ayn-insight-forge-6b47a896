@@ -38,6 +38,9 @@ export type Plan = {
   credits: number | null;
   proposals_limit: number | null;
   assessments_limit: number | null;
+  // v3.253.0 -- plans_list now selects this real column too (it always
+  // existed on employer plan rows, just wasn't in this response before).
+  searches_limit: number | null;
 };
 
 export type SeekerBilling = {

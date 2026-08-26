@@ -36,6 +36,7 @@ import AssessmentDialog from "@/components/employer/AssessmentDialog";
 import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
 import MessageThread from "@/components/shared/MessageThread";
 import SettingsPanel from "@/components/shared/SettingsPanel";
+import TicketForm from "@/components/support/TicketForm";
 import { AynLoader } from "@/components/shared/AynLoader";
 import { EmployerSidebar, type EmployerDashTab } from "@/components/landing/EmployerSidebar";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
@@ -45,7 +46,7 @@ import {
   employerApi, isOrgComplete, missingOrgFields,
   type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
-import { billingApi, type EmployerBilling } from "@/lib/billing";
+import { billingApi, priceLabel, type EmployerBilling, type Plan } from "@/lib/billing";
 // v3.181.0 — the actual root cause of "the gradient button rendered
 // transparent": this file applied the .resume-hub-theme class but never
 // loaded the stylesheet that defines --rh-* on it. ResumeHub.tsx pulls
@@ -89,9 +90,13 @@ const EMPLOYER_NAV: { key: EmployerTab; label: string; hint: string }[] = [
  * mirrors LandingSections.tsx's own array), kept here rather than imported
  * since it's a handful of static strings, not shared logic.
  */
-const LEARN_META: Record<"how-it-works" | "features", { label: string; hint: string }> = {
+const LEARN_META: Record<"how-it-works" | "features" | "contact", { label: string; hint: string }> = {
   "how-it-works": { label: "How it works", hint: "How AYN's AI helps you" },
   features: { label: "Features & pricing", hint: "Verification assessments, and what it costs" },
+  // v3.253.0 -- "employer should have their own contact us": same fix as
+  // how-it-works/features, a real tab instead of a redirect that landed
+  // nowhere for a signed-in employer.
+  contact: { label: "Contact", hint: "A real person reads it" },
 };
 
 const EMPLOYER_STEPS = [
@@ -142,6 +147,10 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   // v3.35.0 — resume-hub already computes this on every metered action;
   // it was just never rendered inside the hub itself, only on /billing.
   const [usage, setUsage] = useState<EmployerBilling | null>(null);
+  // v3.253.0 -- real employer plan rows for the Features & pricing tab's
+  // own pricing cards, replacing a hand-typed paragraph that could drift
+  // from whatever an admin actually sets in the Money > Edit plans pane.
+  const [plans, setPlans] = useState<Plan[] | null>(null);
 
   // v3.15.0 — left nav state, and the staged search flow.
   const [tab, setTab] = useState<EmployerTab>("search");
@@ -244,6 +253,25 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
   }, []);
+
+  // v3.253.0 -- real plan data for the Features & pricing tab, fetched once;
+  // billingApi.plans() returns both audiences, kept here and filtered so
+  // the frontend cost stays a single fetch instead of a per-tab-open call.
+  useEffect(() => {
+    billingApi.plans().then(setPlans).catch(() => setPlans([]));
+  }, []);
+
+  // v3.253.0 -- TicketForm's Input/Select/Textarea read the site's generic
+  // --primary/--ring vars for their focus rings, not --lp-*/--rh-* -- the
+  // same reason ContactTab.tsx applies this exact class for its own,
+  // separate mount of the same form. Scoped to only while this tab is open
+  // rather than the component's whole lifetime, since nothing else in this
+  // file needs it.
+  useEffect(() => {
+    if (tab !== "contact") return;
+    document.body.classList.add("contact-surface");
+    return () => document.body.classList.remove("contact-surface");
+  }, [tab]);
 
   const createOrg = async () => {
     if (!orgName.trim()) return;
@@ -461,7 +489,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 <h2 className="rh-display text-xl">
                   {tab === "search" && stage === "results"
                     ? (spec?.title || "Your role")
-                    : (tab === "how-it-works" || tab === "features")
+                    : (tab === "how-it-works" || tab === "features" || tab === "contact")
                       ? LEARN_META[tab].label
                       : EMPLOYER_NAV.find(n => n.key === tab)?.label}
                 </h2>
@@ -469,7 +497,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                   {tab === "search" && stage === "results"
                     ? [spec?.seniority, spec?.location_preference, EMPLOYMENT_LABEL[spec?.employment_type || ""]]
                         .filter(Boolean).join(" · ")
-                    : (tab === "how-it-works" || tab === "features")
+                    : (tab === "how-it-works" || tab === "features" || tab === "contact")
                       ? LEARN_META[tab].hint
                       : EMPLOYER_NAV.find(n => n.key === tab)?.hint}
                 </p>
@@ -633,11 +661,57 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                     ))}
                   </div>
                 </div>
-                <div className="pt-1 space-y-1" style={{ borderTop: "1px solid hsl(var(--lp-border-soft))" }}>
-                  <p className="lp-display pt-4" style={{ fontSize: 17 }}>Free for your first month.</p>
-                  <p className="text-sm" style={{ color: "hsl(var(--lp-muted))" }}>
-                    Then from $199 a month. Starter gives you 100 searches and 10 proposals, Growth 400 and 40, Scale 1200 and 120. The free month gives you 25 and 5.
+                <div className="pt-4 space-y-4" style={{ borderTop: "1px solid hsl(var(--lp-border-soft))" }}>
+                  <h3 className="lp-display" style={{ fontSize: 15 }}>Plans</h3>
+                  {plans === null ? (
+                    <div className="flex items-center gap-2 text-sm" style={{ color: "hsl(var(--lp-muted))" }}>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading plans…
+                    </div>
+                  ) : (
+                    <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+                      {plans.filter(p => p.audience === "employer").map(p => {
+                        const current = usage?.plan?.key === p.key;
+                        const featured = p.key === "employer_starter";
+                        return (
+                          <div
+                            key={p.key}
+                            className="rounded-xl p-4 space-y-1"
+                            style={{
+                              border: featured ? "1px solid hsl(var(--lp-ember))" : "1px solid hsl(var(--lp-border-soft))",
+                              background: featured ? "hsl(var(--lp-ember) / 0.05)" : "transparent",
+                            }}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="font-semibold text-sm">{p.name}</p>
+                              {current && (
+                                <span className="text-[10px] font-semibold rounded-full px-2 py-0.5" style={{ background: "hsl(var(--lp-ember) / 0.12)", color: "hsl(var(--lp-ember-soft))" }}>
+                                  Your plan
+                                </span>
+                              )}
+                            </div>
+                            <p className="lp-display" style={{ fontSize: 24, margin: "6px 0 0" }}>{priceLabel(p.price_cents, p.interval)}</p>
+                            <p className="text-xs pt-2" style={{ color: "hsl(var(--lp-muted))" }}>
+                              {p.searches_limit ?? "Unlimited"} searches · {p.proposals_limit ?? "Unlimited"} proposals · {p.assessments_limit ?? "Unlimited"} assessments
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className="text-xs" style={{ color: "hsl(var(--lp-dim))" }}>
+                    Every company is approved by hand before it can search. Talk to us to move plans.
                   </p>
+                </div>
+              </div>
+            )}
+
+            {tab === "contact" && (
+              <div className="space-y-4">
+                <p className="text-sm" style={{ color: "hsl(var(--lp-muted))" }}>
+                  Questions about your account, a plan, or something that isn't working. A real person reads it.
+                </p>
+                <div className="lp-panel" style={{ maxWidth: 640 }}>
+                  <TicketForm onSuccess={() => undefined} />
                 </div>
               </div>
             )}

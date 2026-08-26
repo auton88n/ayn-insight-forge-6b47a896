@@ -1308,8 +1308,13 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
     };
 
     if (action === "plans_list") {
+      // v3.253.0 -- searches_limit was missing from this SELECT even though
+      // it's a real column on every employer plan row (employer_billing_get
+      // already reads it, just never this generic list action) -- the
+      // employer dashboard's own Features & pricing tab needs real per-plan
+      // search limits, not a hardcoded guess.
       const { data } = await adminForNew.from("plans")
-        .select("key, audience, name, price_cents, interval, credits, proposals_limit, assessments_limit, sort")
+        .select("key, audience, name, price_cents, interval, credits, proposals_limit, assessments_limit, searches_limit, sort")
         .eq("active", true).order("sort");
       return json({ plans: data || [] });
     }

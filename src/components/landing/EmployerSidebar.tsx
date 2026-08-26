@@ -70,7 +70,7 @@ const STATUS_COPY: Record<EmpStatus, { label: string; icon: typeof Clock }> = {
 
 export type EmployerDashTab =
   | 'search' | 'proposals' | 'assessments' | 'company' | 'settings'
-  | 'how-it-works' | 'features';
+  | 'how-it-works' | 'features' | 'contact';
 
 const DASHBOARD_NAV: { key: EmployerDashTab; label: string; icon: typeof Search }[] = [
   { key: 'search', label: 'Search', icon: Search },
@@ -272,15 +272,36 @@ export const EmployerSidebar = ({ status, dashboardReady, tab, onSelectTab, prop
 
         <div className="lp-sidebar-group">
           <span className="lp-sidebar-group-label">Company</span>
-          <Link
-            to="/contact"
-            className={`lp-sidebar-link ${location.pathname === '/contact' ? 'is-active' : ''}`}
-            onClick={() => setMobileOpen(false)}
-            title={collapsed ? 'Contact' : undefined}
-          >
-            <Mail size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-            <span className="lp-sidebar-link-label">Contact</span>
-          </Link>
+          {/* v3.253.0 -- "employer should have their own contact us": the
+              same dead-link bug as How it works/Features & pricing, just
+              via a different path. /contact is HomeTabRedirect, which
+              stashes the tab and navigates to "/" -- for a signed-in
+              employer that lands back on EmployerHub (Index.tsx's own
+              AuthedShell), which never reads that handoff key, so the
+              form never appeared. Dashboard mode now mounts a real,
+              dedicated TicketForm instance directly in this tab, not a
+              second trip through a redirect built for the seeker side. */}
+          {dashboardReady && onSelectTab ? (
+            <button
+              type="button"
+              className={`lp-sidebar-link ${tab === 'contact' ? 'is-active' : ''}`}
+              onClick={() => { onSelectTab('contact'); setMobileOpen(false); }}
+              title={collapsed ? 'Contact' : undefined}
+            >
+              <Mail size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+              <span className="lp-sidebar-link-label">Contact</span>
+            </button>
+          ) : (
+            <Link
+              to="/contact"
+              className={`lp-sidebar-link ${location.pathname === '/contact' ? 'is-active' : ''}`}
+              onClick={() => setMobileOpen(false)}
+              title={collapsed ? 'Contact' : undefined}
+            >
+              <Mail size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+              <span className="lp-sidebar-link-label">Contact</span>
+            </Link>
+          )}
           <Link
             to="/"
             className="lp-sidebar-link"
