@@ -97,22 +97,33 @@ export const JobsBrowser = ({
   const [logoFailed, setLogoFailed] = useState<Set<string>>(new Set());
 
   // v3.245.0 -- reported directly: "the logos feel very bad quality."
-  // Traced live, not assumed: `company_logo_url` is freehire's own stored
-  // value, not something this app builds -- for a real example
-  // ("Ilderton Conversion") it was already Google's favicon service asked
-  // for a real 128px icon (`.../s2/favicons?domain=ildertonvans.com&sz=
-  // 128`), and Google's own *newer* favicon API, asked the same way for
-  // the same domain, still only had a genuine 16x16 icon to give back --
-  // confirmed by fetching it directly and checking the real PNG's own
-  // pixel dimensions, not guessed at. No favicon service, old or new, can
-  // produce detail a smaller company's own site never published. Rather
-  // than keep stretching a real 16px icon across a 56px box (exactly what
-  // reads as "bad quality"), a loaded image now checks its own real,
-  // decoded size and is treated exactly like a failed load if it's below
-  // a reasonable floor -- falling back to the same clean colored-initial
-  // avatar this app already uses for a load that fails outright, so
-  // nothing genuinely blurry is ever shown, on either code path.
-  const MIN_LOGO_PX = 48;
+  // `company_logo_url` is freehire's own stored value (Google's favicon
+  // service), not something this app builds. v3.247.0 -- reported again,
+  // right after that fix shipped: "you removed all logos?" The 48px floor
+  // was picked from one bad data point -- checking Google's *newer*
+  // favicon API for "Ilderton Conversion" returned a genuine 16x16, wrongly
+  // taken as proof the real, actually-stored s2/favicons URL was capped
+  // the same way. It wasn't. Re-tested the real URL directly with curl
+  // (a real browser UA, no CORS) since this session's own Browser pane
+  // could not be used for this check at all -- a plain `fetch()` to
+  // google.com from inside it fails outright with "Failed to fetch" in
+  // both cors and no-cors mode, the identical "blocked by policy" shape
+  // already seen this session when navigating straight to an external
+  // URL, meaning this tool's own sandbox has no route to an arbitrary
+  // external host, images included -- not a signal about what a real
+  // visitor's own unrestricted browser experiences. curl, run from a
+  // normal, unsandboxed network path, is the representative check here:
+  // across 25 real companies from this exact catalog, most came back a
+  // genuinely sharp 128x128, a real and common middle tier sits at 32x32
+  // (Washington state agencies, several others -- normal, not blurry),
+  // and only the smallest, least web-savvy employers (a community
+  // college, a small regional auto dealer) came back a true 16x16. 48px
+  // was rejecting the entire legitimate 32px tier along with the real
+  // 16px offenders -- explaining "all logos gone" precisely. The floor
+  // now sits at 24px: below a real 32x32 icon, above a real 16x16 one,
+  // so only the genuinely tiny case (confirmed via curl to exist, not
+  // eliminated outright) still falls back to the colored-initial avatar.
+  const MIN_LOGO_PX = 24;
   const handleLogoLoad = (key: string) => (e: SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     if (img.naturalWidth > 0 && img.naturalWidth < MIN_LOGO_PX) {
