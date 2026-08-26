@@ -44,13 +44,35 @@
  * genuinely does render that content, they stay plain links exactly as
  * before -- no need to duplicate content into a dashboard tab nobody in
  * that state can even reach yet.
+ *
+ * v3.254.0 -- reported directly against three screenshots of the dashboard
+ * (the sign out row, the "Looking for a job instead?" door, and the
+ * seeker sidebar's own Company group for comparison): "i dont want to
+ * look like this and remove this the only way the employer needs leave
+ * the account is to signout also add the other pages so they have
+ * exactly what seeker have but diffrent portal." Two changes, both
+ * dashboard-mode only: the seeker door is gone once signed in (sign out
+ * is the one way out of the account; the door itself is untouched
+ * signed-out/pending, where it's still a legitimate, reciprocal audience
+ * switch, not an "exit"), and Company gained About, Help and Legal,
+ * matching SeekerSidebar's own group one for one. About and Legal reuse
+ * real, already-correct content (AboutTab is audience-neutral prose,
+ * /legal is a plain unguarded route with no redirect to dodge); Help is a
+ * new, employer-scoped FAQ in EmployerHub.tsx, not the seeker HelpTab's
+ * own credits/discoverability questions, which don't apply here. About
+ * and Help are dashboard-only for the same reason How it works/Features
+ * are: their signed-out routes (/about, /help) are HomeTabRedirect, which
+ * always lands on "/" in job_seeker mode, the wrong portal entirely for
+ * a signed-out visitor arriving from /employers -- adding them there
+ * would be a fresh bug, not a fix, so they're deliberately left out of
+ * that state rather than guessed at.
  */
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Building2, Route, Tag, Mail, User as UserIcon, Search, ClipboardCheck,
   Settings as SettingsIcon, LogIn, LogOut, Menu, X, ArrowLeftRight,
-  Clock, Ban, ShieldAlert, ChevronDown,
+  Clock, Ban, ShieldAlert, ChevronDown, Info, LifeBuoy, Gavel,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -70,7 +92,7 @@ const STATUS_COPY: Record<EmpStatus, { label: string; icon: typeof Clock }> = {
 
 export type EmployerDashTab =
   | 'search' | 'proposals' | 'assessments' | 'company' | 'settings'
-  | 'how-it-works' | 'features' | 'contact';
+  | 'how-it-works' | 'features' | 'contact' | 'about' | 'help';
 
 const DASHBOARD_NAV: { key: EmployerDashTab; label: string; icon: typeof Search }[] = [
   { key: 'search', label: 'Search', icon: Search },
@@ -282,35 +304,86 @@ export const EmployerSidebar = ({ status, dashboardReady, tab, onSelectTab, prop
               dedicated TicketForm instance directly in this tab, not a
               second trip through a redirect built for the seeker side. */}
           {dashboardReady && onSelectTab ? (
-            <button
-              type="button"
-              className={`lp-sidebar-link ${tab === 'contact' ? 'is-active' : ''}`}
-              onClick={() => { onSelectTab('contact'); setMobileOpen(false); }}
-              title={collapsed ? 'Contact' : undefined}
-            >
-              <Mail size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-              <span className="lp-sidebar-link-label">Contact</span>
-            </button>
+            <>
+              <button
+                type="button"
+                className={`lp-sidebar-link ${tab === 'about' ? 'is-active' : ''}`}
+                onClick={() => { onSelectTab('about'); setMobileOpen(false); }}
+                title={collapsed ? 'About' : undefined}
+              >
+                <Info size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                <span className="lp-sidebar-link-label">About</span>
+              </button>
+              <button
+                type="button"
+                className={`lp-sidebar-link ${tab === 'help' ? 'is-active' : ''}`}
+                onClick={() => { onSelectTab('help'); setMobileOpen(false); }}
+                title={collapsed ? 'Help' : undefined}
+              >
+                <LifeBuoy size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                <span className="lp-sidebar-link-label">Help</span>
+              </button>
+              <button
+                type="button"
+                className={`lp-sidebar-link ${tab === 'contact' ? 'is-active' : ''}`}
+                onClick={() => { onSelectTab('contact'); setMobileOpen(false); }}
+                title={collapsed ? 'Contact' : undefined}
+              >
+                <Mail size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                <span className="lp-sidebar-link-label">Contact</span>
+              </button>
+              {/* v3.254.0 -- /legal has no redirect to dodge (a plain,
+                  unguarded route, unlike /about, /help and /contact), so
+                  this is a real link in every state, not a tab. */}
+              <Link
+                to="/legal"
+                className={`lp-sidebar-link ${location.pathname === '/legal' ? 'is-active' : ''}`}
+                onClick={() => setMobileOpen(false)}
+                title={collapsed ? 'Legal' : undefined}
+              >
+                <Gavel size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                <span className="lp-sidebar-link-label">Legal</span>
+              </Link>
+            </>
           ) : (
-            <Link
-              to="/contact"
-              className={`lp-sidebar-link ${location.pathname === '/contact' ? 'is-active' : ''}`}
-              onClick={() => setMobileOpen(false)}
-              title={collapsed ? 'Contact' : undefined}
-            >
-              <Mail size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-              <span className="lp-sidebar-link-label">Contact</span>
-            </Link>
+            <>
+              <Link
+                to="/contact"
+                className={`lp-sidebar-link ${location.pathname === '/contact' ? 'is-active' : ''}`}
+                onClick={() => setMobileOpen(false)}
+                title={collapsed ? 'Contact' : undefined}
+              >
+                <Mail size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                <span className="lp-sidebar-link-label">Contact</span>
+              </Link>
+              <Link
+                to="/legal"
+                className={`lp-sidebar-link ${location.pathname === '/legal' ? 'is-active' : ''}`}
+                onClick={() => setMobileOpen(false)}
+                title={collapsed ? 'Legal' : undefined}
+              >
+                <Gavel size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                <span className="lp-sidebar-link-label">Legal</span>
+              </Link>
+              {/* v3.254.0 -- reported directly: "the only way the employer
+                  needs leave the account is to signout." This reciprocal
+                  audience door stays for a genuinely signed-out or pending
+                  visitor (the same real, legitimate switch SeekerSidebar's
+                  own "For employers" link offers in the other direction),
+                  just gone once there's a real account and dashboard to
+                  leave -- sign out, in the account area below, is the one
+                  way out from there. */}
+              <Link
+                to="/"
+                className="lp-sidebar-link"
+                onClick={() => setMobileOpen(false)}
+                title={collapsed ? 'Looking for a job instead?' : undefined}
+              >
+                <ArrowLeftRight size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+                <span className="lp-sidebar-link-label">Looking for a job instead?</span>
+              </Link>
+            </>
           )}
-          <Link
-            to="/"
-            className="lp-sidebar-link"
-            onClick={() => setMobileOpen(false)}
-            title={collapsed ? 'Looking for a job instead?' : undefined}
-          >
-            <ArrowLeftRight size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-            <span className="lp-sidebar-link-label">Looking for a job instead?</span>
-          </Link>
         </div>
       </nav>
 

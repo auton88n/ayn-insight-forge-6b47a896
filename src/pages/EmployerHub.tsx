@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Send, Building2, MapPin, CheckCircle2, AlertCircle,
   Mail, ClipboardCheck, ArrowLeft, ArrowRight, Zap, Search as SearchStepIcon, MailCheck, ShieldCheck,
+  ChevronDown,
 } from "lucide-react";
 
 import IntakeWizard from "@/components/employer/IntakeWizard";
@@ -37,6 +38,7 @@ import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
 import MessageThread from "@/components/shared/MessageThread";
 import SettingsPanel from "@/components/shared/SettingsPanel";
 import TicketForm from "@/components/support/TicketForm";
+import { AboutTab } from "@/components/landing/HomeTabs";
 import { AynLoader } from "@/components/shared/AynLoader";
 import { EmployerSidebar, type EmployerDashTab } from "@/components/landing/EmployerSidebar";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
@@ -90,14 +92,31 @@ const EMPLOYER_NAV: { key: EmployerTab; label: string; hint: string }[] = [
  * mirrors LandingSections.tsx's own array), kept here rather than imported
  * since it's a handful of static strings, not shared logic.
  */
-const LEARN_META: Record<"how-it-works" | "features" | "contact", { label: string; hint: string }> = {
+const LEARN_META: Record<"how-it-works" | "features" | "contact" | "about" | "help", { label: string; hint: string }> = {
   "how-it-works": { label: "How it works", hint: "How AYN's AI helps you" },
   features: { label: "Features & pricing", hint: "Verification assessments, and what it costs" },
   // v3.253.0 -- "employer should have their own contact us": same fix as
   // how-it-works/features, a real tab instead of a redirect that landed
   // nowhere for a signed-in employer.
   contact: { label: "Contact", hint: "A real person reads it" },
+  // v3.254.0 -- "add the other pages so they have exactly what seeker
+  // have": About and Help join Company, matching SeekerSidebar's own
+  // group. About reuses HomeTabs.tsx's real AboutTab directly (it's
+  // already audience-neutral prose); Help is its own, employer-scoped FAQ
+  // below, not the seeker HelpTab's credits/discoverability questions.
+  about: { label: "About", hint: "Who AYN is and why it exists" },
+  help: { label: "Help", hint: "Good to know" },
 };
+
+const EMPLOYER_FAQ: { q: string; a: string }[] = [
+  { q: "How does AYN find candidates?", a: "From people who built a profile and switched discovery on. Nobody is scraped, and nobody sees your role unless they already chose to be found." },
+  { q: "What happens after I send a proposal?", a: "The candidate sees your real company profile and can accept or decline. Their name, email and phone stay hidden until they accept." },
+  { q: "What is a verification assessment?", a: "A short set of questions built from that candidate's own background and your role. You see the score and the observations; they see growth notes only, never the score." },
+  { q: "How is pricing structured?", a: "Free for your first month, then a flat monthly rate by plan. See Features & pricing for the real, current numbers." },
+  { q: "Can I change or cancel my plan?", a: "Yes, from Settings. Both take effect at the end of the period already paid for." },
+  { q: "Why does my company need approval first?", a: "Every employer account is reviewed by hand before it can search. It's a one time step, not a recurring check." },
+  { q: "Do you sell or share candidate data?", a: "No. A candidate's identity stays anonymous until they accept your proposal, and nothing here is ever sold." },
+];
 
 const EMPLOYER_STEPS = [
   { icon: Building2, title: "Describe the role once", desc: "Title, seniority, must have skills, location." },
@@ -483,22 +502,25 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               {/* v3.192.0 — Settings carries its own heading (SettingsPanel
                   is shared with the seeker side's Home tab, which never had
                   this generic row to begin with), so it's skipped here
-                  rather than shown twice. */}
-              {tab !== "settings" && (
+                  rather than shown twice.
+                  v3.254.0 -- About is the same case: HomeTabs.tsx's own
+                  AboutTab already renders a complete eyebrow-plus-heading
+                  of its own, reused as-is rather than duplicated here. */}
+              {tab !== "settings" && tab !== "about" && (
               <div className="mb-4">
                 <h2 className="rh-display text-xl">
                   {tab === "search" && stage === "results"
                     ? (spec?.title || "Your role")
-                    : (tab === "how-it-works" || tab === "features" || tab === "contact")
-                      ? LEARN_META[tab].label
+                    : (tab in LEARN_META)
+                      ? LEARN_META[tab as keyof typeof LEARN_META].label
                       : EMPLOYER_NAV.find(n => n.key === tab)?.label}
                 </h2>
                 <p className="text-sm mt-0.5" style={{ color: "var(--rh-muted)" }}>
                   {tab === "search" && stage === "results"
                     ? [spec?.seniority, spec?.location_preference, EMPLOYMENT_LABEL[spec?.employment_type || ""]]
                         .filter(Boolean).join(" · ")
-                    : (tab === "how-it-works" || tab === "features" || tab === "contact")
-                      ? LEARN_META[tab].hint
+                    : (tab in LEARN_META)
+                      ? LEARN_META[tab as keyof typeof LEARN_META].hint
                       : EMPLOYER_NAV.find(n => n.key === tab)?.hint}
                 </p>
               </div>
@@ -702,6 +724,28 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                     Every company is approved by hand before it can search. Talk to us to move plans.
                   </p>
                 </div>
+              </div>
+            )}
+
+            {tab === "about" && <AboutTab />}
+
+            {tab === "help" && (
+              <div className="lp-panel" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {EMPLOYER_FAQ.map((f) => (
+                  <details key={f.q} className="group rounded-xl" style={{ border: "1px solid hsl(var(--lp-border-soft))", padding: "14px 18px" }}>
+                    <summary className="flex items-center justify-between gap-4 cursor-pointer list-none font-semibold marker:content-none text-sm">
+                      {f.q}
+                      <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" style={{ color: "hsl(var(--lp-dim))" }} aria-hidden="true" />
+                    </summary>
+                    <p className="mt-2.5 text-sm leading-relaxed" style={{ color: "hsl(var(--lp-muted))" }}>{f.a}</p>
+                  </details>
+                ))}
+                <p className="text-xs pt-2" style={{ color: "hsl(var(--lp-dim))" }}>
+                  Nothing above cover it?{" "}
+                  <button type="button" className="lp-quiet-link" style={{ background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer" }} onClick={() => setTab("contact")}>
+                    Contact us
+                  </button>.
+                </p>
               </div>
             )}
 
