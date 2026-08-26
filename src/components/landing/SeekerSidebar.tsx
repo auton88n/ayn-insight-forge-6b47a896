@@ -34,7 +34,7 @@ import {
   Search, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
   CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, LogIn,
   LogOut, User, Menu, X, Briefcase, Inbox, ClipboardCheck, Settings as SettingsIcon, Target, Gavel,
-  ChevronDown,
+  ChevronDown, Building2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -276,10 +276,31 @@ export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
               </button>
             );
           })}
-          {/* v3.230.0 -- Legal, added directly: a real route (the Legal hub
-              plus its own document pages), not a tab-switch, so it's a
-              <Link> matching TOOL_LINKS' own pattern above, not another
-              ACCOUNT/TAB_META button. */}
+          {/* v3.248.0 -- reported directly: "we need to add the employer
+              portal." It already existed, fully built (EmployerHub.tsx,
+              the whole intake/search/proposal/assessment flow) -- a
+              repo-wide grep for any link to /employers turned up zero
+              results anywhere in src/, confirmed live too: a brand new
+              signed-out visitor lands on the seeker's own Browse Jobs
+              view with no hero, no toggle, and no door at all to the
+              other audience, since v3.213.0/v3.218.0 removed the hero
+              (and its own toggle/door) from the seeker route entirely and
+              nothing replaced it once the sidebar became the primary
+              nav. A real route with zero way to reach it from anywhere
+              in the live app. Added here, in Company, deliberately at the
+              same quiet weight as every other link in this group -- the
+              site still commits to the seeker identity as its default
+              (v3.210.0's own standing design), this is a real door, not
+              equal billing with it. */}
+          <Link
+            to="/employers"
+            className={`lp-sidebar-link ${location.pathname === '/employers' ? 'is-active' : ''}`}
+            onClick={() => setMobileOpen(false)}
+            title={collapsed ? 'For employers' : undefined}
+          >
+            <Building2 size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
+            <span className="lp-sidebar-link-label">For employers</span>
+          </Link>
           <Link
             to="/legal"
             className={`lp-sidebar-link ${location.pathname === '/legal' ? 'is-active' : ''}`}
