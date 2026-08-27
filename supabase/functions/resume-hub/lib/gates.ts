@@ -97,6 +97,7 @@ export const ACTION_CAPABILITY: Record<string, AccountCapability> = {
   tailor: "ai",
   cover_letter: "ai",
   score: "ai",
+  application_answer_match: "ai",
 };
 
 export const RESTRICTION_MESSAGE: Record<AccountCapability, string> = {

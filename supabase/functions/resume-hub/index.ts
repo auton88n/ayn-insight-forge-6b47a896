@@ -51,6 +51,11 @@ import { RESUME_SCHEMA, ATS_RUBRIC, scoreResumeContent, groupSkills } from "./li
 import {
   type CanonicalProfile, loadCanonical, canonicalDigest, CANONICAL_SCHEMA, extractCanonical,
 } from "./lib/canonicalProfile.ts";
+// v3.265.0 — the auto-apply answer bank matcher. See its own header
+// comment: every resolver reads a real, user-typed fact and formats it,
+// never asks a model to infer an answer to a factual/legal/preference
+// question.
+import { matchApplicationAnswers } from "./lib/applicationAnswers.ts";
 // v3.131.0 — stage 6: job URL/JD normalization, AI job-metadata parsing,
 // and the keyword-overlap fallback scorer. See lib/jobParsing.ts's own
 // header comment.
@@ -1097,6 +1102,31 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         if (retryViolations.length < adviceViolations.length) { r = retry; adviceViolations = retryViolations; }
       }
       return json({ verdict, coverage: Math.round(coverage * 100), advice: r.text });
+    }
+
+    // ---------------- application_answer_match (free) ----------------
+    // v3.265.0 — auto-apply's answer bank. Takes the real question labels
+    // read off a job application form and matches each against a known
+    // question type (work authorization, desired salary, licenses,
+    // non-compete, etc.), returning the user's own already-stored answer
+    // verbatim. A question with no real ground truth on file comes back
+    // with answer: null — the caller must surface it for the user to type
+    // themselves, never fabricate one. See lib/applicationAnswers.ts.
+    if (action === "application_answer_match") {
+      const adminAns = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminAns, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminAns, user.id, action); if (blocked) return blocked; }
+      { const limited = await rateLimitGate(adminAns, user.id, action, 30, 15); if (limited) return limited; }
+      const { questions } = payload as { questions?: Array<{ id: string; label: string }> };
+      if (!Array.isArray(questions) || !questions.length) return json({ error: "questions required" }, 400);
+      if (questions.length > 60) return json({ error: "too many questions in one call" }, 400);
+
+      const canonical = (await loadCanonical(adminAns, user.id)) || {
+        skills: [], experiences: [], education: [], certifications: [],
+        work_auth: {}, preferences: {}, derived: {}, screening_answers: {},
+      };
+      const results = await matchApplicationAnswers(questions, canonical);
+      return json({ results });
     }
 
     // ---------------- job_board_score (free) ----------------

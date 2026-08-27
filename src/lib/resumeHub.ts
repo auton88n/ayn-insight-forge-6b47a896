@@ -70,6 +70,29 @@ export async function resumeCheckPublic(resumeText: string, jdText: string): Pro
   return data as ResumeCheckPublicResult;
 }
 
+// v3.265.0 — the auto-apply answer bank matcher. Takes the real question
+// labels read off a job application form and gets back, per question,
+// either the user's own already-stored real answer or null (meaning no
+// real ground truth exists and the person has to type it themselves —
+// never a guessed one). See supabase/functions/resume-hub/lib/applicationAnswers.ts.
+export interface ApplicationAnswerResult {
+  fieldId: string;
+  label: string;
+  matchedType: string | null;
+  answer: string | null;
+  confidence: number;
+}
+
+export async function applicationAnswerMatch(
+  questions: Array<{ id: string; label: string }>,
+): Promise<ApplicationAnswerResult[]> {
+  const r = await call<{ results: ApplicationAnswerResult[] }>("resume-hub", {
+    action: "application_answer_match",
+    questions,
+  });
+  return r.results;
+}
+
 export interface GuidedIntakeExtraction {
   experiences: Array<{ company: string; title: string; location?: string; start?: string; end?: string; current?: boolean; bullets: string[] }>;
   education: Array<{ school: string; degree?: string; field?: string; start?: string; end?: string }>;

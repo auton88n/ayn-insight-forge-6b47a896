@@ -75,12 +75,26 @@ type Derived = {
   current_title?: string; current_company?: string;
   known_for?: string[];
 };
+// v3.265.0 — the auto-apply answer bank. Free-text, user-typed only, never
+// AI-generated: application_answer_match (backend) copies these verbatim
+// into a matching question on a real job application form. Keys are the
+// same slugs that matcher's KNOWN_QUESTIONS registry resolves against.
+type ScreeningAnswers = Record<string, string>;
+const SCREENING_QUESTIONS: Array<{ key: string; label: string; placeholder: string }> = [
+  { key: "non_compete", label: "Are you subject to a non-compete or restrictive covenant?", placeholder: "e.g. No" },
+  { key: "outside_employment", label: "Would you continue other work or self-employment if hired?", placeholder: "e.g. No, or describe it honestly if yes" },
+  { key: "related_to_employees", label: "Are you related to any employees at companies you apply to?", placeholder: "e.g. No" },
+  { key: "referral_source", label: "How did you usually hear about roles like this?", placeholder: "e.g. Online job search" },
+  { key: "referral_name", label: "Default referral name, if you have none to give", placeholder: "e.g. N/A" },
+  { key: "eighteen_or_older", label: "Are you at least 18 years old?", placeholder: "e.g. Yes" },
+];
+
 type Career = {
   skills: Skill[]; experiences: Exp[]; education: Edu[]; certifications: Cert[];
-  work_auth: WorkAuth; preferences: Prefs; derived: Derived;
+  work_auth: WorkAuth; preferences: Prefs; derived: Derived; screening_answers: ScreeningAnswers;
 };
 
-const EMPTY: Career = { skills: [], experiences: [], education: [], certifications: [], work_auth: {}, preferences: {}, derived: {} };
+const EMPTY: Career = { skills: [], experiences: [], education: [], certifications: [], work_auth: {}, preferences: {}, derived: {}, screening_answers: {} };
 
 // v3.185.0 — reported directly from a screenshot: trimmed from 6 to the 2
 // that are real choices. job-board-sync has been deliberately scoped to
@@ -247,7 +261,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
     try {
       const [{ data: canon }, { data: prof }, , { data: auth }] = await Promise.all([
         supabase.from("user_profile_canonical")
-          .select("skills, experiences, education, certifications, work_auth, preferences, derived")
+          .select("skills, experiences, education, certifications, work_auth, preferences, derived, screening_answers")
           .eq("user_id", userId).maybeSingle(),
         supabase.from("user_profile_data")
           .select("legal_first_name, legal_last_name, email, phone, address, links")
@@ -383,6 +397,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           work_auth: c.work_auth ?? {},
           preferences: c.preferences ?? {},
           derived: c.derived ?? {},
+          screening_answers: c.screening_answers ?? {},
           updated_at: new Date().toISOString(),
         } as unknown as never, { onConflict: "user_id" }),
         supabase.from("user_profile_data").upsert({
@@ -624,6 +639,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   const setDerived = (k: keyof Derived, v: unknown) => setCareer(p => ({ ...p, derived: { ...p.derived, [k]: v } }));
   const setWA = (k: keyof WorkAuth, v: unknown) => setCareer(p => ({ ...p, work_auth: { ...p.work_auth, [k]: v } }));
   const setPref = (k: keyof Prefs, v: unknown) => setCareer(p => ({ ...p, preferences: { ...p.preferences, [k]: v } }));
+  const setScreening = (k: string, v: string) => setCareer(p => ({ ...p, screening_answers: { ...p.screening_answers, [k]: v } }));
 
   const countries = career.work_auth.countries ?? [
     ...(career.work_auth.work_authorized_ca ? ["Canada"] : []),
@@ -1392,6 +1408,28 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           <Toggle label="I need sponsorship now" value={!!career.work_auth.needs_sponsorship_now} onChange={v => { setWA("needs_sponsorship_now", v); queueSave(); }} />
           <Toggle label="I will need sponsorship later" value={!!career.work_auth.needs_sponsorship_future} onChange={v => { setWA("needs_sponsorship_future", v); queueSave(); }} />
         </div>
+      </Group>
+
+      {/* v3.265.0 — the auto-apply answer bank. Real applications ask
+          questions no resume field can answer (non-compete, licenses,
+          referral defaults) — this is where you answer them once, in your
+          own words. Autofill copies these verbatim, never guesses one. */}
+      <Group id="application-answers" title="Application answers" line="Answer these once. Autofill copies your exact words on real job applications, it never guesses.">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {SCREENING_QUESTIONS.map(q => (
+            <PlainField
+              key={q.key}
+              label={q.label}
+              value={career.screening_answers[q.key] || ""}
+              onChange={v => setScreening(q.key, v)}
+              onBlur={queueSave}
+              placeholder={q.placeholder}
+            />
+          ))}
+        </div>
+        <p className="text-[11px]" style={{ color: "var(--rh-faint)" }}>
+          Desired salary and work authorization already come from the sections above, no need to repeat them here. Anything an ATS asks that isn't covered anywhere on this page is left blank for you to answer directly on that application, never filled in for you.
+        </p>
       </Group>
 
       <p className="text-xs text-muted-foreground">
