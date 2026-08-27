@@ -21,6 +21,7 @@ import {
   sha256 as sha256b, buildSections, computeGap, renderGapBlock, droppedFigures,
   cacheGet, cacheSet, logAiCall, fetchCompanyContext,
   verifyWriteQuality, verifyProseQuality, violationsToRetryNote, resumeContentUnchanged, inventedFigures, stripInstructionLikeSpans,
+  verifyKeywordAlignment, flattenResumeSkillsAndProse,
   applySemanticRecheck, cosineSimilarity, computeQuickScore,
   type GapAnalysis, type SectionBundle,
 } from "../_shared/tailoring.ts";
@@ -870,13 +871,14 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`,
       const droppedNote = bundle.dropped.length
         ? `\n\nNOTE: these sections were omitted to fit the budget and must not be referenced: ${bundle.dropped.join(", ")}.`
         : "";
-      const system = `You are an expert Canadian resume writer. Tailor the candidate's resume to the job description using their full profile below, WITHOUT inventing anything.
+      const system = `You are an expert Canadian resume writer. Tailor the candidate's resume so it actually passes this specific employer's ATS keyword scan for this specific job, using their full profile below, WITHOUT inventing anything. A resume that only rewords existing sentences without ever aligning to the job's own terminology for skills the candidate genuinely already has will fail a real ATS scan — that is the exact, specific failure this tailoring exists to prevent.
 
 RULES — YOU MUST FOLLOW EVERY ONE:
 1. NEVER invent, add, or imply experience, skills, tools, certifications, or achievements not already present in APPLICANT SECTIONS.
 2. ONLY reword existing bullets to naturally include job keywords where the underlying experience already supports it.
 3. Keep every fact, number, percentage, company name, date, and result exactly as-is.
 4. You may reorder skills to put the most relevant first, among skills the candidate actually has.
+4b. THIS IS THE MOST IMPORTANT RULE FOR PASSING A REAL ATS SCAN. For every item in the GAP ANALYSIS marked ALREADY EVIDENCED below that names a specific skill, tool, technology, certification, or short phrase (not a full sentence), the resume's skills array must literally contain that exact wording as its own entry if it is not already phrased that way. Example: the candidate's own skills say "Postgres" and the job asks for "PostgreSQL" — ALREADY EVIDENCED confirms this is the same real thing the candidate already has, so the output skills array must include "PostgreSQL", not just "Postgres". This is never inventing a new skill — it is the same real, already-verified skill, spelled the way this specific employer's applicant-tracking system is scanning for it. Do this ONLY for items on the ALREADY EVIDENCED list, never for anything on the REQUIRED BUT NOT EVIDENCED list.
 5. You may adjust the summary to echo 2-3 key phrases from the job description — only using experience already in APPLICANT SECTIONS. Its first sentence must still open by naming the candidate's own current or most recent job title. The whole summary stays 1 to 2 sentences, no more.
 5b. If a bullet uses an internal-only company term or project codename, translate it into the plain, industry-standard equivalent so an outside reader recognizes it immediately — rephrase only, never invent a detail about what the internal thing was.
 6. Do NOT change job titles, company names, or dates. This includes basics.title (the resume's own header line): it must be the candidate's own current or most recent job title, taken from their most recent role in APPLICANT SECTIONS. If it arrives empty, fill it from their most recent work entry's title, never from the job description, and never with a higher seniority word ("Senior", "Lead", "Staff", "Principal") than their real title already has.
@@ -901,8 +903,21 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       // requirements as if it were evidenced, all checked in code, not just
       // asked for. One retry naming every violation found in a single round
       // trip.
+      //
+      // v3.267.0 — reported directly, and reproduced: a real tailored
+      // resume failed a real ATS keyword scan, because the prompt's own
+      // "surface ALREADY EVIDENCED items in the JD's own terminology"
+      // instruction (renderGapBlock's preamble) had no code-level check
+      // behind it, unlike every other rule here — the model could simply
+      // not do it and nothing would ever notice. verifyKeywordAlignment is
+      // that missing check: scoped ONLY to gap.matched (a requirement the
+      // deterministic gap analysis already confirmed is genuinely present
+      // in this person's real background), so it can never push the model
+      // toward the "missing" bucket — zero new fabrication risk, same as
+      // every other check in this file.
       const missingReqTexts = gap.missing.map((req) => req.text);
       let writeViolations = verifyWriteQuality(bundle.text, r.structured, missingReqTexts);
+      for (const kw of verifyKeywordAlignment(gap, r.structured)) writeViolations.push({ kind: "keyword_gap", detail: kw });
       if (writeViolations.length) {
         const retryNote = violationsToRetryNote(writeViolations);
         const retry = await callAI({
@@ -911,6 +926,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
           toolName: "emit_resume", toolSchema: RESUME_SCHEMA,
         });
         const retryViolations = verifyWriteQuality(bundle.text, retry.structured, missingReqTexts);
+        for (const kw of verifyKeywordAlignment(gap, retry.structured)) retryViolations.push({ kind: "keyword_gap", detail: kw });
         if (retryViolations.length < writeViolations.length) { r = retry; writeViolations = retryViolations; }
       }
       const missingFigures = writeViolations.filter((v) => v.kind === "figure").map((v) => v.detail);
@@ -927,9 +943,25 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       // decide, on their own, whether to add a genuinely missing skill or
       // align the header title to the job's — nothing here is applied
       // automatically, this is only the raw material for that choice.
+      //
+      // v3.267.0 — matchPct is a SECOND, independent gap analysis, run
+      // against the actual OUTPUT resume's own text rather than the
+      // original — the original `gap` above only ever describes the
+      // candidate's PROFILE, unaffected by how well this specific tailor
+      // call actually turned out. This is the real, honest "did tailoring
+      // work" number: a resume that only reworded sentences without
+      // aligning any terminology will score close to what the untailored
+      // profile already scored; one that correctly surfaced every
+      // ALREADY EVIDENCED item in the job's own wording (rule 4b above,
+      // now enforced by verifyKeywordAlignment) will score higher.
+      const outputText = flattenResumeSkillsAndProse(r.structured);
+      const outputGap = computeGap(jdText, { text: outputText, dropped: [], chars: outputText.length } as unknown as SectionBundle);
+      const outputTotal = outputGap.matched.length + outputGap.missing.length;
+      const matchPct = outputTotal > 0 ? Math.round((outputGap.matched.length / outputTotal) * 100) : null;
+
       const result = {
         resume: r.structured,
-        gapAnalysis: { missing: gap.missing.map((req) => req.text).slice(0, 6) },
+        gapAnalysis: { missing: gap.missing.map((req) => req.text).slice(0, 6), matchPct },
       };
       cacheSet(adminTailor, cacheKey, user.id, "tailor_web", result, TAILOR_TTL);
       logAiCall(adminTailor, {

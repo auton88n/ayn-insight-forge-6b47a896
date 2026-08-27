@@ -880,7 +880,7 @@ export const WRITE_BANNED_PHRASES = [
   "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "hard-working", "detail-oriented",
 ];
 
-export interface WriteViolation { kind: "figure" | "banned_phrase" | "pronoun" | "dash" | "generic_summary" | "gap_claim"; detail: string }
+export interface WriteViolation { kind: "figure" | "banned_phrase" | "pronoun" | "dash" | "generic_summary" | "gap_claim" | "keyword_gap"; detail: string }
 
 // v3.159.0 — found live: tailor's own rule 5 ("echo 2-3 key phrases from the
 // job description") and rule 7 ("stay silent where no related experience
@@ -968,6 +968,58 @@ export function verifyWriteQuality(inputText: string, outputResume: unknown, mis
   return violations;
 }
 
+// v3.267.0 — the actual, reported bug: tailor's own prompt already told the
+// model to "surface ALREADY EVIDENCED items in the JD's own terminology"
+// (renderGapBlock's own preamble above), but nothing ever checked whether it
+// did. Every other rule in this file gets a deterministic post-hoc check and
+// a forced retry (figures, banned phrases, pronouns); this one only ever got
+// a soft instruction and blind trust — reported directly as a real, live ATS
+// keyword-match failure on a tailored resume. Fixed the same way every other
+// rule here is fixed: check it in code, retry once naming exactly what's
+// missing. Scoped ONLY to gap.matched (a requirement the deterministic gap
+// analysis already verified is genuinely present in the person's own real
+// background) — this can never pressure the model toward the "missing"
+// bucket, so it carries zero fabrication risk. This is re-labeling an
+// already-possessed skill with the employer's own term, not inventing one.
+export function flattenResumeSkillsAndProse(resume: unknown): string {
+  const r = (resume || {}) as Record<string, unknown>;
+  const basics = (r.basics || {}) as Record<string, unknown>;
+  const parts: string[] = [];
+  if (typeof basics.summary === "string") parts.push(basics.summary);
+  const skills = Array.isArray(r.skills) ? (r.skills as unknown[]).filter((s): s is string => typeof s === "string") : [];
+  parts.push(...skills);
+  const work = Array.isArray(r.work) ? (r.work as Array<Record<string, unknown>>) : [];
+  for (const w of work) {
+    const bullets = Array.isArray(w?.bullets) ? (w.bullets as unknown[]) : [];
+    for (const b of bullets) if (typeof b === "string") parts.push(b);
+  }
+  const projects = Array.isArray(r.projects) ? (r.projects as Array<Record<string, unknown>>) : [];
+  for (const p of projects) if (typeof p?.description === "string") parts.push(p.description as string);
+  return parts.join(" \n ");
+}
+
+/** Only enforces short, keyword/tool-shaped matches (<=4 real terms, e.g.
+ * "Kubernetes", "Adobe Creative Cloud", "customer relationship management")
+ * — a whole sentence-length requirement isn't a literal string an ATS scans
+ * for, and forcing its exact wording into a bullet would read as an
+ * unnatural, copy-pasted line. Returns the JD's own genuinely-missing terms
+ * so the retry note can name them exactly, same shape as every other
+ * violation kind here. */
+export function verifyKeywordAlignment(gap: GapAnalysis, outputResume: unknown): string[] {
+  const outputText = " " + expandWithSynonyms(norm(flattenResumeSkillsAndProse(outputResume))) + " ";
+  const hasTermInOutput = (t: string) => {
+    const n = norm(t);
+    if (!n) return false;
+    return outputText.includes(n.length >= 4 ? n : ` ${n} `);
+  };
+  const gaps: string[] = [];
+  for (const req of gap.matched) {
+    if (terms(req.text, 1).length > 4) continue;
+    if (!hasTermInOutput(req.text)) gaps.push(req.text);
+  }
+  return gaps.slice(0, 8);
+}
+
 /** Same checks as verifyWriteQuality, for a flat prose string instead of a
  * structured resume — the cover-letter path produces plain text, not
  * RESUME_SCHEMA. No figure check here; that call site already runs its
@@ -996,6 +1048,7 @@ export function violationsToRetryNote(violations: WriteViolation[]): string {
   const hasDash = violations.some((v) => v.kind === "dash");
   const hasGenericSummary = violations.some((v) => v.kind === "generic_summary");
   const gapClaims = Array.from(new Set(violations.filter((v) => v.kind === "gap_claim").map((v) => v.detail)));
+  const keywordGaps = Array.from(new Set(violations.filter((v) => v.kind === "keyword_gap").map((v) => v.detail)));
   const notes: string[] = [];
   if (figures.length) notes.push(`- Dropped or altered these figures: ${figures.slice(0, 30).join(", ")}. Include every one of them, unchanged, in the bullet it belongs to.`);
   if (phrases.length) notes.push(`- Used a banned phrase: "${phrases.join('", "')}". Rewrite that line without it.`);
@@ -1003,6 +1056,7 @@ export function violationsToRetryNote(violations: WriteViolation[]): string {
   if (hasDash) notes.push(`- Used an em dash or en dash. Remove it — use a period, a comma, or the word "to" for a range instead.`);
   if (hasGenericSummary) notes.push(`- The summary names no real number, employer, or skill from this specific person's own background, so it reads like it could apply to anyone. Rewrite it to reference at least one concrete detail already present elsewhere in the resume (a real employer name, a named skill, or a number), while staying 1 to 2 sentences.`);
   if (gapClaims.length) notes.push(`- Claimed experience with "${gapClaims.join('", "')}" even though this is NOT evidenced anywhere in this person's real background — it is one of the job's own requirements they genuinely do not have. Remove every reference to it. Do not echo a job requirement's exact wording unless real related experience for it already exists in the applicant's own sections.`);
+  if (keywordGaps.length) notes.push(`- These are real skills the candidate genuinely already has (the gap analysis's own ALREADY EVIDENCED list confirms it), but the job's own exact wording for them doesn't appear anywhere in your output — not in skills, not in a bullet: "${keywordGaps.join('", "')}". Add each one to the skills array using this exact term (or work it naturally into the matching bullet). This is not a new skill, it is the same real one, spelled the way this employer's own ATS is scanning for it.`);
   return notes.length ? `PREVIOUS ATTEMPT HAD REAL PROBLEMS, FIX EVERY ONE:\n${notes.join("\n")}\nProduce the complete resume again, correcting these, changing nothing else.` : "";
 }
 

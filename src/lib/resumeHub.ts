@@ -224,7 +224,7 @@ export const resumeHubApi = {
    * the server recognizes it and doesn't charge twice if the first attempt
    * actually succeeded server side despite the client never seeing it. */
   tailor: (jdText: string, idempotencyKey?: string) =>
-    call<{ resume: ResumeContent; gapAnalysis?: { missing: string[] } }>("resume-hub", { action: "tailor", jdText, idempotency_key: idempotencyKey }),
+    call<{ resume: ResumeContent; gapAnalysis?: { missing: string[]; matchPct: number | null } }>("resume-hub", { action: "tailor", jdText, idempotency_key: idempotencyKey }),
 
   coverLetter: (jdText: string, opts?: { tone?: string; company?: string; idempotencyKey?: string }) =>
     call<{ body: string }>("resume-hub", { action: "cover_letter", jdText, tone: opts?.tone, company: opts?.company, idempotency_key: opts?.idempotencyKey }),
