@@ -1157,7 +1157,11 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         .eq("id", jobId).eq("user_id", user.id).maybeSingle();
       if (!job?.source_url) return json({ error: "This job has no application link on file." }, 400);
 
-      let extractRes: { ok: boolean; fields?: Array<{ tag: string; type: string | null; id: string | null; required: boolean; label: string }>; error?: string; resolvedUrl?: string };
+      let extractRes: {
+        ok: boolean;
+        fields?: Array<{ tag: string; type: string | null; id: string | null; required: boolean; label: string; radioGroup?: string | null; radioGroupLabel?: string | null }>;
+        error?: string; resolvedUrl?: string;
+      };
       try {
         const r = await fetch(`${CHECKER_URL}/extract_form`, {
           method: "POST",
@@ -1171,7 +1175,8 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       if (!extractRes.ok || !extractRes.fields) return json({ error: extractRes.error || "Could not read this application form." }, 502);
 
       const fileFields = extractRes.fields.filter((f) => f.type === "file");
-      const candidateFields = extractRes.fields.filter((f) => f.type !== "file");
+      const radioFields = extractRes.fields.filter((f) => f.type === "radio" && f.radioGroup);
+      const candidateFields = extractRes.fields.filter((f) => f.type !== "file" && f.type !== "radio");
 
       const [identity, canonical] = await Promise.all([
         loadIdentity(adminEx, user.id, {}).catch(() => null),
@@ -1231,8 +1236,51 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
 
       const answerMatches = canonical ? await matchApplicationAnswers(remaining, canonical) : remaining.map((q) => ({ fieldId: q.id, label: q.label, matchedType: null, answer: null, confidence: 0 }));
 
+      // Radio groups (Ashby, and likely others using the same pattern):
+      // each option is its own separate field with no shared question text
+      // on it — the question only exists once, as the group's own label.
+      // Resolve ONE synthetic question per group (not per option) through
+      // the exact same matcher every other factual/legal question goes
+      // through, then find whichever real option's own text best matches
+      // the resolved answer. A group with no resolved answer, or no option
+      // whose text plausibly matches it, is left unresolved rather than
+      // guessed at — same "null means the user answers it" rule as
+      // everywhere else in this function.
+      const radioGroupsByName = new Map<string, typeof radioFields>();
+      for (const f of radioFields) {
+        if (!f.radioGroup) continue;
+        const list = radioGroupsByName.get(f.radioGroup) || [];
+        list.push(f);
+        radioGroupsByName.set(f.radioGroup, list);
+      }
+      const groupQuestions = Array.from(radioGroupsByName.entries())
+        .filter(([, opts]) => opts[0]?.radioGroupLabel)
+        .map(([name, opts]) => ({ id: name, label: opts[0].radioGroupLabel as string }));
+      const groupAnswers = canonical && groupQuestions.length
+        ? await matchApplicationAnswers(groupQuestions, canonical)
+        : groupQuestions.map((q) => ({ fieldId: q.id, label: q.label, matchedType: null, answer: null, confidence: 0 }));
+
+      const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const radioMatches: Array<{ groupName: string; groupLabel: string; resolvedAnswer: string | null; chosenFieldId: string | null; chosenOptionLabel: string | null }> = [];
+      for (const ga of groupAnswers) {
+        const options = radioGroupsByName.get(ga.fieldId) || [];
+        let chosen: { id: string | null; label: string } | null = null;
+        if (ga.answer) {
+          const wanted = norm(ga.answer);
+          const exact = options.find((o) => norm(o.label) === wanted);
+          const partial = !exact ? options.find((o) => norm(o.label).includes(wanted) || wanted.includes(norm(o.label))) : undefined;
+          const pick = exact || partial;
+          if (pick) chosen = { id: pick.id, label: pick.label };
+        }
+        radioMatches.push({
+          groupName: ga.fieldId, groupLabel: ga.label, resolvedAnswer: ga.answer,
+          chosenFieldId: chosen?.id ?? null, chosenOptionLabel: chosen?.label ?? null,
+        });
+      }
+
       return json({
         job: { id: job.id, company: job.company, title: job.title, url: job.source_url },
+        radioMatches,
         // v3.265.0 — many ATS platforms show the JD and application form on
         // two different URLs (an Apply click-through, sometimes a real
         // navigation). auto_apply_fill needs this exact resolved URL, not

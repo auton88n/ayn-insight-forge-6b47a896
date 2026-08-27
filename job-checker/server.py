@@ -172,12 +172,31 @@ def _extract_fields(page):
             if (lbl2) label = lbl2.innerText.trim();
           }
         }
+        // A radio button's own "label" here is just its option text ("Yes",
+        // "I require sponsorship...") -- real, but useless for matching on
+        // its own, since nothing says what QUESTION it's answering. Ashby
+        // (and likely other platforms using the same pattern) has no real
+        // <fieldset>/<legend> -- the question text is just the first line
+        // of the nearest .field-class wrapper's own full text, sitting
+        // right above the option labels in the DOM.
+        let radioGroup = null;
+        let radioGroupLabel = null;
+        if (el.type === 'radio') {
+          radioGroup = el.name || null;
+          const wrap = el.closest('[class*="field"]');
+          if (wrap) {
+            const firstLine = wrap.innerText.split('\\n')[0].trim();
+            if (firstLine) radioGroupLabel = firstLine;
+          }
+        }
         fields.push({
           tag: el.tagName.toLowerCase(),
           type: el.type || null,
           id: el.id || null,
           required: el.required || false,
           label: label,
+          radioGroup: radioGroup,
+          radioGroupLabel: radioGroupLabel,
         });
       });
       return fields;
@@ -238,8 +257,23 @@ def _fill_one_field(page, field_id: str, value: str) -> str:
     text input backed by a click-driven listbox) only reveals itself once
     clicked, and clicking AFTER filling can wipe out a value that was
     already set. If no listbox appears, it's a genuine plain field, filled
-    normally. Returns "combobox", "text", or "failed".
+    normally. Returns "combobox", "text", "radio", or "failed".
     """
+    # Radio and checkbox inputs are neither "type this text" nor "click to
+    # open a listbox" -- they're a real, distinct third shape. Checking the
+    # element's own type up front avoids running either the combobox-open
+    # attempt or a .fill() (which throws on a non-text input) against one.
+    try:
+        el_type = page.locator(f"#{field_id}").get_attribute("type")
+    except Exception:
+        el_type = None
+    if el_type in ("radio", "checkbox"):
+        try:
+            page.check(f"#{field_id}", timeout=3000)
+            return "radio"
+        except Exception:
+            return "failed"
+
     try:
         page.click(f"#{field_id}", timeout=3000)
     except Exception:
