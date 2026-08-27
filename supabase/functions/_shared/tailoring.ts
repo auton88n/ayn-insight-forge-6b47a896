@@ -1004,9 +1004,19 @@ export function flattenResumeSkillsAndProse(resume: unknown): string {
  * for, and forcing its exact wording into a bullet would read as an
  * unnatural, copy-pasted line. Returns the JD's own genuinely-missing terms
  * so the retry note can name them exactly, same shape as every other
- * violation kind here. */
+ * violation kind here.
+ *
+ * Deliberately does NOT call expandWithSynonyms on the output side (unlike
+ * every other matcher in this file). Live-tested and caught before shipping:
+ * synonym expansion is exactly right for deciding whether a person GENUINELY
+ * HAS a skill (Postgres and PostgreSQL are the same real thing), but it
+ * defeats the whole point here — a resume that still says "k8s" got silently
+ * treated as already matching "Kubernetes" and this check found nothing
+ * wrong, even though a real ATS keyword scan looks for the literal string,
+ * not its synonym-equivalence class. This function's only job is "does the
+ * JD's own literal wording appear in the output," so it checks that plainly. */
 export function verifyKeywordAlignment(gap: GapAnalysis, outputResume: unknown): string[] {
-  const outputText = " " + expandWithSynonyms(norm(flattenResumeSkillsAndProse(outputResume))) + " ";
+  const outputText = " " + norm(flattenResumeSkillsAndProse(outputResume)) + " ";
   const hasTermInOutput = (t: string) => {
     const n = norm(t);
     if (!n) return false;

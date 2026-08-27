@@ -931,7 +931,26 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       }
       const missingFigures = writeViolations.filter((v) => v.kind === "figure").map((v) => v.detail);
 
+      // v3.268.0 — asked directly for this to be guaranteed, not best-effort:
+      // "nothing will stop this process... the resume needs to fix perfectly
+      // with the JD... so the ATS accept it." The model got a real chance
+      // above to weave a still-missing ALREADY EVIDENCED term into a real
+      // bullet naturally; whatever it still misses after that retry is
+      // guaranteed here, deterministically, with no AI call and nothing that
+      // can fail or time out — appended straight to the skills array. This
+      // is not a new promise: it enforces the exact same boundary rule 4b
+      // already states to the model (ONLY gap.matched, a requirement the
+      // deterministic gap analysis already confirmed this person genuinely
+      // has real evidence for — never gap.missing, which stays untouched and
+      // reported honestly). Every job, every time, unconditionally.
       const tailoredResumeObj = r.structured as { skills?: string[] };
+      const stillMisalignedKeywords = verifyKeywordAlignment(gap, r.structured);
+      if (stillMisalignedKeywords.length) {
+        const existingSkillsLower = new Set((tailoredResumeObj.skills ?? []).map((s) => s.trim().toLowerCase()));
+        const toGuarantee = stillMisalignedKeywords.filter((k) => !existingSkillsLower.has(k.trim().toLowerCase()));
+        if (toGuarantee.length) tailoredResumeObj.skills = [...(tailoredResumeObj.skills ?? []), ...toGuarantee];
+      }
+
       const tailorSkillGroups = await groupSkills(tailoredResumeObj.skills ?? []);
       if (tailorSkillGroups) (tailoredResumeObj as { skillGroups?: unknown }).skillGroups = tailorSkillGroups;
 
