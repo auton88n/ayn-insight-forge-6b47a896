@@ -1187,15 +1187,21 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         { role: "last_name", test: /last.?name/i, value: () => identity.last_name.value || "" },
         { role: "email", test: /e-?mail/i, value: () => identity.email.value || "" },
         { role: "phone", test: /phone/i, value: () => identity.phone.value || "" },
-        // Word boundaries matter here: a plain /city/i previously matched
-        // "hispanic_ethnicity" live (the word "ethnicity" itself contains
-        // the literal substring "city"), silently overwriting the real
-        // location field's assignment since both would map to the same
+        // Checked BEFORE "location" on purpose: "Street Address, City,
+        // State, Zip Code" also contains the word "City", and .find()
+        // returns the first array match — putting the more specific
+        // full-address pattern first means that field resolves to "address"
+        // and the plain city/location pattern below never gets a chance to
+        // wrongly claim it.
+        { role: "address", test: /street address|address.*city.*state|address line/i, value: () => identity.address_line1.value || "" },
+        // Word boundaries matter here too: a plain /city/i previously
+        // matched "hispanic_ethnicity" live (the word "ethnicity" itself
+        // contains the literal substring "city"), silently overwriting the
+        // real location field's assignment since both mapped to the same
         // "location" key.
         { role: "location", test: /\blocation\b|\bcity\b/i, value: () => identity.city.value || identity.location.value || "" },
         { role: "linkedin", test: /linkedin/i, value: () => identity.linkedin_url.value || "" },
         { role: "country", test: /^country\b|country\*?$/i, value: () => identity.country.value || "" },
-        { role: "address", test: /street address|address.*city.*state|address line/i, value: () => identity.address_line1.value || "" },
       ] : [];
 
       // A field's SHAPE (is this "First Name") is a separate question from
