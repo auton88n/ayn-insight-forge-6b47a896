@@ -60,23 +60,17 @@ function daysSince(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
 }
 
-// v3.173.0 — a lighter version of BrowseJobs.tsx's own resolveLogoUrl: a
-// saved job's row here never has company_logo_url/company_slug (those
-// only exist on job_postings, the Browse catalog), only source_url -- a
-// plain favicon-by-hostname guess off that is a real, if looser, second
-// attempt at the same thing (an icon for a real company), and a failed
-// load already falls through to the colored-initial avatar exactly like
-// Browse jobs does, so this can only ever improve on it, never regress it.
-function faviconFor(sourceUrl: string | null): string | null {
-  if (!sourceUrl) return null;
-  try {
-    const host = new URL(sourceUrl).hostname.replace(/^www\./, "");
-    if (host.length < 4) return null;
-    return `https://icons.duckduckgo.com/ip3/${host}.ico`;
-  } catch {
-    return null;
-  }
-}
+// v3.173.0's own favicon-by-hostname guess (icons.duckduckgo.com/ip3/...)
+// is gone as of v3.263.0. Traced with a real curl on the same guess Browse
+// Jobs used: DuckDuckGo answers a domain it has no real favicon for with a
+// genuine HTTP 404 status but still serves a real, valid image body -- its
+// own generic placeholder, rendering indistinguishably from a real logo,
+// since an <img> tag never sees the status code on a load that otherwise
+// succeeds and DuckDuckGo sends no CORS headers a fetch()-based check
+// could use to tell the two apart. This tab never had a real, verified
+// logo source to fall back to in the first place (only source_url, no
+// company_logo_url), so it now always shows the deterministic
+// colored-initial avatar instead of guessing.
 
 // v3.172.0 — asked directly to bring the same research-driven pass to the
 // rest of Resume Hub. The single most-loved feature across the whole
@@ -175,7 +169,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // over a 1,000+ row catalog) — a saved-jobs list is realistically dozens
   // of rows, already loaded in full.
   const [jobQuery, setJobQuery] = useState("");
-  const [logoFailed, setLogoFailed] = useState<Set<string>>(new Set());
   const [nudgeSnoozed, setNudgeSnoozed] = useState(false);
 
   const load = async () => {
@@ -878,8 +871,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
         {visibleJobs.map((j) => {
           const avatar = companyAvatar(j.company || "?");
-          const logoUrl = faviconFor(j.source_url);
-          const showLogo = !!logoUrl && !logoFailed.has(j.id);
           const meta = STATUS_META[j.application_status] ?? STATUS_META.saved;
           const snippet = (j.jd_text || "").trim();
           // v3.182.0 — a lightweight, always-visible version of the silence
@@ -895,22 +886,12 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               className="rh-lift w-full rounded-2xl p-5 flex flex-col text-left min-h-[420px]"
               style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}
             >
-              {showLogo ? (
-                <img
-                  src={logoUrl!}
-                  alt=""
-                  className="w-14 h-14 rounded-xl shrink-0 object-contain bg-white p-1.5 border mb-3"
-                  style={{ borderColor: "var(--rh-hair)" }}
-                  onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
-                />
-              ) : (
-                <div
-                  className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 mb-3 ${avatar.className}`}
-                  style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
-                >
-                  {avatar.initial}
-                </div>
-              )}
+              <div
+                className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 mb-3 ${avatar.className}`}
+                style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
+              >
+                {avatar.initial}
+              </div>
               <p className="rh-display text-[18px] leading-snug mb-1">{j.title}</p>
               <p className="text-[13px] mb-3" style={{ color: "var(--rh-muted)" }}>
                 {j.company}{j.location ? ` · ${j.location}` : ""}
