@@ -1216,7 +1216,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       // not in the generic Q&A matcher, which would waste a real embedding
       // call trying to match "First Name*" against salary/license phrasings
       // it was never going to resemble.
-      const identityMatches: Record<string, { fieldId: string; role: string; value: string | null }> = {};
+      const identityMatches: Record<string, { fieldId: string; label: string; role: string; value: string | null }> = {};
       const remaining: Array<{ id: string; label: string }> = [];
       for (const f of candidateFields) {
         if (!f.id) continue;
@@ -1228,7 +1228,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         // left unclassified rather than risk that collision.
         const idPattern = /preferred/i.test(hay) ? undefined : IDENTITY_PATTERNS.find((p) => p.test.test(hay));
         if (idPattern) {
-          identityMatches[idPattern.role] = { fieldId: f.id, role: idPattern.role, value: idPattern.value() || null };
+          identityMatches[idPattern.role] = { fieldId: f.id, label: f.label || f.id, role: idPattern.role, value: idPattern.value() || null };
         } else {
           remaining.push({ id: f.id, label: f.label || f.id });
         }
@@ -1302,12 +1302,21 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       { const limited = await rateLimitGate(adminFill, user.id, action, 15, 15); if (limited) return limited; }
       if (!CHECKER_SECRET) return json({ error: "Auto-apply is not configured on this deployment." }, 503);
 
-      const { jobId, values, identityFieldIds, resumeFieldId, resumeFileUrl, coverLetterFieldId, coverLetterFileUrl, submit, applyUrl } = payload as {
-        jobId?: string; values?: Record<string, string>; identityFieldIds?: Record<string, string>;
-        resumeFieldId?: string; resumeFileUrl?: string; coverLetterFieldId?: string; coverLetterFileUrl?: string; submit?: boolean;
+      // v3.265.0 — targeted by LABEL, never by a raw field id. Confirmed
+      // live: some ATS platforms (Ashby, likely others rendered the same
+      // way) regenerate every element's id on each page load, so an id
+      // captured during an earlier auto_apply_extract call is already
+      // stale by the time this action opens its own fresh browser session.
+      // job-checker re-resolves each label against the live page itself —
+      // see /fill_form's own header comment for the full reasoning.
+      const { jobId, textValues, radioSelections, resumeLabel, resumeFileUrl, coverLetterLabel, coverLetterFileUrl, submit, applyUrl } = payload as {
+        jobId?: string;
+        textValues?: Array<{ label: string; value: string; isIdentity?: boolean }>;
+        radioSelections?: Array<{ groupLabel: string; optionLabel: string }>;
+        resumeLabel?: string; resumeFileUrl?: string; coverLetterLabel?: string; coverLetterFileUrl?: string; submit?: boolean;
         applyUrl?: string; // from auto_apply_extract's own resolvedUrl — see its comment
       };
-      if (!jobId || !values) return json({ error: "jobId and values required" }, 400);
+      if (!jobId || !(textValues?.length || radioSelections?.length)) return json({ error: "jobId and at least one of textValues/radioSelections required" }, 400);
       const { data: job } = await adminFill.from("jobs").select("id, source_url, auto_apply_charged_at")
         .eq("id", jobId).eq("user_id", user.id).maybeSingle();
       if (!job?.source_url) return json({ error: "This job has no application link on file." }, 400);
@@ -1335,9 +1344,9 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Checker-Secret": CHECKER_SECRET },
           body: JSON.stringify({
-            url: targetUrl, values, identityFieldIds: identityFieldIds || {},
-            resumeFieldId: resumeFieldId || null, resumeFileUrl: resumeFileUrl || null,
-            coverLetterFieldId: coverLetterFieldId || null, coverLetterFileUrl: coverLetterFileUrl || null,
+            url: targetUrl, textValues: textValues || [], radioSelections: radioSelections || [],
+            resumeLabel: resumeLabel || null, resumeFileUrl: resumeFileUrl || null,
+            coverLetterLabel: coverLetterLabel || null, coverLetterFileUrl: coverLetterFileUrl || null,
             submit: !!submit,
           }),
         });

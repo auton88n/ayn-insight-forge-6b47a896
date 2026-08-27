@@ -84,21 +84,32 @@ class ExtractFormRequest(BaseModel):
     url: str
 
 
+class TextValue(BaseModel):
+    label: str
+    value: str
+    isIdentity: bool = False  # re-applied as a final pass after any file attach / combobox interaction
+
+
+class RadioSelection(BaseModel):
+    groupLabel: str
+    optionLabel: str
+
+
 class FillFormRequest(BaseModel):
     url: str
-    values: Dict[str, str] = {}          # fieldId -> value. Caller doesn't
-                                          # need to know which of these are
-                                          # plain text vs a click-driven
-                                          # combobox -- /fill_form figures
-                                          # that out per field, since even
-                                          # visually-identical text inputs on
-                                          # the same real form turned out to
-                                          # be one or the other (observed
-                                          # live on Greenhouse).
-    identityFieldIds: Dict[str, str] = {}  # role ("first_name"/"last_name"/"email"/"phone"/"location") -> fieldId, re-applied after file attach
-    resumeFieldId: Optional[str] = None
+    # Targeted by LABEL TEXT, never by a raw element id. Confirmed live:
+    # Ashby (and likely other React-rendered ATS platforms) regenerates
+    # element ids on every page load -- an id captured during an earlier
+    # /extract_form call is already stale by the time a separate /fill_form
+    # call opens its own fresh browser session. Label text is what's
+    # actually stable across two separate loads of the same real page, so
+    # /fill_form re-extracts the live page itself and resolves each label
+    # to whatever id it currently has, every time.
+    textValues: list[TextValue] = []
+    radioSelections: list[RadioSelection] = []
+    resumeLabel: Optional[str] = None
     resumeFileUrl: Optional[str] = None
-    coverLetterFieldId: Optional[str] = None
+    coverLetterLabel: Optional[str] = None
     coverLetterFileUrl: Optional[str] = None
     submit: bool = False
     submitButtonText: str = "Submit application"
@@ -244,6 +255,52 @@ def extract_form(req: ExtractFormRequest, x_checker_secret: str = Header(default
         return {"ok": False, "error": str(e)}
 
 
+def _norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
+
+
+def _resolve_by_label(fields, wanted_label: str, used_ids: set, field_type_filter=None):
+    """
+    Fresh, current-page field list in, the id whose label best matches
+    wanted_label out -- exact normalized match first, then substring both
+    directions. Skips ids already claimed by an earlier resolution in the
+    same call so two different desired values never collide onto one field.
+    """
+    wanted = _norm(wanted_label)
+    if not wanted:
+        return None
+    candidates = [f for f in fields if f["id"] and f["id"] not in used_ids and f["label"]]
+    if field_type_filter:
+        candidates = [f for f in candidates if field_type_filter(f)]
+    for f in candidates:
+        if _norm(f["label"]) == wanted:
+            return f["id"]
+    for f in candidates:
+        n = _norm(f["label"])
+        if wanted in n or n in wanted:
+            return f["id"]
+    return None
+
+
+def _resolve_radio_group(fields, wanted_group_label: str):
+    groups = {}
+    for f in fields:
+        if f.get("type") == "radio" and f.get("radioGroup"):
+            groups.setdefault(f["radioGroup"], []).append(f)
+    wanted = _norm(wanted_group_label)
+    if not wanted:
+        return None
+    best_name, best_opts = None, None
+    for name, opts in groups.items():
+        gl = opts[0].get("radioGroupLabel") or ""
+        n = _norm(gl)
+        if n == wanted:
+            return opts
+        if (wanted in n or n in wanted) and best_opts is None:
+            best_name, best_opts = name, opts
+    return best_opts
+
+
 def _download_to_temp(url: str, suffix: str) -> str:
     fd, path = tempfile.mkstemp(suffix=suffix)
     urllib.request.urlretrieve(url, path)
@@ -304,9 +361,9 @@ def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
     resume_path = None
     cover_path = None
     try:
-        if req.resumeFieldId and req.resumeFileUrl:
+        if req.resumeLabel and req.resumeFileUrl:
             resume_path = _download_to_temp(req.resumeFileUrl, ".pdf")
-        if req.coverLetterFieldId and req.coverLetterFileUrl:
+        if req.coverLetterLabel and req.coverLetterFileUrl:
             cover_path = _download_to_temp(req.coverLetterFileUrl, ".pdf")
 
         with sync_playwright() as p:
@@ -322,37 +379,102 @@ def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
 
             filled, failed = [], []
             field_kinds = {}
-            for field_id, value in req.values.items():
-                kind = _fill_one_field(page, field_id, value)
-                field_kinds[field_id] = kind
-                if kind == "failed":
-                    failed.append({"fieldId": field_id, "error": "field not found or not fillable"})
-                else:
-                    filled.append(field_id)
+            used_ids = set()
 
-            if resume_path and req.resumeFieldId:
+            # Text/combobox fields -- resolved fresh, by label, against
+            # THIS page load's own current ids, never a cached one.
+            live_fields = _extract_fields(page)
+            for tv in req.textValues:
+                fid = _resolve_by_label(live_fields, tv.label, used_ids,
+                                         field_type_filter=lambda f: f.get("type") not in ("radio", "file"))
+                if not fid:
+                    failed.append({"label": tv.label, "error": "no matching field found on this page"})
+                    continue
+                used_ids.add(fid)
+                kind = _fill_one_field(page, fid, tv.value)
+                field_kinds[tv.label] = kind
+                if kind == "failed":
+                    failed.append({"label": tv.label, "fieldId": fid, "error": "field not fillable"})
+                else:
+                    filled.append(tv.label)
+
+            # Radio groups -- resolved fresh too, group first by its own
+            # question text, then the specific option within that group by
+            # its option text.
+            for rs in req.radioSelections:
+                live_fields = _extract_fields(page)  # re-read: an earlier click may have changed the DOM
+                opts = _resolve_radio_group(live_fields, rs.groupLabel)
+                if not opts:
+                    failed.append({"label": rs.groupLabel, "error": "radio group not found on this page"})
+                    continue
+                wanted_opt = _norm(rs.optionLabel)
+                match = next((o for o in opts if _norm(o["label"]) == wanted_opt), None)
+                if not match:
+                    match = next((o for o in opts if wanted_opt in _norm(o["label"]) or _norm(o["label"]) in wanted_opt), None)
+                if not match or not match["id"]:
+                    failed.append({"label": rs.groupLabel, "error": f"no option matching {rs.optionLabel!r} in this group"})
+                    continue
                 try:
-                    page.set_input_files(f"#{req.resumeFieldId}", resume_path)
+                    page.check(f"#{match['id']}", timeout=3000)
+                    filled.append(f"{rs.groupLabel} -> {match['label']}")
+                    field_kinds[rs.groupLabel] = "radio"
                 except Exception as e:
-                    failed.append({"fieldId": req.resumeFieldId, "error": str(e)})
-            if cover_path and req.coverLetterFieldId:
-                try:
-                    page.set_input_files(f"#{req.coverLetterFieldId}", cover_path)
-                except Exception as e:
-                    failed.append({"fieldId": req.coverLetterFieldId, "error": str(e)})
+                    failed.append({"label": rs.groupLabel, "error": str(e)})
+
+            # Files -- resolved fresh by nearby label text (resume/cv vs
+            # cover letter), falling back to DOM order when both are
+            # equally ambiguous, since there are rarely more than two file
+            # inputs on a real application form.
+            if resume_path or cover_path:
+                live_fields = _extract_fields(page)
+                file_fields = [f for f in live_fields if f.get("type") == "file" and f.get("id")]
+
+                def _best_file(label_hint_words, exclude_id=None):
+                    pool = [f for f in file_fields if f["id"] != exclude_id]
+                    for f in pool:
+                        if any(w in _norm(f["label"]) for w in label_hint_words):
+                            return f["id"]
+                    return pool[0]["id"] if pool else None
+
+                if resume_path:
+                    resume_id = _best_file(["resume", "cv"])
+                    if resume_id:
+                        try:
+                            page.set_input_files(f"#{resume_id}", resume_path)
+                            filled.append("resume")
+                        except Exception as e:
+                            failed.append({"label": "resume", "error": str(e)})
+                    else:
+                        failed.append({"label": "resume", "error": "no file input found"})
+                if cover_path:
+                    cover_id = _best_file(["cover"], exclude_id=resume_id if resume_path else None)
+                    if cover_id:
+                        try:
+                            page.set_input_files(f"#{cover_id}", cover_path)
+                            filled.append("cover letter")
+                        except Exception as e:
+                            failed.append({"label": "cover letter", "error": str(e)})
+                    else:
+                        failed.append({"label": "cover letter", "error": "no file input found"})
 
             # A file attach OR a nearby combobox interaction (both observed
             # live on Greenhouse -- country's own combobox reset the city
             # field even with no file involved) can silently clear an
-            # already-filled identity field. Re-applying them as a final
-            # pass, always, is cheap and can only help.
+            # already-filled identity field. Re-resolved and re-applied
+            # fresh as a final pass, always, since the ids may have changed
+            # again by now too.
             page.wait_for_timeout(600 if not (resume_path or cover_path) else 1200)
-            for role, field_id in req.identityFieldIds.items():
-                if field_id in req.values:
-                    try:
-                        page.fill(f"#{field_id}", req.values[field_id], timeout=2000)
-                    except Exception:
-                        pass
+            identity_values = [tv for tv in req.textValues if tv.isIdentity]
+            if identity_values:
+                live_fields = _extract_fields(page)
+                for tv in identity_values:
+                    fid = _resolve_by_label(live_fields, tv.label, set(),
+                                             field_type_filter=lambda f: f.get("type") not in ("radio", "file"))
+                    if fid:
+                        try:
+                            page.fill(f"#{fid}", tv.value, timeout=2000)
+                        except Exception:
+                            pass
 
             submitted = False
             submit_error = None
