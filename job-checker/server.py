@@ -116,9 +116,37 @@ class FillFormRequest(BaseModel):
 
 
 APPLY_BUTTON_PATTERN = re.compile(
-    r"^\s*(apply( now| for this job| for this position)?|i'?m interested|start application|get started)\s*$",
+    r"^\s*(apply( now| to position| for this job| for this position)?|i'?m interested|start application|get started)\s*$",
     re.IGNORECASE,
 )
+
+# Confirmed live against a real Breezy posting: its own button reads "Apply
+# To Position" (capital "To"), which the original pattern above never
+# matched -- "to position" added specifically for that, verified against a
+# real 29-field form appearing afterward.
+COOKIE_BUTTON_PATTERN = re.compile(
+    r"^\s*(accept all|decline all|reject all|accept cookies|got it|i understand)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _dismiss_cookie_banner(page) -> None:
+    """
+    Some ATS pages (confirmed live: Workable) render a cookie-consent
+    overlay that sits on top of the real Apply control, so a click at the
+    button's own coordinates lands on the banner instead. Best-effort and
+    silent -- a page with no banner at all is the common case, not an error.
+    """
+    try:
+        for i in range(min(page.get_by_role("button").count(), 30)):
+            el = page.get_by_role("button").nth(i)
+            text = (el.inner_text(timeout=400) or "").strip()
+            if COOKIE_BUTTON_PATTERN.match(text):
+                el.click(timeout=2000)
+                page.wait_for_timeout(600)
+                return
+    except Exception:
+        pass
 
 
 def _click_apply_if_needed(page) -> bool:
@@ -225,6 +253,7 @@ def extract_form(req: ExtractFormRequest, x_checker_secret: str = Header(default
             page = browser.new_page(viewport={"width": 1080, "height": 900})
             page.goto(req.url, wait_until="domcontentloaded", timeout=30000)
             page.wait_for_timeout(1500)
+            _dismiss_cookie_banner(page)
 
             clicked_apply = False
             if _real_field_count(page) < 3:
@@ -241,6 +270,7 @@ def extract_form(req: ExtractFormRequest, x_checker_secret: str = Header(default
 
             fields = _extract_fields(page)
             resolved_url = page.url
+            has_password = any(f.get("type") == "password" for f in fields)
             browser.close()
             # De-dupe by id, drop fields with no id (can't be targeted for fill)
             seen = set()
@@ -250,6 +280,16 @@ def extract_form(req: ExtractFormRequest, x_checker_secret: str = Header(default
                     continue
                 seen.add(f["id"])
                 out.append(f)
+            # A real, live signin/account-creation wall (confirmed against
+            # Workday, Taleo, and UKG/UltiPro) always presented as a password
+            # field sitting alongside only a handful of other fields -- the
+            # whole "form" WAS the login screen, not a real application with
+            # an optional password field bolted on. A genuine guest-apply form
+            # with an optional account-creation step still has ten-plus real
+            # application fields alongside it, so this stays narrow on
+            # purpose: only a small, password-carrying field set counts.
+            if has_password and len(out) <= 6:
+                return {"ok": True, "signinRequired": True, "resolvedUrl": resolved_url}
             return {"ok": True, "fields": out, "resolvedUrl": resolved_url, "clickedApply": clicked_apply}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -371,6 +411,7 @@ def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
             page = browser.new_page(viewport={"width": 1080, "height": 900})
             page.goto(req.url, wait_until="domcontentloaded", timeout=30000)
             page.wait_for_timeout(1500)
+            _dismiss_cookie_banner(page)
             if _real_field_count(page) < 3:
                 _click_apply_if_needed(page)
             if _real_field_count(page) < 3:

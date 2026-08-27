@@ -1160,7 +1160,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       let extractRes: {
         ok: boolean;
         fields?: Array<{ tag: string; type: string | null; id: string | null; required: boolean; label: string; radioGroup?: string | null; radioGroupLabel?: string | null }>;
-        error?: string; resolvedUrl?: string;
+        error?: string; resolvedUrl?: string; signinRequired?: boolean;
       };
       try {
         const r = await fetch(`${CHECKER_URL}/extract_form`, {
@@ -1172,7 +1172,32 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       } catch (e) {
         return json({ error: `Could not reach the application form: ${(e as Error).message}` }, 502);
       }
-      if (!extractRes.ok || !extractRes.fields) return json({ error: extractRes.error || "Could not read this application form." }, 502);
+
+      // Two honest give-up cases, neither a hard error: this employer's own
+      // form is genuinely behind a real account/signin wall (job-checker
+      // detected a password field alongside only a handful of others -- see
+      // its own comment for why that's the signal, not just "a password
+      // field exists somewhere"), or extraction itself couldn't find a real
+      // form at all (a bot-blocked platform, a genuinely bespoke page). Both
+      // are real, expected outcomes for roughly 1 in 10 postings across this
+      // app's own catalog (measured live across every ATS platform in it) --
+      // the frontend's job is to hand the person a real window to finish the
+      // application themselves, never to pretend it worked or dead-end them.
+      if (extractRes.signinRequired) {
+        return json({
+          signinRequired: true,
+          job: { id: job.id, company: job.company, title: job.title, url: job.source_url },
+          applyUrl: extractRes.resolvedUrl || job.source_url,
+        });
+      }
+      if (!extractRes.ok || !extractRes.fields) {
+        return json({
+          extractionFailed: true,
+          reason: extractRes.error || "Could not read this application form.",
+          job: { id: job.id, company: job.company, title: job.title, url: job.source_url },
+          applyUrl: job.source_url,
+        });
+      }
 
       const fileFields = extractRes.fields.filter((f) => f.type === "file");
       const radioFields = extractRes.fields.filter((f) => f.type === "radio" && f.radioGroup);

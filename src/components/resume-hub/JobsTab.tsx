@@ -31,6 +31,7 @@ import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Download, X, ArrowLeft, Search } from "lucide-react";
 import { resumeToText, buildResumeDocxBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import ResumeDiffViewer from "./ResumeDiffViewer";
+import AutoApplyPanel from "./AutoApplyPanel";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
@@ -45,7 +46,7 @@ interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile
 // handoff from Browse jobs having just happened.
 const LAST_OPEN_KEY = "ayn_jobs_last_open";
 
-interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string; application_status: string; application_status_changed_at: string }
+interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string; application_status: string; application_status_changed_at: string; auto_apply_charged_at: string | null }
 
 // v3.182.0 — "status silence is the #1 killer": research consistently found
 // candidates expect a reply within days and disengage after 1-2 weeks of
@@ -172,7 +173,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   const [nudgeSnoozed, setNudgeSnoozed] = useState(false);
 
   const load = async () => {
-    const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at, application_status, application_status_changed_at").eq("user_id", userId).order("created_at", { ascending: false });
+    const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at, application_status, application_status_changed_at, auto_apply_charged_at").eq("user_id", userId).order("created_at", { ascending: false });
     const rows = (data as JobRow[]) ?? [];
     setJobs(rows);
     // v3.137.0 — Browse jobs adds a posting then hands off here, naming the
@@ -569,6 +570,20 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                 </p>
               )}
             </Card>
+
+            {tailoring.enabled && (
+              <AutoApplyPanel
+                userId={userId}
+                jobId={selected.id}
+                jobTitle={selected.title}
+                company={selected.company}
+                sourceUrl={selected.source_url}
+                resumeContent={tailored?.content ?? primaryResume?.content ?? null}
+                coverLetterBody={cover?.body ?? null}
+                alreadyCharged={!!selected.auto_apply_charged_at}
+                onMarkApplied={() => updateStatus(selected.id, "applied")}
+              />
+            )}
 
             {matchData && (
               <Card className="p-5 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
