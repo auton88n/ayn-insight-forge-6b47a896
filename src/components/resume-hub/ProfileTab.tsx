@@ -1408,13 +1408,12 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           <Toggle label="I need sponsorship now" value={!!career.work_auth.needs_sponsorship_now} onChange={v => { setWA("needs_sponsorship_now", v); queueSave(); }} />
           <Toggle label="I will need sponsorship later" value={!!career.work_auth.needs_sponsorship_future} onChange={v => { setWA("needs_sponsorship_future", v); queueSave(); }} />
         </div>
-      </Group>
-
-      {/* v3.265.0 — the auto-apply answer bank. Real applications ask
-          questions no resume field can answer (non-compete, licenses,
-          referral defaults) — this is where you answer them once, in your
-          own words. Autofill copies these verbatim, never guesses one. */}
-      <Group id="application-answers" title="Application answers" line="Answer these once. Autofill copies your exact words on real job applications, it never guesses.">
+        {/* v3.265.0 — the auto-apply answer bank. Real applications ask
+            questions no other field on this page answers (non-compete,
+            referral defaults). Kept in this same group, not a separate
+            section, since it's the same "what employers ask before
+            anything else" territory as sponsorship above. Autofill copies
+            these verbatim, never guesses one. */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {SCREENING_QUESTIONS.map(q => (
             <PlainField
@@ -1427,9 +1426,6 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
             />
           ))}
         </div>
-        <p className="text-[11px]" style={{ color: "var(--rh-faint)" }}>
-          Desired salary and work authorization already come from the sections above, no need to repeat them here. Anything an ATS asks that isn't covered anywhere on this page is left blank for you to answer directly on that application, never filled in for you.
-        </p>
       </Group>
 
       <p className="text-xs text-muted-foreground">
