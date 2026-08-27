@@ -28,7 +28,7 @@ import {
   companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike,
   JobDescriptionBody, EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeCategory,
 } from '@/components/resume-hub/BrowseJobs';
-import { Search, ExternalLink, ShieldCheck, Loader2, Sparkles, MapPin, Briefcase, ArrowLeft, Radar } from 'lucide-react';
+import { Search, ExternalLink, ShieldCheck, Loader2, Sparkles, MapPin, Briefcase, ArrowLeft } from 'lucide-react';
 
 const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
 const PAGE_SIZE = 25;
@@ -287,6 +287,28 @@ export const JobsBrowser = ({
         )}
       </div>
 
+      {/* v3.262.0 -- reported directly: "it should not be within the JD i
+          want in the page." The button lived in the detail pane's own
+          per-job action row, reading as an action about whatever job
+          happened to be selected -- being discoverable has nothing to do
+          with any one posting, so it moved out to a real page-level line,
+          same spot and shape as the seeker hero's own "Want AYN to score
+          every job against your resume automatically? Start free."
+          quiet-link note. */}
+      {onStartFree && (
+        <p className="lp-note" style={{ marginTop: 10 }}>
+          Want employers to find you instead?{' '}
+          <button
+            type="button"
+            className="lp-quiet-link"
+            style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
+            onClick={onStartFree}
+          >
+            Get discovered, free.
+          </button>
+        </p>
+      )}
+
       {!categoryLabel && !cityFilter && (
         <div className="lp-browser-chips-row">
           <span className="lp-browser-chips-label">Browse:</span>
@@ -397,11 +419,6 @@ export const JobsBrowser = ({
                 <button type="button" className="lp-btn lp-btn-ghost" onClick={() => navigate('/check-resume')}>
                   <Sparkles className="w-4 h-4" /> See how well I match, free
                 </button>
-                {onStartFree && (
-                  <button type="button" className="lp-btn lp-btn-ghost" onClick={onStartFree}>
-                    <Radar className="w-4 h-4" /> Get discovered
-                  </button>
-                )}
               </div>
 
               <div className="lp-browser-jd">
