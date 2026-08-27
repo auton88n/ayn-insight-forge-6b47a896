@@ -182,18 +182,14 @@ def _fill_one_field(page, field_id: str, value: str) -> str:
         page.click(f"#{field_id}", timeout=3000)
     except Exception:
         return "failed"
-    page.wait_for_timeout(250)
+    page.wait_for_timeout(300)
     try:
-        opt = page.get_by_role("option", name=value, exact=True).first
-        opt.wait_for(state="visible", timeout=900)
-        opt.click(timeout=1500)
+        page.get_by_role("option", name=value, exact=True).first.click(timeout=1500)
         return "combobox"
     except Exception:
         pass
     try:
-        opt = page.get_by_role("option", name=value, exact=False).first
-        opt.wait_for(state="visible", timeout=600)
-        opt.click(timeout=1500)
+        page.get_by_role("option", name=value, exact=False).first.click(timeout=1500)
         return "combobox"
     except Exception:
         pass
@@ -244,16 +240,18 @@ def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
                 except Exception as e:
                     failed.append({"fieldId": req.coverLetterFieldId, "error": str(e)})
 
-            # A file attach can reset earlier-filled identity fields on some
-            # ATS platforms (observed live on Greenhouse) -- re-apply them.
-            if resume_path or cover_path:
-                page.wait_for_timeout(1200)
-                for role, field_id in req.identityFieldIds.items():
-                    if field_id in req.values:
-                        try:
-                            page.fill(f"#{field_id}", req.values[field_id], timeout=2000)
-                        except Exception:
-                            pass
+            # A file attach OR a nearby combobox interaction (both observed
+            # live on Greenhouse -- country's own combobox reset the city
+            # field even with no file involved) can silently clear an
+            # already-filled identity field. Re-applying them as a final
+            # pass, always, is cheap and can only help.
+            page.wait_for_timeout(600 if not (resume_path or cover_path) else 1200)
+            for role, field_id in req.identityFieldIds.items():
+                if field_id in req.values:
+                    try:
+                        page.fill(f"#{field_id}", req.values[field_id], timeout=2000)
+                    except Exception:
+                        pass
 
             submitted = False
             submit_error = None
