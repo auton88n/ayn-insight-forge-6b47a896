@@ -80,7 +80,7 @@ import { screenMessageBody } from "./lib/messageSafety.ts";
 // per-period plan limits with override support). See lib/billing.ts's own
 // header comment.
 import {
-  COST_TAILOR, COST_COVER, COST_OPTIMIZE, EMPLOYER_SEARCH_SOFT_CAP,
+  COST_TAILOR, COST_COVER, COST_OPTIMIZE, COST_AUTO_APPLY, EMPLOYER_SEARCH_SOFT_CAP,
   billingEnsure, creditBalance, creditSpend, insufficientCredits, assertCredits,
   effectiveLimit, employerBilling, planLimitReached,
 } from "./lib/billing.ts";
@@ -1251,9 +1251,21 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         resumeFieldId?: string; resumeFileUrl?: string; coverLetterFieldId?: string; coverLetterFileUrl?: string; submit?: boolean;
       };
       if (!jobId || !values) return json({ error: "jobId and values required" }, 400);
-      const { data: job } = await adminFill.from("jobs").select("id, source_url")
+      const { data: job } = await adminFill.from("jobs").select("id, source_url, auto_apply_charged_at")
         .eq("id", jobId).eq("user_id", user.id).maybeSingle();
       if (!job?.source_url) return json({ error: "This job has no application link on file." }, 400);
+
+      // Auto-apply is a paid feature — but a real application naturally
+      // calls this action twice (a preview fill, then the confirm-and-
+      // submit fill), since each call is a fresh, stateless browser session
+      // with nothing to resume. Charge once per job, on the first
+      // successful fill; the second call for the same job is already paid
+      // for and skips the credit check entirely.
+      const alreadyCharged = !!job.auto_apply_charged_at;
+      if (!alreadyCharged) {
+        const creditGate = await assertCredits(adminFill, user.id, COST_AUTO_APPLY, "auto-apply");
+        if (creditGate) return creditGate;
+      }
 
       // Real submission is a deliberate, explicit, per-call opt-in — never a
       // default. The frontend only ever sets submit:true after the person
@@ -1276,7 +1288,13 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         return json({ error: `Could not reach the application form: ${(e as Error).message}` }, 502);
       }
       if (!fillRes.ok) return json({ error: fillRes.error || "Could not fill this application form." }, 502);
-      return json(fillRes);
+
+      if (!alreadyCharged) {
+        await creditSpend(adminFill, user.id, COST_AUTO_APPLY, "auto_apply", `job:${jobId}`);
+        await adminFill.from("jobs").update({ auto_apply_charged_at: new Date().toISOString() }).eq("id", jobId);
+      }
+
+      return json({ ...fillRes, chargedCredits: alreadyCharged ? 0 : COST_AUTO_APPLY });
     }
 
     // ---------------- job_board_score (free) ----------------
