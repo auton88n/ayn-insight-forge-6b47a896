@@ -242,43 +242,38 @@ export function companyAvatar(name: string) {
 // in the freehire feed, whose own server-side favicon-by-domain lookup
 // (done at ingestion) still only covers 62% of ITS OWN rows.
 //
-// Fixed as a client-side fallback under all of that, using a free,
-// no-signup icon service — no re-ingest needed, applies to the ~23,000
-// rows already on file immediately. The one real subtlety: apply_url's
-// own domain is only the COMPANY's real site for freehire-sourced rows
-// (jobs.apple.com, careers.airbnb.com); for a Greenhouse/Lever/Ashby row
-// it's the ATS VENDOR's own multi-tenant domain (job-boards.greenhouse.io)
-// — using that directly would show every company on that vendor the
-// identical generic vendor icon, worse than no logo. Detected and routed
-// around: a vendor host falls back to guessing "{company_slug}.com"
-// instead, the same technique this app already uses elsewhere
-// (fetchCompanyContext's own "https://www.{company-slug}.com" guess for
-// a cover letter's company lookup) rather than inventing a second one.
-const ATS_VENDOR_HOSTS = [
-  "greenhouse.io", "lever.co", "ashbyhq.com", "myworkdayjobs.com",
-  "smartrecruiters.com", "breezy.hr", "freshteam.com", "zohorecruit.com",
-  "rippling.com", "oraclecloud.com",
-];
-function isAtsVendorHost(host: string): boolean {
-  return ATS_VENDOR_HOSTS.some((v) => host === v || host.endsWith(`.${v}`));
-}
-function faviconFallbackUrl(job: JobPosting): string | null {
-  let host = "";
-  try {
-    host = new URL(job.apply_url).hostname.replace(/^www\./, "");
-  } catch {
-    return null;
-  }
-  const slug = job.company_slug ? job.company_slug.replace(/[^a-z0-9-]/gi, "") : "";
-  const lookupDomain = isAtsVendorHost(host) && slug ? `${slug}.com` : host;
-  if (!lookupDomain || lookupDomain.length < 4) return null;
-  return `https://icons.duckduckgo.com/ip3/${lookupDomain}.ico`;
-}
-/** company_logo_url when present (freehire's own server-side lookup),
- * otherwise a client-side favicon guess — never invented, just a second,
- * looser attempt at the same real thing: an icon for this real company. */
+// A client-side favicon-guessing fallback was tried under all of that for
+// a while; see v3.263.0's own comment on resolveLogoUrl below for why it
+// was removed rather than kept.
+// v3.263.0 -- the client-side favicon guess (icons.duckduckgo.com/ip3/...)
+// this used to fall back to for a job with no company_logo_url is gone.
+// Reported directly against a screenshot: every card showed the identical
+// generic grey chevron glyph in place of a company logo. Traced with a
+// real, unsandboxed curl (this session's own Browser pane has no route to
+// an external host at all, so it couldn't have shown this): DuckDuckGo's
+// icon service answers a domain it has no real favicon for with a real
+// HTTP 404 status, but still serves a genuine, valid 48x48 PNG body -- its
+// own generic "unknown site" placeholder (confirmed byte-for-byte: a light
+// grey circle with a white chevron). A browser's <img> tag only reacts to
+// a load actually failing, never to the status code on a load that
+// otherwise succeeds, so onError never fires; the placeholder is well
+// above the existing MIN_LOGO_PX floor too, so the tiny-image check never
+// catches it either -- it renders exactly as if it were a real, verified
+// logo. Confirmed via curl that a real fetch() check can't tell the two
+// apart from here either: DuckDuckGo sends no CORS headers at all on this
+// endpoint, so a cross-origin fetch (needed to read the real status code)
+// is rejected by the browser before the status is ever visible to this
+// app's own JS, for a genuinely good icon exactly as much as a bad one.
+// With no reliable way to tell a real icon from the disguised placeholder,
+// the honest choice -- consistent with this whole app's own "never show
+// something that might not be real" rule -- is to stop guessing: a job
+// with no company_logo_url now goes straight to the deterministic
+// colored-initial avatar every caller already has, rather than risk
+// showing DuckDuckGo's own "we don't know" glyph as if it were real.
+/** company_logo_url when freehire's own server-side lookup found a real
+ * one, otherwise null -- never a client-side guess. */
 export function resolveLogoUrl(job: JobPosting): string | null {
-  return job.company_logo_url || faviconFallbackUrl(job);
+  return job.company_logo_url || null;
 }
 
 // job_board_score is deliberately keyword-only (no AI call — see that
