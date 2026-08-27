@@ -1263,7 +1263,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       // for and skips the credit check entirely.
       const alreadyCharged = !!job.auto_apply_charged_at;
       if (!alreadyCharged) {
-        const creditGate = await assertCredits(adminFill, user.id, COST_AUTO_APPLY, "auto-apply");
+        const creditGate = await assertCredits(adminFill, user.id, COST_AUTO_APPLY, "job auto-fill");
         if (creditGate) return creditGate;
       }
 
