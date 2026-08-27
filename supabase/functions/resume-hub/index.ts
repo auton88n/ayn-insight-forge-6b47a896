@@ -1129,6 +1129,131 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       return json({ results });
     }
 
+    // ---------------- auto_apply_extract / auto_apply_fill ----------------
+    // v3.265.0 — the actual merge: connects application_answer_match to a
+    // real job's real application form. job-checker (its own isolated,
+    // no-public-port Docker container, already running this exact Playwright
+    // stack for closure/scam checks) does the mechanical page work; this
+    // function is the only thing that ever decides WHAT to put in a field,
+    // reusing loadIdentity (already the single source of truth for name/
+    // email/phone everywhere else in this app) and matchApplicationAnswers
+    // (real, stored facts only, never guessed). job-checker itself holds no
+    // opinion about what a field should contain and never submits anything
+    // unless the caller explicitly says so — see job-checker/server.py's own
+    // header comment for that same boundary from its side.
+    const CHECKER_URL = "http://ayn-job-checker:8000";
+    const CHECKER_SECRET = Deno.env.get("CHECKER_SECRET");
+
+    if (action === "auto_apply_extract") {
+      const adminEx = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminEx, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminEx, user.id, action); if (blocked) return blocked; }
+      { const limited = await rateLimitGate(adminEx, user.id, action, 15, 15); if (limited) return limited; }
+      if (!CHECKER_SECRET) return json({ error: "Auto-apply is not configured on this deployment." }, 503);
+
+      const { jobId } = payload as { jobId?: string };
+      if (!jobId) return json({ error: "jobId required" }, 400);
+      const { data: job } = await adminEx.from("jobs").select("id, source_url, company, title")
+        .eq("id", jobId).eq("user_id", user.id).maybeSingle();
+      if (!job?.source_url) return json({ error: "This job has no application link on file." }, 400);
+
+      let extractRes: { ok: boolean; fields?: Array<{ tag: string; type: string | null; id: string | null; required: boolean; label: string }>; error?: string };
+      try {
+        const r = await fetch(`${CHECKER_URL}/extract_form`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Checker-Secret": CHECKER_SECRET },
+          body: JSON.stringify({ url: job.source_url }),
+        });
+        extractRes = await r.json();
+      } catch (e) {
+        return json({ error: `Could not reach the application form: ${(e as Error).message}` }, 502);
+      }
+      if (!extractRes.ok || !extractRes.fields) return json({ error: extractRes.error || "Could not read this application form." }, 502);
+
+      const fileFields = extractRes.fields.filter((f) => f.type === "file");
+      const candidateFields = extractRes.fields.filter((f) => f.type !== "file");
+
+      const [identity, canonical] = await Promise.all([
+        loadIdentity(adminEx, user.id, {}).catch(() => null),
+        loadCanonical(adminEx, user.id),
+      ]);
+
+      // Identity fields (name/email/phone/location) are matched by id/label
+      // keyword, not through matchApplicationAnswers — that function is
+      // deliberately scoped to the factual/legal/preference class of
+      // question, identity is its own, simpler, already-solved lookup.
+      const IDENTITY_PATTERNS: Array<{ role: string; test: RegExp; value: () => string }> = identity ? [
+        { role: "first_name", test: /first.?name/i, value: () => identity.first_name.value || "" },
+        { role: "last_name", test: /last.?name/i, value: () => identity.last_name.value || "" },
+        { role: "email", test: /e-?mail/i, value: () => identity.email.value || "" },
+        { role: "phone", test: /phone/i, value: () => identity.phone.value || "" },
+        { role: "location", test: /location|city/i, value: () => identity.city.value || identity.location.value || "" },
+        { role: "linkedin", test: /linkedin/i, value: () => identity.linkedin_url.value || "" },
+      ] : [];
+
+      const identityMatches: Record<string, { fieldId: string; role: string; value: string }> = {};
+      const remaining: Array<{ id: string; label: string }> = [];
+      for (const f of candidateFields) {
+        if (!f.id) continue;
+        const hay = `${f.id} ${f.label}`;
+        const idPattern = IDENTITY_PATTERNS.find((p) => p.test.test(hay));
+        if (idPattern && idPattern.value()) {
+          identityMatches[idPattern.role] = { fieldId: f.id, role: idPattern.role, value: idPattern.value() };
+        } else {
+          remaining.push({ id: f.id, label: f.label || f.id });
+        }
+      }
+
+      const answerMatches = canonical ? await matchApplicationAnswers(remaining, canonical) : remaining.map((q) => ({ fieldId: q.id, label: q.label, matchedType: null, answer: null, confidence: 0 }));
+
+      return json({
+        job: { id: job.id, company: job.company, title: job.title, url: job.source_url },
+        identityMatches,
+        answerMatches,
+        fileFields: fileFields.map((f) => ({ id: f.id, label: f.label })),
+      });
+    }
+
+    if (action === "auto_apply_fill") {
+      const adminFill = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminFill, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminFill, user.id, action); if (blocked) return blocked; }
+      { const limited = await rateLimitGate(adminFill, user.id, action, 15, 15); if (limited) return limited; }
+      if (!CHECKER_SECRET) return json({ error: "Auto-apply is not configured on this deployment." }, 503);
+
+      const { jobId, values, identityFieldIds, resumeFieldId, resumeFileUrl, coverLetterFieldId, coverLetterFileUrl, submit } = payload as {
+        jobId?: string; values?: Record<string, string>; identityFieldIds?: Record<string, string>;
+        resumeFieldId?: string; resumeFileUrl?: string; coverLetterFieldId?: string; coverLetterFileUrl?: string; submit?: boolean;
+      };
+      if (!jobId || !values) return json({ error: "jobId and values required" }, 400);
+      const { data: job } = await adminFill.from("jobs").select("id, source_url")
+        .eq("id", jobId).eq("user_id", user.id).maybeSingle();
+      if (!job?.source_url) return json({ error: "This job has no application link on file." }, 400);
+
+      // Real submission is a deliberate, explicit, per-call opt-in — never a
+      // default. The frontend only ever sets submit:true after the person
+      // has reviewed the exact filled state and clicked a real "Submit this
+      // application" button of their own inside AYN.
+      let fillRes: Record<string, unknown>;
+      try {
+        const r = await fetch(`${CHECKER_URL}/fill_form`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Checker-Secret": CHECKER_SECRET },
+          body: JSON.stringify({
+            url: job.source_url, values, identityFieldIds: identityFieldIds || {},
+            resumeFieldId: resumeFieldId || null, resumeFileUrl: resumeFileUrl || null,
+            coverLetterFieldId: coverLetterFieldId || null, coverLetterFileUrl: coverLetterFileUrl || null,
+            submit: !!submit,
+          }),
+        });
+        fillRes = await r.json();
+      } catch (e) {
+        return json({ error: `Could not reach the application form: ${(e as Error).message}` }, 502);
+      }
+      if (!fillRes.ok) return json({ error: fillRes.error || "Could not fill this application form." }, 502);
+      return json(fillRes);
+    }
+
     // ---------------- job_board_score (free) ----------------
     // v3.134.0 — the point of storing real, clean JD text from job_postings
     // ahead of time (job-board-sync) is that a browse list can show a real

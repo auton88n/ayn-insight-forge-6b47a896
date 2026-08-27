@@ -1,8 +1,13 @@
 import _compat_shim  # noqa: F401 -- must run before scrapegraphai.graphs import
+import base64
 import os
+import tempfile
+import urllib.request
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
+from typing import Optional, Dict
 from scrapegraphai.graphs import SmartScraperGraph
+from playwright.sync_api import sync_playwright
 
 SERVICE_ROLE_KEY = os.environ.get('SERVICE_ROLE_KEY', '')
 CHECKER_SECRET = os.environ.get('CHECKER_SECRET', '')
@@ -30,12 +35,15 @@ PROMPT = (
 
 app = FastAPI()
 
+
 class CheckRequest(BaseModel):
     url: str
+
 
 @app.get('/health')
 def health():
     return {'ok': True}
+
 
 @app.post('/check')
 def check(req: CheckRequest, x_checker_secret: str = Header(default='')):
@@ -58,3 +66,229 @@ def check(req: CheckRequest, x_checker_secret: str = Header(default='')):
         return {'ok': True, 'result': result}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Auto-apply: real, deterministic Playwright automation, no LLM involved.
+# What each field should be FILLED WITH is decided entirely by the caller
+# (resume-hub's own application_answer_match + loadIdentity, already
+# grounded to real, user-owned facts) -- this service only ever does the
+# mechanical work of reading a form's real fields and setting real values
+# into it. It never invents an answer, and it never decides on its own to
+# submit anything: /fill_form only clicks Submit when the caller explicitly
+# passes submit: true, after the caller's own human-confirmation step.
+# ---------------------------------------------------------------------------
+
+class ExtractFormRequest(BaseModel):
+    url: str
+
+
+class FillFormRequest(BaseModel):
+    url: str
+    values: Dict[str, str] = {}          # fieldId -> value. Caller doesn't
+                                          # need to know which of these are
+                                          # plain text vs a click-driven
+                                          # combobox -- /fill_form figures
+                                          # that out per field, since even
+                                          # visually-identical text inputs on
+                                          # the same real form turned out to
+                                          # be one or the other (observed
+                                          # live on Greenhouse).
+    identityFieldIds: Dict[str, str] = {}  # role ("first_name"/"last_name"/"email"/"phone"/"location") -> fieldId, re-applied after file attach
+    resumeFieldId: Optional[str] = None
+    resumeFileUrl: Optional[str] = None
+    coverLetterFieldId: Optional[str] = None
+    coverLetterFileUrl: Optional[str] = None
+    submit: bool = False
+    submitButtonText: str = "Submit application"
+
+
+def _extract_fields(page):
+    return page.evaluate("""
+    () => {
+      const fields = [];
+      document.querySelectorAll('form input, form select, form textarea').forEach(el => {
+        if (el.type === 'hidden') return;
+        let label = '';
+        if (el.id) {
+          const lbl = document.querySelector(`label[for="${el.id}"]`);
+          if (lbl) label = lbl.innerText.trim();
+        }
+        if (!label) {
+          const parentLabel = el.closest('label');
+          if (parentLabel) label = parentLabel.innerText.trim();
+        }
+        if (!label) {
+          const wrap = el.closest('.field, [class*="question"], fieldset');
+          if (wrap) {
+            const lbl2 = wrap.querySelector('label, legend');
+            if (lbl2) label = lbl2.innerText.trim();
+          }
+        }
+        fields.push({
+          tag: el.tagName.toLowerCase(),
+          type: el.type || null,
+          id: el.id || null,
+          required: el.required || false,
+          label: label,
+        });
+      });
+      return fields;
+    }
+    """)
+
+
+@app.post('/extract_form')
+def extract_form(req: ExtractFormRequest, x_checker_secret: str = Header(default='')):
+    if not CHECKER_SECRET or x_checker_secret != CHECKER_SECRET:
+        raise HTTPException(status_code=403, detail='forbidden')
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 1080, "height": 900})
+            page.goto(req.url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_selector("form", timeout=15000)
+            fields = _extract_fields(page)
+            browser.close()
+            # De-dupe by id, drop fields with no id (can't be targeted for fill)
+            seen = set()
+            out = []
+            for f in fields:
+                if not f["id"] or f["id"] in seen:
+                    continue
+                seen.add(f["id"])
+                out.append(f)
+            return {"ok": True, "fields": out}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _download_to_temp(url: str, suffix: str) -> str:
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    urllib.request.urlretrieve(url, path)
+    os.close(fd)
+    return path
+
+
+def _fill_one_field(page, field_id: str, value: str) -> str:
+    """
+    Click first, not fill first -- a real ATS combobox (a plain-looking
+    text input backed by a click-driven listbox) only reveals itself once
+    clicked, and clicking AFTER filling can wipe out a value that was
+    already set. If no listbox appears, it's a genuine plain field, filled
+    normally. Returns "combobox", "text", or "failed".
+    """
+    try:
+        page.click(f"#{field_id}", timeout=3000)
+    except Exception:
+        return "failed"
+    page.wait_for_timeout(250)
+    try:
+        opt = page.get_by_role("option", name=value, exact=True).first
+        opt.wait_for(state="visible", timeout=900)
+        opt.click(timeout=1500)
+        return "combobox"
+    except Exception:
+        pass
+    try:
+        opt = page.get_by_role("option", name=value, exact=False).first
+        opt.wait_for(state="visible", timeout=600)
+        opt.click(timeout=1500)
+        return "combobox"
+    except Exception:
+        pass
+    try:
+        page.fill(f"#{field_id}", value, timeout=3000)
+        return "text"
+    except Exception:
+        return "failed"
+
+
+@app.post('/fill_form')
+def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
+    if not CHECKER_SECRET or x_checker_secret != CHECKER_SECRET:
+        raise HTTPException(status_code=403, detail='forbidden')
+
+    resume_path = None
+    cover_path = None
+    try:
+        if req.resumeFieldId and req.resumeFileUrl:
+            resume_path = _download_to_temp(req.resumeFileUrl, ".pdf")
+        if req.coverLetterFieldId and req.coverLetterFileUrl:
+            cover_path = _download_to_temp(req.coverLetterFileUrl, ".pdf")
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 1080, "height": 900})
+            page.goto(req.url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_selector("form", timeout=15000)
+
+            filled, failed = [], []
+            field_kinds = {}
+            for field_id, value in req.values.items():
+                kind = _fill_one_field(page, field_id, value)
+                field_kinds[field_id] = kind
+                if kind == "failed":
+                    failed.append({"fieldId": field_id, "error": "field not found or not fillable"})
+                else:
+                    filled.append(field_id)
+
+            if resume_path and req.resumeFieldId:
+                try:
+                    page.set_input_files(f"#{req.resumeFieldId}", resume_path)
+                except Exception as e:
+                    failed.append({"fieldId": req.resumeFieldId, "error": str(e)})
+            if cover_path and req.coverLetterFieldId:
+                try:
+                    page.set_input_files(f"#{req.coverLetterFieldId}", cover_path)
+                except Exception as e:
+                    failed.append({"fieldId": req.coverLetterFieldId, "error": str(e)})
+
+            # A file attach can reset earlier-filled identity fields on some
+            # ATS platforms (observed live on Greenhouse) -- re-apply them.
+            if resume_path or cover_path:
+                page.wait_for_timeout(1200)
+                for role, field_id in req.identityFieldIds.items():
+                    if field_id in req.values:
+                        try:
+                            page.fill(f"#{field_id}", req.values[field_id], timeout=2000)
+                        except Exception:
+                            pass
+
+            submitted = False
+            submit_error = None
+            if req.submit:
+                try:
+                    btn = page.get_by_role("button", name=req.submitButtonText)
+                    btn.wait_for(state="visible", timeout=5000)
+                    if btn.is_enabled():
+                        btn.click(timeout=5000)
+                        page.wait_for_timeout(2500)
+                        submitted = page.url != req.url
+                        if not submitted:
+                            submit_error = "Page did not navigate after submit -- likely a validation error."
+                    else:
+                        submit_error = "Submit button not enabled."
+                except Exception as e:
+                    submit_error = str(e)
+
+            screenshot = page.screenshot(full_page=True)
+            final_url = page.url
+            browser.close()
+
+        return {
+            "ok": True,
+            "filled": filled,
+            "failed": failed,
+            "fieldKinds": field_kinds,
+            "submitted": submitted,
+            "submitError": submit_error,
+            "finalUrl": final_url,
+            "screenshotBase64": base64.b64encode(screenshot).decode(),
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    finally:
+        for p_ in (resume_path, cover_path):
+            if p_ and os.path.exists(p_):
+                os.remove(p_)
