@@ -1157,7 +1157,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         .eq("id", jobId).eq("user_id", user.id).maybeSingle();
       if (!job?.source_url) return json({ error: "This job has no application link on file." }, 400);
 
-      let extractRes: { ok: boolean; fields?: Array<{ tag: string; type: string | null; id: string | null; required: boolean; label: string }>; error?: string };
+      let extractRes: { ok: boolean; fields?: Array<{ tag: string; type: string | null; id: string | null; required: boolean; label: string }>; error?: string; resolvedUrl?: string };
       try {
         const r = await fetch(`${CHECKER_URL}/extract_form`, {
           method: "POST",
@@ -1233,6 +1233,14 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
 
       return json({
         job: { id: job.id, company: job.company, title: job.title, url: job.source_url },
+        // v3.265.0 — many ATS platforms show the JD and application form on
+        // two different URLs (an Apply click-through, sometimes a real
+        // navigation). auto_apply_fill needs this exact resolved URL, not
+        // the original posting link, or it lands back on the JD page and
+        // finds no form at all — confirmed live on Lever/Workday/
+        // SmartRecruiters during testing, none of which put the form on the
+        // page a saved job's own source_url points to.
+        applyUrl: extractRes.resolvedUrl || job.source_url,
         identityMatches,
         answerMatches,
         fileFields: fileFields.map((f) => ({ id: f.id, label: f.label })),
@@ -1246,14 +1254,16 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       { const limited = await rateLimitGate(adminFill, user.id, action, 15, 15); if (limited) return limited; }
       if (!CHECKER_SECRET) return json({ error: "Auto-apply is not configured on this deployment." }, 503);
 
-      const { jobId, values, identityFieldIds, resumeFieldId, resumeFileUrl, coverLetterFieldId, coverLetterFileUrl, submit } = payload as {
+      const { jobId, values, identityFieldIds, resumeFieldId, resumeFileUrl, coverLetterFieldId, coverLetterFileUrl, submit, applyUrl } = payload as {
         jobId?: string; values?: Record<string, string>; identityFieldIds?: Record<string, string>;
         resumeFieldId?: string; resumeFileUrl?: string; coverLetterFieldId?: string; coverLetterFileUrl?: string; submit?: boolean;
+        applyUrl?: string; // from auto_apply_extract's own resolvedUrl — see its comment
       };
       if (!jobId || !values) return json({ error: "jobId and values required" }, 400);
       const { data: job } = await adminFill.from("jobs").select("id, source_url, auto_apply_charged_at")
         .eq("id", jobId).eq("user_id", user.id).maybeSingle();
       if (!job?.source_url) return json({ error: "This job has no application link on file." }, 400);
+      const targetUrl = applyUrl || job.source_url;
 
       // Auto-apply is a paid feature — but a real application naturally
       // calls this action twice (a preview fill, then the confirm-and-
@@ -1277,7 +1287,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Checker-Secret": CHECKER_SECRET },
           body: JSON.stringify({
-            url: job.source_url, values, identityFieldIds: identityFieldIds || {},
+            url: targetUrl, values, identityFieldIds: identityFieldIds || {},
             resumeFieldId: resumeFieldId || null, resumeFileUrl: resumeFileUrl || null,
             coverLetterFieldId: coverLetterFieldId || null, coverLetterFileUrl: coverLetterFileUrl || null,
             submit: !!submit,

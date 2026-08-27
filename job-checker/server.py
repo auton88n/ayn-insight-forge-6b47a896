@@ -1,6 +1,7 @@
 import _compat_shim  # noqa: F401 -- must run before scrapegraphai.graphs import
 import base64
 import os
+import re
 import tempfile
 import urllib.request
 from fastapi import FastAPI, Header, HTTPException
@@ -103,11 +104,57 @@ class FillFormRequest(BaseModel):
     submitButtonText: str = "Submit application"
 
 
+APPLY_BUTTON_PATTERN = re.compile(
+    r"^\s*(apply( now| for this job| for this position)?|i'?m interested|start application|get started)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _click_apply_if_needed(page) -> bool:
+    """
+    Many ATS platforms (Lever, Workday, SmartRecruiters, and others) show
+    the job description and a separate Apply control first -- the actual
+    field-bearing form only exists after that click, sometimes on the same
+    page, sometimes after a navigation. Greenhouse is the exception, not
+    the rule -- its form sits directly on the posting page, which is why
+    this was never needed until testing spread past one platform. Returns
+    True if a click happened.
+    """
+    for role in ("button", "link"):
+        try:
+            candidates = page.get_by_role(role)
+            count = candidates.count()
+            for i in range(min(count, 40)):
+                el = candidates.nth(i)
+                text = (el.inner_text(timeout=500) or "").strip()
+                if APPLY_BUTTON_PATTERN.match(text):
+                    el.click(timeout=3000)
+                    page.wait_for_timeout(2000)
+                    return True
+        except Exception:
+            continue
+    return False
+
+
+def _real_field_count(page) -> int:
+    return page.evaluate("""
+      () => Array.from(document.querySelectorAll('input, select, textarea'))
+        .filter(el => el.type !== 'hidden' && el.offsetParent !== null).length
+    """)
+
+
 def _extract_fields(page):
     return page.evaluate("""
     () => {
       const fields = [];
-      document.querySelectorAll('form input, form select, form textarea').forEach(el => {
+      // Deliberately NOT scoped to "form X" -- Ashby's real application
+      // page has 30+ real, fillable inputs with no <form> element wrapping
+      // them at all (a plain React-managed page, submitted via a click
+      // handler, not a native form submit). Scoping to form-descendants
+      // silently found zero fields there. Querying the whole document is
+      // safe everywhere else too, since every field on a real application
+      // page is one this service might need to fill regardless of markup.
+      document.querySelectorAll('input, select, textarea').forEach(el => {
         if (el.type === 'hidden') return;
         let label = '';
         if (el.id) {
@@ -147,8 +194,23 @@ def extract_form(req: ExtractFormRequest, x_checker_secret: str = Header(default
             browser = p.chromium.launch()
             page = browser.new_page(viewport={"width": 1080, "height": 900})
             page.goto(req.url, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_selector("form", timeout=15000)
+            page.wait_for_timeout(1500)
+
+            clicked_apply = False
+            if _real_field_count(page) < 3:
+                clicked_apply = _click_apply_if_needed(page)
+
+            if _real_field_count(page) < 3:
+                # A genuinely real, honest failure mode: some postings (cross-
+                # posted/aggregated listings especially) name the real apply
+                # destination only in the job description's own text, or the
+                # apply control isn't a plain labeled button/link this
+                # heuristic can find. Reported plainly rather than guessed at.
+                browser.close()
+                return {"ok": False, "error": "Could not find an application form on this page, even after looking for an Apply button. The real application may live on a different site than the one linked."}
+
             fields = _extract_fields(page)
+            resolved_url = page.url
             browser.close()
             # De-dupe by id, drop fields with no id (can't be targeted for fill)
             seen = set()
@@ -158,7 +220,7 @@ def extract_form(req: ExtractFormRequest, x_checker_secret: str = Header(default
                     continue
                 seen.add(f["id"])
                 out.append(f)
-            return {"ok": True, "fields": out}
+            return {"ok": True, "fields": out, "resolvedUrl": resolved_url, "clickedApply": clicked_apply}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -217,7 +279,12 @@ def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
             browser = p.chromium.launch()
             page = browser.new_page(viewport={"width": 1080, "height": 900})
             page.goto(req.url, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_selector("form", timeout=15000)
+            page.wait_for_timeout(1500)
+            if _real_field_count(page) < 3:
+                _click_apply_if_needed(page)
+            if _real_field_count(page) < 3:
+                browser.close()
+                return {"ok": False, "error": "Could not find an application form on this page."}
 
             filled, failed = [], []
             field_kinds = {}
