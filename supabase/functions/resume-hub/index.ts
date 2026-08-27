@@ -1189,16 +1189,30 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         { role: "phone", test: /phone/i, value: () => identity.phone.value || "" },
         { role: "location", test: /location|city/i, value: () => identity.city.value || identity.location.value || "" },
         { role: "linkedin", test: /linkedin/i, value: () => identity.linkedin_url.value || "" },
+        { role: "country", test: /^country\b|country\*?$/i, value: () => identity.country.value || "" },
+        { role: "address", test: /street address|address.*city.*state|address line/i, value: () => identity.address_line1.value || "" },
       ] : [];
 
-      const identityMatches: Record<string, { fieldId: string; role: string; value: string }> = {};
+      // A field's SHAPE (is this "First Name") is a separate question from
+      // whether AYN currently has a value for it. Classify by shape alone,
+      // value or not — an identity field with nothing on file still belongs
+      // in identityMatches (so the frontend can show "not on file yet"),
+      // not in the generic Q&A matcher, which would waste a real embedding
+      // call trying to match "First Name*" against salary/license phrasings
+      // it was never going to resemble.
+      const identityMatches: Record<string, { fieldId: string; role: string; value: string | null }> = {};
       const remaining: Array<{ id: string; label: string }> = [];
       for (const f of candidateFields) {
         if (!f.id) continue;
         const hay = `${f.id} ${f.label}`;
-        const idPattern = IDENTITY_PATTERNS.find((p) => p.test.test(hay));
-        if (idPattern && idPattern.value()) {
-          identityMatches[idPattern.role] = { fieldId: f.id, role: idPattern.role, value: idPattern.value() };
+        // "Preferred First Name" contains the literal substring "First
+        // Name" and would otherwise collide with the real first_name role
+        // (last-write-wins on the identityMatches key, silently dropping
+        // whichever of the two was matched first) — optional, low-stakes,
+        // left unclassified rather than risk that collision.
+        const idPattern = /preferred/i.test(hay) ? undefined : IDENTITY_PATTERNS.find((p) => p.test.test(hay));
+        if (idPattern) {
+          identityMatches[idPattern.role] = { fieldId: f.id, role: idPattern.role, value: idPattern.value() || null };
         } else {
           remaining.push({ id: f.id, label: f.label || f.id });
         }
