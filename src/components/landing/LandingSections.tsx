@@ -431,7 +431,7 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
       {seeker && (
         <section className="lp-section" style={{ paddingBlockEnd: 0 }}>
         <div className="lp-shell">
-          <JobsBrowser showHeading asH1 />
+          <JobsBrowser showHeading asH1 onStartFree={() => onStartFree?.(audience)} />
           <p className="lp-note" style={{ marginTop: 22, textAlign: 'center' }}>
             {hero.note} Want AYN to score every job against your resume automatically?{' '}
             <button

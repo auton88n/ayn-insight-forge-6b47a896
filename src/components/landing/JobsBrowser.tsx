@@ -28,7 +28,7 @@ import {
   companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike,
   JobDescriptionBody, EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeCategory,
 } from '@/components/resume-hub/BrowseJobs';
-import { Search, ExternalLink, ShieldCheck, Loader2, Sparkles, MapPin, Briefcase, ArrowLeft } from 'lucide-react';
+import { Search, ExternalLink, ShieldCheck, Loader2, Sparkles, MapPin, Briefcase, ArrowLeft, Radar } from 'lucide-react';
 
 const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
 const PAGE_SIZE = 25;
@@ -75,11 +75,21 @@ type Props = {
    *  stay correct as you click through jobs even though the URL itself
    *  deliberately never moves (see the note on openJob below for why). */
   onSelectedChange?: (job: JobPosting | null) => void;
+  /** v3.261.0 -- "Get discovered" in the detail pane's action row. Turning
+   *  discoverability on is a real, signed-in action (talent_pool_set, a
+   *  real resume, the consent dialog) with no meaningful signed-out
+   *  version, unlike "See how well I match" which goes to a genuinely
+   *  public tool -- so this button's only job is to open sign-in first,
+   *  never to attempt the toggle itself. Each caller wires its own real
+   *  "open sign-in" behavior (the shared AuthModal on the embedded home
+   *  page, a local one on the standalone /jobs route), so this stays a
+   *  plain callback rather than JobsBrowser owning a modal of its own. */
+  onStartFree?: () => void;
 };
 
 export const JobsBrowser = ({
   routeId, categorySlug, locationSlug, initialQuery = '', initialWhere = '',
-  showHeading = true, asH1 = false, onJobsLoaded, onSelectedChange,
+  showHeading = true, asH1 = false, onJobsLoaded, onSelectedChange, onStartFree,
 }: Props) => {
   const navigate = useNavigate();
   const cityFilter = locationSlug ? unslugifyCity(locationSlug) : null;
@@ -387,6 +397,11 @@ export const JobsBrowser = ({
                 <button type="button" className="lp-btn lp-btn-ghost" onClick={() => navigate('/check-resume')}>
                   <Sparkles className="w-4 h-4" /> See how well I match, free
                 </button>
+                {onStartFree && (
+                  <button type="button" className="lp-btn lp-btn-ghost" onClick={onStartFree}>
+                    <Radar className="w-4 h-4" /> Get discovered
+                  </button>
+                )}
               </div>
 
               <div className="lp-browser-jd">

@@ -5,6 +5,7 @@ import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { JobsBrowser, unslugifyCity } from '@/components/landing/JobsBrowser';
 import { humanizeCategory } from '@/components/resume-hub/BrowseJobs';
+import { AuthModal } from '@/components/auth/AuthModal';
 import { Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,6 +33,11 @@ const PublicJobs = () => {
   const [selected, setSelected] = useState<JobPosting | null>(null);
   const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  // v3.261.0 -- this standalone route has no SeekerSidebar-owned modal to
+  // reuse (that one only opens from the sidebar's own CTA), so it gets its
+  // own local instance, the same pattern CheckResume.tsx already uses for
+  // the identical "a signed-out visitor needs to sign in first" case.
+  const [authOpen, setAuthOpen] = useState(false);
 
   useEffect(() => {
     document.body.classList.add('contact-surface');
@@ -142,6 +148,7 @@ const PublicJobs = () => {
               locationSlug={locationSlug}
               asH1
               onSelectedChange={setSelected}
+              onStartFree={() => setAuthOpen(true)}
             />
 
             <div className="mt-16 rounded-xl border p-6" style={{ background: 'var(--accent, #fdf3ee)' }}>
@@ -166,6 +173,7 @@ const PublicJobs = () => {
           <LandingFooter />
         </main>
       </div>
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} initialRole="job_seeker" />
     </>
   );
 };
