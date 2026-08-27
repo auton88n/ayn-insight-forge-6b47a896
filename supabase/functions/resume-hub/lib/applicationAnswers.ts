@@ -39,17 +39,39 @@ function yesNo(v: boolean | undefined | null): string | null {
 
 const KNOWN_QUESTIONS: QuestionType[] = [
   {
+    // "Are you authorized... WITHOUT sponsorship" -- Yes means sponsorship
+    // is NOT needed. Kept strictly separate from requires_sponsorship
+    // below: the two are opposite-polarity phrasings of the identical
+    // underlying fact, and a shared regex once matched both to this single
+    // resolver, silently answering the inverted-polarity question backwards
+    // (confirmed live: "Will you require sponsorship?" came back "Yes" for
+    // an account that does not need one). Never merge these two again.
     slug: "work_authorized_no_sponsorship",
-    keywords: /authoriz\w* to work.*(united states|u\.?s\.?|canada).*(without|now and in the future)|now or in the future.*(require|need).*sponsorship/i,
+    keywords: /authoriz\w* to work.*(united states|u\.?s\.?|canada).*without/i,
     examples: [
       "Are you legally authorized to work in the United States now and in the future without employer sponsorship?",
-      "Will you now or in the future require sponsorship for employment visa status?",
     ],
     resolve: (c) => {
       const wa = c.work_auth;
       if (wa.needs_sponsorship_now == null && wa.needs_sponsorship_future == null) return null;
       const needsAny = !!wa.needs_sponsorship_now || !!wa.needs_sponsorship_future;
       return needsAny ? "No" : "Yes";
+    },
+  },
+  {
+    // Opposite polarity from the one above on purpose -- "Will you...
+    // REQUIRE sponsorship" -- Yes means sponsorship IS needed.
+    slug: "requires_sponsorship",
+    keywords: /now or in the future.*(require|need).*sponsorship|require.*sponsorship.*(visa|work)/i,
+    examples: [
+      "Will you now or in the future require sponsorship for employment visa status?",
+      "Do you now, or will you in the future, require sponsorship for a work visa?",
+    ],
+    resolve: (c) => {
+      const wa = c.work_auth;
+      if (wa.needs_sponsorship_now == null && wa.needs_sponsorship_future == null) return null;
+      const needsAny = !!wa.needs_sponsorship_now || !!wa.needs_sponsorship_future;
+      return needsAny ? "Yes" : "No";
     },
   },
   {
