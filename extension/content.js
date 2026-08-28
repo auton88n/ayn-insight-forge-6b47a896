@@ -216,30 +216,32 @@
   const root = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
   style.textContent = `
-    .panel { width: 320px; max-height: 78vh; overflow-y: auto; background: #fbf6f0; color: #1f1a17;
-      border-radius: 16px; box-shadow: 0 24px 56px -20px rgba(20,15,10,0.35); border: 1px solid #ece2d6;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 13px; }
-    .head { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
-      background: linear-gradient(135deg, #e85d3a 0%, #ff8a5c 100%); color: #fff; border-radius: 16px 16px 0 0; }
-    .head b { font-size: 13.5px; }
-    .close { cursor: pointer; opacity: 0.85; background: none; border: none; color: #fff; font-size: 16px; line-height: 1; }
-    .body { padding: 14px 16px; }
-    .row { margin-bottom: 10px; }
-    label.field-label { display: block; font-size: 11px; color: #7a6d61; margin-bottom: 3px; }
-    input { width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 8px;
-      border: 1px solid #e0d5c8; font-size: 13px; background: #fff; color: #1f1a17; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px;
-      border-radius: 999px; border: none; font-weight: 600; font-size: 12.5px; cursor: pointer; }
+    .panel { width: 460px; max-height: 88vh; overflow-y: auto; background: #fbf6f0; color: #1f1a17;
+      border-radius: 18px; box-shadow: 0 28px 64px -20px rgba(20,15,10,0.4); border: 1px solid #ece2d6;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14.5px; }
+    .head { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;
+      background: linear-gradient(135deg, #e85d3a 0%, #ff8a5c 100%); color: #fff; border-radius: 18px 18px 0 0; }
+    .head b { font-size: 15px; }
+    .close { cursor: pointer; opacity: 0.85; background: none; border: none; color: #fff; font-size: 20px; line-height: 1; padding: 2px; }
+    .close:hover { opacity: 1; }
+    .body { padding: 18px 20px 20px; }
+    .row { margin-bottom: 13px; }
+    label.field-label { display: block; font-size: 12.5px; color: #7a6d61; margin-bottom: 4px; font-weight: 600; }
+    input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 9px;
+      border: 1px solid #e0d5c8; font-size: 14.5px; background: #fff; color: #1f1a17; }
+    input:focus { outline: none; border-color: #e85d3a; box-shadow: 0 0 0 3px rgba(232,93,58,0.15); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 18px;
+      border-radius: 999px; border: none; font-weight: 600; font-size: 14px; cursor: pointer; }
     .btn-primary { background: linear-gradient(135deg, #e85d3a 0%, #ff8a5c 100%); color: #fff; }
     .btn-primary:disabled { opacity: 0.55; cursor: default; }
     .btn-ghost { background: #efe6db; color: #1f1a17; }
-    .muted { color: #7a6d61; font-size: 12px; line-height: 1.5; margin: 0 0 8px; }
-    .warn { color: #9a5348; font-size: 12.5px; line-height: 1.5; margin: 0 0 8px; }
-    .ok { color: #2f6b52; font-size: 12.5px; line-height: 1.5; margin: 0 0 8px; }
-    ul.fail-list { margin: 0 0 8px; padding-left: 18px; color: #9a5348; font-size: 12px; }
-    .list { display: flex; flex-direction: column; gap: 6px; }
-    .job-pick { text-align: left; padding: 8px 10px; border-radius: 10px; border: 1px solid #e0d5c8;
-      background: #fff; cursor: pointer; font-size: 12.5px; }
+    .muted { color: #7a6d61; font-size: 13.5px; line-height: 1.6; margin: 0 0 10px; }
+    .warn { color: #9a5348; font-size: 13.5px; line-height: 1.6; margin: 0 0 10px; }
+    .ok { color: #2f6b52; font-size: 14px; font-weight: 600; line-height: 1.6; margin: 0 0 10px; }
+    ul.fail-list { margin: 0 0 10px; padding-left: 20px; color: #9a5348; font-size: 13.5px; line-height: 1.7; }
+    .list { display: flex; flex-direction: column; gap: 8px; }
+    .job-pick { text-align: left; padding: 11px 13px; border-radius: 11px; border: 1px solid #e0d5c8;
+      background: #fff; cursor: pointer; font-size: 14px; }
     .job-pick:hover { border-color: #e85d3a; }
   `;
   root.appendChild(style);
