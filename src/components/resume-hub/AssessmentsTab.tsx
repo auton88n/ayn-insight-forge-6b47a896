@@ -434,12 +434,12 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
 
   return (
     <div className="space-y-4">
+      {/* v3.273.0 -- swapped the thin accent-dash heading for the site's
+          real .lp-eyebrow pill (see JobsTab.tsx's own note on this same
+          pass for the full reasoning). */}
       <div>
-        <h2 className="rh-display flex items-center gap-2.5 text-xl">
-          <span aria-hidden="true" style={{ width: 18, height: 3, borderRadius: 2, background: "var(--rh-accent)", flexShrink: 0 }} />
-          Assessments
-        </h2>
-        <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--rh-muted)" }}>
+        <h2 className="lp-eyebrow" style={{ marginBottom: 8 }}>Assessments</h2>
+        <p className="text-sm leading-relaxed" style={{ color: "var(--rh-muted)" }}>
           A company asked you a few questions about your own work before deciding on a role.
         </p>
       </div>

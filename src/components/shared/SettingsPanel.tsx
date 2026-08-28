@@ -104,11 +104,11 @@ export default function SettingsPanel({ userId, session }: Props) {
     // internal padding was fine. A settings page is a form, not a wide
     // dashboard grid; capped to a real reading width instead.
     <div style={{ maxWidth: 720 }}>
-      <h2 className="lp-display flex items-center gap-2.5 text-xl">
-        <span aria-hidden="true" style={{ width: 18, height: 3, borderRadius: 2, background: "hsl(var(--lp-ember))", flexShrink: 0 }} />
-        Settings
-      </h2>
-      <p className="text-sm mt-1.5 mb-3" style={{ color: "hsl(var(--lp-muted))" }}>
+      {/* v3.273.0 -- swapped the thin accent-dash heading for the site's
+          real .lp-eyebrow pill (see JobsTab.tsx's own note on this same
+          pass for the full reasoning). */}
+      <h2 className="lp-eyebrow" style={{ marginBottom: 8 }}>Settings</h2>
+      <p className="text-sm mb-3" style={{ color: "hsl(var(--lp-muted))" }}>
         Your plan, notifications, data, and where you're signed in.
       </p>
       <div role="tablist" aria-label="Settings sections" className="flex items-center gap-1.5 flex-wrap mb-4">

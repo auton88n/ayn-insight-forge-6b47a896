@@ -97,15 +97,12 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
 
   return (
     <div className="space-y-4">
-      {/* v3.235.0 -- the same short ember accent mark Group's own headings
-          in Profile now carry, so a tab's top-level title reads with as
-          much presence here as the marketing pages' section headings. */}
+      {/* v3.273.0 -- swapped the thin accent-dash heading for the site's
+          real .lp-eyebrow pill (see JobsTab.tsx's own note on this same
+          pass for the full reasoning). */}
       <div>
-        <h2 className="rh-display flex items-center gap-2.5 text-xl">
-          <span aria-hidden="true" style={{ width: 18, height: 3, borderRadius: 2, background: "var(--rh-accent)", flexShrink: 0 }} />
-          Proposals
-        </h2>
-        <p className="text-sm mt-1" style={{ color: "var(--rh-muted)" }}>Roles employers want you for.</p>
+        <h2 className="lp-eyebrow" style={{ marginBottom: 8 }}>Proposals</h2>
+        <p className="text-sm" style={{ color: "var(--rh-muted)" }}>Roles employers want you for.</p>
       </div>
 
       {pending.length === 0 && (

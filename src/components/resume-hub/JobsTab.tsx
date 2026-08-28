@@ -814,11 +814,17 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     // grid instead of one very wide row, so the freed-up width goes into
     // more cards on screen at once, not one oddly stretched column.
     <div className="space-y-4">
+      {/* v3.273.0 -- reported directly, comparing a screenshot of this
+          thin accent-dash heading against the real .lp-eyebrow pill used
+          everywhere else on the site ("JOB SEARCH", above Browse real
+          jobs' own h1): "still the highlight needs to be fixed." The dash
+          was a resume-hub-only convention that never matched the site's
+          actual highlight treatment. Every page-level title across the
+          account tabs (this one, Proposals, Assessments, Settings, Job
+          matches) now uses the real pill instead, tightened to a compact
+          margin since these are dense utility pages, not a marketing hero. */}
       <div className="flex items-center justify-between gap-3">
-        <h2 className="rh-display flex items-center gap-2.5 text-xl">
-          <span aria-hidden="true" style={{ width: 18, height: 3, borderRadius: 2, background: "var(--rh-accent)", flexShrink: 0 }} />
-          Saved jobs
-        </h2>
+        <h2 className="lp-eyebrow" style={{ marginBottom: 0 }}>Saved jobs</h2>
       </div>
 
       {jobs.length > 0 && (
