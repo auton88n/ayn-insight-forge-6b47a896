@@ -1351,6 +1351,17 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         { role: "location", test: /\blocation\b|\bcity\b/i, value: () => identity.city.value || identity.location.value || "" },
         { role: "linkedin", test: /linkedin/i, value: () => identity.linkedin_url.value || "" },
         { role: "country", test: /^country\b|country\*?$/i, value: () => identity.country.value || "" },
+        // v3.281.0 -- reported directly, a real screenshot: "State /
+        // Province / County" and "Zip/ Postal Code" both showed as "not
+        // on file" even though the person's real region/postal code ARE
+        // already correctly resolved by identity.ts (region_full/
+        // postal_code, with the same multi-tier profile/canonical/resume
+        // fallback every other identity field uses) -- this was never a
+        // data gap, IDENTITY_PATTERNS just never had an entry for either
+        // role, so the two fields could never be recognized regardless of
+        // what was on file.
+        { role: "region", test: /\bstate\b|\bprovince\b/i, value: () => identity.region_full.value || identity.region.value || "" },
+        { role: "postal_code", test: /\bzip\b|postal code|post code/i, value: () => identity.postal_code.value || "" },
       ] : [];
 
       // A field's SHAPE (is this "First Name") is a separate question from

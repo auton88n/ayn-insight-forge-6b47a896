@@ -133,6 +133,20 @@ const KNOWN_QUESTIONS: QuestionType[] = [
     examples: ["Are you at least 18 years or older?"],
     resolve: (c) => c.screening_answers["eighteen_or_older"] || null,
   },
+  // v3.281.0 -- reported directly, a real screenshot: "Please list your
+  // highest level of education achieved?" showed as "not on file" even
+  // though the person's real education IS on file. There was never a
+  // KNOWN_QUESTIONS entry for this at all -- canonicalProfile.ts already
+  // computes derived.education_level (one of "High School",
+  // "Associate's", "Bachelor's", "Master's", "PhD", picked as the
+  // highest completed) for exactly this purpose, it was just never read
+  // here.
+  {
+    slug: "highest_education",
+    keywords: /highest level of education|education level|highest degree/i,
+    examples: ["What is the highest level of education you have completed?"],
+    resolve: (c) => c.derived.education_level || null,
+  },
 ];
 
 // Any single license/certification question ("Do you hold a NMLS
