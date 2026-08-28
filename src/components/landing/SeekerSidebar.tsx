@@ -34,7 +34,7 @@ import {
   Search, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
   CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, LogIn,
   LogOut, User, Menu, X, Briefcase, Inbox, ClipboardCheck, Settings as SettingsIcon, Target, Gavel,
-  ChevronDown, Building2,
+  ChevronDown, Building2, Download,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -69,6 +69,10 @@ const TAB_ICONS: Record<Exclude<HomeTabId, 'search'>, typeof Search> = {
 const TOOL_LINKS = [
   { to: '/check-resume', label: 'Check my resume', icon: FileCheck2 },
   { to: '/salary-guide', label: 'Salary guide', icon: Tag },
+  // v3.277.0 -- asked directly for a real page in the site to download
+  // the autofill extension from, named plainly "Autofill" -- put here,
+  // next to AYN's other real, standalone tools, not under "Company".
+  { to: '/autofill', label: 'Autofill', icon: Download },
 ];
 
 const COLLAPSE_KEY = 'ayn_sidebar_collapsed';
