@@ -21,7 +21,7 @@ import {
   sha256 as sha256b, buildSections, computeGap, renderGapBlock, droppedFigures,
   cacheGet, cacheSet, logAiCall, fetchCompanyContext,
   verifyWriteQuality, verifyProseQuality, violationsToRetryNote, resumeContentUnchanged, inventedFigures, stripInstructionLikeSpans,
-  verifyKeywordAlignment, flattenResumeSkillsAndProse,
+  verifyKeywordAlignment, flattenResumeSkillsAndProse, resolveTailorTitle,
   applySemanticRecheck, cosineSimilarity, computeQuickScore,
   type GapAnalysis, type SectionBundle,
 } from "../_shared/tailoring.ts";
@@ -835,7 +835,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`,
       { const blocked = await accountGate(adminTailor, user.id, action); if (blocked) return blocked; }
       { const limited = await rateLimitGate(adminTailor, user.id, action, 20, 15); if (limited) return limited; }
       const tailorStarted = Date.now();
-      const { jdText, idempotency_key: tailorIdemKey } = payload as { jdText: string; idempotency_key?: string };
+      const { jdText, jobTitle, idempotency_key: tailorIdemKey } = payload as { jdText: string; jobTitle?: string; idempotency_key?: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
 
       const [identity, canonical] = await Promise.all([
@@ -846,6 +846,13 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`,
       if (!bundle.text || bundle.chars < 60) return json({ error: "No resume content available to tailor" }, 400);
       let gap = computeGap(jdText, bundle);
       gap = await semanticGapRecheck(gap, bundle);
+
+      // v3.270.0 — decided in code, before the model ever runs: see
+      // resolveTailorTitle's own header comment. Real, same-level title
+      // alignment with the posting is automatic now; a seniority bump the
+      // candidate's own real title doesn't already carry is refused
+      // regardless of what the model or the job description says.
+      const resolvedTailorTitle = resolveTailorTitle(identity?.current_title.value || "", jobTitle);
 
       const jdHash = (await sha256b(jdText)).slice(0, 24);
       const sectionHash = (await sha256b(bundle.text)).slice(0, 16);
@@ -881,7 +888,7 @@ RULES — YOU MUST FOLLOW EVERY ONE:
 4b. THIS IS THE MOST IMPORTANT RULE FOR PASSING A REAL ATS SCAN. For every item in the GAP ANALYSIS marked ALREADY EVIDENCED below that names a specific skill, tool, technology, certification, or short phrase (not a full sentence), the resume's skills array must literally contain that exact wording as its own entry if it is not already phrased that way. Example: the candidate's own skills say "Postgres" and the job asks for "PostgreSQL" — ALREADY EVIDENCED confirms this is the same real thing the candidate already has, so the output skills array must include "PostgreSQL", not just "Postgres". This is never inventing a new skill — it is the same real, already-verified skill, spelled the way this specific employer's applicant-tracking system is scanning for it. Do this ONLY for items on the ALREADY EVIDENCED list, never for anything on the REQUIRED BUT NOT EVIDENCED list.
 5. You may adjust the summary to echo 2-3 key phrases from the job description — only using experience already in APPLICANT SECTIONS. Its first sentence must still open by naming the candidate's own current or most recent job title. The whole summary stays 1 to 2 sentences, no more.
 5b. If a bullet uses an internal-only company term or project codename, translate it into the plain, industry-standard equivalent so an outside reader recognizes it immediately — rephrase only, never invent a detail about what the internal thing was.
-6. Do NOT change job titles, company names, or dates. This includes basics.title (the resume's own header line): it must be the candidate's own current or most recent job title, taken from their most recent role in APPLICANT SECTIONS. If it arrives empty, fill it from their most recent work entry's title, never from the job description, and never with a higher seniority word ("Senior", "Lead", "Staff", "Principal") than their real title already has.
+6. Do NOT change job titles, company names, or dates anywhere in the work history. basics.title (the resume's own header line, separate from the work history) is NOT your decision to make: it has already been decided in code and MUST be exactly this string, verbatim, no matter what: "${resolvedTailorTitle}"
 6b. basics.name must be exactly the name given in the APPLICANT HEADER above (or, if that header has no name line, the local part of the email address in APPLICANT HEADER). Never invent a name and never write a placeholder like "Your Name" or "A. Developer" — if genuinely nothing is given, leave it as an empty string instead of guessing.
 7. Address the GAP ANALYSIS's "REQUIRED BUT NOT EVIDENCED" items wherever real related experience exists in APPLICANT SECTIONS; stay silent where it does not. Do not add a new claim just to fix a gap.
 8. No em dashes. No en dashes. Write dates as "2023 to Present".
@@ -943,12 +950,21 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       // deterministic gap analysis already confirmed this person genuinely
       // has real evidence for — never gap.missing, which stays untouched and
       // reported honestly). Every job, every time, unconditionally.
-      const tailoredResumeObj = r.structured as { skills?: string[] };
+      const tailoredResumeObj = r.structured as { skills?: string[]; basics?: { title?: string } };
       const stillMisalignedKeywords = verifyKeywordAlignment(gap, r.structured);
       if (stillMisalignedKeywords.length) {
         const existingSkillsLower = new Set((tailoredResumeObj.skills ?? []).map((s) => s.trim().toLowerCase()));
         const toGuarantee = stillMisalignedKeywords.filter((k) => !existingSkillsLower.has(k.trim().toLowerCase()));
         if (toGuarantee.length) tailoredResumeObj.skills = [...(tailoredResumeObj.skills ?? []), ...toGuarantee];
+      }
+
+      // v3.270.0 — same guarantee as the skills backstop above, for the
+      // title: resolvedTailorTitle was already decided in code before the
+      // model ever ran, so whatever the model actually returned is
+      // overwritten here unconditionally rather than trusted. This can never
+      // drift, and it's the only place this field's final value is set.
+      if (resolvedTailorTitle) {
+        tailoredResumeObj.basics = { ...(tailoredResumeObj.basics ?? {}), title: resolvedTailorTitle };
       }
 
       const tailorSkillGroups = await groupSkills(tailoredResumeObj.skills ?? []);

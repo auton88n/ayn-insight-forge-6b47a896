@@ -223,8 +223,11 @@ export const resumeHubApi = {
   /** idempotencyKey: pass the same value on a retry of a failed attempt so
    * the server recognizes it and doesn't charge twice if the first attempt
    * actually succeeded server side despite the client never seeing it. */
-  tailor: (jdText: string, idempotencyKey?: string) =>
-    call<{ resume: ResumeContent; gapAnalysis?: { missing: string[]; matchPct: number | null } }>("resume-hub", { action: "tailor", jdText, idempotency_key: idempotencyKey }),
+  /** jobTitle: the posting's own title, used to decide (in code, not by the
+   * model) whether the resume header can safely align to it -- see
+   * resolveTailorTitle's own comment for the seniority-inflation guard. */
+  tailor: (jdText: string, idempotencyKey?: string, jobTitle?: string) =>
+    call<{ resume: ResumeContent; gapAnalysis?: { missing: string[]; matchPct: number | null } }>("resume-hub", { action: "tailor", jdText, jobTitle, idempotency_key: idempotencyKey }),
 
   coverLetter: (jdText: string, opts?: { tone?: string; company?: string; idempotencyKey?: string }) =>
     call<{ body: string }>("resume-hub", { action: "cover_letter", jdText, tone: opts?.tone, company: opts?.company, idempotency_key: opts?.idempotencyKey }),

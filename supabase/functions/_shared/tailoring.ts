@@ -1030,6 +1030,52 @@ export function verifyKeywordAlignment(gap: GapAnalysis, outputResume: unknown):
   return gaps.slice(0, 8);
 }
 
+// v3.270.0 — the resume header's title, decided in code, not left to the
+// model. An exact title match against the posting is a real, well-documented
+// ATS/recruiter signal (both scan the header first) — refusing to ever touch
+// it was overly conservative. But the header is also the one place seniority
+// inflation is easiest to smuggle in ("Backend Engineer" quietly becoming
+// "Senior Backend Engineer"), and that's a real misrepresentation risk this
+// app has already reasoned through once (see the header title rule's own
+// history). The fix is the same shape as the skills fix above: automate the
+// safe case, keep the existing guard hard in the unsafe one. If the job's
+// title adds a seniority word the candidate's own real title doesn't already
+// have, the job's title is refused and the candidate's own real title is
+// kept — the person can still choose to override that themselves afterward
+// (the Jobs tab's own "Use this job's title" button, unchanged, still there
+// for exactly that deliberate, self-owned decision). If it doesn't add one,
+// the job's title is a same-level restatement of a real title this person
+// already holds, and using it is no different from the Postgres/PostgreSQL
+// case: the same real fact, in the employer's own words.
+const SENIORITY_WORDS = [
+  "senior", "sr", "staff", "lead", "principal", "director", "vp",
+  "vice president", "head of", "chief", "executive", "manager",
+];
+
+function seniorityWordsIn(title: string): Set<string> {
+  const found = new Set<string>();
+  for (const w of SENIORITY_WORDS) {
+    const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`\\b${escaped}\\b`, "i").test(title)) found.add(w);
+  }
+  return found;
+}
+
+/** Returns the title the resume header must use: the job's own title when
+ * it's a safe, same-or-lower-seniority restatement of a real title the
+ * candidate already holds; the candidate's own real title otherwise (or
+ * always, if no job title or no candidate title is available at all). */
+export function resolveTailorTitle(candidateTitle: string, jobTitle: string | undefined | null): string {
+  const own = (candidateTitle || "").trim();
+  const job = (jobTitle || "").trim();
+  if (!job) return own;
+  if (!own) return job; // nothing real to compare against or protect -- the job's own title is the only signal available
+  const jobSeniority = seniorityWordsIn(job);
+  const ownSeniority = seniorityWordsIn(own);
+  for (const w of jobSeniority) if (!ownSeniority.has(w)) return own; // a seniority word the candidate's own title doesn't already have -- refuse it
+  return job;
+}
+
 /** Same checks as verifyWriteQuality, for a flat prose string instead of a
  * structured resume — the cover-letter path produces plain text, not
  * RESUME_SCHEMA. No figure check here; that call site already runs its

@@ -264,7 +264,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     if (!pendingIdemKeys.current[idemMapKey]) pendingIdemKeys.current[idemMapKey] = crypto.randomUUID();
     const idemKey = pendingIdemKeys.current[idemMapKey];
     try {
-      const { resume, gapAnalysis } = await resumeHubApi.tailor(selected.jd_text, idemKey);
+      const { resume, gapAnalysis } = await resumeHubApi.tailor(selected.jd_text, idemKey, selected.title);
       delete pendingIdemKeys.current[idemMapKey]; // succeeded — next click is a genuinely new charge
       // Regenerating replaces the stored copy for this job.
       await supabase.from("resume_versions").delete().eq("user_id", userId).eq("created_for_job_id", selected.id);
