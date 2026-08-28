@@ -224,9 +224,30 @@
     el.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
+  // v3.281.0 -- reported directly, a real screenshot: "Please list your
+  // highest level of education achieved?" (a real <select> dropdown)
+  // showed as "not on file" even with the resolver fixed to actually
+  // answer it (see the backend's own applicationAnswers.ts). Root cause
+  // here: a <select>'s real, valid values are its own <option> values,
+  // which almost never match a plain resolved string exactly ("Bachelor's"
+  // vs an option literally reading "Bachelor's Degree") -- setting
+  // el.value to a non-matching string is a silent no-op in every browser.
+  // Fields registered as a real <select> now match against that select's
+  // own actual option text (exact, then substring) and select the real
+  // matching option -- never an invented one, and correctly reported as
+  // failed if genuinely no option matches.
   function fillTextLike(fid, value) {
     const el = fieldRegistry.get(fid);
     if (!el) return { ok: false };
+    if (el.tagName === "SELECT") {
+      const wanted = value.trim().toLowerCase();
+      const opts = Array.from(el.options);
+      const match = opts.find((o) => o.textContent.trim().toLowerCase() === wanted)
+        || opts.find((o) => o.textContent.trim().toLowerCase().includes(wanted) || wanted.includes(o.textContent.trim().toLowerCase()));
+      if (!match) return { ok: false };
+      setNativeValue(el, match.value);
+      return { ok: el.value === match.value };
+    }
     setNativeValue(el, value);
     return { ok: el.value === value };
   }
