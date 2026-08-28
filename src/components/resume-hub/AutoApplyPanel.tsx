@@ -218,6 +218,28 @@ export default function AutoApplyPanel({
         )}
       </div>
 
+      {/* v3.275.0 — this runs on a server, so some employers' own anti-spam
+          systems flag it as automated (reported directly, a real screenshot
+          of exactly this happening). The browser extension does the same
+          fill/submit from the person's own real Chrome instead, which
+          doesn't trip the same check since it genuinely isn't a bot — see
+          extension/README.md. Surfaced here, not buried in Settings, since
+          this is exactly the moment someone would want to know it exists:
+          right where the server-side version lives. */}
+      {phase === "idle" && (
+        <p className="text-xs" style={{ color: "var(--rh-faint)" }}>
+          Some employers' own systems flag automated fills like this one.{" "}
+          <a
+            href="/ayn-auto-apply-extension.zip"
+            download
+            style={{ color: "var(--rh-accent)", textDecoration: "underline" }}
+          >
+            Get the AYN browser extension
+          </a>{" "}
+          instead — it fills the same form in your own real browser, not on a server.
+        </p>
+      )}
+
       {phase === "extracting" && (
         <p className="text-sm flex items-center gap-2" style={{ color: "var(--rh-muted)" }}>
           <Loader2 className="w-4 h-4 animate-spin" />Reading this employer's application form…
