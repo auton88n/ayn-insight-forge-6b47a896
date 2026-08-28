@@ -1318,8 +1318,24 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       const IDENTITY_PATTERNS: Array<{ role: string; test: RegExp; value: () => string }> = identity ? [
         { role: "first_name", test: /first.?name/i, value: () => identity.first_name.value || "" },
         { role: "last_name", test: /last.?name/i, value: () => identity.last_name.value || "" },
+        // v3.280.0 -- reported directly, a real screenshot: "Legal Name"
+        // (one combined field, common on Ashby and several other ATS
+        // platforms) went into "not on file" even though the first and
+        // last name both genuinely are -- the identity model has always
+        // split them, this pattern was never taught the combined shape.
+        // Checked after first_name/last_name so neither of those loses to
+        // this broader one; "Legal Name"/"Full Name" alone never matches
+        // /first.?name/i or /last.?name/i to begin with, so order here
+        // only matters for clarity, not correctness.
+        { role: "full_name", test: /\b(legal|full)\s*name\b/i, value: () => [identity.first_name.value, identity.last_name.value].filter(Boolean).join(" ") },
         { role: "email", test: /e-?mail/i, value: () => identity.email.value || "" },
-        { role: "phone", test: /phone/i, value: () => identity.phone.value || "" },
+        // Broadened past the bare word "phone" for the same reason --
+        // reported in the same screenshot: "What is the best number to
+        // reach you at?" never contains the word "phone" at all. Kept
+        // specific (mobile/cell/telephone, or the exact phrases seen) on
+        // purpose, not a bare /number/i, which would wrongly claim an
+        // "Employee number" or "Reference number" field.
+        { role: "phone", test: /phone|telephone|\bmobile\b|\bcell\b|contact number|best number/i, value: () => identity.phone.value || "" },
         // Checked BEFORE "location" on purpose: "Street Address, City,
         // State, Zip Code" also contains the word "City", and .find()
         // returns the first array match — putting the more specific
