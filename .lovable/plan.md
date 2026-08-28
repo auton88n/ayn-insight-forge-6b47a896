@@ -48,3 +48,36 @@ One decision, one click, then the tailor runs once and is done.
 ## One prerequisite, flagged honestly
 
 `npx tsc --noEmit` currently reports 25 errors across 8 files, all predating this plan (a clean checkout reproduces them). They all trace to `src/integrations/supabase/types.ts` being generated against the Lovable-connected Supabase project while the app runs against the self-hosted VPS database. Worth regenerating from the VPS before adding to this file, though this plan adds no new table so it is not strictly blocking.
+
+## Second half of the ask: fix mistakes and re-check the score after tailoring
+
+Tailoring today writes once, checks a few things, and hands the resume over. The number the person sees afterwards can be low for two different reasons, and only one of them is honest:
+
+- **Real gaps.** The job asks for something they genuinely have not done. Nothing should paper over this.
+- **A miss by the writer.** Something is genuinely on their resume, the job asks for it in different words, and the tailor run failed to line the wording up. That is a mistake, not a gap, and it should be corrected before the person ever sees it.
+
+The change is a correction pass that only ever fixes the second kind.
+
+1. After the tailor run, AYN re-checks the finished resume against the job. This is the same free, deterministic check, run on the output instead of the profile.
+2. Every requirement still marked missing is sorted into two buckets: **evidenced in your background but not surfaced** and **genuinely not there**.
+3. If the first bucket is not empty, AYN runs one repair pass naming exactly those items, then re-checks. Nothing new is invented; the repair may only surface wording for things already true on the page.
+4. The resume is also re-graded for writing mistakes (invented figures, first-person pronouns, clichés, dashes, a generic summary). Anything found gets the same one repair attempt.
+5. The person sees the final number with a plain sentence explaining it: either *"Everything this job asks for that you have done is now on the page"*, or *"3 things are still missing because you have not done them"* naming them.
+
+## What 100% honestly means here
+
+If the person said **yes** to the gap dialog above, every requirement is on the page and the score does reach 100%. If they said **no**, the ceiling is whatever their real background supports, and AYN says so in words rather than showing a bare low number that reads like a bug. AYN never closes a gap the person did not agree to, and never claims a perfect score it did not actually measure.
+
+## Technical notes for this half
+
+**Backend** (`supabase/functions/resume-hub/index.ts`, `tailor` action)
+
+- The output-side gap check already exists (`outputGap` / `matchPct`, computed from `flattenResumeSkillsAndProse`). It currently only reports. It becomes the trigger for the repair pass.
+- Split `outputGap.missing` using the existing profile-side `gap`: a requirement missing on the output but matched on the profile is a **misalignment** (fixable); missing on both is a **real gap** (left alone). This reuses `verifyKeywordAlignment`'s own reasoning rather than adding a second notion of "should have been there".
+- One repair call, at most, per tailor run: same model, same rules, given the current resume plus the exact list of misaligned items, plus any `verifyWriteQuality` violations found on the output. Re-run both checks after; keep the repair only if it is genuinely better on both, otherwise keep the first draft. Same "keep the better of the two" pattern the existing figure check already uses.
+- Response gains `gapAnalysis.stillMissing` (the real gaps, named) alongside the existing `missing` and `matchPct`, so the frontend can explain the number instead of just printing it.
+- No extra credits. The repair is part of the one tailor run the person already paid for.
+
+**Frontend** (`src/components/resume-hub/JobsTab.tsx`)
+
+- Under the tailored resume, one line: the score, then either the "everything you have done is on the page" sentence or the named real gaps.
