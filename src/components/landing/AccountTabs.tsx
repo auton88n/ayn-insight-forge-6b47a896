@@ -95,12 +95,35 @@ function SignInPrompt({ label, onStartFree }: { label: string; onStartFree: TabP
 // account tab is actually mounted -- ProfileTab/JobsTab/etc read --rh-*
 // tokens that only exist under this scope, and Radix portals (dialogs,
 // selects) render straight onto <body>, outside this component's own tree.
+//
+// v3.272.0 -- reported directly, against a live screenshot of this exact
+// sidebar: "all the pages cards and content are very big taking the whole
+// place also way in top is not like the other pages also dose not match
+// our own design and spacing width and height." Traced it: every OTHER
+// tab (FeaturesTab, PricingTab, and the rest in HomeTabs.tsx) wraps its
+// own content in `.lp-section` (the shared top/bottom breathing room every
+// page on this site uses) and `.lp-shell` (the shared width cap) -- this
+// wrapper never did either. `rh-account-embed` had no matching CSS
+// anywhere (confirmed by grep), so it was a no-op class name -- Profile,
+// Saved jobs, Job matches, Proposals, Assessments and Settings were all
+// rendering their own internal markup completely unconstrained: full
+// browser width, flush against the very top of the page, the exact
+// "big, taking the whole place, way in top" the screenshot showed. These
+// five components were originally built to sit inside EmployerHub.tsx's
+// own `.rh-app-content` (max-width 1180px) -- reused that same width
+// here, inside the site's own real `.lp-section`/`.lp-shell` pair instead
+// of a bespoke wrapper, so this now matches every sibling tab's spacing
+// exactly rather than approximating it.
 function RhScope({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.body.classList.add('resume-hub-theme');
     return () => document.body.classList.remove('resume-hub-theme');
   }, []);
-  return <div className="resume-hub-theme rh-account-embed">{children}</div>;
+  return (
+    <section className="lp-section resume-hub-theme">
+      <div className="lp-shell" style={{ maxWidth: 1180 }}>{children}</div>
+    </section>
+  );
 }
 
 const TabFallback = () => (
