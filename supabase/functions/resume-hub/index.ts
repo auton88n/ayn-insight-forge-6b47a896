@@ -1216,28 +1216,47 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       { const off = await featureGate(adminEx, "tailoring"); if (off) return off; }
       { const blocked = await accountGate(adminEx, user.id, action); if (blocked) return blocked; }
       { const limited = await rateLimitGate(adminEx, user.id, action, 15, 15); if (limited) return limited; }
-      if (!CHECKER_SECRET) return json({ error: "Auto-apply is not configured on this deployment." }, 503);
 
-      const { jobId } = payload as { jobId?: string };
+      const { jobId, fields: clientFields } = payload as {
+        jobId?: string;
+        // v3.274.0 — the AYN extension's own content script runs THIS in
+        // the person's own real browser tab (the actual application page
+        // already open in front of them), so it can read the live DOM
+        // directly and never needs job-checker's server-side Playwright
+        // fetch at all. Supplying `fields` here skips straight to the one
+        // part of this action that was never job-checker-specific in the
+        // first place -- matching an already-extracted field list against
+        // the person's own real identity/profile, the exact same
+        // loadIdentity/matchApplicationAnswers call every other caller of
+        // this action already goes through. Nothing about WHAT gets
+        // resolved changes; only where the raw field list came from.
+        fields?: Array<{ tag: string; type: string | null; id: string | null; required: boolean; label: string; radioGroup?: string | null; radioGroupLabel?: string | null }>;
+      };
       if (!jobId) return json({ error: "jobId required" }, 400);
       const { data: job } = await adminEx.from("jobs").select("id, source_url, company, title")
         .eq("id", jobId).eq("user_id", user.id).maybeSingle();
-      if (!job?.source_url) return json({ error: "This job has no application link on file." }, 400);
+      if (!job) return json({ error: "Job not found." }, 404);
 
       let extractRes: {
         ok: boolean;
         fields?: Array<{ tag: string; type: string | null; id: string | null; required: boolean; label: string; radioGroup?: string | null; radioGroupLabel?: string | null }>;
         error?: string; resolvedUrl?: string; signinRequired?: boolean;
       };
-      try {
-        const r = await fetch(`${CHECKER_URL}/extract_form`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Checker-Secret": CHECKER_SECRET },
-          body: JSON.stringify({ url: job.source_url }),
-        });
-        extractRes = await r.json();
-      } catch (e) {
-        return json({ error: `Could not reach the application form: ${(e as Error).message}` }, 502);
+      if (clientFields && clientFields.length) {
+        extractRes = { ok: true, fields: clientFields };
+      } else {
+        if (!job.source_url) return json({ error: "This job has no application link on file." }, 400);
+        if (!CHECKER_SECRET) return json({ error: "Auto-apply is not configured on this deployment." }, 503);
+        try {
+          const r = await fetch(`${CHECKER_URL}/extract_form`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Checker-Secret": CHECKER_SECRET },
+            body: JSON.stringify({ url: job.source_url }),
+          });
+          extractRes = await r.json();
+        } catch (e) {
+          return json({ error: `Could not reach the application form: ${(e as Error).message}` }, 502);
+        }
       }
 
       // Two honest give-up cases, neither a hard error: this employer's own
