@@ -98,7 +98,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   rejected: { label: "Not this time", color: "#9a5348", bg: "#f5e6e2" },
   withdrawn: { label: "Withdrawn", color: "var(--rh-faint)", bg: "var(--rh-raised)" },
 };
-interface TailoredRow { id: string; created_at: string; content: ResumeContent }
+interface TailoredRow { id: string; created_at: string; content: ResumeContent; match_pct: number | null; still_missing: string[] }
 interface CoverRow { id: string; created_at: string; body: string }
 
 // v3.136.0 — same tiering BrowseJobs.tsx uses for its own quick-match pill
@@ -218,7 +218,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   /** Documents generated for this job, newest first. */
   const loadDocs = async (jobId: string) => {
     const [{ data: v }, { data: c }] = await Promise.all([
-      supabase.from("resume_versions").select("id, created_at, content")
+      supabase.from("resume_versions").select("id, created_at, content, match_pct, still_missing")
         .eq("user_id", userId).eq("created_for_job_id", jobId)
         .order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("cover_letters").select("id, created_at, body")
@@ -270,6 +270,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       await supabase.from("resume_versions").delete().eq("user_id", userId).eq("created_for_job_id", selected.id);
       const { error } = await supabase.from("resume_versions").insert({
         user_id: userId, resume_id: primaryResume.id, content: resume as never, created_for_job_id: selected.id,
+        match_pct: gapAnalysis?.matchPct ?? null, still_missing: gapAnalysis?.missing ?? [],
       });
       if (error) throw error;
       await loadDocs(selected.id);
@@ -651,6 +652,21 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                         )}
                       </div>
                     </div>
+                    {tailored.match_pct != null && (
+                      <div className="flex items-start gap-2 pt-1">
+                        <span
+                          className="text-xs font-semibold rounded-full px-2 py-0.5 shrink-0"
+                          style={{ fontFamily: "JetBrains Mono, monospace", ...scoreBadgeStyle(tailored.match_pct) }}
+                        >
+                          {tailored.match_pct}%
+                        </span>
+                        <p className="text-xs" style={{ color: "var(--rh-muted)" }}>
+                          {tailored.still_missing.length === 0
+                            ? "Everything this job asks for that you've done is now on the page."
+                            : `Still missing because you haven't done ${tailored.still_missing.length === 1 ? "it" : "them"} yet: ${tailored.still_missing.join(", ")}.`}
+                        </p>
+                      </div>
+                    )}
                     {showDiff && primaryResume && (
                       <ResumeDiffViewer
                         original={resumeToText(primaryResume.content)}
