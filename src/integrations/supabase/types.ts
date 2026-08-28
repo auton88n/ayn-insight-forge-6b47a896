@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -622,6 +622,8 @@ export type Database = {
           seeker_growth_note: string | null
           strengths: Json
           verification_verdict: string
+          writing_signal: string | null
+          writing_signal_note: string | null
         }
         Insert: {
           assessment_id: string
@@ -634,6 +636,8 @@ export type Database = {
           seeker_growth_note?: string | null
           strengths?: Json
           verification_verdict?: string
+          writing_signal?: string | null
+          writing_signal_note?: string | null
         }
         Update: {
           assessment_id?: string
@@ -646,6 +650,8 @@ export type Database = {
           seeker_growth_note?: string | null
           strengths?: Json
           verification_verdict?: string
+          writing_signal?: string | null
+          writing_signal_note?: string | null
         }
         Relationships: []
       }
@@ -680,6 +686,7 @@ export type Database = {
           candidate_user_id: string
           created_at: string
           created_by: string | null
+          current_question_started_at: string | null
           expires_at: string | null
           id: string
           job_title: string | null
@@ -699,6 +706,7 @@ export type Database = {
           candidate_user_id: string
           created_at?: string
           created_by?: string | null
+          current_question_started_at?: string | null
           expires_at?: string | null
           id?: string
           job_title?: string | null
@@ -718,6 +726,7 @@ export type Database = {
           candidate_user_id?: string
           created_at?: string
           created_by?: string | null
+          current_question_started_at?: string | null
           expires_at?: string | null
           id?: string
           job_title?: string | null
@@ -2261,28 +2270,8 @@ export type Database = {
         }
         Relationships: []
       }
-      job_postings_seen: {
-        Row: {
-          job_posting_id: string
-          seen_at: string
-          user_id: string
-        }
-        Insert: {
-          job_posting_id: string
-          seen_at?: string
-          user_id: string
-        }
-        Update: {
-          job_posting_id?: string
-          seen_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       jobs: {
         Row: {
-          application_status: string
-          application_status_changed_at: string
           captured_at: string
           company: string | null
           created_at: string
@@ -2303,8 +2292,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          application_status?: string
-          application_status_changed_at?: string
           captured_at?: string
           company?: string | null
           created_at?: string
@@ -2325,8 +2312,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          application_status?: string
-          application_status_changed_at?: string
           captured_at?: string
           company?: string | null
           created_at?: string
