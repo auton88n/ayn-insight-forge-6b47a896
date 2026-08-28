@@ -352,6 +352,41 @@ def _resolve_radio_group(fields, wanted_group_label: str):
     return best_opts
 
 
+# Phrases real ATS platforms show, in their own words, when they refuse a
+# submission -- deliberately narrow and literal (never a broad "error"/
+# "failed" match, which would also catch a genuine field-validation message
+# that has nothing to do with an anti-spam rejection). Only ever used to
+# report a rejection honestly, never to work around one.
+_REJECTION_PHRASES = [
+    "flagged as possible spam", "flagged as spam", "couldn't submit your application",
+    "could not submit your application", "we couldn't submit", "unable to submit your application",
+    "your submission was blocked", "application was not submitted", "suspicious activity detected",
+    "automated submission", "bot detection",
+]
+
+
+def _find_rejection_text(page_text: str) -> Optional[str]:
+    """Returns the matched sentence (trimmed, for a readable error message)
+    if the page's own visible text names an anti-spam/anti-bot rejection,
+    else None."""
+    if not page_text:
+        return None
+    lower = page_text.lower()
+    for phrase in _REJECTION_PHRASES:
+        idx = lower.find(phrase)
+        if idx == -1:
+            continue
+        # Walk back to the start of the sentence/line the phrase sits in,
+        # and forward to its end, so the error message quotes something
+        # readable rather than a bare fragment.
+        start = max(page_text.rfind("\n", 0, idx), page_text.rfind(". ", 0, idx) + 1, 0)
+        end_candidates = [e for e in (page_text.find("\n", idx), page_text.find(". ", idx)) if e != -1]
+        end = min(end_candidates) if end_candidates else len(page_text)
+        snippet = page_text[start:end].strip()
+        return snippet[:220] if snippet else phrase
+    return None
+
+
 def _download_to_temp(url: str, suffix: str) -> str:
     fd, path = tempfile.mkstemp(suffix=suffix)
     urllib.request.urlretrieve(url, path)
@@ -568,8 +603,34 @@ def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
                     if btn.is_enabled():
                         btn.click(timeout=5000)
                         page.wait_for_timeout(2500)
-                        submitted = page.url != req.url
-                        if not submitted:
+                        # A URL change alone isn't proof the application went
+                        # through -- some ATS platforms route both a real
+                        # confirmation AND their own anti-spam rejection to
+                        # a URL that differs from the job posting, so a
+                        # rejected submission could otherwise get silently
+                        # reported here as "submitted". Checked directly: a
+                        # real submission was reported as urlChanged=true,
+                        # rejectionFound=false with no code change needed;
+                        # the fix is only ever this ADDITIONAL check, never
+                        # a weaker one -- this can only turn a false
+                        # "submitted" into an honest failure, never the
+                        # reverse. Never attempts to get PAST this kind of
+                        # rejection -- only to stop AYN from claiming an
+                        # application went through when the employer's own
+                        # system just said, in its own words, that it didn't.
+                        url_changed = page.url != req.url
+                        page_text = ""
+                        try:
+                            page_text = page.inner_text("body", timeout=2000)
+                        except Exception:
+                            pass
+                        rejection = _find_rejection_text(page_text)
+                        if rejection:
+                            submitted = False
+                            submit_error = f"The employer's own application system rejected this submission: \"{rejection}\""
+                        elif url_changed:
+                            submitted = True
+                        else:
                             submit_error = "Page did not navigate after submit -- likely a validation error."
                     else:
                         submit_error = "Submit button not enabled."
