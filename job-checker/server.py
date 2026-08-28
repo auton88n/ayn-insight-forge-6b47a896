@@ -195,6 +195,17 @@ def _extract_fields(page):
       // page is one this service might need to fill regardless of markup.
       document.querySelectorAll('input, select, textarea').forEach(el => {
         if (el.type === 'hidden') return;
+        // v3.273.0 -- real bug, reproduced live: a genuinely invisible
+        // companion input (a country-code dropdown's own internal search
+        // box, closed and hidden by default, sitting right next to a real
+        // visible "Phone" field with intl-tel-input's own libraries) was
+        // extracted as a real field, then won the label match over the
+        // actually-visible #phone input beside it, since both sit under
+        // the same "Phone" label text in the DOM. Same visibility check
+        // _real_field_count already uses to decide what counts as a real,
+        // currently-fillable field -- an invisible one isn't fillable right
+        // now regardless of what label text happens to be nearby.
+        if (el.offsetParent === null) return;
         let label = '';
         if (el.id) {
           const lbl = document.querySelector(`label[for="${el.id}"]`);
@@ -371,39 +382,56 @@ def _fill_one_field(page, field_id: str, value: str) -> str:
         except Exception:
             return "failed"
 
+    # v3.273.0 — real bug, reproduced live: this used to return "failed"
+    # immediately if THIS first click failed, before ever trying fill() or
+    # any fallback below. A real Greenhouse-embedded phone field (an
+    # intl-tel-input-style widget, fieldId "iti-0__search-input") failed
+    # exactly this way -- the keystroke fallback added right after it was
+    # dead code, unreachable, because this early return already fired.
+    # Downgraded to "note it failed, keep trying" instead of an early exit,
+    # so every fallback below still gets a real chance.
+    opened_combobox = False
     try:
         page.click(f"#{field_id}", timeout=3000)
-    except Exception:
-        return "failed"
-    page.wait_for_timeout(300)
-    try:
-        page.get_by_role("option", name=value, exact=True).first.click(timeout=1500)
-        return "combobox"
+        opened_combobox = True
     except Exception:
         pass
-    try:
-        page.get_by_role("option", name=value, exact=False).first.click(timeout=1500)
-        return "combobox"
-    except Exception:
-        pass
+    if opened_combobox:
+        page.wait_for_timeout(300)
+        try:
+            page.get_by_role("option", name=value, exact=True).first.click(timeout=1500)
+            return "combobox"
+        except Exception:
+            pass
+        try:
+            page.get_by_role("option", name=value, exact=False).first.click(timeout=1500)
+            return "combobox"
+        except Exception:
+            pass
     try:
         page.fill(f"#{field_id}", value, timeout=3000)
         return "text"
     except Exception:
         pass
     # Some real widgets (intl-tel-input and similar phone-entry libraries
-    # are the common case, confirmed live: a real Greenhouse-embedded phone
-    # field resolved to id "iti-0__search-input" and refused fill() outright
-    # with "field not fillable") render a search-style input that looks
-    # readonly to Playwright's own fillability check but is genuinely
-    # editable -- these widgets listen for real keystroke events directly,
-    # not a value set the way fill() does it. A real click-then-type is the
-    # same fallback Playwright's own docs name for exactly this shape.
+    # are the common case, confirmed live: the same real field above) render
+    # a search-style input that looks readonly to Playwright's own
+    # fillability check but is genuinely editable -- these widgets listen
+    # for real keystroke events directly, not a value set the way fill()
+    # does it. A real click-then-type is the same fallback Playwright's own
+    # docs name for exactly this shape. Tried even if the very first click
+    # above failed, since that failure can be transient (an element that
+    # needed the page to settle a moment longer) rather than permanent.
     try:
         page.click(f"#{field_id}", timeout=2000)
         page.keyboard.type(value, delay=20)
         return "text"
-    except Exception:
+    except Exception as e:
+        # Real, permanent visibility into why a field genuinely couldn't be
+        # filled -- this is exactly what surfaced the intl-tel-input bug
+        # above; a silent "failed" with no reason was the reason it took a
+        # live docker logs check to actually find it the first time.
+        print(f"fill failed for #{field_id}: {type(e).__name__}: {e}", flush=True)
         return "failed"
 
 
