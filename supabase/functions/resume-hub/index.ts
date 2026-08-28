@@ -1232,26 +1232,43 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         // resolved changes; only where the raw field list came from.
         fields?: Array<{ tag: string; type: string | null; id: string | null; required: boolean; label: string; radioGroup?: string | null; radioGroupLabel?: string | null }>;
       };
-      if (!jobId) return json({ error: "jobId required" }, 400);
-      const { data: job } = await adminEx.from("jobs").select("id, source_url, company, title")
-        .eq("id", jobId).eq("user_id", user.id).maybeSingle();
-      if (!job) return json({ error: "Job not found." }, 404);
+
+      // v3.278.0 — reported directly, a real screenshot: the extension was
+      // making the person pick which SAVED job they were on before it would
+      // do anything, on a page that was never a job application at all
+      // ("saved jobs doesn't have to do with this"). jobId only ever
+      // existed here to satisfy job-checker's server-side fetch (which
+      // needs a real source_url on file) — the matching itself has never
+      // been job-specific, loadIdentity/matchApplicationAnswers take the
+      // person's profile and a field list, nothing about which job it is.
+      // jobId is now optional; supplying real, client-extracted `fields`
+      // with no jobId skips the whole jobs-table step entirely.
+      const usingClientFields = !!(clientFields && clientFields.length);
+      let job: { id: string; source_url: string | null; company: string | null; title: string | null } | null = null;
+      if (jobId) {
+        const { data } = await adminEx.from("jobs").select("id, source_url, company, title")
+          .eq("id", jobId).eq("user_id", user.id).maybeSingle();
+        if (!data) return json({ error: "Job not found." }, 404);
+        job = data;
+      } else if (!usingClientFields) {
+        return json({ error: "jobId required" }, 400);
+      }
 
       let extractRes: {
         ok: boolean;
         fields?: Array<{ tag: string; type: string | null; id: string | null; required: boolean; label: string; radioGroup?: string | null; radioGroupLabel?: string | null }>;
         error?: string; resolvedUrl?: string; signinRequired?: boolean;
       };
-      if (clientFields && clientFields.length) {
+      if (usingClientFields) {
         extractRes = { ok: true, fields: clientFields };
       } else {
-        if (!job.source_url) return json({ error: "This job has no application link on file." }, 400);
+        if (!job!.source_url) return json({ error: "This job has no application link on file." }, 400);
         if (!CHECKER_SECRET) return json({ error: "Auto-apply is not configured on this deployment." }, 503);
         try {
           const r = await fetch(`${CHECKER_URL}/extract_form`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Checker-Secret": CHECKER_SECRET },
-            body: JSON.stringify({ url: job.source_url }),
+            body: JSON.stringify({ url: job!.source_url }),
           });
           extractRes = await r.json();
         } catch (e) {
@@ -1272,16 +1289,16 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       if (extractRes.signinRequired) {
         return json({
           signinRequired: true,
-          job: { id: job.id, company: job.company, title: job.title, url: job.source_url },
-          applyUrl: extractRes.resolvedUrl || job.source_url,
+          job: { id: job!.id, company: job!.company, title: job!.title, url: job!.source_url },
+          applyUrl: extractRes.resolvedUrl || job!.source_url,
         });
       }
       if (!extractRes.ok || !extractRes.fields) {
         return json({
           extractionFailed: true,
           reason: extractRes.error || "Could not read this application form.",
-          job: { id: job.id, company: job.company, title: job.title, url: job.source_url },
-          applyUrl: job.source_url,
+          job: { id: job!.id, company: job!.company, title: job!.title, url: job!.source_url },
+          applyUrl: job!.source_url,
         });
       }
 
@@ -1390,7 +1407,9 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       }
 
       return json({
-        job: { id: job.id, company: job.company, title: job.title, url: job.source_url },
+        // job is null when the caller (the extension) supplied fields with
+        // no jobId at all -- a real, expected shape now, not a bug.
+        job: job ? { id: job.id, company: job.company, title: job.title, url: job.source_url } : null,
         radioMatches,
         // v3.265.0 — many ATS platforms show the JD and application form on
         // two different URLs (an Apply click-through, sometimes a real
@@ -1399,7 +1418,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         // finds no form at all — confirmed live on Lever/Workday/
         // SmartRecruiters during testing, none of which put the form on the
         // page a saved job's own source_url points to.
-        applyUrl: extractRes.resolvedUrl || job.source_url,
+        applyUrl: extractRes.resolvedUrl || job?.source_url || null,
         identityMatches,
         answerMatches,
         fileFields: fileFields.map((f) => ({ id: f.id, label: f.label })),
