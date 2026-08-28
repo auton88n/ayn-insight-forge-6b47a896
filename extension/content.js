@@ -122,6 +122,23 @@
     return el.offsetParent !== null || el.getClientRects().length > 0;
   }
 
+  // Generic UI copy that occasionally ends up as a placeholder -- never a
+  // real question, and showing it as one is actively misleading (worse
+  // than showing nothing). Reported directly, a real screenshot: "Start
+  // typing…" appeared in AYN's own summary as if it were the field's
+  // actual question.
+  const GENERIC_PLACEHOLDER = /^(start typing|select|choose|search|type here)/i;
+
+  function siblingText(node, hops) {
+    let n = node, h = 0;
+    while (n && h < hops) {
+      const t = n.textContent?.trim();
+      if (t && t.length < 200) return t;
+      n = n.previousElementSibling; h++;
+    }
+    return "";
+  }
+
   function labelFor(el) {
     if (el.id) {
       const byFor = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
@@ -136,13 +153,20 @@
     }
     const wrappingLabel = el.closest("label");
     if (wrappingLabel && wrappingLabel.textContent.trim()) return wrappingLabel.textContent.trim();
-    let node = el.previousElementSibling, hops = 0;
-    while (node && hops < 3) {
-      const t = node.textContent?.trim();
-      if (t && t.length < 200) return t;
-      node = node.previousElementSibling; hops++;
+    const direct = siblingText(el.previousElementSibling, 3);
+    if (direct) return direct;
+    // v3.280.0 -- an ancestor-climbing fallback was tried here for deeply
+    // nested combobox widgets (react-select and similar, common on
+    // Ashby), and caught by testing it directly against a real DOM before
+    // shipping: it can walk past the actual field's own container and
+    // pick up a DIFFERENT, nearby field's question instead -- confidently
+    // wrong, which is worse than this field honestly coming back
+    // unlabeled. Removed rather than shipped; a genuinely unlabeled field
+    // now stays unlabeled (see extractFields' own fallback text) instead
+    // of risking a mismatched label.
+    if (el.placeholder && el.placeholder.trim() && !GENERIC_PLACEHOLDER.test(el.placeholder.trim())) {
+      return el.placeholder.trim();
     }
-    if (el.placeholder && el.placeholder.trim()) return el.placeholder.trim();
     return "";
   }
 
@@ -179,7 +203,9 @@
       const fid = el.id && !fieldRegistry.has(el.id) ? el.id : `ayn-f-${n++}`;
       fieldRegistry.set(fid, el);
       const tag = el.tagName.toLowerCase();
-      out.push({ id: fid, tag, type: tag === "select" ? "select" : tag === "textarea" ? "textarea" : type, required: !!el.required, label: labelFor(el) });
+      // A genuinely unlabeled field still needs a real, honest name in
+      // the summary rather than a blank line -- never a guessed question.
+      out.push({ id: fid, tag, type: tag === "select" ? "select" : tag === "textarea" ? "textarea" : type, required: !!el.required, label: labelFor(el) || "An unlabeled field on this page" });
     }
     return out;
   }
