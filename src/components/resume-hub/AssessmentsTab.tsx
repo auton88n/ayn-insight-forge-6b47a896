@@ -474,8 +474,16 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
       {/* v3.180.0 — same fix as JobsTab.tsx's own card grid: a fixed
           two-column layout stretched each card to roughly half the panel,
           a wide landscape shape next to the reference card's narrow
-          portrait one. Auto-fill with a 280px floor instead. */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+          portrait one. Auto-fill with a 280px floor instead.
+          v3.271.0 — reported directly against a real account with only 2
+          assessments: auto-fill creates a real, empty grid track for every
+          280px of container width regardless of whether there's a card to
+          fill it, so a wide page with few items reads as two small cards
+          floating in a mostly-blank page. Capped the grid area itself at
+          roughly four columns' worth -- a page with many assessments still
+          wraps into more rows exactly as before, but a page with a
+          handful no longer claims width it has nothing to put there. */}
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", maxWidth: 1180 }}>
         {rows.map(a => {
           const avatar = companyAvatar(a.org_name || "?");
           const statusMeta = a.status === "submitted"

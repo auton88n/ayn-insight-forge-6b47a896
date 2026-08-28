@@ -39,15 +39,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Loader2, ExternalLink, Plus, Flame, Search, MapPin, Home, ChevronDown, X, Building2, Bookmark, Wand2, Compass,
-  DollarSign, Clock, TrendingUp, SlidersHorizontal, ShieldCheck, List, Layers, Heart,
+  DollarSign, Clock, TrendingUp, SlidersHorizontal, ShieldCheck, List, Layers, Heart, Zap,
 } from "lucide-react";
 import { resumeHubApi, type JobPosting } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   userId: string;
-  /** Opens the posting on the caller's own Saved jobs page, where scoring, tailoring and the cover letter actually live. */
-  onAdded: (jobId: string) => void;
+  /** Opens the posting on the caller's own Saved jobs page, where scoring, tailoring and the cover letter actually live.
+   * autoApply: also start the Auto-apply flow immediately on arrival, instead of leaving it for a second click. */
+  onAdded: (jobId: string, autoApply?: boolean) => void;
   onOpenProfile: () => void;
 }
 
@@ -1519,14 +1520,14 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   // takes the person to the Saved jobs page with this job open, whether
   // it was already saved or just added — that's what the button says it
   // does. `navigate` picks which behavior a given call gets.
-  const saveJob = async (job: JobPosting, navigate = false) => {
+  const saveJob = async (job: JobPosting, navigate = false, autoApply = false) => {
     setAddingId(job.id);
     try {
       const { data: existing } = await supabase.from("jobs")
         .select("id").eq("user_id", userId).eq("source_url", job.apply_url).maybeSingle();
       if (existing) {
         setSavedUrls((prev) => new Set(prev).add(job.apply_url));
-        if (navigate) onAdded((existing as { id: string }).id);
+        if (navigate) onAdded((existing as { id: string }).id, autoApply);
         else toast({ title: "Already saved", description: "Find it on the Saved jobs page whenever you're ready." });
         return;
       }
@@ -1542,8 +1543,8 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       if (error) throw error;
       setSavedUrls((prev) => new Set(prev).add(job.apply_url));
       if (navigate) {
-        toast({ title: "Job added", description: "Scoring and tailoring are ready on the Jobs page." });
-        onAdded((data as { id: string }).id);
+        if (!autoApply) toast({ title: "Job added", description: "Scoring and tailoring are ready on the Jobs page." });
+        onAdded((data as { id: string }).id, autoApply);
       } else {
         toast({ title: "Saved", description: "Find it anytime on the Saved jobs page." });
       }
@@ -1576,6 +1577,15 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   };
 
   const handleAdd = (job: JobPosting) => saveJob(job, true);
+  // v3.271.0 — reported directly: auto-apply was invisible from here, only
+  // reachable after already going through Score and tailor first, then
+  // hunting for the same job again on the Saved jobs page. Same underlying
+  // save-and-navigate path "Score and tailor" already uses (a job has to be
+  // a real row in `jobs` before auto-apply can act on it either way) --
+  // the only difference is the handoff also starts the auto-apply flow
+  // immediately on arrival, so this is genuinely one click to "reading the
+  // real application form," not two.
+  const handleAutoApply = (job: JobPosting) => saveJob(job, true, true);
   const toggleBookmark = (e: React.MouseEvent, job: JobPosting) => {
     e.stopPropagation();
     if (savedUrls.has(job.apply_url)) unsaveJob(job);
@@ -1787,6 +1797,12 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             <a href={selected.apply_url} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="w-4 h-4 mr-2" />Apply on company site
             </a>
+          </Button>
+          <Button onClick={() => handleAutoApply(selected)} disabled={addingId === selected.id} variant="outline">
+            {addingId === selected.id
+              ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              : <Zap className="w-4 h-4 mr-2" />}
+            Auto-apply
           </Button>
         </div>
       </div>

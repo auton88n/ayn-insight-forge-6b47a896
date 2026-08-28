@@ -20,7 +20,7 @@
  * employer's own site, the same as they would without AYN at all — AYN
  * never creates or holds that account.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -40,6 +40,14 @@ interface Props {
   coverLetterBody: string | null;
   alreadyCharged: boolean;
   onMarkApplied: () => void;
+  /** True only when Browse jobs' own "Auto-apply" button is what brought
+   * the person here — skips the idle state and reads the real form
+   * immediately, so the flow is genuinely one click, not a click plus a
+   * second click after landing. onAutoStartConsumed lets the parent clear
+   * its own flag the moment this actually fires, so it can never re-fire
+   * on a later re-render or a different job. */
+  autoStart?: boolean;
+  onAutoStartConsumed?: () => void;
 }
 
 type Phase = "idle" | "extracting" | "signinFallback" | "extractionFailed" | "review" | "filling" | "previewed" | "submitting" | "submitted";
@@ -54,6 +62,7 @@ function openApplyWindow(url: string) {
 
 export default function AutoApplyPanel({
   userId, jobId, jobTitle, company, sourceUrl, resumeContent, coverLetterBody, alreadyCharged, onMarkApplied,
+  autoStart, onAutoStartConsumed,
 }: Props) {
   const { toast } = useToast();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -81,6 +90,25 @@ export default function AutoApplyPanel({
       setPhase("idle");
     }
   };
+
+  // v3.271.0 — fires once, only when Browse jobs' own Auto-apply button is
+  // what brought us here. Waits on resumeContent specifically because it's
+  // loaded async in the parent (the tailored/primary resume fetch) and can
+  // genuinely still be null on the very first render of a freshly-landed
+  // job. The ref (not just checking phase === "idle") is what actually
+  // prevents a second fire: phase flips to "extracting" inside the same
+  // tick start() is called, but effects can still re-run before that state
+  // update is visible here, and calling autoApplyExtract twice would be a
+  // real, avoidable second free call.
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (autoStart && resumeContent && !autoStartedRef.current) {
+      autoStartedRef.current = true;
+      onAutoStartConsumed?.();
+      start();
+    }
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [autoStart, resumeContent]);
 
   /** The one file every real application needs a real, servable URL for —
    * uploaded fresh per attempt to the person's own private storage folder,

@@ -96,7 +96,14 @@ export default function SettingsPanel({ userId, session }: Props) {
   };
 
   return (
-    <div>
+    // v3.271.0 — reported directly against a real screenshot: every card
+    // here (Plan, Profile, Security) rendered as a wide, mostly-empty
+    // horizontal bar, stretched full width with nothing on the page ever
+    // capping it -- a couple of short lines and a button spread across
+    // ~1300px reads as "spread out, no spacing," even though the actual
+    // internal padding was fine. A settings page is a form, not a wide
+    // dashboard grid; capped to a real reading width instead.
+    <div style={{ maxWidth: 720 }}>
       <h2 className="lp-display flex items-center gap-2.5 text-xl">
         <span aria-hidden="true" style={{ width: 18, height: 3, borderRadius: 2, background: "hsl(var(--lp-ember))", flexShrink: 0 }} />
         Settings

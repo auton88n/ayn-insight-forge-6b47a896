@@ -171,6 +171,10 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // of rows, already loaded in full.
   const [jobQuery, setJobQuery] = useState("");
   const [nudgeSnoozed, setNudgeSnoozed] = useState(false);
+  // v3.271.0 — set only when Browse jobs' own "Auto-apply" button is what
+  // brought us here; cleared the moment AutoApplyPanel actually consumes it,
+  // so re-opening the same job later (or any other job) never re-triggers it.
+  const [autoStartApplyJobId, setAutoStartApplyJobId] = useState<string | null>(null);
 
   const load = async () => {
     const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at, application_status, application_status_changed_at, auto_apply_charged_at").eq("user_id", userId).order("created_at", { ascending: false });
@@ -190,6 +194,13 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       const from = sessionStorage.getItem("ayn_focus_job_from");
       sessionStorage.removeItem("ayn_focus_job_from");
       setBackTarget(from === "browse" ? "browse" : "list");
+      // v3.271.0 — Browse jobs' own "Auto-apply" button rides the same
+      // handoff, naming which job should skip straight to reading the real
+      // application form instead of landing on a page where the person has
+      // to find and click the button themselves a second time.
+      const autoStart = sessionStorage.getItem("ayn_autostart_autoapply");
+      sessionStorage.removeItem("ayn_autostart_autoapply");
+      if (autoStart === focus) setAutoStartApplyJobId(focus);
       const hit = rows.find((r) => r.id === focus);
       if (hit) openJob(hit);
       return;
@@ -583,6 +594,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                 coverLetterBody={cover?.body ?? null}
                 alreadyCharged={!!selected.auto_apply_charged_at}
                 onMarkApplied={() => updateStatus(selected.id, "applied")}
+                autoStart={autoStartApplyJobId === selected.id}
+                onAutoStartConsumed={() => setAutoStartApplyJobId(null)}
               />
             )}
 
@@ -898,8 +911,14 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
           auto-fill grid with a 280px floor, so cards size close to the
           reference's own width and the column count adapts to the panel,
           instead of being fixed at two regardless of how many would
-          actually fit at that size. */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+          actually fit at that size.
+          v3.271.0 — same fix as AssessmentsTab.tsx's own grid: auto-fill
+          reserves a real, empty 280px track for every bit of container
+          width regardless of how many jobs there actually are, so a small
+          saved-jobs list on a wide page reads as a couple of cards
+          stranded in mostly-blank space. Capped at roughly four columns'
+          worth -- unaffected once there's enough content to fill it. */}
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", maxWidth: 1180 }}>
         {visibleJobs.map((j) => {
           const avatar = companyAvatar(j.company || "?");
           const meta = STATUS_META[j.application_status] ?? STATUS_META.saved;

@@ -156,9 +156,10 @@ export const MatchedJobsAccountTab = ({ onSelectTab, onStartFree }: TabProps) =>
       <Suspense fallback={<TabFallback />}>
         <BrowseJobs
           userId={userId}
-          onAdded={(jobId) => {
+          onAdded={(jobId, autoApply) => {
             sessionStorage.setItem('ayn_focus_job', jobId);
             sessionStorage.setItem('ayn_focus_job_from', 'browse');
+            if (autoApply) sessionStorage.setItem('ayn_autostart_autoapply', jobId);
             onSelectTab('saved-jobs');
           }}
           onOpenProfile={() => onSelectTab('profile')}
