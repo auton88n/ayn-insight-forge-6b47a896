@@ -1,9 +1,9 @@
 # AYN Auto-Apply (browser extension)
 
-Fills a real job application form from your AYN profile, running in your
-own real Chrome — not a bot on a server. You always review the exact
-values, and click a real "Submit" button yourself, before anything is
-sent.
+Autofills a real job application form from your AYN profile, running in
+your own real Chrome — not a bot on a server. It fills what it can find,
+then stops. You review the real page and click Submit yourself, the
+same as any other autofill tool. It never clicks submit for you.
 
 ## Why this exists
 
@@ -17,13 +17,11 @@ same browser and session you'd use anyway.
 
 ## What it deliberately does NOT do
 
-It never tries to make itself look more human to defeat a site's own
-anti-bot system — there's nothing to defeat, since it runs in a real
-browser as a real signed-in person the whole time. If an employer's own
-system still rejects a submission (checked the same way the server-side
-path does — see `content.js`'s `findRejectionText`), it reports that
-honestly and stops. It never invents a value: every field it offers to
-fill comes from a real `auto_apply_extract` call against your own AYN
+It never clicks submit on your behalf, and it never tries to make
+itself look more human to defeat a site's own anti-bot system — there's
+nothing to defeat, since it runs in a real browser as a real signed-in
+person the whole time. It never invents a value: every field it fills
+comes from a real `auto_apply_extract` call against your own AYN
 profile, the same matching logic the web app's own Jobs tab uses.
 
 ## Install (sideload — this isn't published to the Chrome Web Store)
@@ -32,9 +30,9 @@ profile, the same matching logic the web app's own Jobs tab uses.
 2. "Load unpacked" → select this `extension/` folder.
 3. On a real job application page (a saved job's own apply page), click
    the AYN icon in your toolbar.
-4. Sign in with your real AYN account the first time — nothing here uses
-   a separate account or a device-linking flow, it's your own
-   email/password against the same backend the web app uses.
+4. Sign in with your real AYN account the first time — it's your own
+   email/password against the same backend the web app uses, nothing
+   separate.
 
 ## How it works, in order
 
@@ -49,34 +47,26 @@ profile, the same matching logic the web app's own Jobs tab uses.
    email, phone, and the deterministic Q&A matcher every other AYN
    surface already uses) and returns real values or `null` — never a
    guess.
-4. You review every value in the panel (editable) before anything
-   touches the real page.
-5. On "Fill this form," each field is set via the native property
-   setter (required for React/Vue-controlled inputs) and immediately
-   read back — a field that didn't actually take the value is reported
-   as failed, never silently counted as filled.
-6. You review the real page, then click "Submit this application"
-   yourself. The script clicks the page's own submit button, waits, and
-   checks the resulting page's own text for a real anti-spam rejection
-   before ever telling you it worked.
+4. It fills immediately — no extra "review, then click Fill" step.
+   Every value it set is checked by reading the field's real value back
+   right after writing it, so a field that silently didn't take the
+   value is reported as failed, never counted as filled.
+5. A short summary shows what filled, what's still empty because
+   nothing was on file for it (typeable right there, filled live as you
+   type), and anything that failed. That's it — you review the actual
+   page and hit its real Submit button yourself.
 
 ## Known limits (v1, disclosed rather than hidden)
 
 - **File attachments (resume/cover letter) aren't filled automatically
-  yet.** A file field is flagged clearly in the review panel; you
-  attach it yourself. The web app's own resume/cover-letter PDF
-  generation lives in `src/lib/resumeDocs.ts` and needs porting into
-  the extension to close this — real, scoped follow-up work, not
-  attempted in this first version so the rest could ship correct and
-  reviewable now.
+  yet.** A file field is flagged clearly in the panel; you attach it
+  yourself. The web app's own resume/cover-letter PDF generation lives
+  in `src/lib/resumeDocs.ts` and needs porting into the extension to
+  close this — real, scoped follow-up work.
 - **Checkboxes aren't matched.** The backend's own `auto_apply_extract`
   only resolves identity fields, free-text/select Q&A, and single-choice
   radio groups today — the same scope the web app's auto-apply panel
   already has, not a new gap this extension introduces.
-- **Submit-button detection is a text-based heuristic** ("Submit",
-  "Apply now", "Send application," etc., or a plain `type=submit`). A
-  form using unusual wording is caught honestly (a clear "couldn't find
-  a submit button" message), not silently skipped.
 - Requires a job you've already saved in AYN (Browse Jobs → save) — the
   extension matches the current page's hostname against your saved
   jobs' own URLs to find the right one.
