@@ -390,6 +390,20 @@ def _fill_one_field(page, field_id: str, value: str) -> str:
         page.fill(f"#{field_id}", value, timeout=3000)
         return "text"
     except Exception:
+        pass
+    # Some real widgets (intl-tel-input and similar phone-entry libraries
+    # are the common case, confirmed live: a real Greenhouse-embedded phone
+    # field resolved to id "iti-0__search-input" and refused fill() outright
+    # with "field not fillable") render a search-style input that looks
+    # readonly to Playwright's own fillability check but is genuinely
+    # editable -- these widgets listen for real keystroke events directly,
+    # not a value set the way fill() does it. A real click-then-type is the
+    # same fallback Playwright's own docs name for exactly this shape.
+    try:
+        page.click(f"#{field_id}", timeout=2000)
+        page.keyboard.type(value, delay=20)
+        return "text"
+    except Exception:
         return "failed"
 
 

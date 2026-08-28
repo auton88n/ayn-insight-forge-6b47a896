@@ -98,6 +98,24 @@ const CA_PROV: Record<string, string> = {
   NT: "Northwest Territories", YT: "Yukon", NU: "Nunavut",
 };
 
+// v3.272.0 — real, live gap found and reproduced: a resume whose basics
+// only ever holds a single combined "location" string ("Halifax, NS", the
+// common shape when someone typed their location as free text rather than
+// separate city/region/country fields) left country.value permanently
+// null, even though the country is a real, knowable fact sitting right
+// there in that same string, just not split apart. This is the identical
+// "same real fact, different shape" reasoning already used for skill
+// terminology alignment elsewhere in this app -- reads the trailing
+// province code against the same CA_PROV table region_full already uses,
+// or a country name actually spelled out, never guesses beyond that.
+function inferCountryFromLocationString(loc: string): string {
+  const trailing = (loc.trim().split(",").pop() || "").trim().toUpperCase();
+  if (CA_PROV[trailing]) return "Canada";
+  if (/\bcanada\b/i.test(loc)) return "Canada";
+  if (/\b(usa|u\.s\.a\.|united states)\b/i.test(loc)) return "United States";
+  return "";
+}
+
 function field<T>(value: T, source: IdentitySource, fallback: T): IdentityField<T> {
   const isEmpty = value == null || (typeof value === "string" && value.trim() === "");
   return isEmpty
@@ -251,11 +269,23 @@ export async function loadIdentity(
     ["resume", basics.phone],
   ]);
 
-  const city = pick([["profile", addr.city], ["canonical", cIdent.city], ["resume", (basics as any).city]]);
+  // Same reasoning as inferCountryFromLocationString: the part before the
+  // first comma of a combined "Halifax, NS" string is the real city, just
+  // not split into its own field. A field asking specifically for "City"
+  // (not the combined "Location (City)" role, which already falls back to
+  // the full location string below) gets the precise value instead.
+  const cityFromLocationString = (basics.location || "").trim().split(",")[0]?.trim() || "";
+  const city = pick([
+    ["profile", addr.city], ["canonical", cIdent.city], ["resume", (basics as any).city],
+    ["resume", cityFromLocationString],
+  ]);
   const regionRaw = pick([["profile", addr.state || addr.province], ["canonical", cIdent.region || cIdent.state], ["resume", (basics as any).region]]);
   const region_full_value = CA_PROV[regionRaw.value.toUpperCase()] || regionRaw.value;
   const region_full: IdentityField<string> = regionRaw.value ? { value: region_full_value, source: regionRaw.source } : { value: "", source: "missing" };
-  const country = pick([["profile", addr.country], ["canonical", cIdent.country], ["resume", (basics as any).country]]);
+  const country = pick([
+    ["profile", addr.country], ["canonical", cIdent.country], ["resume", (basics as any).country],
+    ["resume", inferCountryFromLocationString(basics.location || "")],
+  ]);
   const postal_code = pick([
     ["profile", (addr as any).postal || (addr as any).postal_code || (addr as any).zip],
     ["canonical", cIdent.postal_code || cIdent.zip],
