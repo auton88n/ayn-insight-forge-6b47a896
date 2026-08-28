@@ -17,6 +17,16 @@
  * invented -- and every field write is read back immediately after
  * being set, so a field that didn't actually take the value is reported
  * as failed, never silently counted as filled.
+ *
+ * v3.278.0 -- reported directly, a real screenshot: clicking the icon
+ * showed a "which saved job is this?" picker on a page that had nothing
+ * to do with Saved Jobs. That step never should have existed -- it was
+ * only there because auto_apply_extract used to require a real jobId,
+ * left over from the server-side Playwright path this same action also
+ * serves. jobId is now optional on the backend; this script no longer
+ * touches Saved Jobs at all. Click the icon on any application page,
+ * signed in or not, and it goes straight to reading and filling that
+ * page.
  */
 (() => {
   if (window.__aynAutoApplyInjected) return;
@@ -94,15 +104,6 @@
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || `Request failed (${r.status}).`);
     return data;
-  }
-
-  async function listSavedJobs(session) {
-    const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/jobs?select=id,title,company,source_url&user_id=eq.${session.user.id}&application_status=eq.saved&order=created_at.desc&limit=50`,
-      { headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.access_token}` } }
-    );
-    if (!r.ok) return [];
-    return r.json();
   }
 
   // ---------------------------------------------------------------
@@ -239,10 +240,6 @@
     .warn { color: #9a5348; font-size: 13.5px; line-height: 1.6; margin: 0 0 10px; }
     .ok { color: #2f6b52; font-size: 14px; font-weight: 600; line-height: 1.6; margin: 0 0 10px; }
     ul.fail-list { margin: 0 0 10px; padding-left: 20px; color: #9a5348; font-size: 13.5px; line-height: 1.7; }
-    .list { display: flex; flex-direction: column; gap: 8px; }
-    .job-pick { text-align: left; padding: 11px 13px; border-radius: 11px; border: 1px solid #e0d5c8;
-      background: #fff; cursor: pointer; font-size: 14px; }
-    .job-pick:hover { border-color: #e85d3a; }
   `;
   root.appendChild(style);
   const panel = document.createElement("div");
@@ -278,7 +275,7 @@
       goBtn.disabled = true; goBtn.textContent = "Signing in…";
       try {
         const session = await signIn(emailInput.value.trim(), passInput.value);
-        await startForJob(session);
+        await autofill(session);
       } catch (e) {
         err.textContent = e.message || "Sign-in failed.";
         err.style.display = "block";
@@ -294,41 +291,17 @@
     ]));
   }
 
-  async function startForJob(session) {
+  // The one real step: extract THIS page's own fields, match them against
+  // your real AYN profile, and fill immediately -- no picking a job first
+  // (a saved-jobs record was never needed for the matching itself, only
+  // for the earlier, server-side Playwright path -- see the backend's own
+  // v3.278.0 comment on auto_apply_extract), no separate "review then
+  // click Fill" step. You still see and can edit anything that came back
+  // wrong, right here, but nothing waits on a second click.
+  async function autofill(session) {
     clearPanel();
     panel.appendChild(buildHead("Autofilling…"));
-    panel.appendChild(el("div", { class: "body" }, [el("p", { class: "muted", text: "Finding this job in your Saved jobs…" })]));
-    let jobs = [];
-    try { jobs = await listSavedJobs(session); } catch { jobs = []; }
-    const hostShort = location.hostname.replace(/^www\./, "").split(".")[0];
-    const matches = jobs.filter((j) => {
-      try { return j.source_url && new URL(j.source_url).hostname.replace(/^www\./, "").includes(hostShort); }
-      catch { return false; }
-    });
-    if (matches.length === 1) return autofill(session, matches[0].id);
-    const list = matches.length ? matches : jobs;
-    clearPanel();
-    panel.appendChild(buildHead(list.length ? "Which saved job is this?" : "No saved job found"));
-    if (!list.length) {
-      panel.appendChild(el("div", { class: "body" }, [
-        el("p", { class: "muted", text: "Save this job in AYN's Saved jobs first, then click the extension icon again on this page." }),
-      ]));
-      return;
-    }
-    const listEl = el("div", { class: "list" });
-    for (const j of list) {
-      const btn = el("button", { class: "job-pick", text: `${j.title || "Untitled role"} — ${j.company || ""}` });
-      btn.addEventListener("click", () => autofill(session, j.id));
-      listEl.appendChild(btn);
-    }
-    panel.appendChild(el("div", { class: "body" }, [listEl]));
-  }
-
-  // The one real step: extract this page's own fields, match them
-  // against your real AYN profile, and fill immediately -- no separate
-  // "review then click Fill" step. You still see and can edit anything
-  // that came back wrong, right here, but nothing waits on a second click.
-  async function autofill(session, jobId) {
+    panel.appendChild(el("div", { class: "body" }, [el("p", { class: "muted", text: "Reading this page and matching it to your AYN profile…" })]));
     const fields = extractFields();
     if (!fields.length) {
       clearPanel();
@@ -338,7 +311,7 @@
     }
     let result;
     try {
-      result = await callHub(session, { action: "auto_apply_extract", jobId, fields });
+      result = await callHub(session, { action: "auto_apply_extract", fields });
     } catch (e) {
       clearPanel();
       panel.appendChild(buildHead("Couldn't read your profile"));
@@ -402,7 +375,7 @@
   async function start() {
     const session = await ensureSession();
     if (!session) return showSignIn();
-    return startForJob(session);
+    return autofill(session);
   }
 
   start();

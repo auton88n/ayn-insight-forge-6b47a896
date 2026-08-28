@@ -28,8 +28,8 @@ profile, the same matching logic the web app's own Jobs tab uses.
 
 1. `chrome://extensions` → enable "Developer mode" (top right).
 2. "Load unpacked" → select this `extension/` folder.
-3. On a real job application page (a saved job's own apply page), click
-   the AYN icon in your toolbar.
+3. On any real job application page, click the AYN icon in your toolbar
+   — no need to have saved the job in AYN first.
 4. Sign in with your real AYN account the first time — it's your own
    email/password against the same backend the web app uses, nothing
    separate.
@@ -67,6 +67,5 @@ profile, the same matching logic the web app's own Jobs tab uses.
   only resolves identity fields, free-text/select Q&A, and single-choice
   radio groups today — the same scope the web app's auto-apply panel
   already has, not a new gap this extension introduces.
-- Requires a job you've already saved in AYN (Browse Jobs → save) — the
-  extension matches the current page's hostname against your saved
-  jobs' own URLs to find the right one.
+- Nothing about Saved Jobs is required or checked — the extension works
+  on whatever application page you're actually on.
