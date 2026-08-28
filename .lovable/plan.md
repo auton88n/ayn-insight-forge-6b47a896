@@ -1,30 +1,43 @@
-# Apply the ATS gaps to the tailored resume
+# Closing JD gaps without inventing anything
 
-## What is actually broken
+## Where I disagree, plainly
 
-You are right, and it is a real hole. Two different things are both called "gaps" in AYN, and tailoring only ever closed one of them:
+I will not build a feature that writes employers, job titles, dates, skills, or metrics a person never had. A resume is a document someone submits to a real employer under their own name. An invented Kubernetes line gets them through a keyword filter and then ends the interview thirty seconds after it starts, and it exposes them to a rescinded offer or a firing later. Every honesty rule in this codebase exists because that failure mode is worse than a low score.
 
-1. **Keyword gaps against the job** (the job asks for "PostgreSQL", your resume says "Postgres"). Tailoring already handles this, including a guaranteed deterministic fallback added earlier.
-2. **ATS writing-quality gaps** (the score you see on Profile, out of 100): weak bullets with no number and no strong verb, a generic summary, inconsistent date formats, a tense mismatch, the same verb opening three bullets, a first-person pronoun. **The tailor action never runs this check at all.** Every one of those problems is inherited straight from the base resume into every tailored copy, no matter how low the base scored.
+The real problem behind your message is still worth solving, though: people who genuinely have the experience are scoring low because their resume words it differently than the posting does. That is a wording and surfacing problem, not a truth problem, and we are leaving a lot on the table there.
 
-So a resume scoring 65 on Profile gets tailored, keywords get aligned, and it is still a 65 on writing quality when it reaches the employer's ATS.
+## What actually closes the gap
 
-## What gets built
+### 1. Ask the person, then use their answer
 
-Add an **ATS repair pass** inside the `tailor` action, right after the existing keyword retry and before the tailored resume is saved:
+`resume_gap_probe` already exists but only fires on three rubric issues. Extend it so every genuinely missing JD requirement gets a targeted question: "This role asks for Terraform. Have you used it, even on a side project or a course?" If yes, they type what they actually did and we write it in their words. If no, the gap stays honest.
 
-1. Score the freshly tailored resume with the same `scoreResumeContent` the Profile score uses.
-2. If it is below 100, send one repair call listing the exact issues code found, with hard limits: reword only, never add a number, role, employer, date, skill or certification that is not already in the profile, keep every figure and date byte-for-byte.
-3. Re-score. Keep the repair only if the score actually went up and no existing write-quality rule (figures preserved, no clichés, no pronouns, no dashes) was broken to get there.
-4. Return the tailored resume's own `ats` score, verdict and remaining issues alongside the existing `gapAnalysis`, and show it in the Jobs tab under the tailored resume, so you can see the tailored copy's real score instead of only the base resume's.
+This is the single biggest win. Most "missing" skills are things the person has and never wrote down.
 
-## One honest limit, stated plainly
+### 2. Match the posting's vocabulary against their real experience
 
-A few rubric deductions cannot be closed by rewording, only by inventing: fewer than 2 roles, and a real unexplained employment gap of 6 months or more. Those stay reported rather than fabricated away, which is the same rule that keeps every other AI write in this product trustworthy. Everything else on the rubric (weak bullets, generic summary, date format, tense, repeated verbs, pronouns) is genuinely fixable by rewording and will be fixed, so a resume with a normal work history will land at or very near 100 after tailoring, and where it cannot, the reason will be named on screen instead of hidden.
+Today a bullet saying "provisioned cloud infrastructure with Terraform modules" and a requirement saying "Infrastructure as Code (IaC)" can still read as a miss. Expand the tailor step so, for every requirement we can honestly satisfy, the tailored bullet uses the posting's own phrasing alongside theirs, never instead of a fact.
 
-## Technical detail
+### 3. Surface skills already buried in their history
 
-- `supabase/functions/resume-hub/index.ts`, `tailor` action: import is already present (`scoreResumeContent`). Insert the score, repair, re-score, keep-if-better block after `missingFigures` is computed and before the deterministic keyword guarantee, so the guarantee still applies to the final object. Add `ats: { score, verdict, issues }` to the cached `result`.
-- `src/lib/resumeHub.ts`: widen the `tailor` return type with the new `ats` field.
-- `src/components/resume-hub/JobsTab.tsx`: show the tailored copy's ATS score and any remaining issues in the tailored-resume card.
-- Cost is one extra scoring call always, plus one repair call and one re-score only when the tailored resume is below 100. No credit change, no new action, no schema change.
+Skills mentioned once inside a bullet, or implied by a tool they list, never make it into the SKILLS block. Pull those forward so an ATS keyword scan actually sees them. Nothing new is claimed, only relocated.
+
+### 4. Tell them exactly what to go get
+
+Where a gap is real, say so and name the shortest honest path: a specific free certification, a small project, a course. This is the difference between a tool that lies for you and one that makes you actually competitive.
+
+### 5. Show the honest score with the reason
+
+Instead of a bare number, show which requirements are matched, which are matched-but-worded-differently (now fixed), which are missing-but-askable, and which are genuinely absent. Someone who can see the four missing items can decide whether to apply anyway, which is often the right call.
+
+## Technical notes
+
+- `_shared/tailoring.ts`: extend `computeGap` output with a per-requirement status (`matched`, `matched_semantically`, `askable`, `absent`) rather than the current matched/missing split.
+- `resume_gap_probe`: widen its trigger set from three rubric issues to any `askable` requirement. Its existing `inventedFigures()` and `stripInstructionLikeSpans()` guards stay in force, so a typed answer still cannot smuggle in fabricated numbers.
+- `tailor` prompt: add a rule allowing the posting's terminology for a requirement code has already confirmed as satisfied, and forbidding it otherwise. The figure-preservation check is unchanged.
+- Skills surfacing runs deterministically in code before the AI call, same as every other fact in this pipeline.
+- No prompt anywhere gets permission to add an employer, title, date, number, or skill.
+
+## What I am not building
+
+A switch that fills gaps with plausible fiction. If that is genuinely what you want, it needs to be your explicit call with the liability understood, and it will not come from me.
