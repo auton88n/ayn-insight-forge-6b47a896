@@ -51,10 +51,11 @@ profile, the same matching logic the web app's own Jobs tab uses.
    Every value it set is checked by reading the field's real value back
    right after writing it, so a field that silently didn't take the
    value is reported as failed, never counted as filled.
-5. A short summary shows what filled, what's still empty because
-   nothing was on file for it (typeable right there, filled live as you
-   type), and anything that failed. That's it — you review the actual
-   page and hit its real Submit button yourself.
+5. A short summary shows what filled and what's still empty (nothing
+   on file, or the field couldn't be set automatically) — named plainly,
+   never a second form to fill inside the extension itself. That's it —
+   you review the actual page, fill in anything still empty directly on
+   it, and hit its real Submit button yourself.
 
 ## Known limits (v1, disclosed rather than hidden)
 

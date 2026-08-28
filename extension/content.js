@@ -29,8 +29,15 @@
  * page.
  */
 (() => {
-  if (window.__aynAutoApplyInjected) return;
-  window.__aynAutoApplyInjected = true;
+  // v3.279.0 -- real bug, reported directly: "why it vanish and I can't
+  // see it back." The old guard here (`__aynAutoApplyInjected`, a
+  // permanent boolean) blocked EVERY future click on the icon once set,
+  // forever, for the life of the page -- closing the panel once meant
+  // the extension silently did nothing on every click after that, no
+  // error, nothing. Fixed by tracking the actual panel element instead:
+  // if one is still genuinely open on the page, leave it (don't stack a
+  // second one); if it's gone (closed, or never opened), always proceed.
+  if (window.__aynAutoApplyHost && document.documentElement.contains(window.__aynAutoApplyHost)) return;
 
   const SUPABASE_URL = "https://ayn.careers";
   const ANON_KEY =
@@ -212,34 +219,35 @@
   // into markup.
   // ---------------------------------------------------------------
   const host = document.createElement("div");
+  window.__aynAutoApplyHost = host;
   host.style.cssText = "all: initial; position: fixed; z-index: 2147483647; bottom: 20px; right: 20px;";
   document.documentElement.appendChild(host);
   const root = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
   style.textContent = `
-    .panel { width: 460px; max-height: 88vh; overflow-y: auto; background: #fbf6f0; color: #1f1a17;
-      border-radius: 18px; box-shadow: 0 28px 64px -20px rgba(20,15,10,0.4); border: 1px solid #ece2d6;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14.5px; }
-    .head { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;
-      background: linear-gradient(135deg, #e85d3a 0%, #ff8a5c 100%); color: #fff; border-radius: 18px 18px 0 0; }
-    .head b { font-size: 15px; }
-    .close { cursor: pointer; opacity: 0.85; background: none; border: none; color: #fff; font-size: 20px; line-height: 1; padding: 2px; }
+    .panel { width: min(560px, 92vw); max-height: 90vh; overflow-y: auto; background: #fbf6f0; color: #1f1a17;
+      border-radius: 20px; box-shadow: 0 32px 72px -20px rgba(20,15,10,0.45); border: 1px solid #ece2d6;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 15.5px; }
+    .head { padding: 18px 24px; display: flex; align-items: center; justify-content: space-between;
+      background: linear-gradient(135deg, #e85d3a 0%, #ff8a5c 100%); color: #fff; border-radius: 20px 20px 0 0; }
+    .head b { font-size: 16.5px; }
+    .close { cursor: pointer; opacity: 0.85; background: none; border: none; color: #fff; font-size: 22px; line-height: 1; padding: 2px; }
     .close:hover { opacity: 1; }
-    .body { padding: 18px 20px 20px; }
-    .row { margin-bottom: 13px; }
-    label.field-label { display: block; font-size: 12.5px; color: #7a6d61; margin-bottom: 4px; font-weight: 600; }
-    input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 9px;
-      border: 1px solid #e0d5c8; font-size: 14.5px; background: #fff; color: #1f1a17; }
+    .body { padding: 22px 24px 24px; }
+    .row { margin-bottom: 15px; }
+    label.field-label { display: block; font-size: 13.5px; color: #7a6d61; margin-bottom: 5px; font-weight: 600; }
+    input { width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 10px;
+      border: 1px solid #e0d5c8; font-size: 15.5px; background: #fff; color: #1f1a17; }
     input:focus { outline: none; border-color: #e85d3a; box-shadow: 0 0 0 3px rgba(232,93,58,0.15); }
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 18px;
-      border-radius: 999px; border: none; font-weight: 600; font-size: 14px; cursor: pointer; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 13px 20px;
+      border-radius: 999px; border: none; font-weight: 600; font-size: 15.5px; cursor: pointer; }
     .btn-primary { background: linear-gradient(135deg, #e85d3a 0%, #ff8a5c 100%); color: #fff; }
     .btn-primary:disabled { opacity: 0.55; cursor: default; }
     .btn-ghost { background: #efe6db; color: #1f1a17; }
-    .muted { color: #7a6d61; font-size: 13.5px; line-height: 1.6; margin: 0 0 10px; }
-    .warn { color: #9a5348; font-size: 13.5px; line-height: 1.6; margin: 0 0 10px; }
-    .ok { color: #2f6b52; font-size: 14px; font-weight: 600; line-height: 1.6; margin: 0 0 10px; }
-    ul.fail-list { margin: 0 0 10px; padding-left: 20px; color: #9a5348; font-size: 13.5px; line-height: 1.7; }
+    .muted { color: #7a6d61; font-size: 14.5px; line-height: 1.65; margin: 0 0 12px; }
+    .warn { color: #9a5348; font-size: 14.5px; line-height: 1.65; margin: 0 0 12px; }
+    .ok { color: #2f6b52; font-size: 16px; font-weight: 600; line-height: 1.6; margin: 0 0 12px; }
+    ul.fail-list { margin: 0 0 12px; padding-left: 22px; color: #9a5348; font-size: 14.5px; line-height: 1.8; }
   `;
   root.appendChild(style);
   const panel = document.createElement("div");
@@ -324,18 +332,26 @@
     const radioRows = result.radioMatches || [];
     const fileRows = result.fileFields || [];
 
+    // v3.279.0 -- reported directly: "why does it ask me questions and I
+    // have to fill, what's the point of autofilling." Correct call --
+    // typing a value into a box inside the extension, for something not
+    // on file, is not autofill, it's a second form. Fields with nothing
+    // on file are now just named plainly in the summary below, same as a
+    // field that failed to fill -- you type it directly into the REAL
+    // page, once, like everything else on that page. Nothing here ever
+    // asks for input again.
+    const notOnFile = [];
     const failed = [];
     let filledCount = 0;
-    const unfilledInputs = []; // { row, input } for anything with no value on file, so it can still be typed and filled live
 
     for (const m of [...idRows, ...ansRows]) {
       const value = m.value ?? m.answer ?? "";
-      if (!value) { unfilledInputs.push(m); continue; }
+      if (!value) { notOnFile.push(m.label); continue; }
       const r = fillTextLike(m.fieldId, value);
       if (r.ok) filledCount++; else failed.push(m.label);
     }
     for (const r of radioRows) {
-      if (!r.chosenFieldId) continue;
+      if (!r.chosenFieldId) { notOnFile.push(r.groupLabel); continue; }
       const res = fillRadio(r.chosenFieldId);
       if (res.ok) filledCount++; else failed.push(r.groupLabel);
     }
@@ -345,21 +361,11 @@
     const body = el("div", { class: "body" });
     body.appendChild(el("p", { class: "ok", text: `${filledCount} field${filledCount === 1 ? "" : "s"} filled from your AYN profile.` }));
 
-    if (unfilledInputs.length) {
-      body.appendChild(el("p", { class: "muted", text: "Not on file — type these in and they'll be filled directly:" }));
-      for (const m of unfilledInputs) {
-        const input = el("input", {});
-        input.addEventListener("change", () => {
-          const r = fillTextLike(m.fieldId, input.value);
-          input.style.borderColor = r.ok ? "#2f6b52" : "#9a5348";
-        });
-        body.appendChild(el("div", { class: "row" }, [el("label", { class: "field-label", text: m.label }), input]));
-      }
-    }
-    if (failed.length) {
-      body.appendChild(el("p", { class: "warn", text: "Couldn't be filled automatically — fill these in yourself:" }));
+    const stillNeeded = [...notOnFile, ...failed];
+    if (stillNeeded.length) {
+      body.appendChild(el("p", { class: "warn", text: "Not on file yet — fill these directly on the page:" }));
       const ul = el("ul", { class: "fail-list" });
-      for (const f of failed) ul.appendChild(el("li", { text: f }));
+      for (const f of stillNeeded) ul.appendChild(el("li", { text: f }));
       body.appendChild(ul);
     }
     if (fileRows.length) {
