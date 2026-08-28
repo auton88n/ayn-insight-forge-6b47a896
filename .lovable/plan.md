@@ -78,3 +78,9 @@ The pre-tailor confirmation dialog is reworded to say what actually happens: AYN
 - `patchTailoredContent` keeps doing the in-place write, extended to append a bullet to a named work entry rather than only touching `skills`.
 - A live coverage line above the panel, refreshed from `tailor_gap_recheck` after each confirmation.
 - The pre-tailor dialog copy is updated to match.
+
+## One prerequisite, flagged honestly
+
+`npx tsc --noEmit` currently reports 25 errors across 8 files, all of them predating this plan (a clean checkout with zero modified files reproduces them). Every one traces to a single cause: `src/integrations/supabase/types.ts` was generated against the Lovable-connected Supabase project, while the app actually runs against the self-hosted VPS database. Tables and functions that genuinely exist live (`job_postings_seen`, `inbox_messages`, `company_hiring_status`, `job_market_snapshot`, `jobs.application_status`, and the enrichment columns on `job_postings`) are absent from that generated file, so real, working code fails to typecheck.
+
+The fix is to regenerate the types from the VPS database, not to scatter casts through eight files. This plan's new table would hit the identical wall, so regenerating comes first.
