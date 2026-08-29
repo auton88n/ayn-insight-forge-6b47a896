@@ -79,6 +79,20 @@ function canonicalSignature(sig: WidgetSignature): string {
   });
 }
 
+// v3.295.0 -- mirrors resume-hub/lib/formIntelligence.ts's own fix
+// exactly. Caught live in a real training pass: the model told a real
+// toggle group apart from a real multi-select group correctly, but got
+// 3 of 4 page-chrome false-positive widgets (a cookie banner, a chat
+// launcher, a share bar, a star-rating scale) wrong, classifying every
+// one as a real, fillable field. Two of the three shapes are checkable
+// in code with total certainty, so they never reach the model at all.
+function isObviouslyNotAFormQuestion(sig: WidgetSignature): boolean {
+  if (!sig.nearbyText || !sig.nearbyText.trim()) return true;
+  const distinct = new Set(sig.optionTexts.map((t) => t.trim()).filter(Boolean));
+  if (sig.optionTexts.length >= 2 && distinct.size < 2) return true;
+  return false;
+}
+
 const TOOL_SCHEMA = {
   type: "object",
   properties: {
@@ -128,7 +142,7 @@ Deno.serve(async (req: Request) => {
     const cacheByHash = new Map((cached || []).map((r: any) => [r.signature_hash, r]));
 
     const results: Array<{ localId: string; widgetType: WidgetType; interactionRecipe: Record<string, unknown>; fromCache: boolean }> = [];
-    const misses: typeof hashed = [];
+    let misses: typeof hashed = [];
     for (const h of hashed) {
       const hit = cacheByHash.get(h.hash);
       if (hit) {
@@ -138,6 +152,23 @@ Deno.serve(async (req: Request) => {
       } else {
         misses.push(h);
       }
+    }
+
+    if (misses.length) {
+      const obvious: typeof misses = [];
+      const genuineMisses: typeof misses = [];
+      for (const m of misses) {
+        (isObviouslyNotAFormQuestion(m.widget) ? obvious : genuineMisses).push(m);
+      }
+      if (obvious.length) {
+        const upsertsObvious: Array<{ signature_hash: string; widget_type: string; interaction_recipe: Record<string, unknown> }> = [];
+        for (const m of obvious) {
+          results.push({ localId: m.widget.localId, widgetType: "unrecognized", interactionRecipe: RECIPE_BY_TYPE.unrecognized, fromCache: false });
+          upsertsObvious.push({ signature_hash: m.hash, widget_type: "unrecognized", interaction_recipe: RECIPE_BY_TYPE.unrecognized });
+        }
+        admin.from("form_widget_patterns").upsert(upsertsObvious, { onConflict: "signature_hash" }).then(() => {}, () => {});
+      }
+      misses = genuineMisses;
     }
 
     if (misses.length) {

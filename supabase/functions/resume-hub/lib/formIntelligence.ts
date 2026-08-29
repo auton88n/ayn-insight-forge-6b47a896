@@ -105,6 +105,29 @@ async function signatureHash(sig: WidgetSignature): Promise<string> {
   return sha256Hex(canonicalSignature(sig));
 }
 
+// v3.295.0 -- caught live, in a real training pass against real ATS
+// component-library shapes plus deliberate false-positive test widgets
+// (a cookie banner, a chat launcher, a share bar, a star-rating scale):
+// the model correctly told a real toggle group apart from a real
+// multi-select group, but got 3 of 4 page-chrome widgets wrong,
+// classifying every one of them as a real, fillable field. Two of the
+// three shapes are checkable in code with total certainty, so they never
+// reach the model at all -- the same "code decides what it can decide"
+// principle this whole layer already follows for everything else.
+function isObviouslyNotAFormQuestion(sig: WidgetSignature): boolean {
+  // No visible question text near it at all. A genuine application
+  // question always has SOME real label; page chrome (a cookie banner,
+  // a chat launcher, a share bar) commonly has none.
+  if (!sig.nearbyText || !sig.nearbyText.trim()) return true;
+  // Every visible option reads identically (a star-rating scale
+  // rendered as repeated glyphs, e.g. ["★","★","★","★","★"]) -- a real
+  // answer choice always has distinct option labels, since there would
+  // be no way to tell them apart otherwise.
+  const distinct = new Set(sig.optionTexts.map((t) => t.trim()).filter(Boolean));
+  if (sig.optionTexts.length >= 2 && distinct.size < 2) return true;
+  return false;
+}
+
 const TOOL_SCHEMA = {
   type: "object",
   properties: {
@@ -169,7 +192,7 @@ export async function classifyWidgets(
   const cacheByHash = new Map((cached || []).map((r: any) => [r.signature_hash, r]));
 
   const results: WidgetClassification[] = [];
-  const misses: { widget: WidgetSignature; hash: string }[] = [];
+  let misses: { widget: WidgetSignature; hash: string }[] = [];
   for (const h of hashed) {
     const hit = cacheByHash.get(h.hash);
     if (hit) {
@@ -189,6 +212,27 @@ export async function classifyWidgets(
   }
 
   if (!misses.length) return results;
+
+  // Split off anything obviously not a real form question before it ever
+  // reaches the model -- forced to unrecognized, cached like any other
+  // classification, zero AI cost.
+  const obvious: typeof misses = [];
+  const genuineMisses: typeof misses = [];
+  for (const m of misses) {
+    (isObviouslyNotAFormQuestion(m.widget) ? obvious : genuineMisses).push(m);
+  }
+  const upsertsObvious: Array<{ signature_hash: string; widget_type: string; interaction_recipe: Record<string, unknown> }> = [];
+  for (const m of obvious) {
+    results.push({ localId: m.widget.localId, widgetType: "unrecognized", interactionRecipe: RECIPE_BY_TYPE.unrecognized, fromCache: false });
+    upsertsObvious.push({ signature_hash: m.hash, widget_type: "unrecognized", interaction_recipe: RECIPE_BY_TYPE.unrecognized });
+  }
+  if (upsertsObvious.length) {
+    admin.from("form_widget_patterns").upsert(upsertsObvious, { onConflict: "signature_hash" })
+      .then(({ error }: { error: unknown }) => { if (error) console.error("form_widget_patterns upsert failed", error); },
+        (e: unknown) => console.error("form_widget_patterns upsert threw", e));
+  }
+  if (!genuineMisses.length) return results;
+  misses = genuineMisses;
 
   const promptWidgets = misses.map((m) => ({
     localId: m.widget.localId,
