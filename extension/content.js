@@ -269,6 +269,21 @@
         });
       }
     }
+
+    // v3.286.0 -- Radix Select / react-select-style custom dropdowns:
+    // never a real <select>, so the native scan above never sees them --
+    // a button/div carrying role="combobox" (the real, standard ARIA
+    // pattern this kind of widget needs regardless of styling) is the
+    // trigger. Its own listbox doesn't exist yet at extraction time
+    // (comboboxes render their options lazily, on open), so only the
+    // trigger is registered here -- fillCombobox does the actual open/
+    // search/select/verify sequence at fill time.
+    for (const trigger of queryDeep(document, '[role="combobox"]')) {
+      if (!visible(trigger) || trigger.getAttribute("aria-disabled") === "true") continue;
+      const fid = `ayn-f-${n++}`;
+      fieldRegistry.set(fid, trigger);
+      out.push({ id: fid, tag: trigger.tagName.toLowerCase(), type: "select", required: false, label: labelFor(trigger) || "An unlabeled field on this page" });
+    }
     return { fields: out, skipped };
   }
 
@@ -289,8 +304,15 @@
     // silently reverted on next render if this isn't also updated to
     // match, since React sees its own tracked value as already current.
     if (el._valueTracker) el._valueTracker.setValue(value);
+    // v3.286.0 -- a real, adoptable improvement: some forms only run
+    // their own field-level validation (the check that decides whether
+    // a "Next"/"Continue" button is enabled) on blur, not on input --
+    // dispatching focus first and blur after mirrors what actually
+    // happens during a real click-into-then-tab-out-of interaction.
+    el.dispatchEvent(new Event("focus", { bubbles: true }));
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
+    el.dispatchEvent(new Event("blur", { bubbles: true }));
   }
 
   // v3.281.0 -- reported directly, a real screenshot: "Please list your
@@ -305,9 +327,67 @@
   // own actual option text (exact, then substring) and select the real
   // matching option -- never an invented one, and correctly reported as
   // failed if genuinely no option matches.
-  function fillTextLike(fid, value) {
+  // A boolean-shaped stored answer ("Yes"/"No"/"true"/"false") -- the
+  // resolver has never had a reason to write anything else for a
+  // checkbox-shaped question.
+  function isAffirmative(value) {
+    return /^(yes|true|1|on|checked)$/i.test(value.trim());
+  }
+
+  // v3.286.0 -- Radix Select / react-select-style widgets: not a real
+  // <select>, a button/div with role="combobox" that opens a real
+  // role="listbox" popup on click. Scoped correctly on purpose -- via
+  // the trigger's own aria-controls, the standard ARIA link to ITS
+  // listbox -- never a bare, page-wide search for "any [role=option] or
+  // <li>", which could click something on the page that has nothing to
+  // do with this field at all. Waits for the popup by actually checking
+  // for it (polled, short interval) rather than a fixed guessed delay,
+  // which is exactly the kind of timing assumption that silently breaks
+  // on a slower render. Verified afterward by re-reading the trigger's
+  // own displayed text, not just trusted because a click happened.
+  async function fillCombobox(el, value) {
+    const wanted = value.trim().toLowerCase();
+    el.click();
+    const listboxId = el.getAttribute("aria-controls");
+    let listbox = null;
+    for (let i = 0; i < 15 && !listbox; i++) {
+      listbox = listboxId ? document.getElementById(listboxId) : document.querySelector('[role="listbox"]');
+      if (!listbox) await new Promise((r) => setTimeout(r, 100));
+    }
+    if (!listbox) return { ok: false };
+    const options = Array.from(listbox.querySelectorAll('[role="option"]'));
+    const match = options.find((o) => o.textContent.trim().toLowerCase() === wanted)
+      || options.find((o) => o.textContent.trim().toLowerCase().includes(wanted) || wanted.includes(o.textContent.trim().toLowerCase()));
+    if (!match) {
+      el.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      return { ok: false };
+    }
+    match.click();
+    await new Promise((r) => setTimeout(r, 100));
+    const landed = match.getAttribute("aria-selected") === "true"
+      || (el.textContent || "").trim().toLowerCase().includes(match.textContent.trim().toLowerCase());
+    return { ok: landed };
+  }
+
+  async function fillTextLike(fid, value) {
     const el = fieldRegistry.get(fid);
     if (!el) return { ok: false };
+    if (el.getAttribute("role") === "combobox") return fillCombobox(el, value);
+    // v3.286.0 -- checked against a real DOM before shipping, not assumed:
+    // setNativeValue's HTMLInputElement setter writes to a checkbox's own
+    // .value attribute, which browsers keep and read back as a real
+    // string ("Yes") completely independent of .checked -- meaning the
+    // old code's read-back check (el.value === value) could report a
+    // checkbox as successfully filled while it stayed genuinely unchecked
+    // on the real page the whole time. Checkboxes were never actually
+    // matched by the backend before this (a disclosed limit), but nothing
+    // stopped a caller from reaching this path, and it would have lied
+    // about the outcome if one had.
+    if (el.type === "checkbox") {
+      const want = isAffirmative(value);
+      if (el.checked !== want) el.click();
+      return { ok: el.checked === want };
+    }
     if (el.tagName === "SELECT") {
       const wanted = value.trim().toLowerCase();
       const opts = Array.from(el.options);
@@ -531,7 +611,7 @@
     for (const m of [...idRows, ...ansRows]) {
       const value = m.value ?? m.answer ?? "";
       if (!value) { notOnFile.push(m.label); continue; }
-      const r = fillTextLike(m.fieldId, value);
+      const r = await fillTextLike(m.fieldId, value);
       if (r.ok) {
         filledCount++;
         if (LEGAL_SENSITIVE.test(m.label)) legalFilled.push({ label: m.label, answer: value });

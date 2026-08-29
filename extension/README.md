@@ -64,9 +64,11 @@ profile, the same matching logic the web app's own Jobs tab uses.
   yourself. The web app's own resume/cover-letter PDF generation lives
   in `src/lib/resumeDocs.ts` and needs porting into the extension to
   close this — real, scoped follow-up work.
-- **Checkboxes aren't matched.** The backend's own `auto_apply_extract`
-  only resolves identity fields, free-text/select Q&A, and single-choice
-  radio groups today — the same scope the web app's auto-apply panel
-  already has, not a new gap this extension introduces.
 - Nothing about Saved Jobs is required or checked — the extension works
   on whatever application page you're actually on.
+- Handles real `<select>` dropdowns, native radio groups, ARIA-based
+  custom toggle buttons, checkboxes, and Radix/react-select-style custom
+  comboboxes (scoped via the trigger's own `aria-controls`, never a
+  page-wide search — see `content.js`'s `fillCombobox`). A genuinely
+  closed shadow root (`mode: "closed"`) stays unreachable by design, the
+  one real, disclosed exception to the shadow-DOM support below it.
