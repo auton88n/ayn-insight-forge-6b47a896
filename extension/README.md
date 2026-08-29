@@ -140,6 +140,24 @@ profile, the same matching logic the web app's own Jobs tab uses.
   auto-selection (matching several possible answers against your own
   profile at once) is a different, larger kind of matching this app
   doesn't do yet — flagged, not guessed at.
+- **A dual-handle ARIA salary/range slider is now recognized and
+  disclosed**, the same honest treatment a native `<input type=range>`
+  already got — never auto-filled (a slider's value is never a fact a
+  profile can answer), but now named plainly in the summary instead of
+  being completely invisible, since this is one of the highest-value
+  fields on a real application.
+- **`role="combobox"` on a real `<input>` no longer registers as two
+  separate fields.** A real, increasingly common accessible-combobox
+  pattern (the trigger IS the text input, not a separate button next to
+  it) was getting picked up once by the generic text-field scan and a
+  second time by the dedicated combobox scan, risking a double fill
+  attempt and a duplicated line in the after-fill summary.
+- **The deterministic label lookup no longer picks up a sibling
+  control's own displayed text as if it were a real label.** A phone
+  number input sitting right after a country-code selector button was
+  being labeled with that button's own text ("+1 US") instead of the
+  real "Phone number" label — a confidently wrong result, worse than
+  the honest "unlabeled" it now correctly falls back to.
 - **A real, per-option-wrapped button group (Ant Design's `Segmented`
   component being the concrete example that surfaced this) is now
   recognized too.** The unrecognized-widget scan used to only look for
