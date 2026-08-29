@@ -113,6 +113,55 @@
     return data;
   }
 
+  // v3.287.0 -- the primary resume's own structured content (the exact
+  // same shape resumeDocs.js's ported builder expects), fetched once per
+  // panel session and cached so clicking "Attach" on more than one file
+  // field doesn't re-fetch it each time. RLS-protected, owner-scoped --
+  // the same real read the web app itself already relies on for this
+  // table, no new backend surface needed.
+  let cachedResumeContent = null;
+  async function fetchPrimaryResumeContent(session) {
+    if (cachedResumeContent) return cachedResumeContent;
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/resumes?select=content&user_id=eq.${session.user.id}&is_primary=eq.true&limit=1`,
+      { headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.access_token}` } }
+    );
+    if (!r.ok) return null;
+    const rows = await r.json();
+    cachedResumeContent = rows[0]?.content || null;
+    return cachedResumeContent;
+  }
+
+  // Builds a real resume PDF from the person's own AYN profile (via the
+  // vendored, ported resumeDocs.js -- see its own header comment) and
+  // attaches it to a real <input type=file> the same way a person
+  // dragging a file in would -- DataTransfer is the only real, working
+  // way to set a file input's value from script, not blocked by browser
+  // security the way an older assumption held. Read back afterward
+  // (input.files.length, the real name) rather than trusted blind.
+  async function attachResumeFile(session, inputEl) {
+    if (typeof window.__aynBuildResumePdfBlob !== "function") {
+      return { ok: false, reason: "PDF builder didn't load on this page." };
+    }
+    const content = await fetchPrimaryResumeContent(session);
+    if (!content) return { ok: false, reason: "No resume on file in AYN yet." };
+    let blob;
+    try {
+      blob = window.__aynBuildResumePdfBlob(content);
+    } catch (e) {
+      return { ok: false, reason: "Couldn't build the resume file." };
+    }
+    const name = (content.basics && content.basics.name ? content.basics.name.replace(/\s+/g, "_") : "Resume") + "_Resume.pdf";
+    const file = new File([blob], name, { type: "application/pdf" });
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    inputEl.files = dt.files;
+    inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+    inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+    const landed = inputEl.files.length === 1 && inputEl.files[0].name === name;
+    return { ok: landed };
+  }
+
   // ---------------------------------------------------------------
   // Field extraction
   // ---------------------------------------------------------------
@@ -656,8 +705,32 @@
       for (const f of stillNeeded) ul.appendChild(el("li", { text: f }));
       body.appendChild(ul);
     }
+    // v3.287.0 -- only ever offered for a field whose own question reads
+    // as asking for a resume/CV specifically -- a "Cover letter,"
+    // "Portfolio," or "Writing sample" file field never gets this button,
+    // since attaching your resume there would be a real, wrong guess
+    // about what the employer actually asked for, not a genuine autofill.
     if (fileRows.length) {
-      body.appendChild(el("p", { class: "warn", text: `${fileRows.length} file field${fileRows.length > 1 ? "s" : ""} (e.g. resume) need to be attached by hand.` }));
+      body.appendChild(el("p", { class: "warn", text: `${fileRows.length} file field${fileRows.length > 1 ? "s" : ""} to attach:` }));
+      for (const f of fileRows) {
+        const isResumeField = /r[ée]sum[ée]|\bcv\b/i.test(f.label);
+        const row = el("div", { style: "display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px;" });
+        row.appendChild(el("span", { text: f.label, style: "font-size: 14px;" }));
+        if (isResumeField) {
+          const btn = el("button", { class: "btn btn-primary", text: "Attach my resume", style: "padding: 7px 14px; font-size: 13px; flex-shrink: 0;" });
+          btn.addEventListener("click", async () => {
+            btn.disabled = true; btn.textContent = "Attaching…";
+            const inputEl = fieldRegistry.get(f.id);
+            const r = inputEl ? await attachResumeFile(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
+            if (r.ok) { btn.textContent = "Attached ✓"; btn.style.background = "#2f6b52"; }
+            else { btn.disabled = false; btn.textContent = "Try again"; btn.title = r.reason || ""; }
+          });
+          row.appendChild(btn);
+        } else {
+          row.appendChild(el("span", { text: "Attach yourself", class: "muted", style: "font-size: 12.5px; margin: 0;" }));
+        }
+        body.appendChild(row);
+      }
     }
     if (skipped.length) {
       body.appendChild(el("p", { class: "muted", text: "Slider/range preferences — set these yourself, AYN doesn't guess these:" }));

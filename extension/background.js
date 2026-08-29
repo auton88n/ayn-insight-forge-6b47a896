@@ -11,9 +11,15 @@
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab.id || !tab.url || !/^https?:\/\//.test(tab.url)) return;
   try {
+    // v3.287.0 -- vendor/jspdf.umd.min.js and resumeDocs.js are injected
+    // first, in the same isolated world content.js runs in, so the real
+    // jsPDF builder (window.__aynBuildResumePdfBlob) exists before
+    // content.js ever needs to call it for a real resume file attachment.
+    // Both are vendored locally (no CDN, no remote code) -- see
+    // resumeDocs.js's own header comment.
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      files: ["content.js"],
+      files: ["vendor/jspdf.umd.min.js", "resumeDocs.js", "content.js"],
     });
   } catch (e) {
     console.error("AYN Auto-Apply: could not run on this page", e);

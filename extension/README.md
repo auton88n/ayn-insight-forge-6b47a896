@@ -59,11 +59,19 @@ profile, the same matching logic the web app's own Jobs tab uses.
 
 ## Known limits (v1, disclosed rather than hidden)
 
-- **File attachments (resume/cover letter) aren't filled automatically
-  yet.** A file field is flagged clearly in the panel; you attach it
-  yourself. The web app's own resume/cover-letter PDF generation lives
-  in `src/lib/resumeDocs.ts` and needs porting into the extension to
-  close this — real, scoped follow-up work.
+- **Resume attachment works.** A file field whose own question reads as
+  asking for a resume/CV gets a real "Attach my resume" button — builds
+  a real one-page PDF from your primary AYN resume (`resumeDocs.js`, a
+  direct port of the web app's own builder) and attaches it via the
+  DataTransfer API, verified by reading the file back off the input
+  afterward. A field asking for something else (cover letter, portfolio,
+  writing sample) is never guessed at — it stays "attach yourself,"
+  since assuming your resume answers a different question would be a
+  real, wrong guess, not autofill.
+- **Cover letters still aren't attached automatically.** They're
+  job-specific (the extension deliberately has no jobId context — see
+  v3.278.0), so there's no single "the" cover letter to attach the way
+  there's one primary resume. Real, separate follow-up work if wanted.
 - Nothing about Saved Jobs is required or checked — the extension works
   on whatever application page you're actually on.
 - Handles real `<select>` dropdowns, native radio groups, ARIA-based
