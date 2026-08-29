@@ -57,6 +57,17 @@ profile, the same matching logic the web app's own Jobs tab uses.
    you review the actual page, fill in anything still empty directly on
    it, and hit its real Submit button yourself.
 
+## Diagnostics (explicit, opt-in only)
+
+After a real run, the results panel has a "Send diagnostics to AYN"
+button. It's never automatic — nothing is sent unless you click it.
+What it sends is the exact summary already shown on screen: field
+counts and kinds, which labels were filled/not-on-file/failed, which
+widget shapes were classified and how, and the page's hostname and
+path. It never sends a value that was written into any field, the
+page's HTML, or anything about your profile content itself — only
+structural facts about the form and whether filling it worked.
+
 ## Known limits (v1, disclosed rather than hidden)
 
 - **Resume attachment works, on nearly every file field.** Any file

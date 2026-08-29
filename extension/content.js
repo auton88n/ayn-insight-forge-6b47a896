@@ -624,6 +624,43 @@
       body.appendChild(ul3);
     }
     body.appendChild(el("p", { class: "muted", text: "Review the real page, then submit it yourself — AYN never clicks submit for you." }));
+
+    // v3.296.0 -- a real, explicit, opt-in diagnostics channel: sends a
+    // structured summary of this exact run straight to AYN's own
+    // backend, so it can be read directly rather than relayed by hand.
+    // Deliberately built from the SAME data already on screen above --
+    // never re-reads the page, never includes a filled VALUE (only
+    // labels, kinds, structural widget signatures, and success/failure),
+    // and only ever sends when this button is clicked, never silently.
+    const diagBtn = el("button", { class: "btn btn-ghost", text: "Send diagnostics to AYN", style: "width:100%; margin-bottom: 8px; font-size: 12.5px;" });
+    diagBtn.addEventListener("click", async () => {
+      diagBtn.disabled = true; diagBtn.textContent = "Sending…";
+      try {
+        const report = {
+          fieldCount: fields.length,
+          fieldsByKind: fields.reduce((acc, f) => { const k = f.type || "unknown"; acc[k] = (acc[k] || 0) + 1; return acc; }, {}),
+          filledCount,
+          notOnFile,
+          failed,
+          skipped,
+          multiSelectFlags,
+          fileFieldLabels: fileRows.map((f) => f.label),
+          legalSensitiveLabels: legalFilled.map((f) => f.label),
+        };
+        await callHub(session, {
+          action: "ext_diag_report",
+          pageHostname: location.hostname,
+          pagePathname: location.pathname,
+          report,
+        });
+        diagBtn.textContent = "Sent ✓";
+      } catch (e) {
+        diagBtn.disabled = false;
+        diagBtn.textContent = "Couldn't send — try again";
+      }
+    });
+    body.appendChild(diagBtn);
+
     const closeBtn = el("button", { class: "btn btn-ghost", text: "Done", style: "width:100%" });
     closeBtn.addEventListener("click", closePanel);
     body.appendChild(closeBtn);

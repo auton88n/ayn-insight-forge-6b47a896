@@ -1480,6 +1480,47 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       return json({ classifications });
     }
 
+    // v3.296.0 -- a real diagnostics channel for a genuine live run on a
+    // real third-party site, in a real browser. This exists specifically
+    // so extraction/fill results from an actual application page can be
+    // read straight from the database, rather than relayed by hand
+    // through screenshots. Free (rate-limited only, matching every other
+    // ext_/auto_apply_* utility action) -- this is a debugging aid, not
+    // a distinct product outcome. Deliberately narrow, matching this
+    // whole app's own "never invent, never leak more than needed"
+    // discipline: the payload accepted here is capped, and only ever
+    // holds field labels/kinds, structural widget signatures (the exact
+    // same sanitized shape auto_apply_classify_widgets already proves
+    // safe -- tag/role/ariaAttrs/childShape/classHint/nearbyText/
+    // optionTexts, never a value), and per-field fill success/failure --
+    // never the actual value written into any field, never page HTML.
+    if (action === "ext_diag_report") {
+      const adminDiag = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminDiag, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminDiag, user.id, action); if (blocked) return blocked; }
+      { const limited = await rateLimitGate(adminDiag, user.id, action, 30, 15); if (limited) return limited; }
+
+      const { pageHostname, pagePathname, report, note } = payload as {
+        pageHostname?: string; pagePathname?: string; report?: unknown; note?: string;
+      };
+      if (!report || typeof report !== "object") return json({ error: "report is required" }, 400);
+      // A raw JSON.stringify cap, not a field-count cap -- bounds real
+      // cost regardless of what shape a caller sends, the same
+      // discipline the widget classifier's own 40-item slice uses.
+      const reportStr = JSON.stringify(report);
+      if (reportStr.length > 60000) return json({ error: "report too large" }, 400);
+
+      const { error: diagErr } = await adminDiag.from("ext_diagnostics").insert({
+        user_id: user.id,
+        page_hostname: typeof pageHostname === "string" ? pageHostname.slice(0, 200) : null,
+        page_pathname: typeof pagePathname === "string" ? pagePathname.slice(0, 400) : null,
+        report,
+        note: typeof note === "string" ? note.slice(0, 500) : null,
+      });
+      if (diagErr) return json({ error: "Could not save diagnostic report." }, 500);
+      return json({ ok: true });
+    }
+
     if (action === "auto_apply_fill") {
       const adminFill = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminFill, "tailoring"); if (off) return off; }
