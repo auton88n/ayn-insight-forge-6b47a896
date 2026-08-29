@@ -140,6 +140,15 @@ profile, the same matching logic the web app's own Jobs tab uses.
   auto-selection (matching several possible answers against your own
   profile at once) is a different, larger kind of matching this app
   doesn't do yet — flagged, not guessed at.
+- **Two same-labeled sibling fields (a real, common shape: a start/end
+  date section built as two separate month and year text inputs, the
+  actual pattern Workday's own apply forms use) no longer share one
+  identical, ambiguous label.** Confirmed against a real, published
+  Workday automation script's own DOM shape, not guessed at. Each
+  field's own distinguishing placeholder ("MM" vs "YYYY") is now
+  appended to its label whenever it would otherwise be indistinguishable
+  from a sibling field sharing the same container — closing a real risk
+  of the exact same matched value being written into both.
 - **A dual-handle ARIA salary/range slider is now recognized and
   disclosed**, the same honest treatment a native `<input type=range>`
   already got — never auto-filled (a slider's value is never a fact a
