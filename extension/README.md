@@ -113,18 +113,41 @@ profile, the same matching logic the web app's own Jobs tab uses.
   legitimate patterns where a real native input sits under a styled
   visual replacement, and the native input is the one that actually
   submits.
-- **Not fixed, disclosed honestly:** an application form embedded in an
-  `<iframe>` is completely invisible to the extension — it only ever
-  reads the top-level page, same-origin or not. A minority pattern among
-  real ATS platforms, but a real one. A multi-select "choose all that
-  apply" button group (several independently togglable options, not a
-  mutually exclusive choice) is structurally identical to a single-choice
-  toggle group to everything here, including the AI classifier's current
-  fixed vocabulary — it has no "pick any number of these" type yet, only
-  "pick exactly one." And extraction is deliberately not scoped to a
-  single `<form>` (many real ATS pages, Ashby included, have no `<form>`
-  element wrapping the actual application at all) — the real, accepted
-  cost of that choice is that a genuinely unrelated widget elsewhere on
-  the same page (a newsletter signup, say) can get swept into the same
-  field list, and if its own label happens to resemble a real identity
-  field, could get filled too.
+- **An application form embedded in an `<iframe>` is now found and
+  filled too**, same-origin or cross-origin — `frame_agent.js` (the
+  extraction/fill core, shared with the top page) runs in every frame,
+  self-reports its own fields through the background script (a content
+  script has no way to message a different frame directly — only the
+  background script's own frame-targeted messaging can), and a fill
+  instruction for one of those fields is relayed back down to the exact
+  frame it came from, executed there, and the real result relayed back.
+  Verified with a real iframe end to end: extraction, merge, and both a
+  text fill and a radio-group fill, each confirmed by reading the
+  iframe's own DOM afterward. Deliberately v1-scoped: only the
+  deterministic layer (native inputs, ARIA radiogroups, aria-pressed
+  toggle groups, `role="combobox"`) runs across frames — the AI-assisted
+  Form Intelligence layer stays top-frame-only for now, since that
+  deterministic layer alone already accounts for the large majority of
+  real fields.
+- **A genuine "choose all that apply" multi-select group is now
+  recognized as exactly that**, not silently mis-filled as a
+  single-choice pick. It's structurally identical to a toggle group, so
+  the AI classifier is told explicitly to tell them apart by the real
+  question phrasing ("select all that apply," a plural framing over a
+  list of skills/tools) — once recognized, it's never clicked at all,
+  just named plainly for you to answer yourself, the same honest
+  treatment a genuinely unrecognized field already gets. Real
+  auto-selection (matching several possible answers against your own
+  profile at once) is a different, larger kind of matching this app
+  doesn't do yet — flagged, not guessed at.
+- **Extraction now prefers a single real `<form>` when the page has more
+  than one.** Many real ATS pages (Ashby included) have no `<form>`
+  element at all wrapping the actual application, which is why
+  extraction has never been scoped to one by default — but when a page
+  genuinely does have two or more real forms, and one of them looks like
+  the actual application (3+ real fields), extraction now scopes to that
+  one instead of the whole page, closing the real risk of a genuinely
+  unrelated widget elsewhere (a newsletter signup, say) getting swept in
+  too. A form-less page, or a page with only one form, is completely
+  unaffected — the exact case this was built for keeps working exactly
+  as it always has.

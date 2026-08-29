@@ -165,579 +165,20 @@
   // ---------------------------------------------------------------
   // Field extraction
   // ---------------------------------------------------------------
-  let fieldRegistry = new Map();
+  // v3.294.0 -- extraction, candidate-scan, and fill logic all moved to
+  // frame_agent.js so the exact same code can run in every frame of a
+  // page (iframe-embedded application forms, not just the top-level
+  // page) -- see that file's own header comment. frame_agent.js is
+  // injected into every frame BEFORE this file, including the top one,
+  // and both are ISOLATED-world content scripts sharing the same
+  // per-frame execution context, so these are just local aliases onto
+  // what it already exposed on window, not a second implementation.
+  const extractFields = window.__aynExtractFields;
+  const scanUnrecognizedWidgets = window.__aynScanUnrecognizedWidgets;
+  const fillTextLike = window.__aynFillTextLike;
+  const fillRadio = window.__aynFillRadio;
+  function fieldRegistry_() { return window.__aynFieldRegistry(); }
 
-  // v3.293.0 -- a heavy synthetic stress pass across ~15 form/DOM
-  // categories found this real, confirmed gap: offsetParent/getClientRects
-  // both stay non-empty for a plain visibility:hidden element (it still
-  // takes up real layout space, just isn't painted) -- the exact same
-  // "don't touch this" signal display:none already gives correctly.
-  // Genuinely different from opacity:0 or an off-screen position (both
-  // deliberately still left findable -- a common, legitimate real-world
-  // pattern where a real native input sits under a styled visual
-  // replacement, and the native input IS the one that actually submits),
-  // since visibility:hidden has no such legitimate "still functionally
-  // present" use on a real application field.
-  function visible(el) {
-    if (el.offsetParent === null && el.getClientRects().length === 0) return false;
-    return getComputedStyle(el).visibility !== "hidden";
-  }
-
-  // Generic UI copy that occasionally ends up as a placeholder -- never a
-  // real question, and showing it as one is actively misleading (worse
-  // than showing nothing). Reported directly, a real screenshot: "Start
-  // typing…" appeared in AYN's own summary as if it were the field's
-  // actual question.
-  const GENERIC_PLACEHOLDER = /^(start typing|select|choose|search|type here)/i;
-
-  // v3.293.0 -- widened from previousElementSibling to previousSibling: a
-  // real, common markup shape ("<div>Question text <input></div>", the
-  // question as a bare text node with no wrapping span at all) was
-  // confirmed invisible to this walk, since it only ever stepped between
-  // ELEMENT siblings and a bare text node isn't one. A purely-whitespace
-  // text node (extremely common between elements in real, indented
-  // markup) doesn't spend a hop, so this reaches exactly as far as before
-  // through ordinary formatting whitespace, just no longer blind to real
-  // text that was never wrapped in anything.
-  function siblingText(node, hops) {
-    let n = node, h = 0;
-    while (n && h < hops) {
-      const t = (n.textContent || "").trim();
-      if (t && t.length < 200) return t;
-      if (n.nodeType !== 3 || t) h++;
-      n = n.previousSibling;
-    }
-    return "";
-  }
-
-  function labelFor(el) {
-    if (el.id) {
-      const byFor = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
-      if (byFor && byFor.textContent.trim()) return byFor.textContent.trim();
-    }
-    const aria = el.getAttribute("aria-label");
-    if (aria && aria.trim()) return aria.trim();
-    const labelledBy = el.getAttribute("aria-labelledby");
-    if (labelledBy) {
-      const parts = labelledBy.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim()).filter(Boolean);
-      if (parts.length) return parts.join(" ");
-    }
-    const wrappingLabel = el.closest("label");
-    if (wrappingLabel && wrappingLabel.textContent.trim()) return wrappingLabel.textContent.trim();
-    const direct = siblingText(el.previousSibling, 3);
-    if (direct) return direct;
-    // v3.280.0 -- an ancestor-climbing fallback was tried here for deeply
-    // nested combobox widgets (react-select and similar, common on
-    // Ashby), and caught by testing it directly against a real DOM before
-    // shipping: it can walk past the actual field's own container and
-    // pick up a DIFFERENT, nearby field's question instead -- confidently
-    // wrong, which is worse than this field honestly coming back
-    // unlabeled. Removed rather than shipped; a genuinely unlabeled field
-    // now stays unlabeled (see extractFields' own fallback text) instead
-    // of risking a mismatched label.
-    if (el.placeholder && el.placeholder.trim() && !GENERIC_PLACEHOLDER.test(el.placeholder.trim())) {
-      return el.placeholder.trim();
-    }
-    return "";
-  }
-
-  // v3.283.0 -- reported directly: a slider-style distance/radius filter
-  // (unit toggle, live value label, step ticks, min/max bounds, a
-  // custom-number override) doesn't belong on an application form to
-  // begin with -- it's a SEARCH preference, the same category as "how
-  // far are you willing to commute," not a fact AYN has a single right
-  // answer for. The real, general point underneath it stands though:
-  // a range/slider input is its own distinct control type, and AYN
-  // should never try to write an arbitrary matched string into one --
-  // unlike a text box, a slider's value is only ever meaningful as a
-  // specific number within its own min/max, and there is no fact in a
-  // profile that translates to "the correct point on this scale."
-  // Recognized explicitly and always left for the person to set
-  // themselves, the same honest treatment as a file attachment.
-  // v3.285.0 -- a real, adoptable improvement: some ATS platforms build
-  // their form widgets as real web components with a closed-off shadow
-  // DOM, and a plain document.querySelectorAll never sees inside one --
-  // that part of the form was silently invisible before this, the same
-  // failure shape as the ARIA-radiogroup gap fixed earlier this session,
-  // just for a different reason. Recurses into every OPEN shadow root
-  // found anywhere in the tree (a genuinely closed shadow root -- mode:
-  // "closed" -- is deliberately unreachable from outside its own
-  // component by the platform itself; no page script, this extension
-  // included, can see into one, which is a real, disclosed limit, not a
-  // bug to chase).
-  function queryDeep(root, selector) {
-    const found = Array.from(root.querySelectorAll(selector));
-    for (const el of root.querySelectorAll("*")) {
-      if (el.shadowRoot) found.push(...queryDeep(el.shadowRoot, selector));
-    }
-    return found;
-  }
-
-  function extractFields() {
-    fieldRegistry = new Map();
-    const out = [];
-    const skipped = [];
-    let n = 0;
-    const seenRadioGroups = new Set();
-    for (const el of queryDeep(document, "input, textarea, select")) {
-      if (el.disabled) continue;
-      const type = (el.getAttribute("type") || el.tagName.toLowerCase()).toLowerCase();
-      // v3.293.0 -- password added: never a fact anything in a real AYN
-      // profile could answer, the same reasoning hidden/submit/button/
-      // reset/image were already excluded for -- previously relied on
-      // nothing in a profile happening to match "Create a password"
-      // rather than being excluded on purpose, the one input type here
-      // that wasn't.
-      if (["hidden", "submit", "button", "reset", "image", "password"].includes(type)) continue;
-
-      if (type === "file") {
-        // v3.293.0 -- a real, extremely common upload pattern, found by a
-        // heavy synthetic stress pass: the native file input itself is
-        // display:none, with a styled <label> (wrapping it, or linked via
-        // for=) as the actual visible "Upload" trigger -- native
-        // file-input styling is notoriously hard to control directly, so
-        // most real forms hide the raw input and style its label instead.
-        // The input's own invisibility was never a real reason to skip
-        // attaching to it -- DataTransfer-based file injection doesn't
-        // need the input to be visually rendered at all -- only a reason
-        // the blanket visibility filter below (built for every other
-        // input type, where invisible genuinely does mean "don't touch")
-        // wrongly caught this one too. Still requires a genuinely visible
-        // trigger somewhere, so a truly, fully hidden file input (no
-        // visible label anywhere) stays correctly excluded.
-        const trigger = (el.id && document.querySelector(`label[for="${CSS.escape(el.id)}"]`)) || el.closest("label");
-        if (!visible(el) && !(trigger && visible(trigger))) continue;
-        const fid = `ayn-f-${n++}`;
-        fieldRegistry.set(fid, el);
-        out.push({ id: fid, tag: "input", type: "file", required: !!el.required, label: labelFor(el) || "Attachment" });
-        continue;
-      }
-      if (!visible(el)) continue;
-
-      if (type === "range") {
-        skipped.push(labelFor(el) || "A slider or range control on this page");
-        continue;
-      }
-      if (type === "radio") {
-        const name = el.name || "";
-        if (!name) continue;
-        const groupLabel = seenRadioGroups.has(name) ? undefined : (() => {
-          const fieldset = el.closest("fieldset");
-          const legend = fieldset?.querySelector("legend")?.textContent?.trim();
-          if (legend) return legend;
-          const own = labelFor(el);
-          // v3.293.0 -- a real, confirmed bug: with no <fieldset>/
-          // <legend>, a radio wrapped in its own per-option <label>
-          // ("<label><input type=radio> Yes</label>") makes labelFor(el)
-          // correctly find that wrapping label -- but its text is just
-          // this ONE option's own answer ("Yes"), not the group's real
-          // question, and labelFor has no way to tell "a label wrapping
-          // only this option" apart from a genuine group label on its
-          // own. Reporting a wrong question with high confidence is
-          // worse than reporting none -- degrade to genuinely unlabeled
-          // here instead, the same "confidently wrong beats honestly
-          // unlabeled, except backwards" principle already governs
-          // labelFor's own ancestor-climbing removal above.
-          const ownWrap = el.closest("label");
-          if (ownWrap && own === ownWrap.textContent.trim()) return undefined;
-          return own;
-        })();
-        seenRadioGroups.add(name);
-        const fid = `ayn-f-${n++}`;
-        fieldRegistry.set(fid, el);
-        out.push({ id: fid, tag: "input", type: "radio", required: !!el.required, label: labelFor(el), radioGroup: name, radioGroupLabel: groupLabel });
-        continue;
-      }
-      const fid = el.id && !fieldRegistry.has(el.id) ? el.id : `ayn-f-${n++}`;
-      fieldRegistry.set(fid, el);
-      const tag = el.tagName.toLowerCase();
-      // A genuinely unlabeled field still needs a real, honest name in
-      // the summary rather than a blank line -- never a guessed question.
-      out.push({ id: fid, tag, type: tag === "select" ? "select" : tag === "textarea" ? "textarea" : type, required: !!el.required, label: labelFor(el) || "An unlabeled field on this page" });
-    }
-
-    // v3.282.0 -- reported directly, a real screenshot: a "Yes/No" legal
-    // question (work authorization) rendered as a segmented button pair,
-    // not a native <input type=radio>, so the scan above never saw it at
-    // all -- silently invisible to the whole matching/fill pipeline, no
-    // fill attempted, nothing reported either way. Custom toggle-button
-    // widgets almost always carry the ARIA role= a real radio group needs
-    // for accessibility even when they skip the native <input> element --
-    // recognized here the same way a screen reader would.
-    for (const group of queryDeep(document, '[role="radiogroup"]')) {
-      if (!visible(group)) continue;
-      const options = Array.from(group.querySelectorAll('[role="radio"]')).filter(visible);
-      if (!options.length) continue;
-      const groupName = `ayn-rg-${n++}`;
-      const groupLabel = group.getAttribute("aria-label") || labelFor(group) || undefined;
-      for (const opt of options) {
-        const fid = `ayn-f-${n++}`;
-        fieldRegistry.set(fid, opt);
-        out.push({
-          id: fid, tag: opt.tagName.toLowerCase(), type: "radio", required: false,
-          label: (opt.getAttribute("aria-label") || opt.textContent || "").trim(),
-          radioGroup: groupName, radioGroupLabel: groupLabel,
-        });
-      }
-    }
-
-    // v3.289.0 -- reported directly, a real screenshot: a Yes/No legal
-    // question rendered as a plain pair of buttons, each carrying
-    // aria-pressed, but with NO wrapping role="radiogroup" at all -- a
-    // real, common accessible pattern (a plain "toggle button group")
-    // the v3.282.0 radiogroup scan never covered, since it specifically
-    // only looked inside a real radiogroup. Grouped by shared parent so
-    // two independent Yes/No pairs on the same page never get merged
-    // into one four-option group; a lone toggle (no sibling also
-    // carrying aria-pressed) is skipped, since a single button isn't a
-    // mutually exclusive choice to fill one way or the other.
-    const seenToggleButtons = new Set();
-    for (const btn of queryDeep(document, "button[aria-pressed]")) {
-      if (!visible(btn) || seenToggleButtons.has(btn) || btn.closest('[role="radiogroup"]')) continue;
-      const parent = btn.parentElement;
-      if (!parent) continue;
-      const siblings = Array.from(parent.children).filter(
-        (c) => c.tagName === "BUTTON" && c.hasAttribute("aria-pressed") && visible(c)
-      );
-      if (siblings.length < 2) continue;
-      siblings.forEach((s) => seenToggleButtons.add(s));
-      const groupName = `ayn-tg-${n++}`;
-      const groupLabel = parent.getAttribute("aria-label") || labelFor(parent) || undefined;
-      for (const opt of siblings) {
-        const fid = `ayn-f-${n++}`;
-        fieldRegistry.set(fid, opt);
-        out.push({
-          id: fid, tag: "button", type: "radio", required: false,
-          label: (opt.getAttribute("aria-label") || opt.textContent || "").trim(),
-          radioGroup: groupName, radioGroupLabel: groupLabel,
-        });
-      }
-    }
-
-    // v3.286.0 -- Radix Select / react-select-style custom dropdowns:
-    // never a real <select>, so the native scan above never sees them --
-    // a button/div carrying role="combobox" (the real, standard ARIA
-    // pattern this kind of widget needs regardless of styling) is the
-    // trigger. Its own listbox doesn't exist yet at extraction time
-    // (comboboxes render their options lazily, on open), so only the
-    // trigger is registered here -- fillCombobox does the actual open/
-    // search/select/verify sequence at fill time.
-    for (const trigger of queryDeep(document, '[role="combobox"]')) {
-      if (!visible(trigger) || trigger.getAttribute("aria-disabled") === "true") continue;
-      const fid = `ayn-f-${n++}`;
-      fieldRegistry.set(fid, trigger);
-      out.push({ id: fid, tag: trigger.tagName.toLowerCase(), type: "select", required: false, label: labelFor(trigger) || "An unlabeled field on this page" });
-    }
-    return { fields: out, skipped };
-  }
-
-  // v3.290.0 -- Form Intelligence: everything above this point is the
-  // deterministic, free, instant layer -- native inputs, ARIA radiogroups,
-  // aria-pressed toggle pairs, role=combobox triggers. It's still not
-  // every real shape a real ATS builds (a Yes/No pair with NO aria state
-  // at all, or a custom dropdown trigger that never declares
-  // role="combobox"), and hand-coding one more heuristic every time a new
-  // shape gets reported is exactly the "go back and forth" this exists to
-  // end. This scans for two narrow, bounded CANDIDATE shapes the
-  // deterministic pass didn't already claim, and sends only their real
-  // structure (never a value, never anything about the person) to
-  // auto_apply_classify_widgets for a real classification -- cached
-  // server-side by structural shape, so the same widget on the same ATS
-  // platform is only ever classified once, for every AYN user, not once
-  // per page view. See docs/map/extension.md for the full design.
-  // v3.293.0 -- a narrower, purpose-built label lookup for a CANDIDATE
-  // widget specifically -- found by a heavy synthetic stress pass: reusing
-  // labelFor()'s own 3-hop sibling walk on an arbitrary container element
-  // (not a real form control, which is what labelFor was actually built
-  // for) let it reach past the candidate's own immediate neighbor and pick
-  // up a completely unrelated sibling's text -- confirmed live, a "Sort
-  // results by: Newest/Relevance" filter bar sitting DIRECTLY after a
-  // pagination nav had its own nearbyText come back as "1 2 3", the
-  // pagination's own numbers. Cutting the walk to one hop alone didn't
-  // fully close this -- confirmed live a second time -- since the wrong
-  // element can BE the immediate previous sibling, not just something
-  // reached by walking further into it. The real, reliable signal a
-  // genuine caption has that a stray unrelated widget doesn't: a real
-  // question/caption is plain text, never itself containing another
-  // interactive control -- a sibling that contains a button, input, link,
-  // or nav is almost certainly a different, unrelated widget entirely,
-  // not this candidate's own label, so it's rejected outright rather than
-  // quoted. A candidate is already a speculative, AI-classified guess;
-  // feeding it a coherent-looking but wrong question makes a wrong
-  // classification more likely, not less -- an honestly empty nearbyText
-  // gives the classifier real signal to answer "unrecognized" instead.
-  function candidateNearbyText(el) {
-    const aria = el.getAttribute("aria-label");
-    if (aria && aria.trim()) return aria.trim();
-    const prev = el.previousElementSibling;
-    if (!prev || prev.querySelector("button, input, select, textarea, a, nav")) return "";
-    const t = prev.textContent ? prev.textContent.trim() : "";
-    return t && t.length < 200 ? t : "";
-  }
-
-  function scanUnrecognizedWidgets(alreadyKnownEls) {
-    const candidates = [];
-    let n = 0;
-
-    // (a) sibling button groups with NO aria-pressed/aria-checked at all
-    // -- a real, common accessibility gap (visually a segmented Yes/No
-    // pair, zero ARIA state), never covered by the aria-pressed scan
-    // above since that scan specifically requires the attribute to exist.
-    const seenGroupParents = new Set();
-    for (const btn of queryDeep(document, "button, [role='button']")) {
-      if (!visible(btn) || alreadyKnownEls.has(btn)) continue;
-      if (btn.hasAttribute("aria-pressed") || btn.hasAttribute("aria-checked")) continue;
-      if (btn.closest("nav, header, footer")) continue;
-      const parent = btn.parentElement;
-      if (!parent || seenGroupParents.has(parent)) continue;
-      const siblings = Array.from(parent.children).filter(
-        (c) => visible(c) && (c.tagName === "BUTTON" || c.getAttribute("role") === "button") && !alreadyKnownEls.has(c)
-      );
-      // 2 to 6: a real toggle pair or small choice group, not a button
-      // toolbar (which would falsely look like a huge "radio group").
-      if (siblings.length < 2 || siblings.length > 6) continue;
-      seenGroupParents.add(parent);
-      const cid = `ayn-cand-${n++}`;
-      candidates.push({
-        localId: cid,
-        els: siblings,
-        signature: {
-          localId: cid,
-          tag: parent.tagName.toLowerCase(),
-          role: parent.getAttribute("role"),
-          ariaAttrs: Array.from(siblings[0].attributes).map((a) => a.name).filter((a) => a.startsWith("aria-")).sort(),
-          childShape: `button:${siblings.length}`,
-          classHint: (parent.className || "").toString().trim().split(/\s+/)[0]?.slice(0, 40) || "",
-          nearbyText: candidateNearbyText(parent).slice(0, 200),
-          optionTexts: siblings.map((s) => (s.textContent || "").trim().slice(0, 60)),
-        },
-      });
-    }
-
-    // (b) a clickable trigger that reads like a custom-select placeholder
-    // ("Select...", "Choose...", "Start typing...") but never declared
-    // role="combobox" -- a real, common deviation from the ARIA spec.
-    const PLACEHOLDER_RE = /^(select|choose|start typing|search)/i;
-    // v3.293.0 -- "button" added: a plain native <button> with no explicit
-    // role/tabindex attribute at all (it needs neither to already be a
-    // real, valid button) was confirmed invisible to this scan -- a
-    // genuinely common, perfectly valid native-HTML custom-select trigger
-    // ("<button>Select your school</button>", no ARIA anywhere) never
-    // reached AI classification at all, silently absent rather than
-    // "not on file" or "unrecognized."
-    for (const el of queryDeep(document, "button, [role='button'], [tabindex='0'], input[type='text']")) {
-      if (!visible(el) || alreadyKnownEls.has(el)) continue;
-      if (el.getAttribute("role") === "combobox") continue;
-      if (el.closest("nav, header, footer")) continue;
-      const text = (el.tagName === "INPUT" ? el.placeholder : el.textContent || el.getAttribute("aria-label") || "").trim();
-      if (!PLACEHOLDER_RE.test(text)) continue;
-      const cid = `ayn-cand-${n++}`;
-      candidates.push({
-        localId: cid,
-        els: [el],
-        signature: {
-          localId: cid,
-          tag: el.tagName.toLowerCase(),
-          role: el.getAttribute("role"),
-          ariaAttrs: Array.from(el.attributes).map((a) => a.name).filter((a) => a.startsWith("aria-")).sort(),
-          childShape: Array.from(el.children).map((c) => c.tagName.toLowerCase()).join(",") || "none",
-          classHint: (el.className || "").toString().trim().split(/\s+/)[0]?.slice(0, 40) || "",
-          nearbyText: candidateNearbyText(el).slice(0, 200),
-          optionTexts: [],
-        },
-      });
-    }
-
-    return candidates;
-  }
-
-  // ---------------------------------------------------------------
-  // Filling -- native-setter trick for React/Vue-controlled inputs,
-  // read-back verified after every write.
-  // ---------------------------------------------------------------
-  function setNativeValue(el, value) {
-    const proto = el.tagName === "TEXTAREA" ? window.HTMLTextAreaElement.prototype
-      : el.tagName === "SELECT" ? window.HTMLSelectElement.prototype
-      : window.HTMLInputElement.prototype;
-    const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
-    if (setter) setter.call(el, value); else el.value = value;
-    // v3.285.0 -- a real, adoptable improvement: some React versions track
-    // an input's "last known value" on a private _valueTracker property
-    // and compare against IT (not just the DOM value) to decide whether a
-    // change is real -- the native-setter trick above can still get
-    // silently reverted on next render if this isn't also updated to
-    // match, since React sees its own tracked value as already current.
-    if (el._valueTracker) el._valueTracker.setValue(value);
-    // v3.286.0 -- a real, adoptable improvement: some forms only run
-    // their own field-level validation (the check that decides whether
-    // a "Next"/"Continue" button is enabled) on blur, not on input --
-    // dispatching focus first and blur after mirrors what actually
-    // happens during a real click-into-then-tab-out-of interaction.
-    el.dispatchEvent(new Event("focus", { bubbles: true }));
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-    el.dispatchEvent(new Event("blur", { bubbles: true }));
-  }
-
-  // v3.281.0 -- reported directly, a real screenshot: "Please list your
-  // highest level of education achieved?" (a real <select> dropdown)
-  // showed as "not on file" even with the resolver fixed to actually
-  // answer it (see the backend's own applicationAnswers.ts). Root cause
-  // here: a <select>'s real, valid values are its own <option> values,
-  // which almost never match a plain resolved string exactly ("Bachelor's"
-  // vs an option literally reading "Bachelor's Degree") -- setting
-  // el.value to a non-matching string is a silent no-op in every browser.
-  // Fields registered as a real <select> now match against that select's
-  // own actual option text (exact, then substring) and select the real
-  // matching option -- never an invented one, and correctly reported as
-  // failed if genuinely no option matches.
-  // A boolean-shaped stored answer ("Yes"/"No"/"true"/"false") -- the
-  // resolver has never had a reason to write anything else for a
-  // checkbox-shaped question.
-  function isAffirmative(value) {
-    return /^(yes|true|1|on|checked)$/i.test(value.trim());
-  }
-
-  // v3.286.0 -- Radix Select / react-select-style widgets: not a real
-  // <select>, a button/div with role="combobox" that opens a real
-  // role="listbox" popup on click. Scoped correctly on purpose -- via
-  // the trigger's own aria-controls, the standard ARIA link to ITS
-  // listbox -- never a bare, page-wide search for "any [role=option] or
-  // <li>", which could click something on the page that has nothing to
-  // do with this field at all. Waits for the popup by actually checking
-  // for it (polled, short interval) rather than a fixed guessed delay,
-  // which is exactly the kind of timing assumption that silently breaks
-  // on a slower render. Verified afterward by re-reading the trigger's
-  // own displayed text, not just trusted because a click happened.
-  async function fillCombobox(el, value) {
-    const wanted = value.trim().toLowerCase();
-    el.click();
-    const listboxId = el.getAttribute("aria-controls");
-    let listbox = null;
-    for (let i = 0; i < 15 && !listbox; i++) {
-      listbox = listboxId ? document.getElementById(listboxId) : document.querySelector('[role="listbox"]');
-      if (!listbox) await new Promise((r) => setTimeout(r, 100));
-    }
-    if (!listbox) return { ok: false };
-    const options = Array.from(listbox.querySelectorAll('[role="option"]'));
-    const match = options.find((o) => o.textContent.trim().toLowerCase() === wanted)
-      || options.find((o) => o.textContent.trim().toLowerCase().includes(wanted) || wanted.includes(o.textContent.trim().toLowerCase()));
-    if (!match) {
-      el.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-      return { ok: false };
-    }
-    match.click();
-    await new Promise((r) => setTimeout(r, 100));
-    const landed = match.getAttribute("aria-selected") === "true"
-      || (el.textContent || "").trim().toLowerCase().includes(match.textContent.trim().toLowerCase());
-    return { ok: landed };
-  }
-
-  // v3.289.0 -- reported directly: a "Location" field showing
-  // "Start typing…" stayed empty after autofill. A location/city/
-  // school/employer field is very often a plain <input> wired to a
-  // Google-Places-style typeahead with NO role="combobox" on the input
-  // itself (a real, common gap in how these widgets are built, not
-  // something AYN's own role="combobox" scan above can catch) -- typing
-  // is what makes its suggestion list exist at all, and many of these
-  // widgets discard a value that was never chosen from that list rather
-  // than keep it as free text. Scoped by diffing which role="listbox"
-  // elements exist before vs. after typing (never a bare, page-wide
-  // "any listbox anywhere" search, the same scoping discipline
-  // fillCombobox already uses via aria-controls) -- and gated to only
-  // the label shapes where a typeahead widget is actually common, so a
-  // plain name/email/phone field never pays this extra wait.
-  const TYPEAHEAD_LABEL_RE = /location|city|address|country(?!\s*code)|state|province|county|school|university|college|employer|company/i;
-  async function tryAutocompleteSelect(el, value, before) {
-    const wanted = value.trim().toLowerCase();
-    let listbox = null;
-    for (let i = 0; i < 8 && !listbox; i++) {
-      const boxes = queryDeep(document, '[role="listbox"]').filter(
-        (b) => visible(b) && !before.has(b) && b.querySelectorAll('[role="option"]').length
-      );
-      listbox = boxes[0] || null;
-      if (!listbox) await new Promise((r) => setTimeout(r, 150));
-    }
-    if (!listbox) return false;
-    const options = Array.from(listbox.querySelectorAll('[role="option"]')).filter(visible);
-    const match = options.find((o) => o.textContent.trim().toLowerCase() === wanted)
-      || options.find((o) => o.textContent.trim().toLowerCase().includes(wanted) || wanted.includes(o.textContent.trim().toLowerCase()));
-    if (!match) return false;
-    match.click();
-    await new Promise((r) => setTimeout(r, 100));
-    return true;
-  }
-
-  async function fillTextLike(fid, value, label) {
-    const el = fieldRegistry.get(fid);
-    if (!el) return { ok: false };
-    // v3.290.0 -- an AI-classified widget (see scanUnrecognizedWidgets /
-    // autofill's own merge step) is tagged on the real element itself,
-    // not looked up by fid, so it survives being read back here exactly
-    // like any other field. The interpreter, never the model, decides
-    // which already-audited mechanism actually runs: a trigger that
-    // isn't a real text-editable input can never "type," regardless of
-    // what it was classified as, so it always falls through to the
-    // click-then-search path instead (see the merge step's own comment).
-    if (el.getAttribute("role") === "combobox" || el.dataset?.aynClsMode === "combobox_static") return fillCombobox(el, value);
-    if (el.dataset?.aynClsMode === "combobox_typeahead") {
-      const before = new Set(queryDeep(document, '[role="listbox"]'));
-      setNativeValue(el, value);
-      const landed = await tryAutocompleteSelect(el, value, before);
-      return { ok: landed || el.value === value };
-    }
-    // v3.286.0 -- checked against a real DOM before shipping, not assumed:
-    // setNativeValue's HTMLInputElement setter writes to a checkbox's own
-    // .value attribute, which browsers keep and read back as a real
-    // string ("Yes") completely independent of .checked -- meaning the
-    // old code's read-back check (el.value === value) could report a
-    // checkbox as successfully filled while it stayed genuinely unchecked
-    // on the real page the whole time. Checkboxes were never actually
-    // matched by the backend before this (a disclosed limit), but nothing
-    // stopped a caller from reaching this path, and it would have lied
-    // about the outcome if one had.
-    if (el.type === "checkbox") {
-      const want = isAffirmative(value);
-      if (el.checked !== want) el.click();
-      return { ok: el.checked === want };
-    }
-    if (el.tagName === "SELECT") {
-      const wanted = value.trim().toLowerCase();
-      const opts = Array.from(el.options);
-      const match = opts.find((o) => o.textContent.trim().toLowerCase() === wanted)
-        || opts.find((o) => o.textContent.trim().toLowerCase().includes(wanted) || wanted.includes(o.textContent.trim().toLowerCase()));
-      if (!match) return { ok: false };
-      setNativeValue(el, match.value);
-      return { ok: el.value === match.value };
-    }
-    if (label && TYPEAHEAD_LABEL_RE.test(label) && el.tagName === "INPUT") {
-      const before = new Set(queryDeep(document, '[role="listbox"]'));
-      setNativeValue(el, value);
-      const landed = await tryAutocompleteSelect(el, value, before);
-      return { ok: landed || el.value === value };
-    }
-    setNativeValue(el, value);
-    return { ok: el.value === value };
-  }
-  function fillRadio(fid) {
-    const el = fieldRegistry.get(fid);
-    if (!el) return { ok: false };
-    // A real <input type=radio> has a checked property to verify against;
-    // a custom [role="radio"] button (see extractFields' own ARIA scan)
-    // does not -- a real .click() (not a synthetic dispatched event,
-    // which many custom components' own onClick handlers don't reliably
-    // react to) is both how it's activated and, via aria-checked/
-    // aria-pressed, how a real selection is confirmed afterward.
-    if (el.tagName === "INPUT") {
-      el.checked = true;
-      el.dispatchEvent(new Event("click", { bubbles: true }));
-      el.dispatchEvent(new Event("change", { bubbles: true }));
-      return { ok: el.checked };
-    }
-    el.click();
-    const state = el.getAttribute("aria-checked") || el.getAttribute("aria-pressed");
-    return { ok: state === "true" };
-  }
 
   // ---------------------------------------------------------------
   // Overlay UI -- v3.292.0 redesign. Docked to the right edge, full
@@ -833,7 +274,7 @@
   // clicks themselves, exactly like the very first fill did.
   function watchForNewFields(session) {
     if (liveObserver) liveObserver.disconnect();
-    const knownEls = new Set(fieldRegistry.values());
+    const knownEls = new Set(fieldRegistry_().values());
     let debounce = null;
     liveObserver = new MutationObserver(() => {
       clearTimeout(debounce);
@@ -893,6 +334,75 @@
     panel.appendChild(el("div", { class: "body" }, [el("p", { class: "muted", text: "Reading this page and matching it to your AYN profile…" })]));
     const { fields, skipped } = extractFields();
 
+    // v3.294.0 -- iframe support: an application form embedded in a
+    // frame runs its own copy of frame_agent.js (see background.js's
+    // allFrames:true injection), which self-reports its own fields the
+    // moment it loads, relayed through the background script (a content
+    // script has no direct way to message a DIFFERENT frame -- only the
+    // background script's own chrome.tabs.sendMessage can target a
+    // specific frameId). Merged in here with a frame-prefixed id so a
+    // sub-frame's own local ids can never collide with this frame's, or
+    // another sub-frame's. Collected for a short, bounded window rather
+    // than waited on indefinitely -- a frame that never reports (blocked,
+    // slow, or genuinely has nothing fillable on it) must never hang the
+    // rest of a real autofill pass. Deliberately v1-scoped to the
+    // deterministic layer only (native inputs, ARIA radiogroups,
+    // aria-pressed toggle groups, role=combobox) -- see frame_agent.js's
+    // own header for why Form Intelligence itself stays top-frame-only.
+    const frameFieldOrigin = new Map(); // globalId -> { frameId, originalId }
+    if (document.querySelectorAll("iframe").length) {
+      await new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          chrome.runtime.onMessage.removeListener(onFrameReport);
+          resolve();
+        };
+        function onFrameReport(msg) {
+          if (!msg || msg.type !== "AYN_FRAME_REPORT" || typeof msg.frameId !== "number") return;
+          for (const f of msg.fields || []) {
+            const globalId = `frame${msg.frameId}:${f.id}`;
+            frameFieldOrigin.set(globalId, { frameId: msg.frameId, originalId: f.id });
+            const merged = { ...f, id: globalId };
+            if (merged.radioGroup) merged.radioGroup = `frame${msg.frameId}:${merged.radioGroup}`;
+            fields.push(merged);
+          }
+          for (const s of msg.skipped || []) skipped.push(s);
+        }
+        chrome.runtime.onMessage.addListener(onFrameReport);
+        setTimeout(finish, 700);
+      });
+    }
+    // Local aliases that transparently relay to the right frame when a
+    // field's id says it came from one -- everything below this point
+    // (matching, filling, the panel) never needs to know or care whether
+    // a given field lives in this frame or a child one.
+    async function fillTextLikeAny(fid, value, label) {
+      const origin = frameFieldOrigin.get(fid);
+      if (!origin) return fillTextLike(fid, value, label);
+      try {
+        return await chrome.runtime.sendMessage({
+          type: "AYN_RELAY_TO_FRAME", targetFrameId: origin.frameId,
+          payload: { type: "AYN_FRAME_FILL_TEXT", fid: origin.originalId, value, label },
+        });
+      } catch (e) {
+        return { ok: false };
+      }
+    }
+    async function fillRadioAny(fid) {
+      const origin = frameFieldOrigin.get(fid);
+      if (!origin) return fillRadio(fid);
+      try {
+        return await chrome.runtime.sendMessage({
+          type: "AYN_RELAY_TO_FRAME", targetFrameId: origin.frameId,
+          payload: { type: "AYN_FRAME_FILL_RADIO", fid: origin.originalId },
+        });
+      } catch (e) {
+        return { ok: false };
+      }
+    }
+
     // v3.290.0 -- Form Intelligence merge step: anything the deterministic
     // scan above didn't already claim gets one shot at a real
     // classification, batched into a single call regardless of how many
@@ -901,8 +411,19 @@
     // delay the rest of a real autofill pass, it can only ever ADD
     // fields, never remove or change one the deterministic scan already
     // found.
+    // v3.294.0 -- a genuine "select all that apply" group (see
+    // scanUnrecognizedWidgets/formIntelligence.ts's own multi_select_
+    // button_group type) is never filled at all -- picking a real,
+    // possibly-multiple subset against the person's own actual skills is
+    // a different kind of matching this app was never built to do, and
+    // guessing at it (or, worse, clicking one option as if that were the
+    // whole honest answer) would be a real, meaningful mistake, not a
+    // harmless one. Collected here instead and shown to the person by
+    // name, the same honest "you handle this one" treatment a genuinely
+    // unrecognized field already gets.
+    const multiSelectFlags = [];
     try {
-      const known = new Set(fieldRegistry.values());
+      const known = new Set(fieldRegistry_().values());
       const candidates = scanUnrecognizedWidgets(known);
       if (candidates.length) {
         const clsRes = await callHub(session, {
@@ -913,11 +434,15 @@
         for (const cand of candidates) {
           const cls = byId.get(cand.localId);
           if (!cls) continue;
+          if (cls.widgetType === "multi_select_button_group") {
+            multiSelectFlags.push(cand.signature.nearbyText || "A “select all that apply” style question on this page");
+            continue;
+          }
           if (cls.widgetType === "toggle_button_group" || cls.widgetType === "custom_checkbox") {
             const groupName = `ayn-cls-${cand.localId}`;
             for (const opt of cand.els) {
               const fid = `ayn-cls-f-${cand.localId}-${cand.els.indexOf(opt)}`;
-              fieldRegistry.set(fid, opt);
+              fieldRegistry_().set(fid, opt);
               fields.push({
                 id: fid, tag: "button", type: "radio", required: false,
                 label: (opt.getAttribute("aria-label") || opt.textContent || "").trim(),
@@ -927,7 +452,7 @@
           } else if (cls.widgetType === "combobox_static" || cls.widgetType === "combobox_typeahead") {
             const target = cand.els[0];
             const fid = `ayn-cls-f-${cand.localId}-0`;
-            fieldRegistry.set(fid, target);
+            fieldRegistry_().set(fid, target);
             // A trigger that isn't a real text-editable input can never
             // "type" -- always falls through to click-then-search
             // regardless of what it was classified as (see fillTextLike).
@@ -1006,7 +531,7 @@
     for (const m of [...idRows, ...ansRows]) {
       const value = m.value ?? m.answer ?? "";
       if (!value) { notOnFile.push(m.label); continue; }
-      const r = await fillTextLike(m.fieldId, value, m.label);
+      const r = await fillTextLikeAny(m.fieldId, value, m.label);
       if (r.ok) {
         filledCount++;
         if (LEGAL_SENSITIVE.test(m.label)) legalFilled.push({ label: m.label, answer: value });
@@ -1016,7 +541,7 @@
     }
     for (const r of radioRows) {
       if (!r.chosenFieldId) { notOnFile.push(r.groupLabel); continue; }
-      const res = fillRadio(r.chosenFieldId);
+      const res = await fillRadioAny(r.chosenFieldId);
       if (res.ok) {
         filledCount++;
         if (LEGAL_SENSITIVE.test(r.groupLabel || "")) legalFilled.push({ label: r.groupLabel, answer: r.chosenOptionLabel });
@@ -1074,7 +599,7 @@
           const btn = el("button", { class: "btn btn-primary", text: "Attach my resume", style: "padding: 7px 14px; font-size: 13px; flex-shrink: 0;" });
           btn.addEventListener("click", async () => {
             btn.disabled = true; btn.textContent = "Attaching…";
-            const inputEl = fieldRegistry.get(f.id);
+            const inputEl = fieldRegistry_().get(f.id);
             const r = inputEl ? await attachResumeFile(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
             if (r.ok) { btn.textContent = "Attached ✓"; btn.style.background = "#1f8f52"; }
             else { btn.disabled = false; btn.textContent = "Try again"; btn.title = r.reason || ""; }
@@ -1091,6 +616,12 @@
       const ul2 = el("ul", { class: "fail-list" });
       for (const s of skipped) ul2.appendChild(el("li", { text: s }));
       body.appendChild(ul2);
+    }
+    if (multiSelectFlags.length) {
+      body.appendChild(el("p", { class: "muted", text: "Pick-several questions — choose your own answers here, AYN never guesses which apply to you:" }));
+      const ul3 = el("ul", { class: "fail-list" });
+      for (const s of multiSelectFlags) ul3.appendChild(el("li", { text: s }));
+      body.appendChild(ul3);
     }
     body.appendChild(el("p", { class: "muted", text: "Review the real page, then submit it yourself — AYN never clicks submit for you." }));
     const closeBtn = el("button", { class: "btn btn-ghost", text: "Done", style: "width:100%" });

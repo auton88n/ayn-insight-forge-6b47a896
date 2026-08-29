@@ -37,11 +37,20 @@ type WidgetSignature = {
   optionTexts: string[];
 };
 
+// v3.294.0 -- multi_select_button_group added, mirroring the identical
+// change in resume-hub/lib/formIntelligence.ts: a genuine "select all
+// that apply" group is structurally identical to toggle_button_group,
+// but not mutually exclusive -- misclassifying one as the other means
+// the fill interpreter wrongly treats "pick any number of these" as
+// "pick exactly one." Deliberately unsupported in RECIPE_BY_TYPE, same
+// as unrecognized: flagged for the person's own review rather than
+// silently mis-filled as a single answer.
 const WIDGET_TYPES = [
   "toggle_button_group",
   "combobox_static",
   "combobox_typeahead",
   "custom_checkbox",
+  "multi_select_button_group",
   "unrecognized",
 ] as const;
 type WidgetType = (typeof WIDGET_TYPES)[number];
@@ -51,6 +60,7 @@ const RECIPE_BY_TYPE: Record<WidgetType, Record<string, unknown>> = {
   combobox_static: { open: "click", optionsVia: "listbox", matchStrategy: "exactThenSubstring" },
   combobox_typeahead: { open: "type", optionsVia: "listbox-diff", matchStrategy: "exactThenSubstring" },
   custom_checkbox: { activate: "click", verifyVia: "aria-checked-or-class-diff" },
+  multi_select_button_group: { unsupported: true },
   unrecognized: { unsupported: true },
 };
 
@@ -150,13 +160,20 @@ Deno.serve(async (req: Request) => {
                 "You classify HTML form widgets on real job application pages by their STRUCTURE alone, " +
                 "never by guessing what a person would answer. For each widget, pick exactly one type from: " +
                 WIDGET_TYPES.join(", ") +
-                ". toggle_button_group is 2+ mutually exclusive buttons with no native radio input and no " +
-                "radiogroup role (a Yes/No pair is the common case). combobox_static is a dropdown whose " +
-                "options already exist as soon as it's opened. combobox_typeahead is a dropdown whose options " +
-                "only appear once you start typing (location/city/school/employer search fields are the " +
-                "common case). custom_checkbox is one standalone togglable control, not part of a mutually " +
-                "exclusive group. If you are not genuinely confident which of the first four this is, answer " +
-                "unrecognized -- that is the correct, honest answer far more often than a wrong specific guess.",
+                ". toggle_button_group is 2+ MUTUALLY EXCLUSIVE buttons with no native radio input and no " +
+                "radiogroup role -- exactly one answer is ever correct (a Yes/No pair is the common case). " +
+                "multi_select_button_group looks the same structurally but is NOT mutually exclusive -- more " +
+                "than one option can genuinely be true at once. The nearbyQuestionText is the real signal: " +
+                "phrasing like 'select all that apply', 'check all', 'which of these', or a plural framing " +
+                "over a list of skills/tools/languages/certifications means multi_select_button_group, never " +
+                "toggle_button_group -- picking the wrong one of these two is a real, meaningful mistake, not " +
+                "a harmless guess, since it changes whether the widget gets filled as one answer or flagged as " +
+                "needing the person's own review. combobox_static is a dropdown whose options already exist as " +
+                "soon as it's opened. combobox_typeahead is a dropdown whose options only appear once you start " +
+                "typing (location/city/school/employer search fields are the common case). custom_checkbox is " +
+                "one standalone togglable control, not part of any group. If you are not genuinely confident " +
+                "which of these this is, answer unrecognized -- that is the correct, honest answer far more " +
+                "often than a wrong specific guess.",
             },
             { role: "user", content: JSON.stringify({ widgets: promptWidgets }) },
           ],

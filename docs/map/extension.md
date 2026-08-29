@@ -170,6 +170,49 @@ no credit charge) — a structural-classification utility that makes
 `auto_apply_extract`'s own output more complete, not a distinct paid
 outcome, the same treatment `auto_apply_extract` itself already gets.
 
+## Cross-frame support (v3.294.0)
+
+The extension's own extraction/candidate-scan/fill core (everything
+described above) lives in `extension/frame_agent.js`, not `content.js`
+itself — pulled out specifically so it can run in **every frame** of a
+page, not just the top one. `background.js` injects it with
+`chrome.scripting.executeScript({target:{allFrames:true}})` before
+injecting `content.js` (which still only ever goes into the top frame,
+`allFrames` defaulting to false) — both land in the same per-frame
+ISOLATED-world execution context, so `content.js` in the top frame calls
+straight into what `frame_agent.js` already exposed on `window`
+(`__aynExtractFields`, `__aynFillTextLike`, etc.) rather than loading a
+second copy.
+
+A sub-frame (`window !== window.top`) runs its own local extraction the
+moment it loads and self-reports the result via
+`chrome.runtime.sendMessage({type:"AYN_FRAME_REPORT", ...})`. A content
+script has no way to message a *different* frame directly — only the
+background script's own `chrome.tabs.sendMessage(tabId, msg,
+{frameId})` can target one — so `background.js` is a pure relay:
+`AYN_FRAME_REPORT` goes up to the top frame (`frameId: 0`), and
+`AYN_RELAY_TO_FRAME` (issued by the top frame when a matched field's id
+says it came from another frame) goes back down to that exact frame,
+with the real fill response relayed back as the reply. The top frame
+merges every sub-frame's fields with a `frame<N>:` id prefix (never
+colliding with its own or another frame's), collected for a bounded
+~700ms window — a frame that never reports (blocked, slow, or genuinely
+has nothing fillable) never hangs the rest of a real autofill pass.
+
+Deliberately v1-scoped: only the **deterministic** layer runs across
+frames. Form Intelligence (the AI-classified candidate layer) stays
+top-frame-only — the deterministic layer alone already covers the large
+majority of real fields, and relaying a full classify-then-fill round
+trip through a sub-frame is real, separate follow-up work.
+
+Verified with a real `<iframe>`, the real unmodified `frame_agent.js`
+source, and `postMessage` standing in for the `chrome.runtime`/
+`chrome.tabs` transport (the actual chrome APIs need a real loaded
+extension to exercise, which this project's own tooling can't do): a
+real cross-frame extraction, merge, and both a text fill and a
+radio-group fill, each confirmed by reading the iframe's own DOM
+afterward, not assumed from a returned `{ok:true}` alone.
+
 ## Safety invariants (do not relax these without re-reading this file)
 
 - The AI classifier **never** returns code, a selector, or a value to
@@ -194,14 +237,31 @@ outcome, the same treatment `auto_apply_extract` itself already gets.
 - `job-checker`'s own fill path has no equivalent of `content.js`'s
   listbox-diff typeahead helper yet — a location/city-style field with
   no `role="combobox"` still isn't fillable server-side, even though
-  extraction-side parity for the other three shapes is done.
+  extraction-side parity for the other three shapes is done. `job-checker`
+  also has no equivalent of the extension's own cross-frame support --
+  it only ever reads the single page it navigates to.
+- Cross-frame support (see above) is deterministic-layer-only for now --
+  a widget inside an `<iframe>` that only the AI-classified candidate
+  layer would recognize (a zero-ARIA toggle group, an un-roled
+  placeholder trigger) is still invisible there, even though the exact
+  same shape works correctly in the top frame. Relaying a full
+  classify-then-fill round trip through a sub-frame is real, separate
+  follow-up work.
 - The candidate scanner (`scanUnrecognizedWidgets`) is intentionally
   narrow — two bounded shapes, not a generic "anything clickable" sweep
   — to keep false-positive risk and per-page classification cost low.
   A genuinely novel shape outside those two patterns (a real date
-  picker, a multi-select checkbox group, a signature pad) still isn't
-  detected at all; extending the candidate scanner to cover it is real,
-  scoped future work, not a gap in the classifier itself.
+  picker, a signature pad) still isn't detected at all; extending the
+  candidate scanner to cover it is real, scoped future work, not a gap
+  in the classifier itself.
+- A genuine multi-select "choose all that apply" group is now correctly
+  *recognized* (`multi_select_button_group`, distinguished from
+  `toggle_button_group` by the classifier reading the real question
+  phrasing) but never auto-filled — it's flagged by name for the person
+  to answer themselves. Real auto-selection would mean matching several
+  possible answers against the person's own profile at once, a
+  genuinely different kind of matching `matchApplicationAnswers` isn't
+  built for; not attempted here.
 - `form_widget_patterns.confidence` distinguishes `'ai'` from
   `'verified'` in the schema, but nothing yet promotes a row to
   `'verified'` after a real, successful, read-back-confirmed fill —
@@ -209,3 +269,11 @@ outcome, the same treatment `auto_apply_extract` itself already gets.
 - A genuinely closed shadow root (`mode: "closed"`) stays unreachable by
   design on both surfaces — not something either implementation, or the
   classifier, can see into.
+- Extraction now prefers a single real `<form>` when a page has two or
+  more (see `pickScanRoot()`), but a page with zero or exactly one form
+  — the real Ashby-style case this whole app was built around — is
+  completely unaffected and still scans the whole document, meaning a
+  genuinely unrelated widget on a form-less page can still get swept in.
+  This is a real, accepted, disclosed trade-off, not an oversight: fully
+  closing it would mean breaking the no-`<form>` case this extension
+  exists to handle.
