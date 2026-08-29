@@ -641,40 +641,58 @@
   }
 
   // ---------------------------------------------------------------
-  // Overlay UI -- one small panel, shadow-DOM isolated. Every
-  // dynamic/untrusted value is set via textContent, never interpolated
-  // into markup.
+  // Overlay UI -- v3.292.0 redesign. Docked to the right edge, full
+  // viewport height, plain white and quiet -- the same "open instantly,
+  // read clearly, nothing competing for attention" language a real
+  // side-panel-style extension uses, requested directly: "when it open
+  // open like claude google chrome open everything is clear and open
+  // right away." Deliberately still an in-page overlay, not
+  // chrome.sidePanel -- that's an architecture choice (zero extra
+  // permission, works the instant the icon is clicked, no page reflow
+  // to wait on), this is a visual one; the panel now just reads as one
+  // even though it isn't natively docked by Chrome itself. Shadow-DOM
+  // isolated, and every dynamic/untrusted value is still set via
+  // textContent, never interpolated into markup.
   // ---------------------------------------------------------------
   const host = document.createElement("div");
   window.__aynAutoApplyHost = host;
-  host.style.cssText = "all: initial; position: fixed; z-index: 2147483647; bottom: 20px; right: 20px;";
+  host.style.cssText = "all: initial; position: fixed; top: 0; right: 0; height: 100vh; z-index: 2147483647;";
   document.documentElement.appendChild(host);
   const root = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
   style.textContent = `
-    .panel { width: min(560px, 92vw); max-height: 90vh; overflow-y: auto; background: #fbf6f0; color: #1f1a17;
-      border-radius: 20px; box-shadow: 0 32px 72px -20px rgba(20,15,10,0.45); border: 1px solid #ece2d6;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 15.5px; }
-    .head { padding: 18px 24px; display: flex; align-items: center; justify-content: space-between;
-      background: linear-gradient(135deg, #e85d3a 0%, #ff8a5c 100%); color: #fff; border-radius: 20px 20px 0 0; }
-    .head b { font-size: 16.5px; }
-    .close { cursor: pointer; opacity: 0.85; background: none; border: none; color: #fff; font-size: 22px; line-height: 1; padding: 2px; }
-    .close:hover { opacity: 1; }
-    .body { padding: 22px 24px 24px; }
-    .row { margin-bottom: 15px; }
-    label.field-label { display: block; font-size: 13.5px; color: #7a6d61; margin-bottom: 5px; font-weight: 600; }
-    input { width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 10px;
-      border: 1px solid #e0d5c8; font-size: 15.5px; background: #fff; color: #1f1a17; }
-    input:focus { outline: none; border-color: #e85d3a; box-shadow: 0 0 0 3px rgba(232,93,58,0.15); }
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 13px 20px;
-      border-radius: 999px; border: none; font-weight: 600; font-size: 15.5px; cursor: pointer; }
-    .btn-primary { background: linear-gradient(135deg, #e85d3a 0%, #ff8a5c 100%); color: #fff; }
-    .btn-primary:disabled { opacity: 0.55; cursor: default; }
-    .btn-ghost { background: #efe6db; color: #1f1a17; }
-    .muted { color: #7a6d61; font-size: 14.5px; line-height: 1.65; margin: 0 0 12px; }
-    .warn { color: #9a5348; font-size: 14.5px; line-height: 1.65; margin: 0 0 12px; }
-    .ok { color: #2f6b52; font-size: 16px; font-weight: 600; line-height: 1.6; margin: 0 0 12px; }
-    ul.fail-list { margin: 0 0 12px; padding-left: 22px; color: #9a5348; font-size: 14.5px; line-height: 1.8; }
+    * { box-sizing: border-box; }
+    .panel { width: min(384px, 100vw); height: 100vh; background: #ffffff; color: #191919;
+      border-left: 1px solid #ececec; box-shadow: -12px 0 32px -18px rgba(0,0,0,0.18);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 14px; line-height: 1.55; display: flex; flex-direction: column; }
+    .head { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid #f0f0f0; flex-shrink: 0; }
+    .head-left { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+    .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #e85d3a; flex-shrink: 0; }
+    .head b { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: #191919; }
+    .head-title { font-size: 13px; font-weight: 500; color: #8a8a8a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .close { cursor: pointer; background: none; border: none; color: #9a9a9a; font-size: 17px; line-height: 1;
+      padding: 5px; border-radius: 7px; flex-shrink: 0; }
+    .close:hover { background: #f5f5f5; color: #191919; }
+    .body { padding: 20px; overflow-y: auto; flex: 1; }
+    .row { margin-bottom: 14px; }
+    label.field-label { display: block; font-size: 12.5px; color: #8a8a8a; margin-bottom: 6px; font-weight: 500; }
+    input { width: 100%; padding: 10px 12px; border-radius: 8px;
+      border: 1px solid #e2e2e2; font-size: 14px; background: #fff; color: #191919; }
+    input:focus { outline: none; border-color: #e85d3a; box-shadow: 0 0 0 3px rgba(232,93,58,0.12); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 16px;
+      border-radius: 8px; border: none; font-weight: 500; font-size: 14px; cursor: pointer; }
+    .btn-primary { background: #e85d3a; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #d54e2c; }
+    .btn-primary:disabled { opacity: 0.5; cursor: default; }
+    .btn-ghost { background: #f5f5f5; color: #191919; }
+    .btn-ghost:hover { background: #ececec; }
+    .muted { color: #6f6f6f; font-size: 13.5px; line-height: 1.6; margin: 0 0 12px; }
+    .warn { color: #b0392a; font-size: 13.5px; line-height: 1.6; margin: 0 0 12px; }
+    .ok { color: #191919; font-size: 15px; font-weight: 600; line-height: 1.5; margin: 0 0 14px; }
+    ul.fail-list { margin: 0 0 12px; padding-left: 18px; color: #8a8a8a; font-size: 13.5px; line-height: 1.75; }
+    .callout { border-left: 2.5px solid #d9534f; padding: 2px 0 2px 12px; margin: 0 0 14px; }
   `;
   root.appendChild(style);
   const panel = document.createElement("div");
@@ -693,7 +711,12 @@
     return e;
   }
   function buildHead(title) {
-    return el("div", { class: "head" }, [el("b", { text: `AYN — ${title}` }), el("button", { class: "close", text: "×", onclick: closePanel })]);
+    const left = el("div", { class: "head-left" }, [
+      el("span", { class: "dot" }),
+      el("b", { text: "AYN" }),
+      el("span", { class: "head-title", text: title }),
+    ]);
+    return el("div", { class: "head" }, [left, el("button", { class: "close", text: "×", onclick: closePanel })]);
   }
   function clearPanel() { panel.innerHTML = ""; }
   let liveObserver = null;
@@ -720,7 +743,7 @@
         const hasNew = nowVisible.some((e) => !knownEls.has(e));
         if (!hasNew) return;
         liveObserver.disconnect();
-        const notice = el("div", { style: "padding: 10px 20px; background: #efe6db; font-size: 13.5px; color: #1f1a17; display: flex; align-items: center; justify-content: space-between; gap: 10px;" }, [
+        const notice = el("div", { style: "padding: 10px 20px; background: #f7f7f7; border-top: 1px solid #efefef; font-size: 13.5px; color: #191919; display: flex; align-items: center; justify-content: space-between; gap: 10px;" }, [
           el("span", { text: "New fields appeared on this page." }),
           el("button", { class: "btn btn-primary", text: "Fill them too", style: "padding: 6px 14px; font-size: 13px;", onclick: () => autofill(session) }),
         ]);
@@ -909,12 +932,12 @@
     body.appendChild(el("p", { class: "ok", text: `${filledCount} field${filledCount === 1 ? "" : "s"} filled from your AYN profile.` }));
 
     if (legalFilled.length) {
-      const box = el("div", { style: "border: 1.5px solid #9a5348; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; background: #fdf1ee;" });
-      box.appendChild(el("p", { class: "warn", text: "Double-check these before submitting — work authorization/eligibility answers matter:", style: "margin: 0 0 6px; font-weight: 700;" }));
-      const ul = el("ul", { style: "margin: 0; padding-left: 20px; font-size: 14.5px; line-height: 1.7; color: #1f1a17;" });
+      const box = el("div", { class: "callout" });
+      box.appendChild(el("p", { class: "warn", text: "Double-check these before submitting — work authorization/eligibility answers matter:", style: "margin: 0 0 6px; font-weight: 600;" }));
+      const ul = el("ul", { style: "margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.7; color: #191919;" });
       for (const f of legalFilled) {
         const li = el("li", {});
-        li.appendChild(el("span", { text: `${f.label}: `, style: "color: #7a6d61;" }));
+        li.appendChild(el("span", { text: `${f.label}: `, style: "color: #8a8a8a;" }));
         li.appendChild(el("b", { text: f.answer || "" }));
         ul.appendChild(li);
       }
@@ -954,7 +977,7 @@
             btn.disabled = true; btn.textContent = "Attaching…";
             const inputEl = fieldRegistry.get(f.id);
             const r = inputEl ? await attachResumeFile(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
-            if (r.ok) { btn.textContent = "Attached ✓"; btn.style.background = "#2f6b52"; }
+            if (r.ok) { btn.textContent = "Attached ✓"; btn.style.background = "#1f8f52"; }
             else { btn.disabled = false; btn.textContent = "Try again"; btn.title = r.reason || ""; }
           });
           row.appendChild(btn);
