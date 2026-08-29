@@ -94,15 +94,15 @@ action `auto_apply_classify_widgets` — the shared fallback for whatever
 neither deterministic scan already recognizes. It is deliberately narrow
 in what it's trusted to do:
 
-1. The caller (content.js today; job-checker/server.py is the next real
-   candidate, not yet wired) scans for a small, bounded set of
-   CANDIDATE shapes the deterministic pass didn't already claim —
-   `content.js`'s `scanUnrecognizedWidgets()` currently looks for (a)
-   sibling button groups with **zero** ARIA state at all (a visually
-   segmented Yes/No pair, real accessibility gap, common), and (b) a
-   clickable trigger whose own text reads like a placeholder
-   ("Select…", "Choose…", "Start typing…") but never declared
-   `role="combobox"`.
+1. Both callers — `content.js`'s `scanUnrecognizedWidgets()`
+   client-side, and `job-checker/server.py`'s own mirror scan inside
+   `_extract_fields_raw` server-side — scan for the identical small,
+   bounded set of CANDIDATE shapes the deterministic pass didn't
+   already claim: (a) sibling button groups with **zero** ARIA state at
+   all (a visually segmented Yes/No pair, real accessibility gap,
+   common), and (b) a clickable trigger whose own text reads like a
+   placeholder ("Select…", "Choose…", "Start typing…") but never
+   declared `role="combobox"`.
 2. For each candidate, it builds a small, **sanitized structural
    signature** — tag, role, aria-attribute *names* (never values),
    immediate-child tag counts, a short class hint, plus the page's own
@@ -146,6 +146,18 @@ in what it's trusted to do:
    `unrecognized` is left uncaptured, the same honest "not on file"
    outcome as a field neither scan ever found.
 
+**`supabase/functions/form-intel-bridge/index.ts`** (v3.291.0) — the
+path `job-checker` (no user session, no direct Postgres access) uses to
+reach the same classifier and the same cache. A second, deliberately
+self-contained implementation of `classifyWidgets()` — not a shared
+import, edge functions each deploy as their own isolated bundle,
+mirroring the same choice `ai-openai-bridge` already made for its own
+minimal AI-calling duplicate — authenticated the same way job-checker
+already authenticates to `ai-openai-bridge`: the real service-role key
+as a Bearer token, not a new secret. Both bridges write to and read
+from the identical `form_widget_patterns` table, so a shape learned
+from one surface is instantly a cache hit on the other.
+
 **`public.form_widget_patterns`** — `signature_hash` (unique),
 `widget_type`, `interaction_recipe` (jsonb), `confidence` (`'ai'` |
 `'verified'` — never auto-downgraded by one failed attempt),
@@ -179,15 +191,6 @@ outcome, the same treatment `auto_apply_extract` itself already gets.
 
 ## Real, disclosed limits — not yet built
 
-- `job-checker/server.py` extraction now has parity for ARIA
-  radiogroups, `aria-pressed` toggle groups, and `role="combobox"`
-  triggers (fill-side too, via the new `_click_or_confirm_radio`
-  helper) — but it is **not yet wired to `auto_apply_classify_widgets`**
-  at all. The AI-fallback/cache mechanism currently only runs from the
-  extension. Wiring job-checker's own unrecognized-widget candidates
-  into the same shared classifier is the next real milestone; it closes
-  the loop so a shape learned from one surface benefits the other
-  immediately, not just future extension users.
 - `job-checker`'s own fill path has no equivalent of `content.js`'s
   listbox-diff typeahead helper yet — a location/city-style field with
   no `role="combobox"` still isn't fillable server-side, even though

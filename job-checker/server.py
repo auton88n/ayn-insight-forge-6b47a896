@@ -1,5 +1,6 @@
 import _compat_shim  # noqa: F401 -- must run before scrapegraphai.graphs import
 import base64
+import json
 import os
 import re
 import tempfile
@@ -182,7 +183,10 @@ def _real_field_count(page) -> int:
     """)
 
 
-def _extract_fields(page):
+def _extract_fields_raw(page):
+    """Deterministic scan only -- {fields, candidates}. See
+    _extract_fields (below) for the classified, merged version every
+    real caller in this file actually uses."""
     return page.evaluate("""
     () => {
       const fields = [];
@@ -327,9 +331,151 @@ def _extract_fields(page):
         });
       });
 
-      return fields;
+      // v3.291.0 -- Form Intelligence candidates: two bounded shapes
+      // neither this deterministic scan nor content.js's own deterministic
+      // scan can safely recognize on structure alone -- a sibling button
+      // group with NO aria-pressed/aria-checked at all (a real, common
+      // accessibility gap: visually a segmented Yes/No pair, zero ARIA
+      // state), and a clickable trigger that reads like a placeholder
+      // ("Select…", "Start typing…") but never declared role="combobox".
+      // Mirrors extension/content.js's own scanUnrecognizedWidgets()
+      // exactly -- same two patterns, same signature shape -- so a
+      // widget classified from either surface hits the identical cache
+      // row in form_widget_patterns. Returned separately from fields,
+      // never guessed at here: _classify_candidates (server.py, Python
+      // side) is what turns a candidate into a real typed field, only
+      // once a real classification actually said what it is.
+      const candidates = [];
+      let cn = 0;
+      const seenCandBtn = new Set();
+      document.querySelectorAll('button, [role="button"]').forEach((btn) => {
+        if (btn.offsetParent === null || seenCandBtn.has(btn)) return;
+        if (btn.hasAttribute('aria-pressed') || btn.hasAttribute('aria-checked')) return;
+        if (btn.closest('nav, header, footer, [role="radiogroup"]')) return;
+        const parent = btn.parentElement;
+        if (!parent) return;
+        const siblings = Array.from(parent.children).filter(
+          (c) => c.offsetParent !== null && !seenCandBtn.has(c) &&
+            (c.tagName === 'BUTTON' || c.getAttribute('role') === 'button')
+        );
+        if (siblings.length < 2 || siblings.length > 6) return;
+        siblings.forEach((s) => seenCandBtn.add(s));
+        const cid = 'ayn-cand-' + (cn++);
+        candidates.push({
+          localId: cid,
+          ids: siblings.map((s) => nextId(s)),
+          signature: {
+            localId: cid,
+            tag: parent.tagName.toLowerCase(),
+            role: parent.getAttribute('role'),
+            ariaAttrs: Array.from(siblings[0].attributes).map((a) => a.name).filter((a) => a.indexOf('aria-') === 0).sort(),
+            childShape: 'button:' + siblings.length,
+            classHint: (parent.className || '').toString().trim().split(/\\s+/)[0] || '',
+            nearbyText: (parent.getAttribute('aria-label') ||
+              (parent.previousElementSibling ? parent.previousElementSibling.innerText.trim().slice(0, 200) : '')) || '',
+            optionTexts: siblings.map((s) => (s.innerText || '').trim().slice(0, 60)),
+          },
+        });
+      });
+
+      const PLACEHOLDER_RE = /^(select|choose|start typing|search)/i;
+      document.querySelectorAll('[role="button"], [tabindex="0"], input[type="text"]').forEach((elx) => {
+        if (elx.offsetParent === null || elx.getAttribute('role') === 'combobox') return;
+        if (elx.closest('nav, header, footer')) return;
+        const text = (elx.tagName === 'INPUT' ? (elx.placeholder || '') : (elx.innerText || elx.getAttribute('aria-label') || '')).trim();
+        if (!PLACEHOLDER_RE.test(text)) return;
+        const cid = 'ayn-cand-' + (cn++);
+        candidates.push({
+          localId: cid,
+          ids: [nextId(elx)],
+          signature: {
+            localId: cid,
+            tag: elx.tagName.toLowerCase(),
+            role: elx.getAttribute('role'),
+            ariaAttrs: Array.from(elx.attributes).map((a) => a.name).filter((a) => a.indexOf('aria-') === 0).sort(),
+            childShape: Array.from(elx.children).map((c) => c.tagName.toLowerCase()).join(',') || 'none',
+            classHint: (elx.className || '').toString().trim().split(/\\s+/)[0] || '',
+            nearbyText: '',
+            optionTexts: [],
+          },
+        });
+      });
+
+      return { fields: fields, candidates: candidates };
     }
     """)
+
+
+FORM_INTEL_URL = 'https://ayn.careers/functions/v1/form-intel-bridge'
+
+
+def _classify_candidates(candidates):
+    """
+    v3.291.0 -- job-checker holds no user session and no direct Postgres
+    access, so it can't call resume-hub's own auto_apply_classify_widgets
+    action directly (that action requires a real user JWT, on purpose --
+    every other resume-hub action does too). form-intel-bridge is the
+    same trust boundary job-checker already uses for /check's own AI call
+    (ai-openai-bridge): the real service-role key as a Bearer token, the
+    one credential this container is actually given. Returns a dict of
+    localId -> {widgetType, ...}; a real failure here (network, gateway)
+    degrades every candidate to "unrecognized" rather than raising --
+    classification is additive, it must never break a real extraction
+    that would otherwise have succeeded.
+    """
+    if not candidates or not SERVICE_ROLE_KEY:
+        return {}
+    try:
+        body = json.dumps({'widgets': [c['signature'] for c in candidates]}).encode('utf-8')
+        req = urllib.request.Request(
+            FORM_INTEL_URL, data=body, method='POST',
+            headers={'Authorization': f'Bearer {SERVICE_ROLE_KEY}', 'Content-Type': 'application/json'},
+        )
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+        return {c['localId']: c for c in data.get('classifications', [])}
+    except Exception:
+        return {}
+
+
+def _extract_fields(page):
+    """
+    The real, merged field list every caller in this file uses: the
+    deterministic scan (_extract_fields_raw) plus, for whatever it
+    couldn't recognize on structure alone, a real classification via
+    _classify_candidates -- a toggle_button_group or custom_checkbox
+    becomes a real "radio" field (same shape _resolve_radio_group already
+    expects), a combobox_static/combobox_typeahead becomes a real
+    "select" field. "unrecognized" is left out entirely -- the same
+    honest "not found" outcome as a field neither scan ever recognized.
+    """
+    raw = _extract_fields_raw(page)
+    fields = list(raw.get('fields', []))
+    candidates = raw.get('candidates', [])
+    if not candidates:
+        return fields
+    classified = _classify_candidates(candidates)
+    for cand in candidates:
+        cls = classified.get(cand['localId'])
+        if not cls:
+            continue
+        widget_type = cls.get('widgetType')
+        sig = cand['signature']
+        if widget_type in ('toggle_button_group', 'custom_checkbox'):
+            group_name = 'ayn-cls-' + cand['localId']
+            for i, fid in enumerate(cand['ids']):
+                fields.append({
+                    'tag': 'button', 'type': 'radio', 'id': fid, 'required': False,
+                    'label': (sig['optionTexts'][i] if i < len(sig['optionTexts']) else ''),
+                    'radioGroup': group_name, 'radioGroupLabel': sig.get('nearbyText') or None,
+                })
+        elif widget_type in ('combobox_static', 'combobox_typeahead') and cand['ids']:
+            fields.append({
+                'tag': 'input', 'type': 'select', 'id': cand['ids'][0], 'required': False,
+                'label': sig.get('nearbyText') or '', 'radioGroup': None, 'radioGroupLabel': None,
+            })
+        # "unrecognized" -- left uncaptured, same honest behavior as today.
+    return fields
 
 
 @app.post('/extract_form')
