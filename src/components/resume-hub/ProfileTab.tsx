@@ -80,6 +80,12 @@ type Derived = {
 // into a matching question on a real job application form. Keys are the
 // same slugs that matcher's KNOWN_QUESTIONS registry resolves against.
 type ScreeningAnswers = Record<string, string>;
+// v3.284.0 -- asked directly, "add all questions to the profile": expanded
+// from the original 6 to cover the rest of the common, near-universal ATS
+// screening questions found live across real applications this session
+// (Ashby/Greenhouse/Lever all ask some subset of these). Still the same
+// rule as every entry here since v3.265.0 -- autofill copies whatever is
+// typed here verbatim, it never guesses or invents one on its own.
 const SCREENING_QUESTIONS: Array<{ key: string; label: string; placeholder: string }> = [
   { key: "non_compete", label: "Are you subject to a non-compete or restrictive covenant?", placeholder: "e.g. No" },
   { key: "outside_employment", label: "Would you continue other work or self-employment if hired?", placeholder: "e.g. No, or describe it honestly if yes" },
@@ -87,6 +93,12 @@ const SCREENING_QUESTIONS: Array<{ key: string; label: string; placeholder: stri
   { key: "referral_source", label: "How did you usually hear about roles like this?", placeholder: "e.g. Online job search" },
   { key: "referral_name", label: "Default referral name, if you have none to give", placeholder: "e.g. N/A" },
   { key: "eighteen_or_older", label: "Are you at least 18 years old?", placeholder: "e.g. Yes" },
+  { key: "legal_drinking_age", label: "Are you of legal drinking age where required for the role?", placeholder: "e.g. Yes" },
+  { key: "background_check", label: "Willing to complete a background check if offered the role?", placeholder: "e.g. Yes" },
+  { key: "drug_test", label: "Willing to complete a drug test if offered the role?", placeholder: "e.g. Yes" },
+  { key: "notice_period", label: "What is your notice period at your current job?", placeholder: "e.g. 2 weeks, or Immediately available" },
+  { key: "preferred_name", label: "Preferred name, if different from your legal name", placeholder: "Leave blank if it's the same" },
+  { key: "hr_contact_consent", label: "OK for HR to contact you about other open roles at the same company?", placeholder: "e.g. Yes" },
 ];
 
 type Career = {

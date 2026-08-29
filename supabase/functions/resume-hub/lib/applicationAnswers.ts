@@ -11,6 +11,7 @@
 import type { CanonicalProfile } from "./canonicalProfile.ts";
 import { embedText } from "./embeddings.ts";
 import { cosineSimilarity } from "../../_shared/tailoring.ts";
+import { callAI, DEFAULT_MODEL } from "./ai.ts";
 
 export type AnswerResult = {
   fieldId: string;
@@ -147,6 +148,47 @@ const KNOWN_QUESTIONS: QuestionType[] = [
     examples: ["What is the highest level of education you have completed?"],
     resolve: (c) => c.derived.education_level || null,
   },
+  // v3.284.0 -- asked directly, "add all questions to the profile" --
+  // six more resolvers matching the six new Profile screening questions,
+  // covering the rest of the common ATS screening set found live this
+  // session. Every one reads a stored value verbatim, same as every
+  // resolver above.
+  {
+    slug: "legal_drinking_age",
+    keywords: /legal drinking age|of drinking age/i,
+    examples: ["Are you of legal drinking age where required for the role?"],
+    resolve: (c) => c.screening_answers["legal_drinking_age"] || null,
+  },
+  {
+    slug: "background_check",
+    keywords: /background check/i,
+    examples: ["Are you willing to complete a background check?"],
+    resolve: (c) => c.screening_answers["background_check"] || null,
+  },
+  {
+    slug: "drug_test",
+    keywords: /drug (test|screen)/i,
+    examples: ["Are you willing to complete a drug test?"],
+    resolve: (c) => c.screening_answers["drug_test"] || null,
+  },
+  {
+    slug: "notice_period",
+    keywords: /notice period|how much notice/i,
+    examples: ["What is your notice period at your current job?"],
+    resolve: (c) => c.screening_answers["notice_period"] || null,
+  },
+  {
+    slug: "preferred_name",
+    keywords: /preferred name|nickname|name you go by/i,
+    examples: ["What name do you go by?"],
+    resolve: (c) => c.screening_answers["preferred_name"] || null,
+  },
+  {
+    slug: "hr_contact_consent",
+    keywords: /contact you (about|regarding) other|other (open )?(positions|roles)/i,
+    examples: ["May Human Resources contact you regarding other positions?"],
+    resolve: (c) => c.screening_answers["hr_contact_consent"] || null,
+  },
 ];
 
 // Any single license/certification question ("Do you hold a NMLS
@@ -214,6 +256,65 @@ export async function matchApplicationAnswers(
       } else {
         results.push({ fieldId: q.id, label: q.label, matchedType: null, answer: null, confidence: best?.sim ?? 0 });
       }
+    }
+  }
+
+  // v3.284.0 -- asked directly: "make the AI intelligent to give the
+  // known question the most close answer that profile will suggest."
+  // Passes 1-2 only ever recognize one of KNOWN_QUESTIONS' own fixed
+  // phrasings (a literal keyword, or close to one of a small handful of
+  // example sentences) -- a real question worded very differently from
+  // both, but that a person has genuinely already answered once (their
+  // own screening_answers), still came back null. This pass closes that
+  // gap the way this app closes every gap like it: the model is never
+  // allowed to WRITE an answer, only to SELECT one, verbatim, from a
+  // bank of the person's own real, already-typed answers -- and code
+  // verifies the claim against that same real bank before ever trusting
+  // it, discarding anything that isn't an exact match. Skipped entirely
+  // when there's nothing real to match against, so it costs nothing for
+  // an account that hasn't answered anything yet.
+  const stillUnresolved = results.filter((r) => r.answer === null);
+  const answeredEntries = Object.entries(canonical.screening_answers || {}).filter(([, v]) => v && v.trim());
+  if (stillUnresolved.length > 0 && answeredEntries.length > 0) {
+    const slugLabel = (slug: string) => KNOWN_QUESTIONS.find((k) => k.slug === slug)?.examples[0] || slug;
+    const bank = answeredEntries.map(([slug, value]) => ({ question: slugLabel(slug), answer: value }));
+    try {
+      const { structured } = await callAI({
+        model: DEFAULT_MODEL,
+        system:
+          "You match a real job application question to one of a candidate's own, already-given real answers.\n" +
+          "Rules:\n" +
+          "- Only ever select the exact \"answer\" text of one bank entry, verbatim, character for character. Never write a new answer, never combine two, never paraphrase.\n" +
+          "- Only select an entry if it genuinely answers the same real-world question, even if worded completely differently.\n" +
+          "- If nothing in the bank genuinely answers a question, that result must be null. A wrong guess is worse than leaving it blank.\n" +
+          "Return exactly one result per question, in the same order given.",
+        user: JSON.stringify({ bank, questions: stillUnresolved.map((r) => r.label) }),
+        toolName: "match_answers",
+        toolSchema: {
+          type: "object",
+          properties: {
+            results: {
+              type: "array",
+              items: { type: "object", properties: { answer: { type: ["string", "null"] } }, required: ["answer"] },
+            },
+          },
+          required: ["results"],
+        },
+        temperature: 0,
+      });
+      const out = (structured as { results?: Array<{ answer: string | null }> })?.results || [];
+      const realValues = new Set(answeredEntries.map(([, v]) => v));
+      stillUnresolved.forEach((r, i) => {
+        const claimed = out[i]?.answer;
+        if (claimed && realValues.has(claimed)) {
+          r.answer = claimed;
+          r.matchedType = "ai_closest_match";
+          r.confidence = 0.5;
+        }
+      });
+    } catch {
+      // A failed AI pass must never break the deterministic result passes
+      // 1-2 already computed -- results simply stay exactly as they were.
     }
   }
 
