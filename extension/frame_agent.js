@@ -399,6 +399,44 @@
       skipped.push(key);
     }
 
+    // v3.296.0 -- a real, confirmed risk found grounding a test directly
+    // in a real, published Workday automation script's own DOM shape: a
+    // split start/end date section (two separate real text inputs,
+    // month and year, the actual pattern Workday uses instead of a
+    // single native date input) can resolve to the exact same label on
+    // BOTH fields -- "Start date" -- since only their own placeholder
+    // ("MM" vs "YYYY") tells them apart, and labelFor's own placeholder
+    // fallback only ever runs when nothing else was found, so it never
+    // gets a chance here. Left alone, whatever fills this field has no
+    // way to tell month from year apart, and could write the identical
+    // matched value into both. When 2+ fields share both a parent
+    // element and a resolved label, and each has its own genuinely
+    // distinct placeholder, that placeholder is appended as a
+    // disambiguating suffix -- never invented, always real text already
+    // on the page.
+    const byParentLabel = new Map();
+    for (const f of out) {
+      const el = fieldRegistry.get(f.id);
+      if (!el || !el.parentElement || !f.label) continue;
+      let m = byParentLabel.get(el.parentElement);
+      if (!m) byParentLabel.set(el.parentElement, (m = new Map()));
+      let group = m.get(f.label);
+      if (!group) m.set(f.label, (group = []));
+      group.push(f);
+    }
+    for (const labelMap of byParentLabel.values()) {
+      for (const group of labelMap.values()) {
+        if (group.length < 2) continue;
+        const placeholders = group.map((f) => {
+          const el = fieldRegistry.get(f.id);
+          return el && el.placeholder ? el.placeholder.trim() : "";
+        });
+        if (placeholders.every(Boolean) && new Set(placeholders).size === group.length) {
+          group.forEach((f, i) => { f.label = `${f.label} (${placeholders[i]})`; });
+        }
+      }
+    }
+
     return { fields: out, skipped };
   }
 
