@@ -170,9 +170,23 @@
     return "";
   }
 
+  // v3.283.0 -- reported directly: a slider-style distance/radius filter
+  // (unit toggle, live value label, step ticks, min/max bounds, a
+  // custom-number override) doesn't belong on an application form to
+  // begin with -- it's a SEARCH preference, the same category as "how
+  // far are you willing to commute," not a fact AYN has a single right
+  // answer for. The real, general point underneath it stands though:
+  // a range/slider input is its own distinct control type, and AYN
+  // should never try to write an arbitrary matched string into one --
+  // unlike a text box, a slider's value is only ever meaningful as a
+  // specific number within its own min/max, and there is no fact in a
+  // profile that translates to "the correct point on this scale."
+  // Recognized explicitly and always left for the person to set
+  // themselves, the same honest treatment as a file attachment.
   function extractFields() {
     fieldRegistry = new Map();
     const out = [];
+    const skipped = [];
     let n = 0;
     const seenRadioGroups = new Set();
     for (const el of document.querySelectorAll("input, textarea, select")) {
@@ -180,6 +194,10 @@
       const type = (el.getAttribute("type") || el.tagName.toLowerCase()).toLowerCase();
       if (["hidden", "submit", "button", "reset", "image"].includes(type)) continue;
 
+      if (type === "range") {
+        skipped.push(labelFor(el) || "A slider or range control on this page");
+        continue;
+      }
       if (type === "file") {
         const fid = `ayn-f-${n++}`;
         fieldRegistry.set(fid, el);
@@ -232,7 +250,7 @@
         });
       }
     }
-    return out;
+    return { fields: out, skipped };
   }
 
   // ---------------------------------------------------------------
@@ -393,11 +411,26 @@
     clearPanel();
     panel.appendChild(buildHead("Autofilling…"));
     panel.appendChild(el("div", { class: "body" }, [el("p", { class: "muted", text: "Reading this page and matching it to your AYN profile…" })]));
-    const fields = extractFields();
-    if (!fields.length) {
+    const { fields, skipped } = extractFields();
+    if (!fields.length && !skipped.length) {
       clearPanel();
       panel.appendChild(buildHead("No form found"));
       panel.appendChild(el("div", { class: "body" }, [el("p", { class: "muted", text: "Couldn't find a fillable application form on this page." })]));
+      return;
+    }
+    if (!fields.length) {
+      // Only slider/range-type controls found -- nothing here for AYN to
+      // fill (see extractFields' own note: a slider's value is a
+      // preference, never a fact to guess), but real, so say so plainly
+      // rather than a generic "no form found."
+      clearPanel();
+      panel.appendChild(buildHead("Nothing to autofill here"));
+      const body = el("div", { class: "body" });
+      body.appendChild(el("p", { class: "muted", text: "This page only has slider/range controls -- those are preferences, not facts, so AYN leaves them for you to set:" }));
+      const ul = el("ul", { class: "fail-list" });
+      for (const s of skipped) ul.appendChild(el("li", { text: s }));
+      body.appendChild(ul);
+      panel.appendChild(body);
       return;
     }
     let result;
@@ -487,6 +520,12 @@
     }
     if (fileRows.length) {
       body.appendChild(el("p", { class: "warn", text: `${fileRows.length} file field${fileRows.length > 1 ? "s" : ""} (e.g. resume) need to be attached by hand.` }));
+    }
+    if (skipped.length) {
+      body.appendChild(el("p", { class: "muted", text: "Slider/range preferences — set these yourself, AYN doesn't guess these:" }));
+      const ul2 = el("ul", { class: "fail-list" });
+      for (const s of skipped) ul2.appendChild(el("li", { text: s }));
+      body.appendChild(ul2);
     }
     body.appendChild(el("p", { class: "muted", text: "Review the real page, then submit it yourself — AYN never clicks submit for you." }));
     const closeBtn = el("button", { class: "btn btn-ghost", text: "Done", style: "width:100%" });
