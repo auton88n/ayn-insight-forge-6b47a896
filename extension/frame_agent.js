@@ -59,6 +59,25 @@
   // actual question.
   const GENERIC_PLACEHOLDER = /^(start typing|select|choose|search|type here)/i;
 
+  // v3.296.0 -- shared by siblingText and candidateNearbyText: a previous
+  // sibling that is ITSELF a real interactive control (or a container
+  // built entirely around one, e.g. an ARIA-role widget) is never a real
+  // label, it's a DIFFERENT field's own trigger/value -- confirmed live,
+  // a real bug: a phone number input sitting right after a country-code
+  // combobox trigger ("+1 US") picked up that button's own displayed
+  // text as its label instead of the real "Phone number" label two
+  // levels further out, a confidently-wrong result the "unlabeled beats
+  // wrong" principle already documented on labelFor's own ancestor-climb
+  // removal says is worse than staying honestly unlabeled.
+  const NEARBY_TEXT_EXCLUDED_SELECTOR = "button, input, select, textarea, a, nav";
+  const NEARBY_TEXT_EXCLUDED_ROLES = '[role="option"], [role="listbox"], [role="menu"], [role="menuitem"], [role="dialog"], [role="tooltip"], [role="combobox"], [role="radiogroup"], [role="radio"]';
+  function isInteractiveNonLabelNode(n) {
+    if (n.nodeType !== 1) return false;
+    if (n.matches(NEARBY_TEXT_EXCLUDED_SELECTOR) || n.querySelector(NEARBY_TEXT_EXCLUDED_SELECTOR)) return true;
+    if (n.matches(NEARBY_TEXT_EXCLUDED_ROLES) || n.querySelector(NEARBY_TEXT_EXCLUDED_ROLES)) return true;
+    return false;
+  }
+
   // v3.293.0 -- widened from previousElementSibling to previousSibling: a
   // real, common markup shape ("<div>Question text <input></div>", the
   // question as a bare text node with no wrapping span at all) was
@@ -72,7 +91,11 @@
     let n = node, h = 0;
     while (n && h < hops) {
       const t = (n.textContent || "").trim();
-      if (t && t.length < 200) return t;
+      // v3.296.0 -- an interactive sibling's own text (a button's label,
+      // a link) is never a real question label, it's that OTHER control's
+      // own displayed value/text -- skip using it, but still spend the
+      // hop and keep walking, the same as any other non-text sibling.
+      if (t && t.length < 200 && !isInteractiveNonLabelNode(n)) return t;
       if (n.nodeType !== 3 || t) h++;
       n = n.previousSibling;
     }
@@ -319,12 +342,63 @@
     // (comboboxes render their options lazily, on open), so only the
     // trigger is registered here -- fillCombobox does the actual open/
     // search/select/verify sequence at fill time.
+    // v3.296.0 -- a real, confirmed duplicate: role="combobox" placed
+    // directly on a real <input> (a documented, increasingly common
+    // accessible-combobox pattern, e.g. Downshift/react-select) means
+    // the generic input/textarea/select loop above already registered
+    // this exact element once, as a plain text field -- this loop used
+    // to register it again here as a second, separate "select" field,
+    // so a real fill pass could try to fill the same DOM node twice,
+    // with two different strategies, and the person's own after-fill
+    // summary would list the same question twice. registeredEls is the
+    // full set of elements any earlier pass already claimed.
+    const registeredEls = new Set(fieldRegistry.values());
     for (const trigger of queryDeep(root, '[role="combobox"]')) {
       if (!visible(trigger) || trigger.getAttribute("aria-disabled") === "true") continue;
+      if (registeredEls.has(trigger)) continue;
       const fid = `ayn-f-${n++}`;
       fieldRegistry.set(fid, trigger);
       out.push({ id: fid, tag: trigger.tagName.toLowerCase(), type: "select", required: false, label: labelFor(trigger) || "An unlabeled field on this page" });
     }
+
+    // v3.296.0 -- a real, live gap found by an expanded stress pass: the
+    // range-input skip above only ever matches a native <input
+    // type=range>, but a real salary/compensation range (arguably the
+    // single highest-value field on an application) is almost always
+    // built as a custom, non-native ARIA slider instead -- two separate
+    // role="slider" thumb elements, min and max, since a native range
+    // input can't represent a dual-handle range at all. That shape was
+    // completely invisible before this: not filled (correctly -- the
+    // same "never guess a point on a scale" reasoning the native-range
+    // skip already documents applies here even more, since salary is
+    // exactly this app's own "never invent a number" rule too), but
+    // also never disclosed, which is the real problem -- a person
+    // reading the after-fill summary would have no idea this field
+    // exists at all, let alone that it needs their own attention.
+    // Multiple thumbs sharing one real question (a min/max pair) are
+    // deduped to one disclosed line, not two, by their resolved label.
+    const seenSliderLabels = new Set();
+    for (const sliderEl of queryDeep(root, '[role="slider"]')) {
+      if (!visible(sliderEl) || registeredEls.has(sliderEl)) continue;
+      let label = labelFor(sliderEl);
+      if (!label) {
+        // a bare thumb rarely carries its own label -- the real question
+        // is almost always on the shared container one or two levels up
+        // (aria-labelledby on the slider TRACK, not each individual
+        // thumb), the same "climb past a wrapper" reasoning already used
+        // for candidateNearbyText and the button-group candidate scan.
+        let anc = sliderEl.parentElement;
+        for (let hop = 0; hop < 3 && anc && !label; hop++) {
+          label = labelFor(anc);
+          anc = anc.parentElement;
+        }
+      }
+      const key = label || "A slider or range control on this page";
+      if (seenSliderLabels.has(key)) continue;
+      seenSliderLabels.add(key);
+      skipped.push(key);
+    }
+
     return { fields: out, skipped };
   }
 
@@ -379,7 +453,6 @@
   // was written against. Widened to also reject a sibling containing any
   // of the same ARIA-interactive container roles this whole layer
   // already treats as "a real separate widget," not just specific tags.
-  const NEARBY_TEXT_EXCLUDED_ROLES = '[role="option"], [role="listbox"], [role="menu"], [role="menuitem"], [role="dialog"], [role="tooltip"], [role="combobox"], [role="radiogroup"], [role="radio"]';
   function candidateNearbyText(el) {
     const aria = el.getAttribute("aria-label");
     if (aria && aria.trim()) return aria.trim();
@@ -395,8 +468,13 @@
     for (let hop = 0; hop < 3; hop++) {
       const prev = node.previousElementSibling;
       if (prev) {
-        if (prev.querySelector("button, input, select, textarea, a, nav")) return "";
-        if (prev.matches(NEARBY_TEXT_EXCLUDED_ROLES) || prev.querySelector(NEARBY_TEXT_EXCLUDED_ROLES)) return "";
+        // v3.296.0 -- now shares isInteractiveNonLabelNode with
+        // siblingText, which also checks whether prev ITSELF (not just a
+        // descendant) is the interactive element -- the original version
+        // here only ever checked descendants via querySelector, so a
+        // previous sibling that IS directly a <button>/etc, with no
+        // wrapper around it, slipped through uncaught.
+        if (isInteractiveNonLabelNode(prev)) return "";
         const t = prev.textContent ? prev.textContent.trim() : "";
         return t && t.length < 200 ? t : "";
       }
