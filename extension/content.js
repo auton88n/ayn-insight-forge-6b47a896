@@ -705,15 +705,23 @@
       for (const f of stillNeeded) ul.appendChild(el("li", { text: f }));
       body.appendChild(ul);
     }
-    // v3.287.0 -- only ever offered for a field whose own question reads
-    // as asking for a resume/CV specifically -- a "Cover letter,"
-    // "Portfolio," or "Writing sample" file field never gets this button,
-    // since attaching your resume there would be a real, wrong guess
-    // about what the employer actually asked for, not a genuine autofill.
+    // v3.288.0 -- flipped from an allowlist ("only a field that says
+    // resume/CV") to a denylist. A field whose own label clearly asks for
+    // something else -- cover letter, portfolio, writing sample,
+    // transcript, references, a photo/video/ID -- still says "attach
+    // yourself," since your resume is a real, wrong guess for what was
+    // asked there. Everything else, including a plain "Attachment" or a
+    // genuinely unlabeled field, now gets the same "Attach my resume"
+    // button too: it's a real file you actually have, not an invented
+    // value, and you still review the real page before you submit --
+    // reported directly, a form with one ambiguous "Attachment" field
+    // was otherwise the one thing standing between "click autofill" and
+    // "click submit."
+    const NOT_RESUME_FIELD = /cover\s*letter|portfolio|writing\s*sample|work\s*sample|transcript|reference|id\b|passport|visa|photo|headshot|video|w-?2|w-?4|i-?9|1099/i;
     if (fileRows.length) {
       body.appendChild(el("p", { class: "warn", text: `${fileRows.length} file field${fileRows.length > 1 ? "s" : ""} to attach:` }));
       for (const f of fileRows) {
-        const isResumeField = /r[ée]sum[ée]|\bcv\b/i.test(f.label);
+        const isResumeField = !NOT_RESUME_FIELD.test(f.label);
         const row = el("div", { style: "display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px;" });
         row.appendChild(el("span", { text: f.label, style: "font-size: 14px;" }));
         if (isResumeField) {

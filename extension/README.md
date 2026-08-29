@@ -59,15 +59,18 @@ profile, the same matching logic the web app's own Jobs tab uses.
 
 ## Known limits (v1, disclosed rather than hidden)
 
-- **Resume attachment works.** A file field whose own question reads as
-  asking for a resume/CV gets a real "Attach my resume" button — builds
-  a real one-page PDF from your primary AYN resume (`resumeDocs.js`, a
-  direct port of the web app's own builder) and attaches it via the
-  DataTransfer API, verified by reading the file back off the input
-  afterward. A field asking for something else (cover letter, portfolio,
-  writing sample) is never guessed at — it stays "attach yourself,"
-  since assuming your resume answers a different question would be a
-  real, wrong guess, not autofill.
+- **Resume attachment works, on nearly every file field.** Any file
+  field gets a real "Attach my resume" button — builds a real one-page
+  PDF from your primary AYN resume (`resumeDocs.js`, a direct port of
+  the web app's own builder) and attaches it via the DataTransfer API,
+  verified by reading the file back off the input afterward — except a
+  field whose own label clearly asks for something else (cover letter,
+  portfolio, writing sample, transcript, references, a photo/video/ID),
+  which stays "attach yourself" since your resume would be a real,
+  wrong guess there. A plain "Attachment" or genuinely unlabeled file
+  field gets the button too, on the same reasoning as everything else
+  this tool fills: it's a real file you actually have, and you still
+  review the real page before you submit.
 - **Cover letters still aren't attached automatically.** They're
   job-specific (the extension deliberately has no jobId context — see
   v3.278.0), so there's no single "the" cover letter to attach the way
