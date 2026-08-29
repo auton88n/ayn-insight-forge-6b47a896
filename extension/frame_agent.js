@@ -383,12 +383,31 @@
   function candidateNearbyText(el) {
     const aria = el.getAttribute("aria-label");
     if (aria && aria.trim()) return aria.trim();
-    const prev = el.previousElementSibling;
-    if (!prev) return "";
-    if (prev.querySelector("button, input, select, textarea, a, nav")) return "";
-    if (prev.matches(NEARBY_TEXT_EXCLUDED_ROLES) || prev.querySelector(NEARBY_TEXT_EXCLUDED_ROLES)) return "";
-    const t = prev.textContent ? prev.textContent.trim() : "";
-    return t && t.length < 200 ? t : "";
+    // v3.295.0 -- when el itself has no useful previous sibling AND is the
+    // sole child of its own parent, the real label often sits one level
+    // further out (a real, live example: Ant Design's Segmented wraps
+    // .ant-segmented-group, the container the option-buttons were found
+    // under, inside .ant-segmented, and the question label is a sibling
+    // of THAT outer wrapper, not of the inner group). Walk up at most two
+    // levels looking for a container with a real previous sibling, rather
+    // than only ever checking el's own immediate one.
+    let node = el;
+    for (let hop = 0; hop < 3; hop++) {
+      const prev = node.previousElementSibling;
+      if (prev) {
+        if (prev.querySelector("button, input, select, textarea, a, nav")) return "";
+        if (prev.matches(NEARBY_TEXT_EXCLUDED_ROLES) || prev.querySelector(NEARBY_TEXT_EXCLUDED_ROLES)) return "";
+        const t = prev.textContent ? prev.textContent.trim() : "";
+        return t && t.length < 200 ? t : "";
+      }
+      const parent = node.parentElement;
+      // only keep climbing while node is genuinely the parent's one and
+      // only real child -- otherwise a sibling label belongs to a
+      // DIFFERENT child, not to el, and must not be attributed to it.
+      if (!parent || parent.children.length !== 1) return "";
+      node = parent;
+    }
+    return "";
   }
 
   function scanUnrecognizedWidgets(alreadyKnownEls) {
