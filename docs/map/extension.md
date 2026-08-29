@@ -262,6 +262,29 @@ candidate scan (`scanUnrecognizedWidgets`, `frame_agent.js`):
   ARIA-interactive roles (option, listbox, menu, menuitem, dialog,
   tooltip, combobox, radiogroup, radio).
 
+THE ACTUAL TRAINING RUN, AGAINST THE LIVE, DEPLOYED CLASSIFIER. Minted a
+real throwaway account, got a real user JWT, and called the live
+`auto_apply_classify_widgets` action with real structural signatures
+from the harness's P2/P3/P4 (real component-library toggle and
+multi-select shapes) and D1-D4 (deliberate false-positive test widgets:
+a star rating, a cookie banner, a chat launcher, a share bar). Real
+results: P2 and P3 correctly classified `toggle_button_group`, P4
+correctly classified `multi_select_button_group` -- the first live
+proof the toggle-vs-multi-select distinction actually holds, not just
+the fixture it was designed against. But 3 of 4 false-positive widgets
+came back misclassified as real, fillable toggle groups (a star rating,
+a cookie banner, a chat launcher), and the fourth as an unsupported
+multi-select (harmless, but still wrong). Two of the three shapes are
+checkable in code with total certainty -- no visible question text at
+all, or every visible option reading identically (a rating scale
+rendered as repeated glyphs) -- so `classifyWidgets` now filters both
+out before they ever reach the model, in both duplicated
+implementations, zero AI cost either way. Re-verified live after
+deploying and clearing the stale cached (wrong) classifications: all
+four false positives now correctly return `unrecognized` with
+`fromCache: false`, confirming the code guard fired rather than a
+lucky re-roll. Test account fully erased after.
+
 ## Real, disclosed limits — not yet built
 
 - `job-checker`'s own fill path has no equivalent of `content.js`'s
