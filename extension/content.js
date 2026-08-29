@@ -369,6 +369,89 @@
     return { fields: out, skipped };
   }
 
+  // v3.290.0 -- Form Intelligence: everything above this point is the
+  // deterministic, free, instant layer -- native inputs, ARIA radiogroups,
+  // aria-pressed toggle pairs, role=combobox triggers. It's still not
+  // every real shape a real ATS builds (a Yes/No pair with NO aria state
+  // at all, or a custom dropdown trigger that never declares
+  // role="combobox"), and hand-coding one more heuristic every time a new
+  // shape gets reported is exactly the "go back and forth" this exists to
+  // end. This scans for two narrow, bounded CANDIDATE shapes the
+  // deterministic pass didn't already claim, and sends only their real
+  // structure (never a value, never anything about the person) to
+  // auto_apply_classify_widgets for a real classification -- cached
+  // server-side by structural shape, so the same widget on the same ATS
+  // platform is only ever classified once, for every AYN user, not once
+  // per page view. See docs/map/extension.md for the full design.
+  function scanUnrecognizedWidgets(alreadyKnownEls) {
+    const candidates = [];
+    let n = 0;
+
+    // (a) sibling button groups with NO aria-pressed/aria-checked at all
+    // -- a real, common accessibility gap (visually a segmented Yes/No
+    // pair, zero ARIA state), never covered by the aria-pressed scan
+    // above since that scan specifically requires the attribute to exist.
+    const seenGroupParents = new Set();
+    for (const btn of queryDeep(document, "button, [role='button']")) {
+      if (!visible(btn) || alreadyKnownEls.has(btn)) continue;
+      if (btn.hasAttribute("aria-pressed") || btn.hasAttribute("aria-checked")) continue;
+      if (btn.closest("nav, header, footer")) continue;
+      const parent = btn.parentElement;
+      if (!parent || seenGroupParents.has(parent)) continue;
+      const siblings = Array.from(parent.children).filter(
+        (c) => visible(c) && (c.tagName === "BUTTON" || c.getAttribute("role") === "button") && !alreadyKnownEls.has(c)
+      );
+      // 2 to 6: a real toggle pair or small choice group, not a button
+      // toolbar (which would falsely look like a huge "radio group").
+      if (siblings.length < 2 || siblings.length > 6) continue;
+      seenGroupParents.add(parent);
+      const cid = `ayn-cand-${n++}`;
+      candidates.push({
+        localId: cid,
+        els: siblings,
+        signature: {
+          localId: cid,
+          tag: parent.tagName.toLowerCase(),
+          role: parent.getAttribute("role"),
+          ariaAttrs: Array.from(siblings[0].attributes).map((a) => a.name).filter((a) => a.startsWith("aria-")).sort(),
+          childShape: `button:${siblings.length}`,
+          classHint: (parent.className || "").toString().trim().split(/\s+/)[0]?.slice(0, 40) || "",
+          nearbyText: (parent.getAttribute("aria-label") || labelFor(parent) || "").slice(0, 200),
+          optionTexts: siblings.map((s) => (s.textContent || "").trim().slice(0, 60)),
+        },
+      });
+    }
+
+    // (b) a clickable trigger that reads like a custom-select placeholder
+    // ("Select...", "Choose...", "Start typing...") but never declared
+    // role="combobox" -- a real, common deviation from the ARIA spec.
+    const PLACEHOLDER_RE = /^(select|choose|start typing|search)/i;
+    for (const el of queryDeep(document, "[role='button'], [tabindex='0'], input[type='text']")) {
+      if (!visible(el) || alreadyKnownEls.has(el)) continue;
+      if (el.getAttribute("role") === "combobox") continue;
+      if (el.closest("nav, header, footer")) continue;
+      const text = (el.tagName === "INPUT" ? el.placeholder : el.textContent || el.getAttribute("aria-label") || "").trim();
+      if (!PLACEHOLDER_RE.test(text)) continue;
+      const cid = `ayn-cand-${n++}`;
+      candidates.push({
+        localId: cid,
+        els: [el],
+        signature: {
+          localId: cid,
+          tag: el.tagName.toLowerCase(),
+          role: el.getAttribute("role"),
+          ariaAttrs: Array.from(el.attributes).map((a) => a.name).filter((a) => a.startsWith("aria-")).sort(),
+          childShape: Array.from(el.children).map((c) => c.tagName.toLowerCase()).join(",") || "none",
+          classHint: (el.className || "").toString().trim().split(/\s+/)[0]?.slice(0, 40) || "",
+          nearbyText: (labelFor(el) || "").slice(0, 200),
+          optionTexts: [],
+        },
+      });
+    }
+
+    return candidates;
+  }
+
   // ---------------------------------------------------------------
   // Filling -- native-setter trick for React/Vue-controlled inputs,
   // read-back verified after every write.
@@ -489,7 +572,21 @@
   async function fillTextLike(fid, value, label) {
     const el = fieldRegistry.get(fid);
     if (!el) return { ok: false };
-    if (el.getAttribute("role") === "combobox") return fillCombobox(el, value);
+    // v3.290.0 -- an AI-classified widget (see scanUnrecognizedWidgets /
+    // autofill's own merge step) is tagged on the real element itself,
+    // not looked up by fid, so it survives being read back here exactly
+    // like any other field. The interpreter, never the model, decides
+    // which already-audited mechanism actually runs: a trigger that
+    // isn't a real text-editable input can never "type," regardless of
+    // what it was classified as, so it always falls through to the
+    // click-then-search path instead (see the merge step's own comment).
+    if (el.getAttribute("role") === "combobox" || el.dataset?.aynClsMode === "combobox_static") return fillCombobox(el, value);
+    if (el.dataset?.aynClsMode === "combobox_typeahead") {
+      const before = new Set(queryDeep(document, '[role="listbox"]'));
+      setNativeValue(el, value);
+      const landed = await tryAutocompleteSelect(el, value, before);
+      return { ok: landed || el.value === value };
+    }
     // v3.286.0 -- checked against a real DOM before shipping, not assumed:
     // setNativeValue's HTMLInputElement setter writes to a checkbox's own
     // .value attribute, which browsers keep and read back as a real
@@ -673,6 +770,59 @@
     panel.appendChild(buildHead("Autofilling…"));
     panel.appendChild(el("div", { class: "body" }, [el("p", { class: "muted", text: "Reading this page and matching it to your AYN profile…" })]));
     const { fields, skipped } = extractFields();
+
+    // v3.290.0 -- Form Intelligence merge step: anything the deterministic
+    // scan above didn't already claim gets one shot at a real
+    // classification, batched into a single call regardless of how many
+    // candidates this one page has. A classification failure (network,
+    // gateway) is swallowed here on purpose -- it must never block or
+    // delay the rest of a real autofill pass, it can only ever ADD
+    // fields, never remove or change one the deterministic scan already
+    // found.
+    try {
+      const known = new Set(fieldRegistry.values());
+      const candidates = scanUnrecognizedWidgets(known);
+      if (candidates.length) {
+        const clsRes = await callHub(session, {
+          action: "auto_apply_classify_widgets",
+          widgets: candidates.map((c) => c.signature),
+        });
+        const byId = new Map((clsRes.classifications || []).map((c) => [c.localId, c]));
+        for (const cand of candidates) {
+          const cls = byId.get(cand.localId);
+          if (!cls) continue;
+          if (cls.widgetType === "toggle_button_group" || cls.widgetType === "custom_checkbox") {
+            const groupName = `ayn-cls-${cand.localId}`;
+            for (const opt of cand.els) {
+              const fid = `ayn-cls-f-${cand.localId}-${cand.els.indexOf(opt)}`;
+              fieldRegistry.set(fid, opt);
+              fields.push({
+                id: fid, tag: "button", type: "radio", required: false,
+                label: (opt.getAttribute("aria-label") || opt.textContent || "").trim(),
+                radioGroup: groupName, radioGroupLabel: cand.signature.nearbyText || undefined,
+              });
+            }
+          } else if (cls.widgetType === "combobox_static" || cls.widgetType === "combobox_typeahead") {
+            const target = cand.els[0];
+            const fid = `ayn-cls-f-${cand.localId}-0`;
+            fieldRegistry.set(fid, target);
+            // A trigger that isn't a real text-editable input can never
+            // "type" -- always falls through to click-then-search
+            // regardless of what it was classified as (see fillTextLike).
+            target.dataset.aynClsMode = target.tagName === "INPUT" ? cls.widgetType : "combobox_static";
+            fields.push({
+              id: fid, tag: target.tagName.toLowerCase(), type: "select", required: false,
+              label: cand.signature.nearbyText || "An unlabeled field on this page",
+            });
+          }
+          // "unrecognized" -- left uncaptured, the same honest behavior
+          // as any field the deterministic scan never found either.
+        }
+      }
+    } catch (e) {
+      // Best effort -- see comment above.
+    }
+
     if (!fields.length && !skipped.length) {
       clearPanel();
       panel.appendChild(buildHead("No form found"));

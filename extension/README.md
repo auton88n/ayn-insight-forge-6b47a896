@@ -88,3 +88,13 @@ profile, the same matching logic the web app's own Jobs tab uses.
   read-back), never a bare, page-wide search. A genuinely closed shadow
   root (`mode: "closed"`) stays unreachable by design, the one real,
   disclosed exception to the shadow-DOM support below it.
+- **Form Intelligence**: whatever the deterministic scan above still
+  doesn't recognize (a Yes/No pair with zero ARIA state at all, a custom
+  dropdown trigger that never declared `role="combobox"`) gets one real
+  shot at an AI classification, cached server-side by structural shape
+  so the same widget on any company using the same ATS platform is only
+  ever classified once, for every AYN user. The model only ever picks
+  one of five fixed types — never code, a selector, or a value — and
+  the actual fill still runs through the same read-back-verified
+  mechanisms as everything else here. Full design in
+  `docs/map/extension.md`.
