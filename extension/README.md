@@ -78,8 +78,13 @@ profile, the same matching logic the web app's own Jobs tab uses.
 - Nothing about Saved Jobs is required or checked — the extension works
   on whatever application page you're actually on.
 - Handles real `<select>` dropdowns, native radio groups, ARIA-based
-  custom toggle buttons, checkboxes, and Radix/react-select-style custom
-  comboboxes (scoped via the trigger's own `aria-controls`, never a
-  page-wide search — see `content.js`'s `fillCombobox`). A genuinely
-  closed shadow root (`mode: "closed"`) stays unreachable by design, the
-  one real, disclosed exception to the shadow-DOM support below it.
+  radiogroups, plain `aria-pressed` toggle-button pairs with no
+  radiogroup wrapper at all (a Yes/No question rendered as two buttons,
+  common enough on real ATS forms to need its own detection), checkboxes,
+  Radix/react-select-style custom comboboxes, and a location/city/
+  school/employer-style typeahead that only shows its own suggestion
+  list once you've typed into it — all scoped by diffing what actually
+  changed on the page (a new `role="listbox"`, an actual click and
+  read-back), never a bare, page-wide search. A genuinely closed shadow
+  root (`mode: "closed"`) stays unreachable by design, the one real,
+  disclosed exception to the shadow-DOM support below it.

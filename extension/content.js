@@ -319,6 +319,39 @@
       }
     }
 
+    // v3.289.0 -- reported directly, a real screenshot: a Yes/No legal
+    // question rendered as a plain pair of buttons, each carrying
+    // aria-pressed, but with NO wrapping role="radiogroup" at all -- a
+    // real, common accessible pattern (a plain "toggle button group")
+    // the v3.282.0 radiogroup scan never covered, since it specifically
+    // only looked inside a real radiogroup. Grouped by shared parent so
+    // two independent Yes/No pairs on the same page never get merged
+    // into one four-option group; a lone toggle (no sibling also
+    // carrying aria-pressed) is skipped, since a single button isn't a
+    // mutually exclusive choice to fill one way or the other.
+    const seenToggleButtons = new Set();
+    for (const btn of queryDeep(document, "button[aria-pressed]")) {
+      if (!visible(btn) || seenToggleButtons.has(btn) || btn.closest('[role="radiogroup"]')) continue;
+      const parent = btn.parentElement;
+      if (!parent) continue;
+      const siblings = Array.from(parent.children).filter(
+        (c) => c.tagName === "BUTTON" && c.hasAttribute("aria-pressed") && visible(c)
+      );
+      if (siblings.length < 2) continue;
+      siblings.forEach((s) => seenToggleButtons.add(s));
+      const groupName = `ayn-tg-${n++}`;
+      const groupLabel = parent.getAttribute("aria-label") || labelFor(parent) || undefined;
+      for (const opt of siblings) {
+        const fid = `ayn-f-${n++}`;
+        fieldRegistry.set(fid, opt);
+        out.push({
+          id: fid, tag: "button", type: "radio", required: false,
+          label: (opt.getAttribute("aria-label") || opt.textContent || "").trim(),
+          radioGroup: groupName, radioGroupLabel: groupLabel,
+        });
+      }
+    }
+
     // v3.286.0 -- Radix Select / react-select-style custom dropdowns:
     // never a real <select>, so the native scan above never sees them --
     // a button/div carrying role="combobox" (the real, standard ARIA
@@ -418,7 +451,42 @@
     return { ok: landed };
   }
 
-  async function fillTextLike(fid, value) {
+  // v3.289.0 -- reported directly: a "Location" field showing
+  // "Start typing…" stayed empty after autofill. A location/city/
+  // school/employer field is very often a plain <input> wired to a
+  // Google-Places-style typeahead with NO role="combobox" on the input
+  // itself (a real, common gap in how these widgets are built, not
+  // something AYN's own role="combobox" scan above can catch) -- typing
+  // is what makes its suggestion list exist at all, and many of these
+  // widgets discard a value that was never chosen from that list rather
+  // than keep it as free text. Scoped by diffing which role="listbox"
+  // elements exist before vs. after typing (never a bare, page-wide
+  // "any listbox anywhere" search, the same scoping discipline
+  // fillCombobox already uses via aria-controls) -- and gated to only
+  // the label shapes where a typeahead widget is actually common, so a
+  // plain name/email/phone field never pays this extra wait.
+  const TYPEAHEAD_LABEL_RE = /location|city|address|country(?!\s*code)|state|province|county|school|university|college|employer|company/i;
+  async function tryAutocompleteSelect(el, value, before) {
+    const wanted = value.trim().toLowerCase();
+    let listbox = null;
+    for (let i = 0; i < 8 && !listbox; i++) {
+      const boxes = queryDeep(document, '[role="listbox"]').filter(
+        (b) => visible(b) && !before.has(b) && b.querySelectorAll('[role="option"]').length
+      );
+      listbox = boxes[0] || null;
+      if (!listbox) await new Promise((r) => setTimeout(r, 150));
+    }
+    if (!listbox) return false;
+    const options = Array.from(listbox.querySelectorAll('[role="option"]')).filter(visible);
+    const match = options.find((o) => o.textContent.trim().toLowerCase() === wanted)
+      || options.find((o) => o.textContent.trim().toLowerCase().includes(wanted) || wanted.includes(o.textContent.trim().toLowerCase()));
+    if (!match) return false;
+    match.click();
+    await new Promise((r) => setTimeout(r, 100));
+    return true;
+  }
+
+  async function fillTextLike(fid, value, label) {
     const el = fieldRegistry.get(fid);
     if (!el) return { ok: false };
     if (el.getAttribute("role") === "combobox") return fillCombobox(el, value);
@@ -445,6 +513,12 @@
       if (!match) return { ok: false };
       setNativeValue(el, match.value);
       return { ok: el.value === match.value };
+    }
+    if (label && TYPEAHEAD_LABEL_RE.test(label) && el.tagName === "INPUT") {
+      const before = new Set(queryDeep(document, '[role="listbox"]'));
+      setNativeValue(el, value);
+      const landed = await tryAutocompleteSelect(el, value, before);
+      return { ok: landed || el.value === value };
     }
     setNativeValue(el, value);
     return { ok: el.value === value };
@@ -660,7 +734,7 @@
     for (const m of [...idRows, ...ansRows]) {
       const value = m.value ?? m.answer ?? "";
       if (!value) { notOnFile.push(m.label); continue; }
-      const r = await fillTextLike(m.fieldId, value);
+      const r = await fillTextLike(m.fieldId, value, m.label);
       if (r.ok) {
         filledCount++;
         if (LEGAL_SENSITIVE.test(m.label)) legalFilled.push({ label: m.label, answer: value });
