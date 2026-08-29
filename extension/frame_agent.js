@@ -363,11 +363,30 @@
   // feeding it a coherent-looking but wrong question makes a wrong
   // classification more likely, not less -- an honestly empty nearbyText
   // gives the classifier real signal to answer "unrecognized" instead.
+  // v3.295.0 -- an ultimate stress + training pass across many more
+  // real-world shapes (portal-rendered widgets especially) found this
+  // one still slips past the v3.293.0 fix: two elements BOTH appended
+  // directly to document.body (a real, common portal pattern -- a real
+  // React app can genuinely render several different portaled widgets as
+  // literal body-level siblings) means one portal's own previousElement
+  // Sibling can BE a completely different portal, not a stray fragment
+  // reached by walking into one. Confirmed live: a portal-detached
+  // toggle group's own nearbyText came back as another, unrelated
+  // portal's full option list text ("Eastern TimeCentral TimePacific
+  // Time"), since that sibling's own content is <div role="listbox">/
+  // role="option"> elements -- none of which are the literal HTML tags
+  // (button/input/select/textarea/a/nav) the existing exclusion check
+  // was written against. Widened to also reject a sibling containing any
+  // of the same ARIA-interactive container roles this whole layer
+  // already treats as "a real separate widget," not just specific tags.
+  const NEARBY_TEXT_EXCLUDED_ROLES = '[role="option"], [role="listbox"], [role="menu"], [role="menuitem"], [role="dialog"], [role="tooltip"], [role="combobox"], [role="radiogroup"], [role="radio"]';
   function candidateNearbyText(el) {
     const aria = el.getAttribute("aria-label");
     if (aria && aria.trim()) return aria.trim();
     const prev = el.previousElementSibling;
-    if (!prev || prev.querySelector("button, input, select, textarea, a, nav")) return "";
+    if (!prev) return "";
+    if (prev.querySelector("button, input, select, textarea, a, nav")) return "";
+    if (prev.matches(NEARBY_TEXT_EXCLUDED_ROLES) || prev.querySelector(NEARBY_TEXT_EXCLUDED_ROLES)) return "";
     const t = prev.textContent ? prev.textContent.trim() : "";
     return t && t.length < 200 ? t : "";
   }
@@ -381,35 +400,60 @@
     // -- a real, common accessibility gap (visually a segmented Yes/No
     // pair, zero ARIA state), never covered by the aria-pressed scan
     // above since that scan specifically requires the attribute to exist.
+    // v3.295.0 -- an ultimate stress + training pass found a real,
+    // significant gap here: this only ever looked for buttons as DIRECT
+    // siblings of one shared parent, and a real, common real-world shape
+    // -- confirmed against Ant Design's actual Segmented component
+    // markup, one <div class="...-item"> wrapper around each individual
+    // option's own <button> -- has no direct sibling buttons at all, so
+    // it was completely invisible to this scan, never even reaching
+    // "unrecognized." unwrapToButton lets a container's own child count
+    // as "a button" when that child wraps EXACTLY one visible button and
+    // nothing else ambiguous -- so both the bare-sibling-button shape
+    // (P3/Bootstrap-style, unwrapToButton just returns the button itself)
+    // and the one-wrapper-per-option shape now resolve to the same real,
+    // clickable button either way. Tries the button's own direct parent
+    // first (the original, still-correct case), then its grandparent
+    // (the wrapped-per-option case) -- never both for the same button,
+    // so a group is never registered twice.
+    function unwrapToButton(child) {
+      if (!visible(child)) return null;
+      if (child.tagName === "BUTTON" || child.getAttribute("role") === "button") return child;
+      const inner = Array.from(child.querySelectorAll("button, [role='button']")).filter(visible);
+      return inner.length === 1 ? inner[0] : null;
+    }
     const seenGroupParents = new Set();
     for (const btn of queryDeep(root, "button, [role='button']")) {
       if (!visible(btn) || alreadyKnownEls.has(btn)) continue;
       if (btn.hasAttribute("aria-pressed") || btn.hasAttribute("aria-checked")) continue;
       if (btn.closest("nav, header, footer")) continue;
-      const parent = btn.parentElement;
-      if (!parent || seenGroupParents.has(parent)) continue;
-      const siblings = Array.from(parent.children).filter(
-        (c) => visible(c) && (c.tagName === "BUTTON" || c.getAttribute("role") === "button") && !alreadyKnownEls.has(c)
-      );
-      // 2 to 6: a real toggle pair or small choice group, not a button
-      // toolbar (which would falsely look like a huge "radio group").
-      if (siblings.length < 2 || siblings.length > 6) continue;
-      seenGroupParents.add(parent);
-      const cid = `ayn-cand-${n++}`;
-      candidates.push({
-        localId: cid,
-        els: siblings,
-        signature: {
+      const levels = [btn.parentElement, btn.parentElement && btn.parentElement.parentElement];
+      for (const container of levels) {
+        if (!container || seenGroupParents.has(container)) continue;
+        const siblings = Array.from(container.children)
+          .map(unwrapToButton)
+          .filter((b) => b && !b.hasAttribute("aria-pressed") && !b.hasAttribute("aria-checked") && !alreadyKnownEls.has(b));
+        // 2 to 6: a real toggle pair or small choice group, not a button
+        // toolbar (which would falsely look like a huge "radio group").
+        if (siblings.length < 2 || siblings.length > 6) continue;
+        seenGroupParents.add(container);
+        const cid = `ayn-cand-${n++}`;
+        candidates.push({
           localId: cid,
-          tag: parent.tagName.toLowerCase(),
-          role: parent.getAttribute("role"),
-          ariaAttrs: Array.from(siblings[0].attributes).map((a) => a.name).filter((a) => a.startsWith("aria-")).sort(),
-          childShape: `button:${siblings.length}`,
-          classHint: (parent.className || "").toString().trim().split(/\s+/)[0]?.slice(0, 40) || "",
-          nearbyText: candidateNearbyText(parent).slice(0, 200),
-          optionTexts: siblings.map((s) => (s.textContent || "").trim().slice(0, 60)),
-        },
-      });
+          els: siblings,
+          signature: {
+            localId: cid,
+            tag: container.tagName.toLowerCase(),
+            role: container.getAttribute("role"),
+            ariaAttrs: Array.from(siblings[0].attributes).map((a) => a.name).filter((a) => a.startsWith("aria-")).sort(),
+            childShape: `button:${siblings.length}`,
+            classHint: (container.className || "").toString().trim().split(/\s+/)[0]?.slice(0, 40) || "",
+            nearbyText: candidateNearbyText(container).slice(0, 200),
+            optionTexts: siblings.map((s) => (s.textContent || "").trim().slice(0, 60)),
+          },
+        });
+        break;
+      }
     }
 
     // (b) a clickable trigger that reads like a custom-select placeholder

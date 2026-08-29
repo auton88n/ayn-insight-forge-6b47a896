@@ -140,6 +140,26 @@ profile, the same matching logic the web app's own Jobs tab uses.
   auto-selection (matching several possible answers against your own
   profile at once) is a different, larger kind of matching this app
   doesn't do yet — flagged, not guessed at.
+- **A real, per-option-wrapped button group (Ant Design's `Segmented`
+  component being the concrete example that surfaced this) is now
+  recognized too.** The unrecognized-widget scan used to only look for
+  buttons as DIRECT siblings of one shared parent; a component that
+  wraps each option in its own individual container (so each button's
+  own parent only ever has one button child) was silently invisible to
+  it, never even reaching AI classification. It now also checks one
+  level up (the wrapper's own parent) and unwraps a container that holds
+  exactly one real button, so both shapes resolve the same way.
+- **The nearby-text label lookup for an AI-classification candidate no
+  longer grabs text from an unrelated ARIA-interactive sibling.** It
+  already excluded a sibling containing certain literal HTML tags
+  (button, input, a, nav, and the like); it did not exclude one that is
+  itself an ARIA-role-based interactive widget with no matching HTML
+  tag at all, such as a portal-rendered `role="listbox"` full of
+  `role="option"` children sitting right next to an unrelated toggle
+  group. Found on a page with two separately portaled widgets placed
+  adjacent to each other, where the toggle group's own label lookup
+  picked up the whole concatenated text of the listbox next to it
+  instead. Now excluded by role, not just by tag.
 - **Extraction now prefers a single real `<form>` when the page has more
   than one.** Many real ATS pages (Ashby included) have no `<form>`
   element at all wrapping the actual application, which is why

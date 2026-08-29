@@ -232,6 +232,36 @@ afterward, not assumed from a returned `{ok:true}` alone.
   text sent alongside it is the same static page copy every other field
   type already sends today.
 
+## Ultimate stress + training pass (v3.295.0)
+
+An even larger synthetic harness (~20 sections: real component-library
+shapes -- Material UI, Ant Design, Bootstrap, Workday's attribute-only
+markup -- plus portal-detached widgets, nested iframes, scale, duplicate
+typeaheads) found and fixed two real gaps in the unrecognized-widget
+candidate scan (`scanUnrecognizedWidgets`, `frame_agent.js`):
+
+- A per-option-wrapped button group (Ant Design's `Segmented` component
+  is the concrete real-world shape) was invisible to the scan entirely --
+  it only ever looked for buttons as DIRECT siblings of one shared
+  parent, and this component wraps each option in its own individual
+  container, so every button's own parent has exactly one button child,
+  always failing the "2 or more sibling buttons" check. Fixed by also
+  checking one level up (the wrapper's own parent) and unwrapping a
+  container that holds exactly one real button down to that button, so
+  both the bare-sibling shape and the wrapped-per-option shape resolve
+  to the same candidate group.
+- `candidateNearbyText`'s sibling-exclusion check only ever excluded a
+  previous sibling containing certain literal HTML tags (button, input,
+  a, nav). A sibling that is itself an ARIA-role-based interactive
+  widget with none of those tags -- a portal-rendered `role="listbox"`
+  full of `role="option"` children, sitting adjacent to an unrelated
+  toggle group, both rendered via a portal onto `document.body` -- was
+  not excluded, and its whole concatenated option text was picked up as
+  the toggle group's own label. Fixed by also excluding a sibling whose
+  own role, or a descendant's role, matches a fixed list of
+  ARIA-interactive roles (option, listbox, menu, menuitem, dialog,
+  tooltip, combobox, radiogroup, radio).
+
 ## Real, disclosed limits — not yet built
 
 - `job-checker`'s own fill path has no equivalent of `content.js`'s
