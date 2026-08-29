@@ -207,6 +207,31 @@
       // the summary rather than a blank line -- never a guessed question.
       out.push({ id: fid, tag, type: tag === "select" ? "select" : tag === "textarea" ? "textarea" : type, required: !!el.required, label: labelFor(el) || "An unlabeled field on this page" });
     }
+
+    // v3.282.0 -- reported directly, a real screenshot: a "Yes/No" legal
+    // question (work authorization) rendered as a segmented button pair,
+    // not a native <input type=radio>, so the scan above never saw it at
+    // all -- silently invisible to the whole matching/fill pipeline, no
+    // fill attempted, nothing reported either way. Custom toggle-button
+    // widgets almost always carry the ARIA role= a real radio group needs
+    // for accessibility even when they skip the native <input> element --
+    // recognized here the same way a screen reader would.
+    for (const group of document.querySelectorAll('[role="radiogroup"]')) {
+      if (!visible(group)) continue;
+      const options = Array.from(group.querySelectorAll('[role="radio"]')).filter(visible);
+      if (!options.length) continue;
+      const groupName = `ayn-rg-${n++}`;
+      const groupLabel = group.getAttribute("aria-label") || labelFor(group) || undefined;
+      for (const opt of options) {
+        const fid = `ayn-f-${n++}`;
+        fieldRegistry.set(fid, opt);
+        out.push({
+          id: fid, tag: opt.tagName.toLowerCase(), type: "radio", required: false,
+          label: (opt.getAttribute("aria-label") || opt.textContent || "").trim(),
+          radioGroup: groupName, radioGroupLabel: groupLabel,
+        });
+      }
+    }
     return out;
   }
 
@@ -254,10 +279,21 @@
   function fillRadio(fid) {
     const el = fieldRegistry.get(fid);
     if (!el) return { ok: false };
-    el.checked = true;
-    el.dispatchEvent(new Event("click", { bubbles: true }));
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-    return { ok: el.checked };
+    // A real <input type=radio> has a checked property to verify against;
+    // a custom [role="radio"] button (see extractFields' own ARIA scan)
+    // does not -- a real .click() (not a synthetic dispatched event,
+    // which many custom components' own onClick handlers don't reliably
+    // react to) is both how it's activated and, via aria-checked/
+    // aria-pressed, how a real selection is confirmed afterward.
+    if (el.tagName === "INPUT") {
+      el.checked = true;
+      el.dispatchEvent(new Event("click", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      return { ok: el.checked };
+    }
+    el.click();
+    const state = el.getAttribute("aria-checked") || el.getAttribute("aria-pressed");
+    return { ok: state === "true" };
   }
 
   // ---------------------------------------------------------------
@@ -389,24 +425,58 @@
     // asks for input again.
     const notOnFile = [];
     const failed = [];
+    const legalFilled = []; // { label, answer } -- verified separately, always
     let filledCount = 0;
+
+    // v3.282.0 -- a wrong or unconfirmed answer to a work-authorization/
+    // sponsorship/age-eligibility question is a real, serious mistake on
+    // a real application, not just an inconvenience -- these get called
+    // out on their own, by name, with the exact answer filled, instead of
+    // blending into the generic "N fields filled" line. Matched on the
+    // label's own wording, the same class of phrasing the backend's own
+    // KNOWN_QUESTIONS resolvers look for.
+    const LEGAL_SENSITIVE = /sponsor|work.{0,15}authoriz|legally (eligible|authorized)|visa status|\b18 years|legal drinking age/i;
 
     for (const m of [...idRows, ...ansRows]) {
       const value = m.value ?? m.answer ?? "";
       if (!value) { notOnFile.push(m.label); continue; }
       const r = fillTextLike(m.fieldId, value);
-      if (r.ok) filledCount++; else failed.push(m.label);
+      if (r.ok) {
+        filledCount++;
+        if (LEGAL_SENSITIVE.test(m.label)) legalFilled.push({ label: m.label, answer: value });
+      } else {
+        failed.push(m.label);
+      }
     }
     for (const r of radioRows) {
       if (!r.chosenFieldId) { notOnFile.push(r.groupLabel); continue; }
       const res = fillRadio(r.chosenFieldId);
-      if (res.ok) filledCount++; else failed.push(r.groupLabel);
+      if (res.ok) {
+        filledCount++;
+        if (LEGAL_SENSITIVE.test(r.groupLabel || "")) legalFilled.push({ label: r.groupLabel, answer: r.chosenOptionLabel });
+      } else {
+        failed.push(r.groupLabel);
+      }
     }
 
     clearPanel();
     panel.appendChild(buildHead("Filled"));
     const body = el("div", { class: "body" });
     body.appendChild(el("p", { class: "ok", text: `${filledCount} field${filledCount === 1 ? "" : "s"} filled from your AYN profile.` }));
+
+    if (legalFilled.length) {
+      const box = el("div", { style: "border: 1.5px solid #9a5348; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; background: #fdf1ee;" });
+      box.appendChild(el("p", { class: "warn", text: "Double-check these before submitting — work authorization/eligibility answers matter:", style: "margin: 0 0 6px; font-weight: 700;" }));
+      const ul = el("ul", { style: "margin: 0; padding-left: 20px; font-size: 14.5px; line-height: 1.7; color: #1f1a17;" });
+      for (const f of legalFilled) {
+        const li = el("li", {});
+        li.appendChild(el("span", { text: `${f.label}: `, style: "color: #7a6d61;" }));
+        li.appendChild(el("b", { text: f.answer || "" }));
+        ul.appendChild(li);
+      }
+      box.appendChild(ul);
+      body.appendChild(box);
+    }
 
     const stillNeeded = [...notOnFile, ...failed];
     if (stillNeeded.length) {
