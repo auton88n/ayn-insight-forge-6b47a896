@@ -167,8 +167,20 @@
   // ---------------------------------------------------------------
   let fieldRegistry = new Map();
 
+  // v3.293.0 -- a heavy synthetic stress pass across ~15 form/DOM
+  // categories found this real, confirmed gap: offsetParent/getClientRects
+  // both stay non-empty for a plain visibility:hidden element (it still
+  // takes up real layout space, just isn't painted) -- the exact same
+  // "don't touch this" signal display:none already gives correctly.
+  // Genuinely different from opacity:0 or an off-screen position (both
+  // deliberately still left findable -- a common, legitimate real-world
+  // pattern where a real native input sits under a styled visual
+  // replacement, and the native input IS the one that actually submits),
+  // since visibility:hidden has no such legitimate "still functionally
+  // present" use on a real application field.
   function visible(el) {
-    return el.offsetParent !== null || el.getClientRects().length > 0;
+    if (el.offsetParent === null && el.getClientRects().length === 0) return false;
+    return getComputedStyle(el).visibility !== "hidden";
   }
 
   // Generic UI copy that occasionally ends up as a placeholder -- never a
@@ -178,12 +190,22 @@
   // actual question.
   const GENERIC_PLACEHOLDER = /^(start typing|select|choose|search|type here)/i;
 
+  // v3.293.0 -- widened from previousElementSibling to previousSibling: a
+  // real, common markup shape ("<div>Question text <input></div>", the
+  // question as a bare text node with no wrapping span at all) was
+  // confirmed invisible to this walk, since it only ever stepped between
+  // ELEMENT siblings and a bare text node isn't one. A purely-whitespace
+  // text node (extremely common between elements in real, indented
+  // markup) doesn't spend a hop, so this reaches exactly as far as before
+  // through ordinary formatting whitespace, just no longer blind to real
+  // text that was never wrapped in anything.
   function siblingText(node, hops) {
     let n = node, h = 0;
     while (n && h < hops) {
-      const t = n.textContent?.trim();
+      const t = (n.textContent || "").trim();
       if (t && t.length < 200) return t;
-      n = n.previousElementSibling; h++;
+      if (n.nodeType !== 3 || t) h++;
+      n = n.previousSibling;
     }
     return "";
   }
@@ -202,7 +224,7 @@
     }
     const wrappingLabel = el.closest("label");
     if (wrappingLabel && wrappingLabel.textContent.trim()) return wrappingLabel.textContent.trim();
-    const direct = siblingText(el.previousElementSibling, 3);
+    const direct = siblingText(el.previousSibling, 3);
     if (direct) return direct;
     // v3.280.0 -- an ancestor-climbing fallback was tried here for deeply
     // nested combobox widgets (react-select and similar, common on
@@ -258,18 +280,42 @@
     let n = 0;
     const seenRadioGroups = new Set();
     for (const el of queryDeep(document, "input, textarea, select")) {
-      if (!visible(el) || el.disabled) continue;
+      if (el.disabled) continue;
       const type = (el.getAttribute("type") || el.tagName.toLowerCase()).toLowerCase();
-      if (["hidden", "submit", "button", "reset", "image"].includes(type)) continue;
+      // v3.293.0 -- password added: never a fact anything in a real AYN
+      // profile could answer, the same reasoning hidden/submit/button/
+      // reset/image were already excluded for -- previously relied on
+      // nothing in a profile happening to match "Create a password"
+      // rather than being excluded on purpose, the one input type here
+      // that wasn't.
+      if (["hidden", "submit", "button", "reset", "image", "password"].includes(type)) continue;
 
-      if (type === "range") {
-        skipped.push(labelFor(el) || "A slider or range control on this page");
-        continue;
-      }
       if (type === "file") {
+        // v3.293.0 -- a real, extremely common upload pattern, found by a
+        // heavy synthetic stress pass: the native file input itself is
+        // display:none, with a styled <label> (wrapping it, or linked via
+        // for=) as the actual visible "Upload" trigger -- native
+        // file-input styling is notoriously hard to control directly, so
+        // most real forms hide the raw input and style its label instead.
+        // The input's own invisibility was never a real reason to skip
+        // attaching to it -- DataTransfer-based file injection doesn't
+        // need the input to be visually rendered at all -- only a reason
+        // the blanket visibility filter below (built for every other
+        // input type, where invisible genuinely does mean "don't touch")
+        // wrongly caught this one too. Still requires a genuinely visible
+        // trigger somewhere, so a truly, fully hidden file input (no
+        // visible label anywhere) stays correctly excluded.
+        const trigger = (el.id && document.querySelector(`label[for="${CSS.escape(el.id)}"]`)) || el.closest("label");
+        if (!visible(el) && !(trigger && visible(trigger))) continue;
         const fid = `ayn-f-${n++}`;
         fieldRegistry.set(fid, el);
         out.push({ id: fid, tag: "input", type: "file", required: !!el.required, label: labelFor(el) || "Attachment" });
+        continue;
+      }
+      if (!visible(el)) continue;
+
+      if (type === "range") {
+        skipped.push(labelFor(el) || "A slider or range control on this page");
         continue;
       }
       if (type === "radio") {
@@ -278,7 +324,23 @@
         const groupLabel = seenRadioGroups.has(name) ? undefined : (() => {
           const fieldset = el.closest("fieldset");
           const legend = fieldset?.querySelector("legend")?.textContent?.trim();
-          return legend || labelFor(el);
+          if (legend) return legend;
+          const own = labelFor(el);
+          // v3.293.0 -- a real, confirmed bug: with no <fieldset>/
+          // <legend>, a radio wrapped in its own per-option <label>
+          // ("<label><input type=radio> Yes</label>") makes labelFor(el)
+          // correctly find that wrapping label -- but its text is just
+          // this ONE option's own answer ("Yes"), not the group's real
+          // question, and labelFor has no way to tell "a label wrapping
+          // only this option" apart from a genuine group label on its
+          // own. Reporting a wrong question with high confidence is
+          // worse than reporting none -- degrade to genuinely unlabeled
+          // here instead, the same "confidently wrong beats honestly
+          // unlabeled, except backwards" principle already governs
+          // labelFor's own ancestor-climbing removal above.
+          const ownWrap = el.closest("label");
+          if (ownWrap && own === ownWrap.textContent.trim()) return undefined;
+          return own;
         })();
         seenRadioGroups.add(name);
         const fid = `ayn-f-${n++}`;
@@ -383,6 +445,36 @@
   // server-side by structural shape, so the same widget on the same ATS
   // platform is only ever classified once, for every AYN user, not once
   // per page view. See docs/map/extension.md for the full design.
+  // v3.293.0 -- a narrower, purpose-built label lookup for a CANDIDATE
+  // widget specifically -- found by a heavy synthetic stress pass: reusing
+  // labelFor()'s own 3-hop sibling walk on an arbitrary container element
+  // (not a real form control, which is what labelFor was actually built
+  // for) let it reach past the candidate's own immediate neighbor and pick
+  // up a completely unrelated sibling's text -- confirmed live, a "Sort
+  // results by: Newest/Relevance" filter bar sitting DIRECTLY after a
+  // pagination nav had its own nearbyText come back as "1 2 3", the
+  // pagination's own numbers. Cutting the walk to one hop alone didn't
+  // fully close this -- confirmed live a second time -- since the wrong
+  // element can BE the immediate previous sibling, not just something
+  // reached by walking further into it. The real, reliable signal a
+  // genuine caption has that a stray unrelated widget doesn't: a real
+  // question/caption is plain text, never itself containing another
+  // interactive control -- a sibling that contains a button, input, link,
+  // or nav is almost certainly a different, unrelated widget entirely,
+  // not this candidate's own label, so it's rejected outright rather than
+  // quoted. A candidate is already a speculative, AI-classified guess;
+  // feeding it a coherent-looking but wrong question makes a wrong
+  // classification more likely, not less -- an honestly empty nearbyText
+  // gives the classifier real signal to answer "unrecognized" instead.
+  function candidateNearbyText(el) {
+    const aria = el.getAttribute("aria-label");
+    if (aria && aria.trim()) return aria.trim();
+    const prev = el.previousElementSibling;
+    if (!prev || prev.querySelector("button, input, select, textarea, a, nav")) return "";
+    const t = prev.textContent ? prev.textContent.trim() : "";
+    return t && t.length < 200 ? t : "";
+  }
+
   function scanUnrecognizedWidgets(alreadyKnownEls) {
     const candidates = [];
     let n = 0;
@@ -416,7 +508,7 @@
           ariaAttrs: Array.from(siblings[0].attributes).map((a) => a.name).filter((a) => a.startsWith("aria-")).sort(),
           childShape: `button:${siblings.length}`,
           classHint: (parent.className || "").toString().trim().split(/\s+/)[0]?.slice(0, 40) || "",
-          nearbyText: (parent.getAttribute("aria-label") || labelFor(parent) || "").slice(0, 200),
+          nearbyText: candidateNearbyText(parent).slice(0, 200),
           optionTexts: siblings.map((s) => (s.textContent || "").trim().slice(0, 60)),
         },
       });
@@ -426,7 +518,14 @@
     // ("Select...", "Choose...", "Start typing...") but never declared
     // role="combobox" -- a real, common deviation from the ARIA spec.
     const PLACEHOLDER_RE = /^(select|choose|start typing|search)/i;
-    for (const el of queryDeep(document, "[role='button'], [tabindex='0'], input[type='text']")) {
+    // v3.293.0 -- "button" added: a plain native <button> with no explicit
+    // role/tabindex attribute at all (it needs neither to already be a
+    // real, valid button) was confirmed invisible to this scan -- a
+    // genuinely common, perfectly valid native-HTML custom-select trigger
+    // ("<button>Select your school</button>", no ARIA anywhere) never
+    // reached AI classification at all, silently absent rather than
+    // "not on file" or "unrecognized."
+    for (const el of queryDeep(document, "button, [role='button'], [tabindex='0'], input[type='text']")) {
       if (!visible(el) || alreadyKnownEls.has(el)) continue;
       if (el.getAttribute("role") === "combobox") continue;
       if (el.closest("nav, header, footer")) continue;
@@ -443,7 +542,7 @@
           ariaAttrs: Array.from(el.attributes).map((a) => a.name).filter((a) => a.startsWith("aria-")).sort(),
           childShape: Array.from(el.children).map((c) => c.tagName.toLowerCase()).join(",") || "none",
           classHint: (el.className || "").toString().trim().split(/\s+/)[0]?.slice(0, 40) || "",
-          nearbyText: (labelFor(el) || "").slice(0, 200),
+          nearbyText: candidateNearbyText(el).slice(0, 200),
           optionTexts: [],
         },
       });

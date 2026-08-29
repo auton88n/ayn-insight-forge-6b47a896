@@ -98,3 +98,33 @@ profile, the same matching logic the web app's own Jobs tab uses.
   the actual fill still runs through the same read-back-verified
   mechanisms as everything else here. Full design in
   `docs/map/extension.md`.
+- **A field hidden behind a styled label still gets found, for file
+  inputs specifically.** The single most common real "Upload your
+  resume" pattern is a `display:none` native file input with a styled
+  `<label>` as the actual visible trigger — native file-input styling is
+  hard to control directly, so most real forms hide the raw input. A
+  file input's own invisibility is no longer a reason to skip it, as
+  long as a genuinely visible label is linked to it; every other field
+  type still correctly stays untouched when truly hidden.
+- **A `visibility:hidden` field is treated the same as `display:none`
+  now** — both mean "don't touch this," found by a heavy synthetic
+  stress pass across ~15 real-world DOM shapes. `opacity:0` and an
+  off-screen position are deliberately still findable — both are common,
+  legitimate patterns where a real native input sits under a styled
+  visual replacement, and the native input is the one that actually
+  submits.
+- **Not fixed, disclosed honestly:** an application form embedded in an
+  `<iframe>` is completely invisible to the extension — it only ever
+  reads the top-level page, same-origin or not. A minority pattern among
+  real ATS platforms, but a real one. A multi-select "choose all that
+  apply" button group (several independently togglable options, not a
+  mutually exclusive choice) is structurally identical to a single-choice
+  toggle group to everything here, including the AI classifier's current
+  fixed vocabulary — it has no "pick any number of these" type yet, only
+  "pick exactly one." And extraction is deliberately not scoped to a
+  single `<form>` (many real ATS pages, Ashby included, have no `<form>`
+  element wrapping the actual application at all) — the real, accepted
+  cost of that choice is that a genuinely unrelated widget elsewhere on
+  the same page (a newsletter signup, say) can get swept into the same
+  field list, and if its own label happens to resemble a real identity
+  field, could get filled too.
