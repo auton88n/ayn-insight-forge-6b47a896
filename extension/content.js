@@ -183,13 +183,32 @@
   // profile that translates to "the correct point on this scale."
   // Recognized explicitly and always left for the person to set
   // themselves, the same honest treatment as a file attachment.
+  // v3.285.0 -- a real, adoptable improvement: some ATS platforms build
+  // their form widgets as real web components with a closed-off shadow
+  // DOM, and a plain document.querySelectorAll never sees inside one --
+  // that part of the form was silently invisible before this, the same
+  // failure shape as the ARIA-radiogroup gap fixed earlier this session,
+  // just for a different reason. Recurses into every OPEN shadow root
+  // found anywhere in the tree (a genuinely closed shadow root -- mode:
+  // "closed" -- is deliberately unreachable from outside its own
+  // component by the platform itself; no page script, this extension
+  // included, can see into one, which is a real, disclosed limit, not a
+  // bug to chase).
+  function queryDeep(root, selector) {
+    const found = Array.from(root.querySelectorAll(selector));
+    for (const el of root.querySelectorAll("*")) {
+      if (el.shadowRoot) found.push(...queryDeep(el.shadowRoot, selector));
+    }
+    return found;
+  }
+
   function extractFields() {
     fieldRegistry = new Map();
     const out = [];
     const skipped = [];
     let n = 0;
     const seenRadioGroups = new Set();
-    for (const el of document.querySelectorAll("input, textarea, select")) {
+    for (const el of queryDeep(document, "input, textarea, select")) {
       if (!visible(el) || el.disabled) continue;
       const type = (el.getAttribute("type") || el.tagName.toLowerCase()).toLowerCase();
       if (["hidden", "submit", "button", "reset", "image"].includes(type)) continue;
@@ -234,7 +253,7 @@
     // widgets almost always carry the ARIA role= a real radio group needs
     // for accessibility even when they skip the native <input> element --
     // recognized here the same way a screen reader would.
-    for (const group of document.querySelectorAll('[role="radiogroup"]')) {
+    for (const group of queryDeep(document, '[role="radiogroup"]')) {
       if (!visible(group)) continue;
       const options = Array.from(group.querySelectorAll('[role="radio"]')).filter(visible);
       if (!options.length) continue;
@@ -263,6 +282,13 @@
       : window.HTMLInputElement.prototype;
     const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
     if (setter) setter.call(el, value); else el.value = value;
+    // v3.285.0 -- a real, adoptable improvement: some React versions track
+    // an input's "last known value" on a private _valueTracker property
+    // and compare against IT (not just the DOM value) to decide whether a
+    // change is real -- the native-setter trick above can still get
+    // silently reverted on next render if this isn't also updated to
+    // match, since React sees its own tracked value as already current.
+    if (el._valueTracker) el._valueTracker.setValue(value);
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
   }
@@ -370,7 +396,39 @@
     return el("div", { class: "head" }, [el("b", { text: `AYN — ${title}` }), el("button", { class: "close", text: "×", onclick: closePanel })]);
   }
   function clearPanel() { panel.innerHTML = ""; }
-  function closePanel() { host.remove(); }
+  let liveObserver = null;
+  function closePanel() {
+    if (liveObserver) { liveObserver.disconnect(); liveObserver = null; }
+    host.remove();
+  }
+
+  // v3.285.0 -- a real, adoptable improvement: a multi-step wizard or a
+  // form that reveals more fields after an earlier answer (e.g. "Yes" to
+  // one question exposes three more) can genuinely change after the one
+  // fill pass already ran. Never re-fills anything on its own -- that
+  // would mean silently touching a live page with no one watching what
+  // it does -- it only ever offers, as a real visible button the person
+  // clicks themselves, exactly like the very first fill did.
+  function watchForNewFields(session) {
+    if (liveObserver) liveObserver.disconnect();
+    const knownEls = new Set(fieldRegistry.values());
+    let debounce = null;
+    liveObserver = new MutationObserver(() => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        const nowVisible = queryDeep(document, "input, textarea, select").filter((e) => visible(e) && !e.disabled);
+        const hasNew = nowVisible.some((e) => !knownEls.has(e));
+        if (!hasNew) return;
+        liveObserver.disconnect();
+        const notice = el("div", { style: "padding: 10px 20px; background: #efe6db; font-size: 13.5px; color: #1f1a17; display: flex; align-items: center; justify-content: space-between; gap: 10px;" }, [
+          el("span", { text: "New fields appeared on this page." }),
+          el("button", { class: "btn btn-primary", text: "Fill them too", style: "padding: 6px 14px; font-size: 13px;", onclick: () => autofill(session) }),
+        ]);
+        panel.insertBefore(notice, panel.firstChild.nextSibling);
+      }, 800);
+    });
+    liveObserver.observe(document.body, { childList: true, subtree: true });
+  }
 
   function showSignIn() {
     clearPanel();
@@ -532,6 +590,7 @@
     closeBtn.addEventListener("click", closePanel);
     body.appendChild(closeBtn);
     panel.appendChild(body);
+    watchForNewFields(session);
   }
 
   async function start() {
