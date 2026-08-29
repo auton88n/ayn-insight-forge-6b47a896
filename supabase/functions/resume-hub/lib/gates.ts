@@ -99,6 +99,7 @@ export const ACTION_CAPABILITY: Record<string, AccountCapability> = {
   score: "ai",
   application_answer_match: "ai",
   auto_apply_extract: "ai",
+  auto_apply_classify_widgets: "ai",
   auto_apply_fill: "ai",
 };
 

@@ -12,6 +12,9 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 // loadIdentity() so a new source (canonical.identity, auth.users) is
 // picked up everywhere at once, not re-derived per action.
 import { loadIdentity, identityContactBlock, type Identity } from "../_shared/identity.ts";
+// v3.290.0 -- Form Intelligence: the shared AI-fallback widget classifier,
+// cached cross-user. See lib/formIntelligence.ts's own header.
+import { classifyWidgets, type WidgetSignature } from "./lib/formIntelligence.ts";
 // v3.44.0 — proposal/assessment notification emails. Best effort only:
 // see notifyCandidate/notifyOrg below, neither ever throws into a caller.
 import { wrapEmail, ctaButton, heading, para, escapeHtml, sendBrandedEmail } from "../_shared/emailTemplate.ts";
@@ -1450,6 +1453,31 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         answerMatches,
         fileFields: fileFields.map((f) => ({ id: f.id, label: f.label })),
       });
+    }
+
+    // v3.290.0 -- Form Intelligence: the shared fallback for a widget
+    // shape neither content.js's nor job-checker's own deterministic scan
+    // recognizes. See lib/formIntelligence.ts's own header for the full
+    // design and docs/map/extension.md for the blueprint. Deliberately
+    // free (rate-limited only, no credit charge) -- this is a structural
+    // classification utility that makes auto_apply_extract's own output
+    // more complete, not a distinct paid outcome, the same treatment
+    // auto_apply_extract itself already gets.
+    if (action === "auto_apply_classify_widgets") {
+      const adminCls = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminCls, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminCls, user.id, action); if (blocked) return blocked; }
+      { const limited = await rateLimitGate(adminCls, user.id, action, 30, 15); if (limited) return limited; }
+
+      const { widgets } = payload as { widgets?: WidgetSignature[] };
+      if (!widgets || !widgets.length) return json({ classifications: [] });
+      // Hard cap -- a real page's own unrecognized-widget count should
+      // never be large (the deterministic scans already handle the
+      // overwhelming majority of real fields); this bounds one request's
+      // real cost regardless of what a caller sends.
+      const bounded = widgets.slice(0, 40);
+      const classifications = await classifyWidgets(adminCls, bounded);
+      return json({ classifications });
     }
 
     if (action === "auto_apply_fill") {

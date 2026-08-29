@@ -249,6 +249,84 @@ def _extract_fields(page):
           radioGroupLabel: radioGroupLabel,
         });
       });
+
+      // v3.290.0 -- parity fix. This scan only ever covered plain
+      // <input>/<select>/<textarea> -- extension/content.js had already
+      // grown real support for three real, common shapes this one never
+      // had: an ARIA radiogroup (role=radiogroup > role=radio, e.g. a
+      // Yes/No question that isn't a native radio pair at all), a plain
+      // aria-pressed toggle-button group (the same Yes/No idea with no
+      // radiogroup wrapper), and a role=combobox custom dropdown trigger
+      // (Radix Select / react-select style, never a real <select>). Each
+      // one is a de-duped id here too (an id is required to target a
+      // later fill by, same as every native field above), and each is
+      // dropped -- not silently mis-typed -- if it has none, matching
+      // the existing de-dupe/no-id-drop pass this function already runs
+      // right after this evaluate() call returns.
+      // A real id, not just a data attribute -- _fill_one_field and the
+      // radioSelections loop both target a field by `#{field_id}` as a
+      // plain CSS selector, which only ever resolves against a real id
+      // attribute. Assigning one is safe: it's additive, not a rename of
+      // anything the page already relies on.
+      let n = 0;
+      const nextId = (el) => {
+        if (el.id) return el.id;
+        const gen = 'ayn-auto-' + (n++);
+        el.id = gen;
+        return gen;
+      };
+
+      document.querySelectorAll('[role="radiogroup"]').forEach((group) => {
+        if (group.offsetParent === null) return;
+        const options = Array.from(group.querySelectorAll('[role="radio"]')).filter((o) => o.offsetParent !== null);
+        if (!options.length) return;
+        const groupLabel = group.getAttribute('aria-label') ||
+          (group.previousElementSibling ? group.previousElementSibling.innerText.trim().slice(0, 200) : '');
+        options.forEach((opt) => {
+          fields.push({
+            tag: opt.tagName.toLowerCase(), type: 'radio', id: nextId(opt), required: false,
+            label: (opt.getAttribute('aria-label') || opt.innerText || '').trim(),
+            radioGroup: 'ayn-rg-' + (group.id || nextId(group)), radioGroupLabel: groupLabel,
+          });
+        });
+      });
+
+      const seenToggle = new Set();
+      document.querySelectorAll('button[aria-pressed]').forEach((btn) => {
+        if (btn.offsetParent === null || seenToggle.has(btn) || btn.closest('[role="radiogroup"]')) return;
+        const parent = btn.parentElement;
+        if (!parent) return;
+        const siblings = Array.from(parent.children).filter(
+          (c) => c.tagName === 'BUTTON' && c.hasAttribute('aria-pressed') && c.offsetParent !== null
+        );
+        if (siblings.length < 2) return;
+        siblings.forEach((s) => seenToggle.add(s));
+        const groupLabel = parent.getAttribute('aria-label') ||
+          (parent.previousElementSibling ? parent.previousElementSibling.innerText.trim().slice(0, 200) : '');
+        siblings.forEach((opt) => {
+          fields.push({
+            tag: 'button', type: 'radio', id: nextId(opt), required: false,
+            label: (opt.getAttribute('aria-label') || opt.innerText || '').trim(),
+            radioGroup: 'ayn-tg-' + (parent.id || nextId(parent)), radioGroupLabel: groupLabel,
+          });
+        });
+      });
+
+      document.querySelectorAll('[role="combobox"]').forEach((trigger) => {
+        if (trigger.offsetParent === null || trigger.getAttribute('aria-disabled') === 'true') return;
+        let label = '';
+        if (trigger.id) {
+          const lbl = document.querySelector(`label[for="${trigger.id}"]`);
+          if (lbl) label = lbl.innerText.trim();
+        }
+        if (!label) label = trigger.getAttribute('aria-label') || '';
+        if (!label && trigger.previousElementSibling) label = trigger.previousElementSibling.innerText.trim().slice(0, 200);
+        fields.push({
+          tag: trigger.tagName.toLowerCase(), type: 'select', id: nextId(trigger), required: false,
+          label: label, radioGroup: null, radioGroupLabel: null,
+        });
+      });
+
       return fields;
     }
     """)
@@ -331,6 +409,34 @@ def _resolve_by_label(fields, wanted_label: str, used_ids: set, field_type_filte
         if wanted in n or n in wanted:
             return f["id"]
     return None
+
+
+def _click_or_confirm_radio(page, field_id: str) -> bool:
+    """
+    v3.290.0 -- _extract_fields now also finds two shapes that aren't a
+    real <input type=radio> at all: a role=radio element inside a real
+    ARIA radiogroup, and a plain aria-pressed toggle button. Playwright's
+    own .check() only ever works on a genuine checkable native input --
+    it throws outright on a button or a role=radio div, which is why this
+    exists as its own path rather than folding into the plain page.check()
+    call every native radio option already used. A native radio still
+    gets the native, reliably-verified .check(); anything else gets a
+    real .click() followed by a real read-back of its own aria-checked/
+    aria-pressed state -- the same verify-after-click discipline
+    extension/content.js's fillRadio already uses -- so a click that
+    fired but didn't actually register a selection is reported as failed,
+    never as a false success.
+    """
+    loc = page.locator(f"#{field_id}")
+    tag = (loc.evaluate("el => el.tagName.toLowerCase()") or "").lower()
+    el_type = loc.get_attribute("type")
+    if tag == "input" and el_type == "radio":
+        loc.check(timeout=3000)
+        return True
+    loc.click(timeout=3000)
+    page.wait_for_timeout(150)
+    state = loc.evaluate("el => el.getAttribute('aria-checked') || el.getAttribute('aria-pressed')")
+    return state == "true"
 
 
 def _resolve_radio_group(fields, wanted_group_label: str):
@@ -533,9 +639,12 @@ def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
                     failed.append({"label": rs.groupLabel, "error": f"no option matching {rs.optionLabel!r} in this group"})
                     continue
                 try:
-                    page.check(f"#{match['id']}", timeout=3000)
-                    filled.append(f"{rs.groupLabel} -> {match['label']}")
-                    field_kinds[rs.groupLabel] = "radio"
+                    ok = _click_or_confirm_radio(page, match["id"])
+                    if ok:
+                        filled.append(f"{rs.groupLabel} -> {match['label']}")
+                        field_kinds[rs.groupLabel] = "radio"
+                    else:
+                        failed.append({"label": rs.groupLabel, "error": "clicked, but the selection could not be confirmed"})
                 except Exception as e:
                     failed.append({"label": rs.groupLabel, "error": str(e)})
 
