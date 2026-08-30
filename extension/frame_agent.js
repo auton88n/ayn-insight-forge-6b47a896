@@ -610,6 +610,40 @@
         out.push({ id: fid, tag: "input", type: "radio", required: !!el.required, label: labelFor(el), radioGroup: name, radioGroupLabel: groupLabel });
         continue;
       }
+      // v3.302.0 -- a real, live gap found on careers.stratoswealthpartners.
+      // com: a genuine <fieldset><legend>How many years of experience do
+      // you have in wealth management or financial services?</legend>
+      // <input type=checkbox>...5 options...</fieldset> -- the exact real
+      // fieldset/legend shape radio groups above already resolve, but
+      // checkboxes never share a "name" attribute the way mutually-
+      // exclusive radios do (this site's own checkboxes each carry a
+      // distinct indexed name), so the whole name-keyed grouping this
+      // radio branch relies on doesn't apply. Each checkbox still
+      // resolved to its own real, honest answer text ("Less than 1
+      // year") before this fix -- correct, just missing the one piece
+      // that says what question these five options are all answering.
+      // Deliberately NOT the full radio-group machinery (aria-labelledby
+      // on the fieldset, direct-child-label, ownWrap-guard,
+      // groupCommonAncestorCaption) -- those were each hard-won for a
+      // specific, confirmed RADIO shape and may not hold the same way
+      // for a checkbox group; this stays to the one signal actually
+      // observed live, fieldset > legend, real and standard HTML that a
+      // checkbox group is exactly as likely to use as a radio group is.
+      // A new field, checkboxGroupLabel, not radioGroup/radioGroupLabel
+      // -- those two names carry a real, load-bearing meaning elsewhere
+      // (a single mutually-exclusive choice, filled via fillRadio); a
+      // checkbox group is multi-select, a fundamentally different fill
+      // shape, and reusing the radio field names here risked a caller
+      // treating five independent checkboxes as one radio choice.
+      if (type === "checkbox") {
+        const fieldset = el.closest("fieldset");
+        const legend = fieldset?.querySelector("legend");
+        const checkboxGroupLabel = legend ? visibleText(legend).trim() : undefined;
+        const fid = `ayn-f-${n++}`;
+        fieldRegistry.set(fid, el);
+        out.push({ id: fid, tag: "input", type: "checkbox", required: !!el.required, label: labelFor(el) || "An unlabeled field on this page", checkboxGroupLabel: checkboxGroupLabel || undefined });
+        continue;
+      }
       const fid = el.id && !fieldRegistry.has(el.id) ? el.id : `ayn-f-${n++}`;
       fieldRegistry.set(fid, el);
       const tag = el.tagName.toLowerCase();
