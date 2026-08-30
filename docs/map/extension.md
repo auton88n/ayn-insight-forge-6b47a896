@@ -705,3 +705,30 @@ signals (sliders, date pickers, star ratings, drag-drop, signature pads)
 and found none live. The real, remaining gap wasn't a missing widget
 *type* — it was this file, the actual answer-matching intelligence,
 which had simply never been exercised end to end before this pass.
+
+**Two more real bugs found batch-testing 20 real question phrasings
+(same v3.305.0 pass).** `highest_education` answered `null` despite a
+real, complete `education` array on file — it only ever read `derived.
+education_level`, an AI-populated summary field the canonical-profile
+extraction pipeline sets, with no fallback for a real profile whose
+`derived` summary was never computed. Fixed with a disclosed, honest
+fallback to `education[0]`'s own degree text — real, never invented,
+though not guaranteed to be the person's *highest* degree specifically
+if they have more than one on file, since nothing enforces most-recent-
+first ordering on that array. More seriously: "What is your desired
+hourly rate?" matched `desired_salary` via the embedding-similarity pass
+(0.754 similarity, above the 0.72 threshold — semantically close enough
+to "salary expectations") and answered with the stored figure verbatim,
+which has only ever been an *annual* number — a real, visibly wrong-
+scale answer ("$100,000/hr") for a real, common shape (an hourly-paid
+role; a live Zoho-hosted posting tested this same session stated its own
+pay as "$75/hr"). No separate hourly-rate field exists anywhere in the
+schema to answer this correctly, and inventing one via an assumed
+hours/week would itself be a fabricated fact — fixed by declining
+outright when the label says "hourly"/"per hour"/"/hr". This fix had to
+live inside `resolve()` itself, not the keyword regex, since this
+specific match happens through the embedding pass, which never calls
+`keywords.test()` at all — worth remembering for any future resolver
+that also needs to reason about the real question text: the label is
+only reliably available inside `resolve(c, label)`, not guaranteed to
+have been checked by `keywords` first.
