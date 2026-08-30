@@ -1375,7 +1375,11 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       // call trying to match "First Name*" against salary/license phrasings
       // it was never going to resemble.
       const identityMatches: Record<string, { fieldId: string; label: string; role: string; value: string | null }> = {};
-      const remaining: Array<{ id: string; label: string }> = [];
+      // v3.307.0 -- type carried through now, purely so the narrative-
+      // answer pass below can find real open-ended questions (a textarea
+      // is the one honest structural signal a question wants more than a
+      // short fact -- see that pass's own comment for why this matters).
+      const remaining: Array<{ id: string; label: string; type: string | null }> = [];
       for (const f of candidateFields) {
         if (!f.id) continue;
         const hay = `${f.id} ${f.label}`;
@@ -1388,11 +1392,106 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
         if (idPattern) {
           identityMatches[idPattern.role] = { fieldId: f.id, label: f.label || f.id, role: idPattern.role, value: idPattern.value() || null };
         } else {
-          remaining.push({ id: f.id, label: f.label || f.id });
+          remaining.push({ id: f.id, label: f.label || f.id, type: f.type });
         }
       }
 
       const answerMatches = canonical ? await matchApplicationAnswers(remaining, canonical) : remaining.map((q) => ({ fieldId: q.id, label: q.label, matchedType: null, answer: null, confidence: 0 }));
+
+      // v3.307.0 -- narrative answers, deliberately separate from
+      // matchApplicationAnswers above. That function is only for a
+      // question with one real, already-known correct value (a fact,
+      // never phrased by the model) -- applicationAnswers.ts's own header
+      // says plainly that a genuinely open-ended question ("why do you
+      // want this role") is out of its scope on purpose, safe for a model
+      // to write from real resume facts, unlike a legal/factual one.
+      // This app already tried a genuinely open-ended, judgment-giving AI
+      // surface once and deleted it (v3.8.0, the original seeker chat --
+      // "confident-sounding, ungrounded flattery and offering capabilities
+      // the product didn't have") -- this is not that. Every answer here
+      // is grounded the identical way cover_letter's own writing already
+      // is: real facts only, the same verifyProseQuality check and one
+      // retry, never invented enthusiasm, and a genuine decline (empty
+      // string, left for the person to answer) when nothing real actually
+      // supports a real answer, the same "confidently wrong is worse than
+      // honestly unanswered" rule every other resolver in this file holds.
+      // Scoped narrowly on purpose: a <textarea> is a real, honest
+      // structural signal that a question wants more than a short fact --
+      // never attempted for a plain <input>, which is what a short factual
+      // answer (already matchApplicationAnswers' own job) actually looks
+      // like. Capped at 4 questions and skipped entirely when there is
+      // nothing to answer, so a standard form with no narrative fields
+      // costs nothing extra, and one form can never trigger an unbounded
+      // number of real AI calls. Deliberately free, matching Form
+      // Intelligence's own reasoning: this makes auto_apply_extract's
+      // existing output more complete, not a distinct paid outcome.
+      const narrativeCandidates = answerMatches
+        .filter((a) => a.answer == null)
+        .map((a) => remaining.find((r) => r.id === a.fieldId))
+        .filter((r): r is { id: string; label: string; type: string | null } => !!r && r.type === "textarea")
+        .slice(0, 4);
+      if (narrativeCandidates.length && canonical) {
+        const narrBundle = buildSections(identity, canonical);
+        if (narrBundle.text && narrBundle.chars >= 60) {
+          const narrApplicantBlock = identity ? identityContactBlock(identity) : "";
+          const narrSystem = `For each real application question below, write a short, honest answer (1 to 3 sentences, under 400 characters) using ONLY facts from APPLICANT SECTIONS${narrApplicantBlock ? " and the APPLICANT block" : ""}. Never invent a company, employer, metric, date, name, or accomplishment. Never invent enthusiasm, motivation, or a reason "why this company matters" that is not directly supported by real facts given to you. If a question genuinely cannot be answered honestly from what is given (nothing real to say), return an empty string for it rather than writing something generic or invented -- a real person will answer it themselves.
+
+RULES:
+- First person is correct here ("I led...", "In my role as..."), the same as a real person answering a real question about themselves.
+- No clichés ("I am excited to", "leverage", "passionate", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "seasoned professional", "self-starter", "go-getter", "team player", "hit the ground running", "best-in-class", "world-class", "game-changer", "cutting-edge", "testament to", "boasts a", "renowned", "groundbreaking"). NO EM DASHES, NO EN DASHES, EVER, NO EXCEPTIONS. Write ranges with the word "to". Must not read as AI-generated -- no telltale AI phrasing, no uniform sentence rhythm, no overused connector words; write like an actual person would.
+- Output ONLY JSON: {"answers":[{"id":"...","text":"..."}]} -- one entry per question given, "text" empty string when honestly unanswerable.`;
+          const narrUser = `APPLICANT SECTIONS:\n${narrBundle.text}${narrApplicantBlock ? `\n\nAPPLICANT:\n${narrApplicantBlock}` : ""}\n\nQUESTIONS:\n${JSON.stringify(narrativeCandidates.map((c) => ({ id: c.id, label: c.label })))}`;
+          try {
+            const narrR = await callAI({ system: narrSystem, user: narrUser });
+            // v3.307.0 -- a real, live bug found testing this exact call:
+            // the model wraps its own "Output ONLY JSON" response in a
+            // ```json fence despite the instruction, and a bare JSON.parse
+            // on that text throws every time, silently degrading to zero
+            // narrative answers even when the model's own real, honest,
+            // correctly-grounded answer was sitting right there. Every
+            // other JSON-returning call in this file already solved this
+            // with parseJsonLoose (lib/utils.ts) -- reused here instead of
+            // a second, narrower fix for the same real problem.
+            const narrParsed = parseJsonLoose<{ answers?: Array<{ id: string; text: string }> }>(narrR.text) || {};
+            const narrByFieldId = new Map((narrParsed.answers || []).map((a) => [a.id, String(a.text || "").trim()]));
+            for (const cand of narrativeCandidates) {
+              let text = narrByFieldId.get(cand.id) || "";
+              if (!text) continue;
+              const narrFigureMiss = droppedFigures(text, narrBundle.text).filter((f) => f.length > 1);
+              const narrProse = verifyProseQuality(text, false);
+              if (narrFigureMiss.length || narrProse.length) {
+                // One retry, this single question only -- cheaper and more
+                // targeted than re-running the whole batch, and matches how
+                // every other self-verification retry in this file already
+                // scopes its own fix.
+                const retryNote = `${narrFigureMiss.length ? `THE PREVIOUS ANSWER CITED FIGURES NOT IN APPLICANT SECTIONS: ${narrFigureMiss.slice(0, 10).join(", ")}\n` : ""}${narrProse.length ? violationsToRetryNote(narrProse) : ""}`;
+                const retryR = await callAI({
+                  system: narrSystem,
+                  user: `${narrUser}\n\nRewrite ONLY the answer for question id "${cand.id}".\n${retryNote}\nOutput ONLY JSON: {"answers":[{"id":"${cand.id}","text":"..."}]}`,
+                });
+                // parseJsonLoose never throws (returns null on failure), so
+                // this no longer needs its own try/catch -- the outer catch
+                // around the whole narrative-answer pass is the real safety
+                // net if anything else here misbehaves unexpectedly.
+                const retryParsed = parseJsonLoose<{ answers?: Array<{ id: string; text: string }> }>(retryR.text);
+                const fixed = String(retryParsed?.answers?.[0]?.text || "").trim();
+                if (fixed) {
+                  const stillFigureMiss = droppedFigures(fixed, narrBundle.text).filter((f) => f.length > 1);
+                  const stillProse = verifyProseQuality(fixed, false);
+                  if (stillFigureMiss.length + stillProse.length < narrFigureMiss.length + narrProse.length) text = fixed;
+                }
+              }
+              const match = answerMatches.find((a) => a.fieldId === cand.id);
+              if (match && text) { match.answer = text; match.matchedType = "ai_narrative"; }
+            }
+          } catch {
+            // A narrative-answer failure must never break auto_apply_extract
+            // itself -- the rest of the form still resolved correctly, and
+            // these questions simply stay "not on file" for the person to
+            // answer, the same honest degrade as every other resolver here.
+          }
+        }
+      }
 
       // Radio groups (Ashby, and likely others using the same pattern):
       // each option is its own separate field with no shared question text
