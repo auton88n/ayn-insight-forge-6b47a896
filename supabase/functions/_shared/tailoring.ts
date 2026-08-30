@@ -874,10 +874,26 @@ export function stripInstructionLikeSpans(text: string): string {
 // gap analysis above: the model never grades its own homework, code does.
 // ──────────────────────────────────────────────────────────────
 
+// v3.306.0 -- widened against a real, evidence-based list of AI writing
+// tells (Wikipedia's own "Signs of AI writing" project, via the
+// humanizer skill: github.com/blader/humanizer), not just words this app
+// happened to notice on its own. Picked selectively, not the whole
+// source list -- several of its own flagged words (align with, key,
+// landscape, commitment to) were deliberately left out because they are
+// also completely ordinary, legitimate things a real resume can say
+// ("skills align with the role", "a key contributor," "the product
+// landscape," "a commitment to quality") -- a false-positive retry burns
+// a real API call and risks degrading otherwise-good output, so only
+// phrases with genuinely low collision risk against real resume content
+// were added.
 export const WRITE_BANNED_PHRASES = [
   "proven ability to", "proven track record of", "results-driven", "dynamic professional",
   "leveraging", "spearheaded transformational initiatives", "passionate about", "in today's fast-paced",
   "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "hard-working", "detail-oriented",
+  "seasoned professional", "results-oriented", "self-starter", "go-getter", "team player",
+  "hit the ground running", "wear many hats", "think outside the box", "best-in-class",
+  "world-class", "game-changer", "cutting-edge", "track record of", "testament to",
+  "boasts a", "boasts over", "renowned", "groundbreaking", "garner", "underscores", "vibrant",
 ];
 
 export interface WriteViolation { kind: "figure" | "banned_phrase" | "pronoun" | "dash" | "generic_summary" | "gap_claim" | "keyword_gap"; detail: string }
