@@ -543,3 +543,86 @@ lucky re-roll. Test account fully erased after.
   This is a real, accepted, disclosed trade-off, not an oversight: fully
   closing it would mean breaking the no-`<form>` case this extension
   exists to handle.
+
+## Live training pass, wave 3 (v3.301.0 to v3.304.0)
+
+A real, persistent-Playwright-profile harness driving the actual
+unpacked extension against genuine, live job postings pulled from AYN's
+own `/jobs` catalog — the same discipline documented above, continued
+across five real sites (`careers-page.com`, `careers.hireology.com`,
+`careers.stratoswealthpartners.com`, `ats.rippling.com`,
+`smsicorp.zohorecruit.com`), each finding one real, distinct bug class:
+
+- **`consentCaptionAfter()`** (v3.301.0) — a standalone consent
+  checkbox whose real caption *follows* it in the markup instead of
+  preceding it (the standard "I agree to the terms and conditions &
+  privacy policy" shape), where the caption legitimately contains one
+  or two inline document links. `siblingText()`'s own interactive-
+  descendant check correctly disqualifies a sibling *containing* a link
+  for its other callers, but wrongly rejected this one; a narrower,
+  self-only interactive check was added instead of widening
+  `siblingText()` itself.
+- **`isBareGenericLabel()` / `BARE_GENERIC_LABEL`** (v3.301.0, widened
+  v3.303.0) — a `label[for]` (or, once widened, an `aria-label`) whose
+  entire text is nothing but a UI-chrome placeholder word ("Select",
+  "Choose", "Search") or a leaked ARIA role name ("textbox",
+  "combobox", "listbox"), standing in for a real caption sitting
+  elsewhere (a floating-label select's own real question one `<p>`
+  sibling up; a react-select combobox's real `aria-labelledby` sitting
+  unread because a generic `aria-label` won first). One shared check
+  now covers all three attribute sources this same class of problem
+  can show up on, rather than three separately drifting ones.
+- **`checkboxGroupLabel`** (v3.302.0) — a checkbox *group* (several
+  checkboxes answering one real multi-select question, e.g. "years of
+  experience, check the range that applies") has no equivalent to a
+  radio group's `name`-keyed grouping, since checkboxes carry no such
+  HTML requirement. A checkbox now checks its own closest `<fieldset>`
+  for a `<legend>` — the one signal actually observed live, deliberately
+  not the full radio-group machinery (aria-labelledby-on-fieldset,
+  direct-child-label, `ownWrapOrAriaMatches`, `groupCommonAncestorCaption`)
+  since those were each hard-won for a specific confirmed *radio* shape.
+  A new field name, not a reuse of `radioGroup`/`radioGroupLabel` —
+  those carry real, load-bearing single-choice-fill semantics elsewhere
+  that a genuinely multi-select checkbox group must never be mistaken
+  for.
+- **`.crc-form-row` ancestor lookup** (v3.304.0) — the deepest find of
+  this wave: an entire real application (Zoho Recruit) came back 18 of
+  20 fields either generic-placeholder-labeled or honestly unlabeled,
+  because its own web-component form builder nests several custom-
+  element layers between an input and its real caption — past the
+  existing 2-hop ancestor climb's deliberately narrow reach. Traced with
+  Playwright's own text locator (a raw DOM `textContent` search came back
+  empty; whitespace/normalization differences made the literal match
+  fail even though the real `<label>` element was sitting right there).
+  A first, narrower attempt keyed the fix to a predictable
+  `label id="crc-label-{fieldName}"` / `input name="{fieldName}"`
+  pairing — correct on 8 of 9 fields, but several real fields here
+  (every search-typeahead combobox: City, State, the phone country-code
+  picker) share one generic, non-unique id with no `name` at all,
+  unreachable by that pairing. Replaced with the more general signal
+  Zoho's own form builder actually guarantees: every field, named or
+  not, sits inside one `.crc-form-row` container holding exactly one
+  real `<label>` — `el.closest(".crc-form-row")?.querySelector("label")`
+  — which correctly reaches all 20 fields, including two legitimately
+  different widgets (a phone country-code picker and its own number
+  field) that correctly share one row's single "Mobile" label.
+
+Also directly verified in this same pass, no fix needed: the cross-
+frame extraction mechanism (v3.294.0) against two genuine cross-origin-
+iframe application forms in production (Comeet's own ATS, both under
+`comeet.com` directly and white-labeled under a company's own domain,
+`upwind.io`) — both correctly self-reported 11-12 real, fully-labeled
+fields including a real radio group and a custom free-text question,
+the first live confirmation of this mechanism against a real third-
+party site since it shipped. Two real, distinct identity-provider gates
+were also found and correctly characterized as platform behavior, not
+extension gaps: UKG requires signing into its own Auth0-backed
+candidate portal before an application form is reachable at all, and Y
+Combinator's own "Work at a Startup" apply flow requires the same —
+both correctly extract the one real field present on whichever pre-
+auth page a candidate actually lands on.
+
+Every fix in this wave was regression-checked, after each individual
+change, against every other real site already verified earlier in the
+same pass (not just the site that surfaced the bug) — each held its
+exact prior field count with zero new gaps introduced.
