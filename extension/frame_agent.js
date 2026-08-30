@@ -110,6 +110,24 @@
     return /^label$/i.test(s);
   }
 
+  // v3.301.0 -- a real, live bug found on careers.hireology.com: a select
+  // wired with technically-correct <label for="..."> semantics whose own
+  // text is just the UI's floating-placeholder chrome ("Select"), not any
+  // real question -- the actual caption ("Do you have a legal right to
+  // work for any employer in the United States?") sits two levels up as
+  // a sibling <p class="...fieldset__component-title">, which labelFor's
+  // own ancestor-climb fallback would have found correctly if the
+  // label[for] branch hadn't already returned first and stopped looking.
+  // Unlike GENERIC_PLACEHOLDER (used for el.placeholder, a startsWith
+  // check -- correct there, since a real caption legitimately CAN open
+  // with "Select..."), this has to anchor both ends: a label[[for]]
+  // element exists specifically to BE the caption, so only reject it
+  // when its entire text is nothing but the bare placeholder word itself.
+  const BARE_GENERIC_LABEL = /^(select|choose|search|type here|start typing)[.:…]*$/i;
+  function isBareGenericLabel(s) {
+    return BARE_GENERIC_LABEL.test(s.trim());
+  }
+
   // v3.298.0 -- shared by labelFor's aria-labelledby check and, below, the
   // native-radio group-label lookup's own aria-labelledby check on an
   // ancestor fieldset -- resolves an aria-labelledby id list to the real,
@@ -215,7 +233,7 @@
       // comment; a label[for] can wrap the same kind of hidden
       // multi-state status text a wrapping <label> can.
       const byForText = byFor ? visibleText(byFor).trim() : "";
-      if (byForText) return byForText;
+      if (byForText && !isBareGenericLabel(byForText)) return byForText;
     }
     const aria = el.getAttribute("aria-label");
     if (aria && aria.trim() && !isPlaceholderAriaLabel(aria.trim())) return aria.trim();
@@ -294,6 +312,19 @@
       if (node.nodeType !== 1) return true;
       if (node.tagName === "SVG") return true;
       if (isInteractiveNonLabelNode(node)) return false;
+      // v3.301.0 -- a real, live bug found on careers.hireology.com,
+      // the other half of the same fix as isBareGenericLabel(): a
+      // floating <label for="..."> sibling whose entire text is just
+      // the select's own UI-chrome placeholder ("Select") is real,
+      // non-decorative DOM content by every other measure here (it has
+      // real, visible text) -- but it isn't meaningful CONTENT for the
+      // purposes of "does this container already hold a different
+      // field's real caption," which is the one question this climb is
+      // actually trying to answer. Left uncaught, this exact sibling
+      // stopped the climb one hop before it ever reached the real
+      // caption ("Do you have a legal right to work...") sitting as a
+      // sibling of this container's own parent.
+      if (node.tagName === "LABEL" && isBareGenericLabel(visibleText(node))) return true;
       return !visibleText(node).trim();
     }
     let anc = el;
