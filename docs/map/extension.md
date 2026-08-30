@@ -225,19 +225,163 @@ prompt would be a real prompt-injection surface, directly against this
 whole layer's own founding rule (code decides from sanitized structural
 data, the model only classifies).
 
-**Not yet done, disclosed rather than assumed**: the cron registration
-itself (`cron.schedule(...)` calling `form-intel-retrain` via
-`net.http_post`, matching `job-board-sync`/`error-alert-check`'s own
-live registration) has to be run directly against the production
-Postgres instance — per this app's own established convention, cron
-registration for scheduled functions is done live via psql, never
-tracked in a migration file, and this pass had no live VPS access to
-run it. The migration adding the new columns/table/function
-(`20260830040000_form_widget_patterns_flag_and_retrain.sql`) and the
-new `resume-hub` action and edge function are both written and ready,
-but none of it has been deployed or live-verified against the real
-production database in this pass — flagged here plainly, not claimed
-as done.
+**Deployed and live-verified.** The migration
+(`20260830040000_form_widget_patterns_flag_and_retrain.sql`),
+`auto_apply_flag_widget`, and `form-intel-retrain` were all applied and
+deployed for real against production; `form-intel-retrain` is
+cron-registered live (`0 6 */3 * *`, `net.http_post` with the real anon
+key as bearer, the same pattern `job-board-sync`/`error-alert-check`
+already use — registered directly via psql, never tracked in a
+migration, matching this app's own standing convention). A real seeded
+row was walked through `increment_widget_pattern_flag` twice to confirm
+the threshold behavior (one flag: still `needs_review=false`; a second,
+distinct flag on the same hash: `needs_review` flips true, matching
+`REVIEW_THRESHOLD=2`), then through a real `form-intel-retrain` run to
+confirm it picks up a `needs_review=true` row and re-classifies it —
+all synthetic rows deleted after.
+
+**A real, previously-shipped data-loss bug found during this
+verification, not assumed from reading the code.** Every write to
+`form_widget_patterns` in `classifyWidgets()` (both the "obviously not a
+question" upsert and the AI-classified upsert) was fire-and-forget —
+`.then(() => {}, () => {})` with no `await` — on the theory that a cache
+write shouldn't block the response. Re-testing `form-intel-retrain`
+against a seeded row repeatedly showed the classification changing
+correctly in the function's own response but the database row not
+reflecting it. Root-caused to the Supabase Edge Runtime's own isolate
+lifecycle: nothing guarantees an un-awaited promise gets to finish once
+the HTTP response has already gone out — the runtime is free to recycle
+the isolate the moment the response is sent, silently killing the write
+mid-flight. Fixed by awaiting both upserts (wrapped in try/catch so a
+write failure still can't fail the caller's real response, just logs).
+Re-verified live afterward: the identical retrain re-classification now
+correctly lands in the database every time. The one already-fire-and-
+forget call this pass deliberately left alone is the freshness-only
+`last_seen_at` bump on a cache hit — losing that occasional touch is a
+real, accepted, low-severity gap, not the correctness-critical path.
+
+### Real, per-site domain provenance ("label each website with its own knowledge")
+
+Asked directly, after several rounds of live fixes across many
+different real sites, to make sure AYN doesn't "get confused" as more
+sites are folded in, and to track which real site taught it which
+pattern. The cache stays deliberately keyed by structural shape alone —
+domain-keying would throw away the entire point of this layer (one real
+Ashby classification already covers every Ashby-hosted company; a
+domain-keyed cache would mean paying for the identical classification
+once per company, forever, exactly the "go back and forth" this system
+exists to end). What's genuinely worth having instead: real visibility
+into which domains have actually contributed to and benefited from a
+given pattern.
+
+New `form_widget_patterns.sample_domains` (`text[]`, default `{}`), and
+`record_widget_domain(p_hash, p_domain, p_max=20)` — a
+`SECURITY DEFINER` SQL function doing an atomic, concurrency-safe
+dedup+cap append (`update ... where not (p_domain = any(sample_domains))
+and cardinality(sample_domains) < p_max`), the same reason
+`increment_widget_pattern_flag` exists rather than a plain JS
+read-then-write: two real classify calls for the same widget shape
+landing near-simultaneously (a popular ATS platform, several real users
+hitting it together) must not lose one caller's own domain to a race. A
+first draft of this function sorted the array before capping at
+`p_max` — caught and fixed before ever using it, since that would have
+silently and permanently excluded any domain that happened to sort
+after the cutoff; the real fix is a plain length check before append,
+no ordering at all.
+
+`content.js` now sends `pageHostname: location.hostname` on every
+`auto_apply_classify_widgets` call; `classifyWidgets()` (both
+`resume-hub`'s own implementation and `form-intel-bridge`'s separate
+one) takes it as an optional third argument, capped to 200 characters
+before it ever reaches a database write, and calls `record_widget_domain`
+best-effort (never awaited, same reasoning as the `last_seen_at` bump)
+on every result — cache hit and fresh classification alike.
+
+Fixing `form-intel-bridge`'s own domain support surfaced a second, real,
+separate gap in that implementation, closed in the same pass: its own
+upserts never stored `signature`/`needs_review`/`flagged_count` at all
+(only `resume-hub`'s own `classifyWidgets` did), meaning any widget
+shape first classified through `job-checker` had zero retrain-loop
+coverage — a permanently un-replayable row, regardless of how many
+times it was later flagged. Fixed by adding the same three fields to
+both of its upsert blocks, and it picked up the identical
+`needs_review` forced-miss cache check and the fire-and-forget-to-
+awaited upsert fix in the same pass, since both bugs were structurally
+identical to `resume-hub`'s own copy — this file's own header already
+says the duplication is deliberate, not shared, so a bug found in one
+implementation has to be checked for and fixed in the other by hand,
+not inherited automatically.
+
+Verified live against the real deployed functions with a real
+throwaway account: a first `auto_apply_classify_widgets` call for a
+synthetic toggle-button-group shape correctly created a new row with
+`sample_domains: {first-domain}`; a second call for the identical shape
+from a different `pageHostname` correctly hit the cache
+(`fromCache:true`) and still appended the second domain
+(`sample_domains: {first-domain, second-domain}`), confirming both the
+cache-miss/upsert path and the cache-hit path call `record_widget_domain`
+correctly. A separate `form-intel-bridge` call (service-role
+authenticated) confirmed its own new row was written with a real,
+non-null `signature` for the first time. All verification rows and the
+throwaway account deleted after.
+
+### Wave-2 extraction/labeling fixes, found training against real sites
+
+A further round of the same real, persistent-Playwright-profile
+training sweep against real, live ATS sites (Mytos/Lever, ENFOS/
+Workable, Personio, Ashby/Linear, Breezy HR/Otto Engineering) —
+`frame_agent.js` throughout, all confirmed via `node --check` and
+`node scripts/check-wiring.mjs` after every edit:
+
+- Decorative `aria-hidden="true"` SVGs bleeding their own fallback
+  `<desc>` text into a field's resolved label — `visibleText()` now
+  skips an `aria-hidden` subtree entirely, and `isDecorativeChild()`
+  lets `labelFor()`'s bounded sole-child ancestor climb tolerate a
+  decorative sibling instead of stopping short.
+- A generic, non-descriptive `aria-label` value (the literal word
+  `"label"`, a real placeholder some form builders emit) previously
+  read as if it were real — `isPlaceholderAriaLabel()` filters it out
+  so the resolver keeps looking instead of trusting it.
+- `aria-labelledby` pointing at more than one id, or an id that itself
+  needs further resolution — `resolveLabelledBy(idList)` walks the
+  full list instead of only ever reading the first id.
+- A radio group's real caption living in shapes with no `<legend>` at
+  all: a `<label>` that's a direct child of the `<fieldset>` (not
+  wrapping it), a fieldset's own `aria-label`/`aria-labelledby`, or no
+  fieldset at all (a bare `<h3>`/heading plus a `<ul>` of options) —
+  the native-radio group-label IIFE now checks fieldset
+  `aria-label`/`aria-labelledby` before `legend`, checks a direct-child
+  `<label>`, and as a last resort calls the new
+  `groupCommonAncestorCaption(name)`, which finds the true DOM common
+  ancestor of every same-named radio via `document.getElementsByName`
+  and checks that ancestor's own previous sibling for a real caption.
+- The "just my own answer, not a real group caption" guard was too
+  narrow — `ownWrapOrAriaMatches(el, own)` now also treats a
+  `label[for=el.id]` that matches the option's own text as the same
+  false-positive shape a wrapping `<label>` already was, so it doesn't
+  get mistaken for the group's real caption.
+- A real, timing-dependent duplicate-registration bug on Ashby's own
+  `role="radiogroup"` scan — an option already registered by the native
+  `<input type=radio>` scan could get registered a second time by the
+  role-based scan before the DOM state the dedup relied on had
+  stabilized. Fixed with an explicit `registeredBeforeRadiogroups`
+  dedup check.
+- File-input trigger lookup now also tries `nearbyUploadTrigger(el)`
+  for a real upload button sitting near, not necessarily wrapping, the
+  file input.
+- Multi-step wizards that advance via a client-side route change
+  (`location.href` changes with no full page reload) rather than
+  revealing new fields on the same page — `watchForNewFields(session)`
+  now also detects `location.href !== startUrl` inside its existing
+  debounced MutationObserver callback, and `content.js`'s own notice UI
+  branches its copy/button label on whether this was a same-page reveal
+  or a real step transition ("This looks like a new step in the
+  application.").
+
+Extension version bumped `1.9.1` → `1.10.0` to reflect this wave —
+there is no literal build-version string duplicated anywhere else in
+the extension source to keep in sync, `manifest.json`'s own `version`
+field is the single source.
 
 ## Cross-frame support (v3.294.0)
 
