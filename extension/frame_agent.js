@@ -106,10 +106,6 @@
   // never second-guessed. Shared by labelFor and candidateNearbyText,
   // both of which trust a raw aria-label as their own first, strongest
   // signal.
-  function isPlaceholderAriaLabel(s) {
-    return /^label$/i.test(s);
-  }
-
   // v3.301.0 -- a real, live bug found on careers.hireology.com: a select
   // wired with technically-correct <label for="..."> semantics whose own
   // text is just the UI's floating-placeholder chrome ("Select"), not any
@@ -123,9 +119,39 @@
   // with "Select..."), this has to anchor both ends: a label[[for]]
   // element exists specifically to BE the caption, so only reject it
   // when its entire text is nothing but the bare placeholder word itself.
-  const BARE_GENERIC_LABEL = /^(select|choose|search|type here|start typing)[.:…]*$/i;
+  // v3.303.0 -- textbox/combobox/listbox added: a second, real, live find
+  // on the same ats.rippling.com page as the isPlaceholderAriaLabel fix
+  // right below -- a real "Location" field carried aria-label="textbox",
+  // the bare ARIA role name itself standing in for a real accessible
+  // name (its own aria-labelledby, "Location", correctly took over once
+  // this was added to the list). The same class of library-level
+  // fallback as "Select"/"Search" -- a component defaulting its
+  // accessible name to something generic rather than leaving it unset --
+  // just drawing from ARIA role vocabulary instead of UI-chrome text.
+  const BARE_GENERIC_LABEL = /^(select|choose|search|type here|start typing|textbox|combobox|listbox)[.:…]*$/i;
   function isBareGenericLabel(s) {
     return BARE_GENERIC_LABEL.test(s.trim());
+  }
+
+  function isPlaceholderAriaLabel(s) {
+    // v3.303.0 -- a real, live bug found on ats.rippling.com: three real
+    // EEO/demographic questions (Pronouns, Gender, "Please identify your
+    // race") each used a react-select-style combobox carrying BOTH a
+    // real aria-labelledby (pointing at the real question, confirmed by
+    // reading the referenced element directly) AND a generic aria-label
+    // ("Search" / "Select..." -- the widget's own placeholder text,
+    // duplicated onto aria-label the same way many select libraries do
+    // for a baseline accessible name before anything is chosen). Only
+    // the literal word "label" was ever treated as a non-answer here
+    // before this fix, so "Search"/"Select..." sailed through as if
+    // they were the real question, and aria-labelledby -- sitting right
+    // there with the actual real text -- was never even reached.
+    // Reuses the identical generic-word list isBareGenericLabel already
+    // proved out for the same class of problem on a label[for] element;
+    // the semantics are the same either way -- a bare UI-chrome word
+    // standing in for a real caption, regardless of which attribute
+    // carried it.
+    return /^label$/i.test(s) || isBareGenericLabel(s);
   }
 
   // v3.298.0 -- shared by labelFor's aria-labelledby check and, below, the
