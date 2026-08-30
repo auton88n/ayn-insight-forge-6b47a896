@@ -136,9 +136,23 @@ const KNOWN_QUESTIONS: QuestionType[] = [
     slug: "desired_salary",
     keywords: /desired salary|salary expectation|expected (compensation|salary|pay)|compensation expectation/i,
     examples: ["What is your desired salary?", "What are your salary expectations?"],
-    resolve: (c) => {
+    resolve: (c, label) => {
       const p = c.preferences;
       if (p.salary_min_usd == null) return null;
+      // v3.305.0 -- a real, live bug found live: "What is your desired
+      // hourly rate?" matched this resolver via the embedding fallback
+      // (semantically close enough to "salary expectations" to clear
+      // 0.72 similarity) and answered with the stored ANNUAL figure
+      // verbatim -- a real, visibly wrong-scale number ("$100,000/hr")
+      // that would have looked absurd or actively misleading on a real
+      // application. salary_min_usd has never been anything but an
+      // annual figure (there is no separate stored hourly-rate
+      // preference anywhere in the schema), so an hourly-phrased
+      // question has no real fact to answer it with -- declines rather
+      // than silently dividing/guessing at a conversion this app has no
+      // real basis for (an assumed hours/week is itself an invented
+      // fact, exactly what this whole file exists to never do).
+      if (/hourly|per hour|\/\s*hr\b/i.test(label || "")) return null;
       const currency = p.salary_currency || "USD";
       return `$${p.salary_min_usd.toLocaleString()} ${currency}`.trim();
     },
@@ -203,7 +217,23 @@ const KNOWN_QUESTIONS: QuestionType[] = [
     slug: "highest_education",
     keywords: /highest level of education|education level|highest degree/i,
     examples: ["What is the highest level of education you have completed?"],
-    resolve: (c) => c.derived.education_level || null,
+    // v3.305.0 -- a real, live gap found in the same batch of testing as
+    // work_authorized_plain: derived.education_level is an AI-populated
+    // summary field, only ever set by the canonical-profile extraction
+    // pipeline -- a real, correctly-shaped profile that reached this
+    // table any other way (this session's own direct seed included) can
+    // have a real, complete education array on file and still answer
+    // null here, purely because that one derived summary was never
+    // computed. Falls back to the real education array's own first
+    // entry, verbatim, never invented -- a genuine, honest limitation
+    // disclosed rather than assumed away: nothing in Profile's own
+    // education form enforces most-recent-first ordering, so this is a
+    // real degree the person actually holds, not necessarily their
+    // HIGHEST one, if they have more than one on file in a different
+    // order. Still strictly better than a blanket null for the common
+    // one-degree case, and never wrong in the sense of inventing
+    // something that isn't real.
+    resolve: (c) => c.derived.education_level || c.education[0]?.degree || null,
   },
   // v3.284.0 -- asked directly, "add all questions to the profile" --
   // six more resolvers matching the six new Profile screening questions,
