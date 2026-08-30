@@ -261,6 +261,37 @@
       const byForText = byFor ? visibleText(byFor).trim() : "";
       if (byForText && !isBareGenericLabel(byForText)) return byForText;
     }
+    // v3.304.0 -- a real, live gap found on a real Zoho Recruit
+    // application (smsicorp.zohorecruit.com): every field on the form
+    // -- First Name, Email, Last Name, Mobile, Street, Country,
+    // LinkedIn, Facebook, City, State, Zip, plus every combobox widget
+    // -- came back honestly unlabeled, none of them reachable by any of
+    // labelFor's existing signals. No id on most of these inputs, no
+    // wrapping label, no aria-label, no aria-labelledby, and the real
+    // caption sits far enough up the DOM (a Zoho web-component form
+    // builder nests several custom-element layers deep) that no sibling
+    // walk or the existing 2-hop ancestor climb below could ever reach
+    // it. But a real <label> DOES exist for every one of these fields,
+    // confirmed live, sitting inside the one stable structural container
+    // Zoho's whole form builder wraps every field in regardless of
+    // widget type: <div class="crc-form-row ..."><label>Real
+    // Question</label>...(the actual input/select/combobox, however
+    // deeply nested)...</div>. First tried a narrower fix keyed on a
+    // predictable id/name pairing (label id="crc-label-{fieldName}"
+    // beside input name="{fieldName}") -- correct where it applied, but
+    // several real fields here (every search-typeahead-style combobox:
+    // City, State, the phone country-code picker) share one generic,
+    // even non-unique, id/no-name at all, so that pairing could never
+    // reach them. The row container reaches every field regardless,
+    // named or not, confirmed correct against all of them, including
+    // two different inputs legitimately sharing one row's single label
+    // (the Mobile row's own country-code search box and its phone
+    // number field both correctly resolve to "Mobile", the one real
+    // question governing both halves of that one combined widget).
+    const crcRow = el.closest(".crc-form-row");
+    const crcRowLabel = crcRow ? crcRow.querySelector("label") : null;
+    const crcRowLabelText = crcRowLabel ? visibleText(crcRowLabel).trim() : "";
+    if (crcRowLabelText && !isBareGenericLabel(crcRowLabelText)) return crcRowLabelText;
     const aria = el.getAttribute("aria-label");
     if (aria && aria.trim() && !isPlaceholderAriaLabel(aria.trim())) return aria.trim();
     const labelledBy = el.getAttribute("aria-labelledby");
