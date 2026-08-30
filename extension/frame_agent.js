@@ -182,6 +182,32 @@
     return "";
   }
 
+  // v3.301.0 -- deliberately NOT siblingText(): a real consent-checkbox
+  // caption almost always contains one or two inline document links
+  // ("...terms and conditions & privacy policy", both real <a> tags) as
+  // a completely normal part of the real caption text, not a sign this
+  // sibling is actually some OTHER control's own label. siblingText's
+  // own isInteractiveNonLabelNode check disqualifies any node with an
+  // anchor anywhere inside it (a querySelector, not a self-only match),
+  // which is exactly right for its other callers but wrong for this one
+  // -- it would reject essentially every real consent checkbox's real
+  // caption. This only rejects a sibling that IS ITSELF an interactive
+  // element (a button, a second input, an actual link used as the whole
+  // sibling), not one that merely contains an interactive descendant.
+  function consentCaptionAfter(node, hops) {
+    let n = node, h = 0;
+    while (n && h < hops) {
+      if (n.nodeType === 1 && ["BUTTON", "INPUT", "SELECT", "TEXTAREA", "NAV"].includes(n.tagName)) {
+        h++; n = n.nextSibling; continue;
+      }
+      const t = ((n.nodeType === 3 ? n.textContent : visibleText(n)) || "").trim();
+      if (t && t.length < 600) return t;
+      if (n.nodeType !== 3 || t) h++;
+      n = n.nextSibling;
+    }
+    return "";
+  }
+
   function labelFor(el) {
     if (el.id) {
       const byFor = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
@@ -213,6 +239,20 @@
     if (wrappingLabelText) return wrappingLabelText;
     const direct = siblingText(el.previousSibling, 3);
     if (direct) return direct;
+    // v3.301.0 -- a checkbox/radio's own real caption commonly FOLLOWS
+    // it in the markup, not precedes it -- found live on a genuinely new
+    // ATS platform (careers-page.com): "<input type=checkbox> <span>I
+    // agree to the terms and conditions & privacy policy</span>", no id,
+    // no for, no wrapping label, no aria-label at all. A text input's
+    // trailing sibling is almost never its own label (far more likely
+    // to be help text or an unrelated adjacent element), which is why
+    // this stays scoped to checkbox/radio specifically -- the one
+    // control shape where "caption comes after" is itself the common,
+    // expected pattern, not an edge case.
+    if (el.type === "checkbox" || el.type === "radio") {
+      const after = consentCaptionAfter(el.nextSibling, 3);
+      if (after) return after;
+    }
     // v3.280.0 -- an ancestor-climbing fallback was tried here for deeply
     // nested combobox widgets (react-select and similar, common on
     // Ashby), and caught by testing it directly against a real DOM before
