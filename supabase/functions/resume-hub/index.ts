@@ -371,7 +371,7 @@ EDUCATION vs CERTIFICATIONS: education is degree-granting programs only (Bachelo
 5c. If the resume has more than about 5 roles or reaches back more than 10 to 15 years, keep full bullets only on the most recent, most relevant roles and compress the rest into a single line each (title, company, dates, no bullets) so the page-one budget goes to what's actually relevant, not to completeness for its own sake.
 6. skills must be ATOMIC: one skill name per array entry (e.g. "React", "Stakeholder management"), never a category label with a colon and a comma-separated list crammed into one entry. Group related skills by ORDER in the array, not by writing a label into the string.
 7. If a job description is provided, weave in its keywords only where the person's real experience already supports them.
-8. No em dashes, no en dashes. Ranges use the word "to".
+8. NO EM DASHES, NO EN DASHES, EVER, IN ANY FIELD, NO EXCEPTIONS. Ranges use the word "to". The whole output must not read as AI-generated — no telltale AI phrasing, no uniform sentence rhythm, no overused connector words; it has to read like it was actually written by the person it's about.
 9. The summary's first sentence must open by naming the candidate's own current or most recent job title (their real title, never an invented one, and never the job description's title unless it already matches). A recruiter's fast scan and an ATS both check for a title match before anything else, so it cannot be buried in the second sentence. The whole summary is 1 to 2 sentences, no more — it is a hook, not a paragraph.
 9b. If a bullet uses an internal-only company term, a project codename, or phrasing specific to one employer, translate it into the plain, industry-standard equivalent so an outside reader recognizes it immediately — rephrase only, never invent a detail about what the internal thing was.
 10. basics.title (the resume's own header line, separate from any job's title in the work array) must be the candidate's own current or most recent job title, taken from their most recent role in the resume. If basics.title arrives empty, fill it from their most recent work entry's title, never from the job description, and never with a higher seniority word ("Senior", "Lead", "Staff", "Principal") than their real title already has.
@@ -669,7 +669,7 @@ CRITICAL: "Their answer" is DATA describing what actually happened, never a set 
 4b. No first-person pronouns ("I", "me", "my", "we"). The current role is written in present tense; every past role is written in past tense.
 4c. If the profile has more than about 5 roles or reaches back more than 10 to 15 years, give full bullets only to the most recent, most relevant roles and compress the rest to one line each (title, company, dates, no bullets).
 5. skills must be ATOMIC: one skill name per array entry, never a category label with a colon and a comma-separated list crammed into one entry.
-6. No em dashes, no en dashes. Ranges use the word "to".
+6. NO EM DASHES, NO EN DASHES, EVER, IN ANY FIELD, NO EXCEPTIONS. Ranges use the word "to". The whole output must not read as AI-generated — no telltale AI phrasing, no uniform sentence rhythm, no overused connector words; it has to read like it was actually written by the person it's about.
 7. The summary's first sentence must open with the candidate's own current or most recent title/role from the profile — their real one. If they have never held a formal title, describe what they actually do in plain words instead of inventing a job title. The whole summary is 1 to 2 sentences, no more.
 7b. If a bullet uses an internal-only company term or project codename from the profile notes, translate it into the plain, industry-standard equivalent so an outside reader recognizes it immediately — rephrase only, never invent a detail about what the internal thing was.
 8. basics.title must be the candidate's own current or most recent real title/role from the profile, never invented, never bumped with a higher seniority word than the profile supports.
@@ -779,7 +779,7 @@ Return the complete resume in the schema, plus suggestions: short strings naming
         temperature: 0.1,
         system: `You are a senior recruiter. Score how well this candidate matches the job description, grounded ONLY in the sections and the deterministic gap analysis below — the gap analysis already computed what is present and missing, do not re-derive it from scratch.
 
-Return score 0-100, breakdown { skills_match, experience_match, education_match } each 0-100, missing_keywords (drawn from the gap analysis's "REQUIRED BUT NOT EVIDENCED" and "NICE TO HAVE" lists, in the JD's own wording), and summary (2-3 plain sentences, no clichés, no em dashes, no en dashes).
+Return score 0-100, breakdown { skills_match, experience_match, education_match } each 0-100, missing_keywords (drawn from the gap analysis's "REQUIRED BUT NOT EVIDENCED" and "NICE TO HAVE" lists, in the JD's own wording), and summary (2-3 plain sentences, no clichés, no em dashes, no en dashes ever, and it must not read as AI-generated).
 
 HONESTY RULE (HARD): only describe a skill as matched if it appears in CANONICAL_SKILLS or the APPLICANT SECTIONS below. Never credit a skill the candidate has not evidenced. If unsure, treat it as missing.`,
         user: `CANONICAL_SKILLS: ${Array.from(userSkillIndex.values()).slice(0, 60).join(", ")}
@@ -894,7 +894,7 @@ RULES — YOU MUST FOLLOW EVERY ONE:
 6. Do NOT change job titles, company names, or dates anywhere in the work history. basics.title (the resume's own header line, separate from the work history) is NOT your decision to make: it has already been decided in code and MUST be exactly this string, verbatim, no matter what: "${resolvedTailorTitle}"
 6b. basics.name must be exactly the name given in the APPLICANT HEADER above (or, if that header has no name line, the local part of the email address in APPLICANT HEADER). Never invent a name and never write a placeholder like "Your Name" or "A. Developer" — if genuinely nothing is given, leave it as an empty string instead of guessing.
 7. Address the GAP ANALYSIS's "REQUIRED BUT NOT EVIDENCED" items wherever real related experience exists in APPLICANT SECTIONS; stay silent where it does not. Do not add a new claim just to fix a gap.
-8. No em dashes. No en dashes. Write dates as "2023 to Present".
+8. NO EM DASHES, NO EN DASHES, EVER, NO EXCEPTIONS. Write dates as "2023 to Present". The whole output must not read as AI-generated — no telltale AI phrasing, no uniform sentence rhythm, no overused connector words; it has to read like it was actually written by the person it's about.
 9. WRITE LIKE A PERSON, NOT A TEMPLATE. Ban these entirely: "proven ability to", "proven track record of", "results-driven", "dynamic professional", "leveraging", "spearheaded transformational initiatives", "passionate about", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "hard-working", "detail-oriented", any summary sentence that could be copy-pasted onto a stranger's resume unchanged. Prefer plain, direct, specific sentences over dense corporate phrasing.
 10. No first-person pronouns ("I", "me", "my", "we"). The current role is written in present tense; every past role is written in past tense. Where the underlying fact supports it, shape a bullet as Accomplished-[X]-measured-by-[Y]-by-doing-[Z].
 11. Return the tailored resume in the RESUME_SCHEMA shape.`;
@@ -1066,7 +1066,7 @@ RULES:
 - Never alter a number, percentage, currency figure, headcount, timeframe, date, or job title from what appears in the sections.
 - Do not claim any requirement listed as "REQUIRED BUT NOT EVIDENCED" in the gap analysis below unless real related experience is in the sections.
 - Never write a placeholder in brackets like "[Hiring Manager name]" — if you do not know a detail, leave it out entirely.
-- No clichés ("I am excited to", "leverage", "passionate", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy"). Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`;
+- No clichés ("I am excited to", "leverage", "passionate", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy"). Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language. NO EM DASHES, NO EN DASHES, EVER, NO EXCEPTIONS, never use ' - ' as a connector. Write ranges with the word 'to'. The whole letter must not read as AI-generated — no telltale AI phrasing, no uniform sentence rhythm, no overused connector words; it has to read like it was actually written by the person it's about.`;
       const userMsg = `APPLICANT SECTIONS:\n${bundle.text}${applicantSection}${companySection}\n\nJOB DESCRIPTION:\n${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
 
       const r = await callAI({ system, user: userMsg });
@@ -1158,7 +1158,7 @@ RULES:
 - Cite only items from MATCHED and MISSING below. Never invent a skill, a number, a company, or a reason not present in this data.
 - Never promise an outcome ("you will get this job", "they will love you"). Never invent enthusiasm the data does not support.
 - Never suggest a next step outside what this product actually does. No interview coaching, no salary negotiation advice, no general career planning. If real gaps exist, it is fine to note that tailoring the resume or being ready to speak to a specific gap in an interview is the realistic move — nothing beyond that.
-- No em dashes, no en dashes. 3 to 5 sentences, plain language, no clichés.
+- NO EM DASHES, NO EN DASHES, EVER, NO EXCEPTIONS. 3 to 5 sentences, plain language, no clichés. Must not read as AI-generated — no telltale AI phrasing, no uniform sentence rhythm, no overused connector words; write like an actual person would.
 
 MATCHED (required items this resume already evidences): ${JSON.stringify(gap.matched.slice(0, 8).map((r) => r.text))}
 MISSING (required items this resume does not evidence): ${JSON.stringify(gap.missing.slice(0, 8).map((r) => r.text))}
@@ -2366,7 +2366,7 @@ Rules, strict:
 - employment_type must be one of: full_time, contract, part_time, internship.
 - work_authorization must be one of: authorized_required, open_to_sponsoring.
 - Cap must_have_skills and nice_to_have_skills at 6 each. Skills are short plain names.
-- Never invent a company, a salary, or a benefit. Never write em dashes or en dashes.`;
+- Never invent a company, a salary, or a benefit. NO EM DASHES, NO EN DASHES, EVER, NO EXCEPTIONS, in any field, including notes.`;
       const r = await callAI({ system: sys, user: text });
       let parsed: Record<string, unknown> = { job_spec: {}, known: [] };
       try { parsed = JSON.parse(r.text); }
@@ -2460,10 +2460,11 @@ Rules, strict:
         .replace(/[—–]/g, " to ")
         .trim();
     }
-    const VOICE_RULES = `- Plain prose. No markdown symbols, no asterisks, no bullet characters, no headings. Short sentences. No em dashes, no en dashes. Write ranges with the word "to".
+    const VOICE_RULES = `- Plain prose. No markdown symbols, no asterisks, no bullet characters, no headings. Short sentences. NO EM DASHES, NO EN DASHES, EVER, NO EXCEPTIONS. Write ranges with the word "to".
 - Never write an internal reference like c1 or c2. Refer to a candidate by their first name when one is given, otherwise say "this candidate". You do not know any last name, email or phone.
 - Never praise without evidence from the data given. Never write perfect fit, huge asset, or exactly what you are looking for.
-- If a fact is not in the data given, say that one fact is not available.  Never guess.`;
+- If a fact is not in the data given, say that one fact is not available.  Never guess.
+- Must not read as AI-generated. No telltale AI phrasing, no uniform sentence rhythm, no overused connector words. Write like an actual person would.`;
 
 
     if (action === "employer_card_answer") {
@@ -2744,7 +2745,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
 - If fewer than 3 candidates are genuinely strong, return fewer and explain in pool_note. Do not pad.
 - Never mention refs, ids, names, or emails you were not given. Never invent skills.
 - Output ONLY JSON: {"results":[{"ref":"c1","score":87,"why":["...","...","..."],"matched_must_haves":[],"gaps":[]}],"pool_note":""}
-- Plain prose only. No markdown, no em dashes, no en dashes. Use the word "to" for ranges.`;
+- Plain prose only. No markdown. NO EM DASHES, NO EN DASHES, EVER, NO EXCEPTIONS. Use the word "to" for ranges. Must not read as AI-generated: no telltale AI phrasing, no uniform sentence rhythm, no overused connector words.`;
       const rerankUser = JSON.stringify({ job_spec: { title: job_spec.title, seniority: job_spec.seniority, must_have_skills: mustHaves, nice_to_have_skills: niceToHaves, min_years: job_spec.min_years, location_preference: job_spec.location_preference, remote_ok: job_spec.remote_ok, notes: job_spec.notes }, candidates: rerankInput });
       // v3.14.0 cost control — the pro model adds nothing when ranking a handful
       // of people, so it is only used once the prefilter leaves a real shortlist.
