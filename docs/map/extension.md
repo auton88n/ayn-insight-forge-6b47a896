@@ -626,3 +626,82 @@ Every fix in this wave was regression-checked, after each individual
 change, against every other real site already verified earlier in the
 same pass (not just the site that surfaced the bug) — each held its
 exact prior field count with zero new gaps introduced.
+
+## The other half of "smart" — application_answer_match (v3.265.0, extended v3.305.0)
+
+Everything documented above (the deterministic scanner, Form
+Intelligence's AI classification, the flag-and-retrain loop) answers one
+question: *what kind of control is this field, and how do I operate it*.
+A second, separate system answers a different one: *what real value goes
+into it*, for the specific class of question that isn't safe for a model
+to phrase from scratch — work authorization, salary, licenses, background
+checks — legal/factual questions where an invented-sounding but wrong
+answer is a real problem, not just a UX one.
+
+`supabase/functions/resume-hub/lib/applicationAnswers.ts`
+(`matchApplicationAnswers`, action `application_answer_match`, folded
+into `auto_apply_extract`'s own real result) is a fixed, growing list of
+`KNOWN_QUESTIONS` — each entry a regex covering the common real phrasings
+plus a `resolve()` function reading one already-stored fact off the
+person's own `CanonicalProfile` (`work_auth`, `preferences`,
+`certifications`, `screening_answers`) and returning it verbatim. The
+model is never asked to invent or infer an answer here — every resolver
+either returns a real stored value or `null`, and `null` means the
+person types it themselves. Narrative/open-ended questions ("why do you
+want this role") are deliberately out of this file's scope — those are
+safe for a model to write from real resume facts, this file is only for
+the class of question that isn't. Two passes: cheap keyword regex first
+(covers the vast majority of real phrasings, zero AI cost), then an
+embedding-similarity fallback (`SIMILARITY_THRESHOLD = 0.72`) only for
+whatever the regex pass didn't already resolve.
+
+**A real, significant gap found by testing the actual end-to-end fill
+flow, not just extraction (v3.305.0).** Every other session of live
+testing documented in this file drove `frame_agent.js`'s own extraction
+directly — proving fields get correctly *read and labeled*, never that
+they get correctly *answered*. Testing the real thing instead (a genuine
+throwaway account, a real, correctly-shaped seeded `CanonicalProfile`,
+a real injected session, the actual `autofill()` flow running against a
+real live Trakstar application) found that the single most common real
+screening question on any US/Canada job application — a bare "Are you
+authorized to work in Canada?", no sponsorship clause — had no resolver
+at all. The two existing work-authorization resolvers
+(`work_authorized_no_sponsorship`, `requires_sponsorship`) both
+deliberately require a "without"/"require...sponsorship" clause, kept
+strictly separate on purpose since their own v3.265.0 history already
+documents a real bug from once sharing one regex across the two opposite
+polarities. The embedding fallback correctly, honestly declined too
+(0.588 similarity against its closest known example, below threshold) —
+not a bug in the matching logic, a sponsorship-qualified question really
+isn't the same fact as a bare one. The real bug was upstream: nothing
+covered the plain phrasing at all.
+
+Fixed with a new resolver, `work_authorized_plain`, reading the same
+`work_authorized_ca`/`work_authorized_us` fields the sponsorship
+resolvers already trust, country parsed directly from the real question
+text (falling back to "exactly one of the two fields is on file" when
+neither or both countries are mentioned — a real, safe inference for a
+single-country candidate, never a guess when the underlying fact could
+genuinely differ by country). Deliberately excludes any label mentioning
+sponsorship at all, checked twice — once in the keyword regex itself (a
+negative lookahead), once again unconditionally inside `resolve()`,
+since the lookahead alone only inspects text *after* the country match
+and a real phrasing can put the word before it ("If you require
+sponsorship, are you still authorized to work in Canada in the
+meantime?" — confirmed live as the exact case the lookahead alone would
+have missed).
+
+**What this means for "how much intelligence has AYN actually gathered
+from real testing," asked directly.** Checked the real, live
+`form_widget_patterns` table (the AI-classification cache documented
+above): 7 real patterns total, `sample_domains` empty across the board
+at time of writing — confirming the wave-3 extraction fixes never once
+needed to fall through to AI classification, because every real widget
+shape encountered (checkboxes, radios, native/custom selects, text
+inputs) was already a shape the deterministic scanner recognizes. Real
+job-application forms, as a genre, mostly use conventional controls —
+census-scanned several already-tested sites directly for exotic widget
+signals (sliders, date pickers, star ratings, drag-drop, signature pads)
+and found none live. The real, remaining gap wasn't a missing widget
+*type* — it was this file, the actual answer-matching intelligence,
+which had simply never been exercised end to end before this pass.
