@@ -161,7 +161,9 @@ from one surface is instantly a cache hit on the other.
 **`public.form_widget_patterns`** — `signature_hash` (unique),
 `widget_type`, `interaction_recipe` (jsonb), `confidence` (`'ai'` |
 `'verified'` — never auto-downgraded by one failed attempt),
-`sample_count`, `last_seen_at`. RLS on, zero policies — service-role
+`sample_count`, `last_seen_at`, plus (v3.298.0) `signature` (jsonb, the
+widget's own raw structural shape — see below), `needs_review`,
+`flagged_count`, `last_flagged_at`. RLS on, zero policies — service-role
 only, the same shape as `assessment_rubrics`/`job_cache`: a signed-in
 user can never read or write this directly over PostgREST, only
 `resume-hub`'s own service client, after its own auth/rate-limit gates
@@ -169,6 +171,73 @@ already ran. Free action (rate-limited only, `ACTION_CAPABILITY: "ai"`,
 no credit charge) — a structural-classification utility that makes
 `auto_apply_extract`'s own output more complete, not a distinct paid
 outcome, the same treatment `auto_apply_extract` itself already gets.
+
+### The flag-and-retrain loop (v3.298.0)
+
+Found while doing a real training sweep across many live sites: the
+cache above had no way for a real wrong classification to ever be
+corrected short of an engineer manually clearing the row. Two pieces
+close that.
+
+**Flagging** — `content.js`'s own after-fill results panel shows a
+"Wrong?" button next to every widget this run actually had to classify
+(never for the deterministic layer, which doesn't need this). Clicking
+it calls a new free action, `auto_apply_flag_widget`, with the exact
+same sanitized structural signature the classification itself was made
+from — never a client-supplied hash, `flagWidgetClassification`
+(`resume-hub/lib/formIntelligence.ts`) re-hashes it server side, so a
+flag can only ever land on the widget shape that actually produced it.
+A single flag never wipes a classification out from under every other
+AYN user currently relying on it — a new `REVIEW_THRESHOLD` (2) real,
+separate flags against the same signature hash is what actually forces
+a fresh look, via a new `needs_review` column, atomically incremented
+and threshold-checked in one round trip by a new Postgres function,
+`increment_widget_pattern_flag` (`SECURITY DEFINER`, service-role
+execute only). Every real flag is also logged to a new table,
+`form_widget_pattern_flags` (signature_hash, who, an optional free-text
+note, when) — service-role only, same shape as the pattern table itself.
+
+`classifyWidgets`' own cache read now treats `needs_review = true` as a
+miss even on a hash match, so the very next real encounter of that
+widget shape anywhere re-classifies it fresh instead of repeating the
+same wrong answer forever, and the fresh classification clears
+`needs_review`/`flagged_count` back to zero.
+
+**Retraining without waiting for a live page** — a flagged widget's
+shape might not be encountered live again soon (nobody applying to that
+specific company right now). `signature` (the widget's full sanitized
+structural shape — the same one already proven safe to send an AI, tag/
+role/ariaAttrs/childShape/classHint/nearbyText/optionTexts) is now
+stored on every classification, not just its hash, specifically so a
+flagged row can be re-classified from stored data alone. New edge
+function `form-intel-retrain`, meant to be cron-scheduled every few
+days (see below), pulls up to 40 `needs_review = true` rows with a
+stored signature and re-runs them straight through `classifyWidgets()`
+itself — not a second implementation of the classification logic, the
+literal same function a live page's own extraction calls, so there is
+exactly one place this app ever asks a model to classify a widget
+shape.
+
+A flag's own free-text `note` is deliberately never passed into the AI
+prompt — real, human-readable context for an admin reading the table by
+hand, but feeding arbitrary user-supplied text into a classification
+prompt would be a real prompt-injection surface, directly against this
+whole layer's own founding rule (code decides from sanitized structural
+data, the model only classifies).
+
+**Not yet done, disclosed rather than assumed**: the cron registration
+itself (`cron.schedule(...)` calling `form-intel-retrain` via
+`net.http_post`, matching `job-board-sync`/`error-alert-check`'s own
+live registration) has to be run directly against the production
+Postgres instance — per this app's own established convention, cron
+registration for scheduled functions is done live via psql, never
+tracked in a migration file, and this pass had no live VPS access to
+run it. The migration adding the new columns/table/function
+(`20260830040000_form_widget_patterns_flag_and_retrain.sql`) and the
+new `resume-hub` action and edge function are both written and ready,
+but none of it has been deployed or live-verified against the real
+production database in this pass — flagged here plainly, not claimed
+as done.
 
 ## Cross-frame support (v3.294.0)
 

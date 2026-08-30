@@ -14,7 +14,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 import { loadIdentity, identityContactBlock, type Identity } from "../_shared/identity.ts";
 // v3.290.0 -- Form Intelligence: the shared AI-fallback widget classifier,
 // cached cross-user. See lib/formIntelligence.ts's own header.
-import { classifyWidgets, type WidgetSignature } from "./lib/formIntelligence.ts";
+import { classifyWidgets, flagWidgetClassification, type WidgetSignature } from "./lib/formIntelligence.ts";
 // v3.44.0 — proposal/assessment notification emails. Best effort only:
 // see notifyCandidate/notifyOrg below, neither ever throws into a caller.
 import { wrapEmail, ctaButton, heading, para, escapeHtml, sendBrandedEmail } from "../_shared/emailTemplate.ts";
@@ -1478,6 +1478,27 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       const bounded = widgets.slice(0, 40);
       const classifications = await classifyWidgets(adminCls, bounded);
       return json({ classifications });
+    }
+
+    // v3.298.0 -- the flag half of the same loop: a real person telling
+    // AYN a cached widget classification was wrong. Free, rate-limited
+    // only, matching auto_apply_classify_widgets right above it -- this
+    // is a cheap DB write with no AI call of its own. See
+    // flagWidgetClassification's own header for why a single flag never
+    // wipes a shared classification out from under everyone else relying
+    // on it, and docs/map/extension.md for the full loop this closes.
+    if (action === "auto_apply_flag_widget") {
+      const adminFlag = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminFlag, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminFlag, user.id, action); if (blocked) return blocked; }
+      { const limited = await rateLimitGate(adminFlag, user.id, action, 20, 15); if (limited) return limited; }
+
+      const { signature, note } = payload as { signature?: WidgetSignature; note?: string };
+      if (!signature || typeof signature !== "object" || !signature.tag) {
+        return json({ error: "signature is required" }, 400);
+      }
+      const result = await flagWidgetClassification(adminFlag, user.id, signature, note);
+      return json(result);
     }
 
     // v3.296.0 -- a real diagnostics channel for a genuine live run on a

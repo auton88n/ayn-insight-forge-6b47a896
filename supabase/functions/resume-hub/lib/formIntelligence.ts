@@ -187,7 +187,7 @@ export async function classifyWidgets(
 
   const { data: cached } = await admin
     .from("form_widget_patterns")
-    .select("signature_hash, widget_type, interaction_recipe")
+    .select("signature_hash, widget_type, interaction_recipe, needs_review")
     .in("signature_hash", hashed.map((h) => h.hash));
   const cacheByHash = new Map((cached || []).map((r: any) => [r.signature_hash, r]));
 
@@ -195,6 +195,11 @@ export async function classifyWidgets(
   let misses: { widget: WidgetSignature; hash: string }[] = [];
   for (const h of hashed) {
     const hit = cacheByHash.get(h.hash);
+    // v3.298.0 -- a row a real user has flagged enough times to cross the
+    // review threshold is treated as a miss even though its hash matches,
+    // so the next real encounter re-classifies it fresh instead of
+    // repeating the same wrong answer forever. See flagWidgetClassification.
+    if (hit && hit.needs_review) { misses.push(h); continue; }
     if (hit) {
       const widgetType = WIDGET_TYPES.includes(hit.widget_type) ? hit.widget_type : "unrecognized";
       results.push({
@@ -221,15 +226,38 @@ export async function classifyWidgets(
   for (const m of misses) {
     (isObviouslyNotAFormQuestion(m.widget) ? obvious : genuineMisses).push(m);
   }
-  const upsertsObvious: Array<{ signature_hash: string; widget_type: string; interaction_recipe: Record<string, unknown> }> = [];
+  const upsertsObvious: Array<{ signature_hash: string; widget_type: string; interaction_recipe: Record<string, unknown>; signature: WidgetSignature; needs_review: boolean; flagged_count: number }> = [];
   for (const m of obvious) {
     results.push({ localId: m.widget.localId, widgetType: "unrecognized", interactionRecipe: RECIPE_BY_TYPE.unrecognized, fromCache: false });
-    upsertsObvious.push({ signature_hash: m.hash, widget_type: "unrecognized", interaction_recipe: RECIPE_BY_TYPE.unrecognized });
+    // v3.298.0 -- signature is stored (the full sanitized shape, the same
+    // one already proven safe to send an AI, including nearbyText/
+    // optionTexts) so a later flagged-or-stale row can be re-classified
+    // by the periodic retrain sweep without needing to see this widget
+    // live again. needs_review/flagged_count reset to 0 on any fresh
+    // classification -- a re-classified row deserves a clean slate, not
+    // to stay flagged forever over an answer it no longer gives.
+    upsertsObvious.push({ signature_hash: m.hash, widget_type: "unrecognized", interaction_recipe: RECIPE_BY_TYPE.unrecognized, signature: m.widget, needs_review: false, flagged_count: 0 });
   }
   if (upsertsObvious.length) {
-    admin.from("form_widget_patterns").upsert(upsertsObvious, { onConflict: "signature_hash" })
-      .then(({ error }: { error: unknown }) => { if (error) console.error("form_widget_patterns upsert failed", error); },
-        (e: unknown) => console.error("form_widget_patterns upsert threw", e));
+    // v3.298.0 -- awaited, not fire-and-forget. Found live, reproducibly,
+    // running the real deployed form-intel-retrain function against a
+    // real flagged row: the un-awaited version of this exact call
+    // silently never persisted (confirmed by re-checking the row 5
+    // seconds later, not a timing race that eventually resolved) --
+    // Supabase's own Edge Runtime is free to recycle an isolate the
+    // moment its response is sent, and nothing here was telling it a
+    // background write was still in flight. A caller returning its own
+    // response before this write has genuinely landed was silently
+    // discarding real classification work, in already-shipped code, not
+    // a risk unique to this pass's own additions. Wrapped in try/catch
+    // so a genuine upsert failure still can't block or fail the real
+    // classification results already computed above.
+    try {
+      const { error } = await admin.from("form_widget_patterns").upsert(upsertsObvious, { onConflict: "signature_hash" });
+      if (error) console.error("form_widget_patterns upsert failed", error);
+    } catch (e) {
+      console.error("form_widget_patterns upsert threw", e);
+    }
   }
   if (!genuineMisses.length) return results;
   misses = genuineMisses;
@@ -274,7 +302,7 @@ export async function classifyWidgets(
     const parsed = structured as { classifications?: Array<{ localId: string; widgetType: string }> } | undefined;
     const byLocalId = new Map((parsed?.classifications || []).map((c) => [c.localId, c]));
 
-    const upserts: Array<{ signature_hash: string; widget_type: string; interaction_recipe: Record<string, unknown> }> = [];
+    const upserts: Array<{ signature_hash: string; widget_type: string; interaction_recipe: Record<string, unknown>; signature: WidgetSignature; needs_review: boolean; flagged_count: number }> = [];
     for (const m of misses) {
       const c = byLocalId.get(m.widget.localId);
       const widgetType: WidgetType = c && WIDGET_TYPES.includes(c.widgetType as WidgetType)
@@ -282,14 +310,21 @@ export async function classifyWidgets(
         : "unrecognized";
       const interactionRecipe = RECIPE_BY_TYPE[widgetType];
       results.push({ localId: m.widget.localId, widgetType, interactionRecipe, fromCache: false });
-      upserts.push({ signature_hash: m.hash, widget_type: widgetType, interaction_recipe: interactionRecipe });
+      upserts.push({ signature_hash: m.hash, widget_type: widgetType, interaction_recipe: interactionRecipe, signature: m.widget, needs_review: false, flagged_count: 0 });
     }
     if (upserts.length) {
-      // Best effort -- a caching failure must never lose the real
-      // classifications already computed for THIS request.
-      admin.from("form_widget_patterns").upsert(upserts, { onConflict: "signature_hash" })
-        .then(({ error }: { error: unknown }) => { if (error) console.error("form_widget_patterns upsert failed", error); },
-          (e: unknown) => console.error("form_widget_patterns upsert threw", e));
+      // v3.298.0 -- awaited, not fire-and-forget -- see the identical,
+      // real, live-confirmed fix and its full reasoning on the
+      // upsertsObvious branch above. Still wrapped in try/catch: a
+      // caching failure must never lose the real classifications already
+      // computed for THIS request, only now the write is actually given
+      // the chance to land before the caller's own response goes out.
+      try {
+        const { error } = await admin.from("form_widget_patterns").upsert(upserts, { onConflict: "signature_hash" });
+        if (error) console.error("form_widget_patterns upsert failed", error);
+      } catch (e) {
+        console.error("form_widget_patterns upsert threw", e);
+      }
     }
   } catch (e) {
     // A classification failure degrades every uncached widget to
@@ -301,4 +336,61 @@ export async function classifyWidgets(
   }
 
   return results;
+}
+
+// v3.298.0 -- the other half of "flag a wrong answer, keep updating the
+// system's knowledge." A real person's report that AYN filled or
+// classified something wrong for a specific widget shape. Deliberately
+// takes the SAME sanitized structural signature classifyWidgets already
+// trusts, and re-hashes it server side -- never a client-supplied hash --
+// so a flag can only ever land against the widget shape that actually
+// produced it, not an arbitrary row picked by an attacker. A single flag
+// never wipes a classification out from under every other AYN user
+// currently relying on it (one person's confusion, or a genuinely
+// unrelated fill failure elsewhere on the same page, isn't proof the
+// classification itself is wrong); crossing REVIEW_THRESHOLD real flags
+// is what actually forces a fresh look, via needs_review, the next time
+// classifyWidgets sees this hash -- and via the periodic retrain sweep
+// even before that, since a flagged row is exactly what it prioritizes.
+const REVIEW_THRESHOLD = 2;
+
+export async function flagWidgetClassification(
+  admin: SupabaseClient<any, any, any>,
+  userId: string,
+  signature: WidgetSignature,
+  note?: string,
+): Promise<{ ok: boolean; flaggedCount: number; needsReview: boolean }> {
+  const hash = await signatureHash(signature);
+
+  // v3.298.0 -- awaited, not fire-and-forget, same reasoning as the
+  // form_widget_patterns upserts above: a genuine caller-response-before-
+  // background-write-lands race is real and confirmed on this Edge
+  // Runtime, not theoretical. Still wrapped in try/catch -- a genuine
+  // insert failure here must never block the actual flag/count below,
+  // which is the part that matters most.
+  try {
+    const { error } = await admin.from("form_widget_pattern_flags").insert({
+      signature_hash: hash,
+      flagged_by: userId,
+      note: note ? note.slice(0, 500) : null,
+    });
+    if (error) console.error("form_widget_pattern_flags insert failed", error);
+  } catch (e) {
+    console.error("form_widget_pattern_flags insert threw", e);
+  }
+
+  const { data, error } = await admin.rpc("increment_widget_pattern_flag", {
+    p_hash: hash,
+    p_threshold: REVIEW_THRESHOLD,
+  });
+  if (error || !data || !data.length) {
+    // The pattern row itself may not exist yet (a widget flagged before
+    // it was ever cached, or a hash mismatch from a stale client) -- the
+    // flag record above still landed, so this is a real but low-severity
+    // gap, not a silent failure of the whole call.
+    console.error("increment_widget_pattern_flag failed", error);
+    return { ok: false, flaggedCount: 0, needsReview: false };
+  }
+  const row = data[0] as { new_count: number; now_needs_review: boolean };
+  return { ok: true, flaggedCount: row.new_count, needsReview: row.now_needs_review };
 }

@@ -52,6 +52,55 @@
     return getComputedStyle(el).visibility !== "hidden";
   }
 
+  // v3.298.0 -- a real, live bug found on a real Lever application form
+  // (Mytos): a resume-upload widget's own `<label>` wraps not just its
+  // real, always-shown caption ("ATTACH RESUME/CV") but also three
+  // mutually-exclusive status spans for other states ("Couldn't
+  // auto-read resume.", "Analyzing resume...", "Success!"), each hidden
+  // via CSS until its own state is active. Reading the label with plain
+  // `.textContent` -- what labelFor and siblingText both did -- ignores
+  // visibility entirely and concatenates all of them into one garbled
+  // string. A location-autocomplete widget on the same real page showed
+  // the identical failure shape, its dropdown's own hidden "No results"/
+  // "Loading" messages folded into the field's caption. visibleText()
+  // walks a subtree and skips any element (and everything inside it)
+  // that visible() says isn't currently shown, so only the text a real
+  // person would actually see survives.
+  function visibleText(el) {
+    let out = "";
+    for (const node of el.childNodes) {
+      if (node.nodeType === 3) { out += node.textContent; continue; }
+      if (node.nodeType !== 1 || !visible(node)) continue;
+      // v3.298.0 -- a real, live bug found on a real Workable application
+      // form: a decorative SVG upload icon carried a real, valid
+      // accessibility fallback (<desc><p>SVGs not supported by this
+      // browser.</p></desc>) and the svg element itself was explicitly
+      // marked aria-hidden="true" -- correctly telling assistive tech,
+      // and by the same logic anything computing a real label, to skip
+      // it entirely. It still passes visible() (it has a real, visually
+      // rendered box), so without this check its fallback text bled
+      // straight into the file field's own label ("Resume") the same
+      // way a CSS-hidden status span did on the Mytos bug above. Any
+      // subtree explicitly marked aria-hidden is exactly as invisible to
+      // a real person's understanding of the page as a CSS-hidden one.
+      if (node.getAttribute("aria-hidden") === "true") continue;
+      out += visibleText(node);
+    }
+    return out;
+  }
+
+  // v3.298.0 -- shared by labelFor's aria-labelledby check and, below, the
+  // native-radio group-label lookup's own aria-labelledby check on an
+  // ancestor fieldset -- resolves an aria-labelledby id list to the real,
+  // visible text of whatever it references, joined in order.
+  function resolveLabelledBy(idList) {
+    const parts = idList.split(/\s+/).map((id) => {
+      const target = document.getElementById(id);
+      return target ? visibleText(target).trim() : "";
+    }).filter(Boolean);
+    return parts.join(" ");
+  }
+
   // Generic UI copy that occasionally ends up as a placeholder -- never a
   // real question, and showing it as one is actively misleading (worse
   // than showing nothing). Reported directly, a real screenshot: "Start
@@ -90,12 +139,22 @@
   function siblingText(node, hops) {
     let n = node, h = 0;
     while (n && h < hops) {
-      const t = (n.textContent || "").trim();
+      const t = ((n.nodeType === 3 ? n.textContent : visibleText(n)) || "").trim();
       // v3.296.0 -- an interactive sibling's own text (a button's label,
       // a link) is never a real question label, it's that OTHER control's
       // own displayed value/text -- skip using it, but still spend the
       // hop and keep walking, the same as any other non-text sibling.
-      if (t && t.length < 200 && !isInteractiveNonLabelNode(n)) return t;
+      // v3.298.0 -- 200 to 600: found live on the same real Lever
+      // application as the two fixes above, sitting right next to them --
+      // a genuine, real behavioral-interview question ("We're skeptical
+      // when people say 'it's impossible!'...", 434 characters) came back
+      // honestly unlabeled because its own real caption was longer than
+      // the old 200-char cap, even though every other real caption on the
+      // same page (some over 100 chars themselves) correctly resolved.
+      // Real custom application questions routinely run this long; 600
+      // still guards against absorbing an unrelated full paragraph of
+      // page body text as a false label.
+      if (t && t.length < 600 && !isInteractiveNonLabelNode(n)) return t;
       if (n.nodeType !== 3 || t) h++;
       n = n.previousSibling;
     }
@@ -105,17 +164,32 @@
   function labelFor(el) {
     if (el.id) {
       const byFor = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
-      if (byFor && byFor.textContent.trim()) return byFor.textContent.trim();
+      // v3.298.0 -- visibleText(), not raw textContent -- see its own
+      // comment; a label[for] can wrap the same kind of hidden
+      // multi-state status text a wrapping <label> can.
+      const byForText = byFor ? visibleText(byFor).trim() : "";
+      if (byForText) return byForText;
     }
     const aria = el.getAttribute("aria-label");
     if (aria && aria.trim()) return aria.trim();
     const labelledBy = el.getAttribute("aria-labelledby");
     if (labelledBy) {
-      const parts = labelledBy.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim()).filter(Boolean);
-      if (parts.length) return parts.join(" ");
+      // v3.298.0 -- resolveLabelledBy(), not a bare textContent read: the
+      // referenced element can carry the exact same hidden-text problem
+      // visibleText() exists to solve.
+      const resolved = resolveLabelledBy(labelledBy);
+      if (resolved) return resolved;
     }
     const wrappingLabel = el.closest("label");
-    if (wrappingLabel && wrappingLabel.textContent.trim()) return wrappingLabel.textContent.trim();
+    // v3.298.0 -- a real, live bug found on a real Lever application
+    // (Mytos): a resume-upload widget's own wrapping <label> held three
+    // hidden, mutually-exclusive status spans ("Couldn't auto-read
+    // resume.", "Analyzing resume...", "Success!") alongside its real,
+    // always-visible caption ("ATTACH RESUME/CV") -- plain textContent
+    // concatenated all four into one garbled label. visibleText() only
+    // includes what a real person actually sees right now.
+    const wrappingLabelText = wrappingLabel ? visibleText(wrappingLabel).trim() : "";
+    if (wrappingLabelText) return wrappingLabelText;
     const direct = siblingText(el.previousSibling, 3);
     if (direct) return direct;
     // v3.280.0 -- an ancestor-climbing fallback was tried here for deeply
@@ -127,6 +201,27 @@
     // unlabeled. Removed rather than shipped; a genuinely unlabeled field
     // now stays unlabeled (see extractFields' own fallback text) instead
     // of risking a mismatched label.
+    // v3.298.0 -- a narrower, real ancestor climb added back, grounded in
+    // a real, confirmed shape found on the same Lever form: a genuine
+    // "<div><div class=question-label>...</div><div
+    // class=question-field><textarea></div></div>" pattern, four custom
+    // questions on one real application, every one honestly unlabeled
+    // before this because the field's own direct previous sibling is
+    // nothing (it's the sole child of its own wrapper). This reuses the
+    // exact safety condition candidateNearbyText already proved out for
+    // this same shape: only ever climb past a wrapper while el is
+    // genuinely that wrapper's one and only child, so this can never
+    // reach past the field's own container into a DIFFERENT field's
+    // territory the way the removed v3.280.0 attempt could -- a shared
+    // container with more than one child stops the climb immediately.
+    let anc = el;
+    for (let hop = 0; hop < 2; hop++) {
+      const parent = anc.parentElement;
+      if (!parent || parent.children.length !== 1) break;
+      const climbed = siblingText(parent.previousSibling, 3);
+      if (climbed) return climbed;
+      anc = parent;
+    }
     if (el.placeholder && el.placeholder.trim() && !GENERIC_PLACEHOLDER.test(el.placeholder.trim())) {
       return el.placeholder.trim();
     }
@@ -192,6 +287,27 @@
     return candidates.length ? candidates[0].f : document;
   }
 
+  // v3.297.0 -- see the file-input branch below for the real, live gap
+  // this closes. Deliberately narrow: only the input's own parent and
+  // grandparent are searched (a real file-upload widget's trigger button
+  // is essentially always a close sibling, never further away), and only
+  // a button whose own text/aria-label actually reads like an upload
+  // action counts -- an unrelated visible button that happens to sit
+  // nearby (a "Remove"/"Cancel" button in the same row, say) is never
+  // mistaken for the trigger.
+  const UPLOAD_TRIGGER_TEXT_RE = /upload|select file|choose file|browse|attach|add (a )?file|add resume/i;
+  function nearbyUploadTrigger(el) {
+    let container = el.parentElement;
+    for (let hop = 0; hop < 2 && container; hop++) {
+      const btn = Array.from(container.querySelectorAll("button, [role='button']")).find(
+        (b) => visible(b) && UPLOAD_TRIGGER_TEXT_RE.test((b.textContent || b.getAttribute("aria-label") || "").trim())
+      );
+      if (btn) return btn;
+      container = container.parentElement;
+    }
+    return null;
+  }
+
   function extractFields() {
     fieldRegistry = new Map();
     const out = [];
@@ -225,7 +341,19 @@
         // wrongly caught this one too. Still requires a genuinely visible
         // trigger somewhere, so a truly, fully hidden file input (no
         // visible label anywhere) stays correctly excluded.
-        const trigger = (el.id && document.querySelector(`label[for="${CSS.escape(el.id)}"]`)) || el.closest("label");
+        // v3.297.0 -- a second, equally common real trigger shape, found
+        // live on real Ashby and Workday application forms during a
+        // direct training pass: a plain <button>Upload file</button> or
+        // <button>Select file</button> with NO <label> relationship to
+        // the input at all -- it forwards a click to the hidden input via
+        // a JS ref/onClick handler instead of semantic markup, so the
+        // <label>-only check above never finds it and the input was
+        // silently skipped, even with a real, visible, unambiguous
+        // "Upload" button sitting right next to it. nearbyUploadTrigger
+        // covers this second shape -- scoped to the input's own immediate
+        // container (never a page-wide search), so it can't attach to an
+        // unrelated upload button elsewhere on the page.
+        const trigger = (el.id && document.querySelector(`label[for="${CSS.escape(el.id)}"]`)) || el.closest("label") || nearbyUploadTrigger(el);
         if (!visible(el) && !(trigger && visible(trigger))) continue;
         const fid = `ayn-f-${n++}`;
         fieldRegistry.set(fid, el);
@@ -243,6 +371,30 @@
         if (!name) continue;
         const groupLabel = seenRadioGroups.has(name) ? undefined : (() => {
           const fieldset = el.closest("fieldset");
+          // v3.298.0 -- a real, live bug found on a real Workable
+          // application form: a genuine role="radiogroup" fieldset, with
+          // a real, standard aria-labelledby pointing at the actual
+          // question text elsewhere on the page, was never reaching this
+          // function at all -- confirmed the fieldset's own visible()
+          // check was failing (its visual styling lives entirely on the
+          // inner option elements, common when a design system reskins a
+          // native radiogroup), so extraction fell through from the
+          // dedicated ARIA-radiogroup scan to this native <input>-level
+          // path, which never once checked the ancestor fieldset's own
+          // aria-labelledby/aria-label at all -- only its legend. This is
+          // exactly the same real, standard signal the ARIA-radiogroup
+          // scan already trusts (group.getAttribute("aria-label") ||
+          // labelFor(group)), just added to the one path that could reach
+          // this fieldset when that scan's own visibility check couldn't.
+          if (fieldset) {
+            const flAria = fieldset.getAttribute("aria-label");
+            if (flAria && flAria.trim()) return flAria.trim();
+            const flLabelledBy = fieldset.getAttribute("aria-labelledby");
+            if (flLabelledBy) {
+              const resolved = resolveLabelledBy(flLabelledBy);
+              if (resolved) return resolved;
+            }
+          }
           const legend = fieldset?.querySelector("legend")?.textContent?.trim();
           if (legend) return legend;
           const own = labelFor(el);
@@ -284,9 +436,27 @@
     // widgets almost always carry the ARIA role= a real radio group needs
     // for accessibility even when they skip the native <input> element --
     // recognized here the same way a screen reader would.
+    // v3.298.0 -- a real, live duplicate found on a real Workable
+    // application form: a genuine role="radiogroup" whose visible()
+    // check on the fieldset itself is timing-dependent (its own visual
+    // styling lives entirely on the inner option elements, not the
+    // fieldset's own box) meant this scan sometimes missed the group
+    // entirely, other times caught it -- and on a run where it DID
+    // catch it, the earlier native-<input type=radio> loop above had
+    // ALREADY registered the exact same two options (matched by their
+    // real "name" attribute, its own group-label logic just fixed above
+    // to reach the same real aria-labelledby text) -- so the person saw
+    // the identical question listed twice, under two different group
+    // ids, either of which could receive the fill. Registered elements
+    // already claimed by the native scan are skipped here rather than
+    // registered a second time, the same dedup discipline the combobox
+    // scan below already uses for its own, different duplicate risk.
+    const registeredBeforeRadiogroups = new Set(fieldRegistry.values());
     for (const group of queryDeep(root, '[role="radiogroup"]')) {
       if (!visible(group)) continue;
-      const options = Array.from(group.querySelectorAll('[role="radio"]')).filter(visible);
+      const options = Array.from(group.querySelectorAll('[role="radio"]')).filter(
+        (o) => visible(o) && !Array.from(o.querySelectorAll("input[type=radio]")).some((i) => registeredBeforeRadiogroups.has(i))
+      );
       if (!options.length) continue;
       const groupName = `ayn-rg-${n++}`;
       const groupLabel = group.getAttribute("aria-label") || labelFor(group) || undefined;
@@ -513,8 +683,14 @@
         // previous sibling that IS directly a <button>/etc, with no
         // wrapper around it, slipped through uncaught.
         if (isInteractiveNonLabelNode(prev)) return "";
-        const t = prev.textContent ? prev.textContent.trim() : "";
-        return t && t.length < 200 ? t : "";
+        // v3.298.0 -- visibleText(), the same fix as labelFor/siblingText:
+        // a candidate's own nearby caption can carry the identical hidden
+        // multi-state text a real label can.
+        const t = visibleText(prev).trim();
+        // v3.298.0 -- 200 to 600, same real evidence as siblingText's
+        // identical cap above: a genuine custom question can legitimately
+        // run several hundred characters.
+        return t && t.length < 600 ? t : "";
       }
       const parent = node.parentElement;
       // only keep climbing while node is genuinely the parent's one and
@@ -602,12 +778,26 @@
     // ("<button>Select your school</button>", no ARIA anywhere) never
     // reached AI classification at all, silently absent rather than
     // "not on file" or "unrecognized."
+    // v3.297.0 -- a real, confirmed gap found live on a real Workday
+    // application form: a "Country" dropdown trigger that already has a
+    // real default value selected ("United States of America", not
+    // placeholder text) matches neither role="combobox" above nor the
+    // placeholder-text regex here, so it was invisible to both the
+    // deterministic pass and this candidate scan -- not "not on file",
+    // silently absent, worse. Workday's own custom dropdown triggers
+    // reliably carry aria-haspopup="listbox" (or plain "true") even when
+    // they skip role="combobox" entirely, a real, documented pattern of
+    // that platform's own component library, not guessed at -- a trigger
+    // carrying it is now a candidate regardless of what its own text
+    // currently reads, pre-filled default value included.
     for (const el of queryDeep(root, "button, [role='button'], [tabindex='0'], input[type='text']")) {
       if (!visible(el) || alreadyKnownEls.has(el)) continue;
       if (el.getAttribute("role") === "combobox") continue;
       if (el.closest("nav, header, footer")) continue;
       const text = (el.tagName === "INPUT" ? el.placeholder : el.textContent || el.getAttribute("aria-label") || "").trim();
-      if (!PLACEHOLDER_RE.test(text)) continue;
+      const hasPopup = el.getAttribute("aria-haspopup");
+      const looksLikeDropdownTrigger = hasPopup === "listbox" || hasPopup === "true";
+      if (!PLACEHOLDER_RE.test(text) && !looksLikeDropdownTrigger) continue;
       const cid = `ayn-cand-${n++}`;
       candidates.push({
         localId: cid,

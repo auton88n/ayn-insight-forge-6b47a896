@@ -272,20 +272,43 @@
   // would mean silently touching a live page with no one watching what
   // it does -- it only ever offers, as a real visible button the person
   // clicks themselves, exactly like the very first fill did.
+  // v3.298.0 -- a real, confirmed gap found running AYN against real
+  // multi-step application wizards (Workday's own "My Information / My
+  // Experience / Application Questions / ..." flow is the clearest real
+  // example): a step that advances via a genuine client-side route
+  // change -- no full page reload, common on every React/Angular-router
+  // ATS wizard -- leaves this exact same MutationObserver blind. It was
+  // built to catch a field REVEALED on the current step (a "Yes" answer
+  // exposing three more questions) by diffing against the still-known
+  // element set, but a route change usually REPLACES the whole form,
+  // meaning knownEls' old elements are gone from the DOM entirely and
+  // "any element not in knownEls" fires just as reliably here too -- it
+  // was already catching the DOM mutation half of a route change, it
+  // just had no way to say the right thing about it, and worse, could
+  // fire its stale "New fields appeared" copy for what is actually a
+  // brand new page. Snapshotting the URL at setup time and checking it
+  // inside the same debounced callback (no second observer needed --
+  // a client-side route change is itself a DOM mutation, so the existing
+  // one already wakes up for it) lets this tell the two cases apart and
+  // word the notice honestly for each, while keeping the exact same
+  // "never fill anything without a real, visible click" rule the
+  // original comment already established.
   function watchForNewFields(session) {
     if (liveObserver) liveObserver.disconnect();
     const knownEls = new Set(fieldRegistry_().values());
+    const startUrl = location.href;
     let debounce = null;
     liveObserver = new MutationObserver(() => {
       clearTimeout(debounce);
       debounce = setTimeout(() => {
+        const navigated = location.href !== startUrl;
         const nowVisible = queryDeep(document, "input, textarea, select").filter((e) => visible(e) && !e.disabled);
         const hasNew = nowVisible.some((e) => !knownEls.has(e));
-        if (!hasNew) return;
+        if (!navigated && !hasNew) return;
         liveObserver.disconnect();
         const notice = el("div", { style: "padding: 10px 20px; background: #f7f7f7; border-top: 1px solid #efefef; font-size: 13.5px; color: #191919; display: flex; align-items: center; justify-content: space-between; gap: 10px;" }, [
-          el("span", { text: "New fields appeared on this page." }),
-          el("button", { class: "btn btn-primary", text: "Fill them too", style: "padding: 6px 14px; font-size: 13px;", onclick: () => autofill(session) }),
+          el("span", { text: navigated ? "This looks like a new step in the application." : "New fields appeared on this page." }),
+          el("button", { class: "btn btn-primary", text: navigated ? "Fill this step" : "Fill them too", style: "padding: 6px 14px; font-size: 13px; flex-shrink: 0;", onclick: () => autofill(session) }),
         ]);
         panel.insertBefore(notice, panel.firstChild.nextSibling);
       }, 800);
@@ -422,6 +445,13 @@
     // name, the same honest "you handle this one" treatment a genuinely
     // unrecognized field already gets.
     const multiSelectFlags = [];
+    // v3.298.0 -- the "flag a wrong answer" loop needs the exact same
+    // structural signature the classification was made from, kept around
+    // per real, visible question label so a "Wrong?" click in the results
+    // panel below can send it straight back to auto_apply_flag_widget --
+    // never re-derived from the DOM at flag time, since the widget's own
+    // element could already be gone (a page re-render, a submitted form).
+    const classifiedSummary = [];
     try {
       const known = new Set(fieldRegistry_().values());
       const candidates = scanUnrecognizedWidgets(known);
@@ -434,6 +464,13 @@
         for (const cand of candidates) {
           const cls = byId.get(cand.localId);
           if (!cls) continue;
+          if (cls.widgetType !== "unrecognized") {
+            classifiedSummary.push({
+              label: cand.signature.nearbyText || "An unlabeled question on this page",
+              widgetType: cls.widgetType,
+              signature: cand.signature,
+            });
+          }
           if (cls.widgetType === "multi_select_button_group") {
             multiSelectFlags.push(cand.signature.nearbyText || "A “select all that apply” style question on this page");
             continue;
@@ -624,6 +661,38 @@
       body.appendChild(ul3);
     }
     body.appendChild(el("p", { class: "muted", text: "Review the real page, then submit it yourself — AYN never clicks submit for you." }));
+
+    // v3.298.0 -- the flag half of the same loop the diagnostics button
+    // below is part of. A classified widget shape is shared across every
+    // AYN user on the same ATS platform (see form_widget_patterns' own
+    // header) -- a real person here saying "this was wrong" is what lets
+    // it get fixed for everyone, not just re-guessed at silently every
+    // time. One flag never wipes the classification out from under
+    // everyone else relying on it right now; it takes a real, small
+    // threshold of separate people flagging the SAME widget shape before
+    // it's actually re-classified (see flagWidgetClassification's own
+    // header). Shown only when this page actually had an AI-classified
+    // widget -- most pages never do, since the deterministic layer
+    // already covers the overwhelming majority of real fields.
+    if (classifiedSummary.length) {
+      body.appendChild(el("p", { class: "muted", text: "AYN had to guess at these — tell it if one was wrong:" }));
+      for (const c of classifiedSummary) {
+        const row = el("div", { style: "display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px;" });
+        row.appendChild(el("span", { text: c.label, style: "font-size: 13px; color: #191919; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;" }));
+        const flagBtn = el("button", { class: "btn btn-ghost", text: "Wrong?", style: "padding: 4px 10px; font-size: 12px; flex-shrink: 0;" });
+        flagBtn.addEventListener("click", async () => {
+          flagBtn.disabled = true; flagBtn.textContent = "Flagging…";
+          try {
+            await callHub(session, { action: "auto_apply_flag_widget", signature: c.signature });
+            flagBtn.textContent = "Flagged ✓";
+          } catch (e) {
+            flagBtn.disabled = false; flagBtn.textContent = "Try again";
+          }
+        });
+        row.appendChild(flagBtn);
+        body.appendChild(row);
+      }
+    }
 
     // v3.296.0 -- a real, explicit, opt-in diagnostics channel: sends a
     // structured summary of this exact run straight to AYN's own
