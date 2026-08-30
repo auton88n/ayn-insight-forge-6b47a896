@@ -1469,14 +1469,20 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       { const blocked = await accountGate(adminCls, user.id, action); if (blocked) return blocked; }
       { const limited = await rateLimitGate(adminCls, user.id, action, 30, 15); if (limited) return limited; }
 
-      const { widgets } = payload as { widgets?: WidgetSignature[] };
+      const { widgets, pageHostname } = payload as { widgets?: WidgetSignature[]; pageHostname?: string };
       if (!widgets || !widgets.length) return json({ classifications: [] });
       // Hard cap -- a real page's own unrecognized-widget count should
       // never be large (the deterministic scans already handle the
       // overwhelming majority of real fields); this bounds one request's
       // real cost regardless of what a caller sends.
       const bounded = widgets.slice(0, 40);
-      const classifications = await classifyWidgets(adminCls, bounded);
+      // v3.300.0 -- pageHostname is a real, live domain string the
+      // extension reads straight from location.hostname, capped/sanitized
+      // here (never trusted verbatim into a DB write with no bound) --
+      // observability provenance only (see record_widget_domain), never
+      // part of what decides a classification.
+      const cleanHostname = typeof pageHostname === "string" ? pageHostname.slice(0, 200) : undefined;
+      const classifications = await classifyWidgets(adminCls, bounded, cleanHostname);
       return json({ classifications });
     }
 

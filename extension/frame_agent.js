@@ -89,6 +89,27 @@
     return out;
   }
 
+  // v3.299.0 -- a real, live bug found on Personio's own bespoke
+  // application form: a real, genuine third-party bug, not anything AYN
+  // did wrong reading it -- their own React component shipped a literal,
+  // untranslated i18n placeholder key, aria-label="label", instead of a
+  // real accessible name. aria-label is normally the single most
+  // authoritative signal a field can carry (a developer's own deliberate,
+  // explicit choice), which is exactly why blindly trusting it here
+  // returned the literal word "label" as the field's question --
+  // meaningless, and it also meant this never got a real chance to fall
+  // through to the field's own <fieldset><legend> (confirmed live, holds
+  // the real "Current Location" text) sitting right there. Deliberately
+  // narrow: only the EXACT literal string "label" is treated as a
+  // non-answer, the one concrete value this was actually seen shipping --
+  // a real, legitimate aria-label that happens to contain other words is
+  // never second-guessed. Shared by labelFor and candidateNearbyText,
+  // both of which trust a raw aria-label as their own first, strongest
+  // signal.
+  function isPlaceholderAriaLabel(s) {
+    return /^label$/i.test(s);
+  }
+
   // v3.298.0 -- shared by labelFor's aria-labelledby check and, below, the
   // native-radio group-label lookup's own aria-labelledby check on an
   // ancestor fieldset -- resolves an aria-labelledby id list to the real,
@@ -171,7 +192,7 @@
       if (byForText) return byForText;
     }
     const aria = el.getAttribute("aria-label");
-    if (aria && aria.trim()) return aria.trim();
+    if (aria && aria.trim() && !isPlaceholderAriaLabel(aria.trim())) return aria.trim();
     const labelledBy = el.getAttribute("aria-labelledby");
     if (labelledBy) {
       // v3.298.0 -- resolveLabelledBy(), not a bare textContent read: the
@@ -214,10 +235,33 @@
     // reach past the field's own container into a DIFFERENT field's
     // territory the way the removed v3.280.0 attempt could -- a shared
     // container with more than one child stops the climb immediately.
+    // v3.299.0 -- "one and only child" turned out to be too strict for a
+    // real, extremely common shape, found live on Personio's own
+    // application form: a styled <select>'s own wrapper div almost
+    // always has a second child too, a purely decorative dropdown-arrow
+    // <svg> sitting right next to it -- meaning the climb stopped at hop
+    // 0 for essentially any custom-styled select, never even reaching
+    // one level up, let alone the real <fieldset><legend> two levels up
+    // that was sitting right there. isDecorativeChild lets a sibling
+    // that carries no real text AND isn't itself a real control (an
+    // icon, an empty spacer span) not count against the "only child"
+    // check, while a sibling that DOES carry real text or IS itself a
+    // control still stops the climb exactly as before -- the original
+    // safety guarantee (never climb past a container holding a
+    // different field's own real content) is unchanged, only decoration
+    // is now correctly ignored.
+    function isDecorativeChild(node) {
+      if (node.nodeType !== 1) return true;
+      if (node.tagName === "SVG") return true;
+      if (isInteractiveNonLabelNode(node)) return false;
+      return !visibleText(node).trim();
+    }
     let anc = el;
     for (let hop = 0; hop < 2; hop++) {
       const parent = anc.parentElement;
-      if (!parent || parent.children.length !== 1) break;
+      if (!parent) break;
+      const meaningfulSiblings = Array.from(parent.children).filter((c) => c !== anc && !isDecorativeChild(c));
+      if (meaningfulSiblings.length > 0) break;
       const climbed = siblingText(parent.previousSibling, 3);
       if (climbed) return climbed;
       anc = parent;
@@ -397,6 +441,24 @@
           }
           const legend = fieldset?.querySelector("legend")?.textContent?.trim();
           if (legend) return legend;
+          // v3.299.0 -- a real, live shape found on a real Ashby EEO
+          // question: no <legend> at all -- the group's own real
+          // question ("What's the largest number of engineers under
+          // your management hierarchy?") is a plain <label> that is a
+          // DIRECT CHILD of the fieldset itself, a sibling of each real
+          // option's own wrapper div, not nested inside any of them.
+          // Scoped deliberately to fieldset.children (not
+          // fieldset.querySelector("label"), which would also match a
+          // label buried inside one specific option's own div) so this
+          // can only ever find a genuine group-level caption, never one
+          // option's own per-answer label.
+          const directChildLabel = fieldset
+            ? Array.from(fieldset.children).find((c) => c.tagName === "LABEL")
+            : null;
+          if (directChildLabel) {
+            const t = visibleText(directChildLabel).trim();
+            if (t) return t;
+          }
           const own = labelFor(el);
           // v3.293.0 -- a real, confirmed bug: with no <fieldset>/
           // <legend>, a radio wrapped in its own per-option <label>
@@ -410,9 +472,66 @@
           // here instead, the same "confidently wrong beats honestly
           // unlabeled, except backwards" principle already governs
           // labelFor's own ancestor-climbing removal above.
-          const ownWrap = el.closest("label");
-          if (ownWrap && own === ownWrap.textContent.trim()) return undefined;
+          // v3.299.0 -- a real, live, second version of the exact same
+          // failure found on a real Ashby EEO/demographic question
+          // ("How many years have you managed a team?"): each option's
+          // own native <input> carried a real, legitimate aria-label set
+          // to its own option text ("I haven't managed before (e.g.,
+          // Tech Lead)") -- perfectly good, self-describing markup for
+          // that ONE option, but labelFor(el) returns aria-label before
+          // it ever reaches the ownWrap check above, so this exact same
+          // "just my own answer, not the group's real question" mistake
+          // slipped past the v3.293.0 guard, which only ever checked a
+          // wrapping <label>, never a direct aria-label. Checked here
+          // too, so either shape degrades to honestly unlabeled instead
+          // of confidently repeating one option's own text as if it were
+          // the whole group's question.
+          if (ownWrapOrAriaMatches(el, own)) {
+            // v3.299.0 -- a real, live shape found on a real Breezy HR
+            // (AngularJS) application form: no <fieldset> anywhere, just
+            // a bare "<h3>Question<span class=required>*</span></h3><ul
+            // class=options><li><label><input/><span>Answer</span>
+            // </label></li>...</ul>" -- every fieldset-based attempt
+            // above correctly finds nothing to search, since there is no
+            // fieldset. The one real, reliable structural fact left: the
+            // <ul> is the smallest real element containing EVERY radio
+            // that shares this name, and its own previous sibling is the
+            // real question. Deliberately the last resort, tried only
+            // once every earlier, more specific signal has already
+            // failed -- this can't mistake one option's own answer for
+            // the group question the way the removed v3.280.0 label For
+            // climb could, since it never looks at anything narrower
+            // than the group's own true common container.
+            return groupCommonAncestorCaption(name) || undefined;
+          }
           return own;
+
+          function groupCommonAncestorCaption(radioName) {
+            const all = Array.from(document.getElementsByName(radioName)).filter((r) => r.tagName === "INPUT" && r.type === "radio" && visible(r));
+            if (all.length < 2) return null;
+            let anc = all[0];
+            while (anc && !all.every((r) => anc.contains(r))) anc = anc.parentElement;
+            if (!anc) return null;
+            return siblingText(anc.previousSibling, 3) || null;
+          }
+
+          function ownWrapOrAriaMatches(el, own) {
+            const ownWrap = el.closest("label");
+            if (ownWrap && own === ownWrap.textContent.trim()) return true;
+            const ariaLabel = el.getAttribute("aria-label");
+            if (ariaLabel && own === ariaLabel.trim()) return true;
+            // v3.299.0 -- the real mechanism behind the Ashby EEO bug
+            // above: labelFor(el)'s own byFor lookup (label[for=el.id])
+            // finds a real, valid per-option label ("I haven't managed
+            // before...") that is a genuine sibling of el, not a
+            // wrapper -- el.closest("label") never catches this shape at
+            // all. Re-checked directly here the same way.
+            if (el.id) {
+              const byFor = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+              if (byFor && own === visibleText(byFor).trim()) return true;
+            }
+            return false;
+          }
         })();
         seenRadioGroups.add(name);
         const fid = `ayn-f-${n++}`;
@@ -663,7 +782,7 @@
   // already treats as "a real separate widget," not just specific tags.
   function candidateNearbyText(el) {
     const aria = el.getAttribute("aria-label");
-    if (aria && aria.trim()) return aria.trim();
+    if (aria && aria.trim() && !isPlaceholderAriaLabel(aria.trim())) return aria.trim();
     // v3.295.0 -- when el itself has no useful previous sibling AND is the
     // sole child of its own parent, the real label often sits one level
     // further out (a real, live example: Ant Design's Segmented wraps

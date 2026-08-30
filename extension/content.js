@@ -458,6 +458,12 @@
       if (candidates.length) {
         const clsRes = await callHub(session, {
           action: "auto_apply_classify_widgets",
+          // v3.300.0 -- real, per-site provenance on the shared cache
+          // ("label each website with its own knowledge") -- kept as
+          // observability metadata only, never part of the match key
+          // (see the migration's own header), so it can't fragment the
+          // cross-company sharing that makes this cache valuable.
+          pageHostname: location.hostname,
           widgets: candidates.map((c) => c.signature),
         });
         const byId = new Map((clsRes.classifications || []).map((c) => [c.localId, c]));

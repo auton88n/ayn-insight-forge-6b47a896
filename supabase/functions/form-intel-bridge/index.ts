@@ -137,17 +137,34 @@ Deno.serve(async (req: Request) => {
     const hashed = await Promise.all(widgets.map(async (w) => ({ widget: w, hash: await sha256Hex(canonicalSignature(w)) })));
     const { data: cached } = await admin
       .from("form_widget_patterns")
-      .select("signature_hash, widget_type, interaction_recipe")
+      .select("signature_hash, widget_type, interaction_recipe, needs_review")
       .in("signature_hash", hashed.map((h) => h.hash));
     const cacheByHash = new Map((cached || []).map((r: any) => [r.signature_hash, r]));
+
+    // v3.300.0 -- real, per-site provenance -- see resume-hub's own
+    // formIntelligence.ts, this function's sibling implementation
+    // (deliberately duplicated, not shared, per this file's own header).
+    // job-checker knows the real job posting URL it's checking; passed
+    // through here the same way, observability only.
+    const pageHostname = typeof body.pageHostname === "string" ? (body.pageHostname as string).slice(0, 200) : undefined;
+    const recordDomain = (hash: string) => {
+      if (!pageHostname) return;
+      admin.rpc("record_widget_domain", { p_hash: hash, p_domain: pageHostname }).then(() => {}, () => {});
+    };
 
     const results: Array<{ localId: string; widgetType: WidgetType; interactionRecipe: Record<string, unknown>; fromCache: boolean }> = [];
     let misses: typeof hashed = [];
     for (const h of hashed) {
       const hit = cacheByHash.get(h.hash);
+      // v3.300.0 -- the same needs_review forced-miss fix already shipped
+      // in resume-hub's own classifyWidgets: without this, a widget shape
+      // flagged enough times to need review would never actually get
+      // re-classified through this path, only the extension's.
+      if (hit && hit.needs_review) { misses.push(h); continue; }
       if (hit) {
         const widgetType: WidgetType = WIDGET_TYPES.includes(hit.widget_type) ? hit.widget_type : "unrecognized";
         results.push({ localId: h.widget.localId, widgetType, interactionRecipe: hit.interaction_recipe || RECIPE_BY_TYPE[widgetType], fromCache: true });
+        recordDomain(h.hash);
         admin.from("form_widget_patterns").update({ last_seen_at: new Date().toISOString() }).eq("signature_hash", h.hash).then(() => {}, () => {});
       } else {
         misses.push(h);
@@ -161,12 +178,29 @@ Deno.serve(async (req: Request) => {
         (isObviouslyNotAFormQuestion(m.widget) ? obvious : genuineMisses).push(m);
       }
       if (obvious.length) {
-        const upsertsObvious: Array<{ signature_hash: string; widget_type: string; interaction_recipe: Record<string, unknown> }> = [];
+        const upsertsObvious: Array<{ signature_hash: string; widget_type: string; interaction_recipe: Record<string, unknown>; signature: WidgetSignature; needs_review: boolean; flagged_count: number }> = [];
         for (const m of obvious) {
           results.push({ localId: m.widget.localId, widgetType: "unrecognized", interactionRecipe: RECIPE_BY_TYPE.unrecognized, fromCache: false });
-          upsertsObvious.push({ signature_hash: m.hash, widget_type: "unrecognized", interaction_recipe: RECIPE_BY_TYPE.unrecognized });
+          // v3.300.0 -- signature stored here too (was previously only
+          // ever stored by resume-hub's own classifyWidgets), so a shape
+          // first classified through job-checker still gets real
+          // retrain-loop coverage instead of a permanently un-replayable
+          // row. needs_review/flagged_count explicit for the same reason
+          // resume-hub's own upserts set them.
+          upsertsObvious.push({ signature_hash: m.hash, widget_type: "unrecognized", interaction_recipe: RECIPE_BY_TYPE.unrecognized, signature: m.widget, needs_review: false, flagged_count: 0 });
         }
-        admin.from("form_widget_patterns").upsert(upsertsObvious, { onConflict: "signature_hash" }).then(() => {}, () => {});
+        // v3.300.0 -- awaited, not fire-and-forget: the identical, real,
+        // live-confirmed bug already found and fixed in resume-hub's own
+        // formIntelligence.ts (a caller's response can go out before this
+        // write lands, and the Edge Runtime is free to recycle the
+        // isolate the moment it does) applies equally here.
+        try {
+          const { error } = await admin.from("form_widget_patterns").upsert(upsertsObvious, { onConflict: "signature_hash" });
+          if (error) console.error("form_widget_patterns upsert failed", error);
+          else obvious.forEach((m) => recordDomain(m.hash));
+        } catch (e) {
+          console.error("form_widget_patterns upsert threw", e);
+        }
       }
       misses = genuineMisses;
     }
@@ -219,16 +253,22 @@ Deno.serve(async (req: Request) => {
         if (tc) { try { parsed = JSON.parse(tc); } catch { /* leave undefined -- degrades to unrecognized below */ } }
       }
       const byLocalId = new Map((parsed?.classifications || []).map((c) => [c.localId, c]));
-      const upserts: Array<{ signature_hash: string; widget_type: string; interaction_recipe: Record<string, unknown> }> = [];
+      const upserts: Array<{ signature_hash: string; widget_type: string; interaction_recipe: Record<string, unknown>; signature: WidgetSignature; needs_review: boolean; flagged_count: number }> = [];
       for (const m of misses) {
         const c = byLocalId.get(m.widget.localId);
         const widgetType: WidgetType = c && WIDGET_TYPES.includes(c.widgetType as WidgetType) ? (c.widgetType as WidgetType) : "unrecognized";
         const interactionRecipe = RECIPE_BY_TYPE[widgetType];
         results.push({ localId: m.widget.localId, widgetType, interactionRecipe, fromCache: false });
-        upserts.push({ signature_hash: m.hash, widget_type: widgetType, interaction_recipe: interactionRecipe });
+        upserts.push({ signature_hash: m.hash, widget_type: widgetType, interaction_recipe: interactionRecipe, signature: m.widget, needs_review: false, flagged_count: 0 });
       }
       if (upserts.length) {
-        admin.from("form_widget_patterns").upsert(upserts, { onConflict: "signature_hash" }).then(() => {}, () => {});
+        try {
+          const { error } = await admin.from("form_widget_patterns").upsert(upserts, { onConflict: "signature_hash" });
+          if (error) console.error("form_widget_patterns upsert failed", error);
+          else misses.forEach((m) => recordDomain(m.hash));
+        } catch (e) {
+          console.error("form_widget_patterns upsert threw", e);
+        }
       }
     }
 

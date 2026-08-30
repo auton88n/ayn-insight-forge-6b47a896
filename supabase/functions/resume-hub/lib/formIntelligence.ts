@@ -179,8 +179,22 @@ const RECIPE_BY_TYPE: Record<WidgetType, Record<string, unknown>> = {
 export async function classifyWidgets(
   admin: SupabaseClient<any, any, any>,
   widgets: WidgetSignature[],
+  pageHostname?: string,
 ): Promise<WidgetClassification[]> {
   if (!widgets.length) return [];
+  // v3.300.0 -- "label each website with its own knowledge": real,
+  // per-domain provenance on the shared cache, kept as observability
+  // metadata only -- the match key itself stays the structural hash
+  // alone (see the migration's own header for why: that's what lets one
+  // real Ashby classification cover every Ashby-hosted company, and
+  // domain-keying would throw that away for no real benefit). Best
+  // effort, never awaited -- losing an occasional domain sample under
+  // load is a real, accepted, low-severity gap, not worth adding
+  // latency to a real classification response for.
+  const recordDomain = (hash: string) => {
+    if (!pageHostname) return;
+    admin.rpc("record_widget_domain", { p_hash: hash, p_domain: pageHostname }).then(() => {}, () => {});
+  };
   const hashed = await Promise.all(
     widgets.map(async (w) => ({ widget: w, hash: await signatureHash(w) })),
   );
@@ -208,6 +222,7 @@ export async function classifyWidgets(
         interactionRecipe: hit.interaction_recipe || RECIPE_BY_TYPE[widgetType],
         fromCache: true,
       });
+      recordDomain(h.hash);
       // Best effort freshness bump -- never blocks the response.
       admin.from("form_widget_patterns").update({ last_seen_at: new Date().toISOString() })
         .eq("signature_hash", h.hash).then(() => {}, () => {});
@@ -255,6 +270,7 @@ export async function classifyWidgets(
     try {
       const { error } = await admin.from("form_widget_patterns").upsert(upsertsObvious, { onConflict: "signature_hash" });
       if (error) console.error("form_widget_patterns upsert failed", error);
+      else obvious.forEach((m) => recordDomain(m.hash));
     } catch (e) {
       console.error("form_widget_patterns upsert threw", e);
     }
@@ -322,6 +338,7 @@ export async function classifyWidgets(
       try {
         const { error } = await admin.from("form_widget_patterns").upsert(upserts, { onConflict: "signature_hash" });
         if (error) console.error("form_widget_patterns upsert failed", error);
+        else misses.forEach((m) => recordDomain(m.hash));
       } catch (e) {
         console.error("form_widget_patterns upsert threw", e);
       }
