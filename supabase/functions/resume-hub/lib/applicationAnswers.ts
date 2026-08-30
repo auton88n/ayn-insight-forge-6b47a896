@@ -29,7 +29,11 @@ type QuestionType = {
   // A few canonical phrasings used only as an embedding fallback for
   // wording the keyword regex doesn't catch.
   examples: string[];
-  resolve: (c: CanonicalProfile) => string | null;
+  // v3.305.0 -- label added as a second, optional param: work_authorized_
+  // plain is the first resolver that needs the real question text itself
+  // (to tell which country it's asking about), not just the stored
+  // profile facts every earlier resolver already had all it needed from.
+  resolve: (c: CanonicalProfile, label?: string) => string | null;
 };
 
 function yesNo(v: boolean | undefined | null): string | null {
@@ -57,6 +61,59 @@ const KNOWN_QUESTIONS: QuestionType[] = [
       if (wa.needs_sponsorship_now == null && wa.needs_sponsorship_future == null) return null;
       const needsAny = !!wa.needs_sponsorship_now || !!wa.needs_sponsorship_future;
       return needsAny ? "No" : "Yes";
+    },
+  },
+  {
+    // v3.305.0 -- a real, live gap found while directly testing the
+    // extension's own real end-to-end fill flow against a real Trakstar
+    // application: the single most common real screening question on a
+    // US/Canada job application, "Are you authorized to work in
+    // Canada?" (no sponsorship clause at all, the bare, plain form),
+    // matched NEITHER of the two sponsorship-specific resolvers above
+    // (both correctly require the word "without"/"sponsor" to exist at
+    // all) -- confirmed live, a real seeded profile with
+    // work_authorized_ca: true still came back answer: null, because
+    // there was never a resolver for the plain phrasing to begin with,
+    // not because the embedding fallback failed. Pass 2's own closest
+    // match was, correctly, "...without employer sponsorship" at 0.588
+    // similarity -- below the 0.72 threshold, and rightly so: a country-
+    // specific, sponsorship-qualified question is not semantically
+    // interchangeable with a bare authorization question, so declining
+    // rather than guessing was the correct behavior of the EXISTING
+    // system. The real fix is a dedicated resolver, not a loosened
+    // threshold, which would have risked false-answering unrelated
+    // questions elsewhere.
+    // Deliberately excludes "sponsor" from its own keyword match (kept
+    // even though array order already puts the two sponsorship-specific
+    // resolvers first) so a label mentioning both ideas together always
+    // defers to the more specific fact those resolvers actually answer,
+    // not this coarser one.
+    slug: "work_authorized_plain",
+    keywords: /authoriz\w* to work.*(united states|u\.?s\.?a?\.?|canada)(?!.*sponsor)/i,
+    examples: ["Are you authorized to work in Canada?", "Are you legally authorized to work in the United States?"],
+    resolve: (c, label) => {
+      const wa = c.work_auth;
+      const l = (label || "").toLowerCase();
+      // Belt and suspenders on top of the keyword regex's own negative
+      // lookahead: that lookahead only checks text AFTER the country
+      // match, so a phrasing with "sponsor" appearing BEFORE the
+      // country mention ("If you require sponsorship, are you still
+      // authorized to work in Canada...") could slip past it. Checked
+      // again here, unconditionally, against the whole label.
+      if (/sponsor/.test(l)) return null;
+      const mentionsCanada = /canada/.test(l);
+      const mentionsUs = /united states|\bu\.?s\.?a?\.?\b/.test(l);
+      // Both mentioned, or neither clearly mentioned: only answer if
+      // exactly one of the two fields is actually on file -- a
+      // single-country candidate profile can only ever have meant that
+      // one country, a real, safe inference, not a guess about which
+      // country the question meant.
+      if (mentionsCanada === mentionsUs) {
+        if (wa.work_authorized_ca != null && wa.work_authorized_us == null) return yesNo(wa.work_authorized_ca);
+        if (wa.work_authorized_us != null && wa.work_authorized_ca == null) return yesNo(wa.work_authorized_us);
+        return null;
+      }
+      return yesNo(mentionsCanada ? wa.work_authorized_ca : wa.work_authorized_us);
     },
   },
   {
@@ -223,7 +280,7 @@ export async function matchApplicationAnswers(
     }
     const kw = KNOWN_QUESTIONS.find((k) => k.keywords.test(q.label));
     if (kw) {
-      const answer = kw.resolve(canonical);
+      const answer = kw.resolve(canonical, q.label);
       results.push({ fieldId: q.id, label: q.label, matchedType: kw.slug, answer, confidence: 0 });
       continue;
     }
@@ -252,7 +309,7 @@ export async function matchApplicationAnswers(
       });
       if (best && best.sim >= SIMILARITY_THRESHOLD) {
         const qt = KNOWN_QUESTIONS.find((k) => k.slug === best!.slug)!;
-        results.push({ fieldId: q.id, label: q.label, matchedType: qt.slug, answer: qt.resolve(canonical), confidence: best.sim });
+        results.push({ fieldId: q.id, label: q.label, matchedType: qt.slug, answer: qt.resolve(canonical, q.label), confidence: best.sim });
       } else {
         results.push({ fieldId: q.id, label: q.label, matchedType: null, answer: null, confidence: best?.sim ?? 0 });
       }
