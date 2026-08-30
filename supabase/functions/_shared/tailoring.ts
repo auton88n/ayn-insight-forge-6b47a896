@@ -894,6 +894,16 @@ export const WRITE_BANNED_PHRASES = [
   "hit the ground running", "wear many hats", "think outside the box", "best-in-class",
   "world-class", "game-changer", "cutting-edge", "track record of", "testament to",
   "boasts a", "boasts over", "renowned", "groundbreaking", "garner", "underscores", "vibrant",
+  // v3.308.0 -- a real, live-caught instance, found in a real generated
+  // cover letter during a direct verification pass, not guessed at: "all
+  // vital for this role" -- exactly humanizer's own §1 "inflated claims
+  // about importance" pattern (a vital/crucial/significant/pivotal role),
+  // never added the first time since "pivotal" alone was already banned
+  // but its close relatives weren't. Kept to the specific phrase, not the
+  // bare word "vital" -- that word alone has real, ordinary uses outside
+  // this pattern (vital signs, vital statistics) a blanket ban would
+  // wrongly catch.
+  "vital for", "vital to",
 ];
 
 export interface WriteViolation { kind: "figure" | "banned_phrase" | "pronoun" | "dash" | "generic_summary" | "gap_claim" | "keyword_gap"; detail: string }
