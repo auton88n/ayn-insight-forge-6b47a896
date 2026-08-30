@@ -732,3 +732,57 @@ specific match happens through the embedding pass, which never calls
 that also needs to reason about the real question text: the label is
 only reliably available inside `resolve(c, label)`, not guaranteed to
 have been checked by `keywords` first.
+
+## Real, grounded AI answers for open-ended questions (v3.307.0)
+
+`application_answer_match` above only ever returns a real, already-known
+fact — its own header says a genuinely open-ended question ("why do you
+want this role") is deliberately out of its scope, safe for a model to
+write from real resume facts, unlike the legal/factual class that file
+exists for. Nothing was ever built for that other half until now.
+
+Folded directly into `auto_apply_extract`, right after
+`matchApplicationAnswers` leaves a question unresolved: any remaining
+field the page itself marked as a `<textarea>` (the one honest
+structural signal a question wants more than a short fact, never
+attempted on a plain `<input>`) is a candidate for a real, grounded AI
+answer — capped at 4 per form, so cost stays bounded and a standard form
+with no narrative fields costs nothing extra. Every answer is grounded
+exactly the way `cover_letter`'s own writing already is: the same
+`buildSections` bundle, the same `verifyProseQuality` check and one
+retry on a banned phrase, a dash, or a figure that doesn't trace back to
+the real resume, deliberately reusing proven machinery rather than a
+new, separate honesty mechanism. A question with genuinely nothing real
+to answer it (no company context, no relevant experience on file) gets
+an honest empty string back — the person answers it themselves, never an
+invented reason or fabricated enthusiasm. Free, same reasoning as Form
+Intelligence: this makes `auto_apply_extract`'s existing output more
+complete, not a distinct paid outcome.
+
+Deliberately scoped narrow, not a return to open-ended judgment. This
+app already tried one genuinely open-ended, judgment-giving AI surface
+once — the original seeker chat, deleted at v3.8.0 for producing
+"confident-sounding, ungrounded flattery and offering capabilities the
+product didn't have." This is not that: every real answer is checked
+against the same code-level verification everything else in this file
+already trusts, never the model's own unchecked say-so.
+
+A real, live bug found on the very first test: the model wraps its own
+"Output ONLY JSON" response in a triple-backtick fence despite the
+instruction, and a bare `JSON.parse` on that throws every time —
+silently degrading to zero narrative answers with no visible error.
+Fixed with `parseJsonLoose` (`lib/utils.ts`), the same fence-stripping
+helper every other JSON-returning call in this file already uses; this
+was a real, previously-unnoticed instance of a problem this codebase had
+already solved once, just not reused here on the first pass.
+
+Verified live with a real throwaway account and a real seeded resume:
+a company-specific question with no company context correctly declined
+(empty, honest); a real "describe a time you improved a process" question
+correctly generated a grounded, first-person, fact-accurate answer using
+the exact real accomplishments on file; a deliberately adversarial
+"what is your favorite color and why" correctly declined rather than
+inventing something. `matchedType: "ai_narrative"` distinguishes this
+from a stored-fact answer in the response, should a future UI want to
+show the two differently (a generated answer is worth a closer look
+before submitting than a verbatim stored fact is).
