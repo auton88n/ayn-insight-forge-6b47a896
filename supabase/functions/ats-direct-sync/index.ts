@@ -1,13 +1,18 @@
-// ats-direct-sync — v3.166.0
+// ats-direct-sync — v3.166.0, extended through v3.311.0
 //
 // "Our own way of getting jobs" — a real, second, independent source
 // alongside job-board-sync's freehire feed, requested directly after
-// freehire's own aggregator dependency was flagged as a gap. Polls three
-// real ATS vendors' own public, no-auth job-board APIs DIRECTLY — the same
-// vendors job-board-sync's BLOCKED_AGGREGATOR_HOSTS list already trusts and
-// keeps (Greenhouse, Lever, Ashby) — rather than reading them secondhand
-// through freehire. Confirmed live before writing this: all three are real,
-// public, free, no API key, and return the company's own current board.
+// freehire's own aggregator dependency was flagged as a gap. Polls real ATS
+// vendors' own public, no-auth job-board APIs DIRECTLY — the same vendors
+// job-board-sync's BLOCKED_AGGREGATOR_HOSTS list already trusts and keeps
+// (Greenhouse, Lever, Ashby) — rather than reading them secondhand through
+// freehire. Confirmed live before writing this: all three are real, public,
+// free, no API key, and return the company's own current board. A fourth
+// vendor (Workday) was built and proven blocked by bot-management on every
+// tenant this session had access to — see pollWorkday's own header note,
+// dormant infrastructure, not deleted. A fifth, real, independent source
+// (aidevboard.com, a curated AI/dev jobs feed) was added in v3.311.0 — see
+// pollAiDevBoard's own header note.
 //
 // The real catch with all three, unlike freehire's own search endpoint:
 // there is no "search every company" call, only "get this one company's
@@ -640,6 +645,112 @@ async function pollAshby(slug: string, companyInfo: Map<string, { company: strin
   }
 }
 
+// v3.311.0 — a fifth, independent vendor, checked live and against its own
+// real Terms before being trusted: aidevboard.com's own public /api/v1/jobs
+// feed, no key required (200 requests/hour anonymous, confirmed live via
+// the response's own x-ratelimit-* headers), real employer apply_urls (not
+// re-hosted on aidevboard's own domain -- confirmed against a real Waymo
+// posting: careers.withwaymo.com, the company's own branded board), and a
+// Terms clause read directly, not assumed: "Data accessed through the API
+// may be used in your applications but may not be resold as a standalone
+// dataset" -- exactly this app's own use (one input into matching/scoring/
+// tailoring), not a resale of the raw feed.
+//
+// FRESH, ON PURPOSE, NOT JUST "STILL ACTIVE": asked for directly -- "I dont
+// want jobs that is old i want jobs that start fresh." Sampled 100 real
+// rows live before deciding a cutoff: median age 4 days, one as old as 10,
+// even though aidevboard's own status field still called every one of them
+// active. AYN's own standing freshness bar everywhere else in this app is
+// job-board-sync's FRESHNESS_DAYS = 3 -- reused here rather than inventing
+// a second definition of "fresh," so a posting has to be genuinely recent
+// BY ITS OWN REAL published_at to ever reach AYN, not merely not-yet-
+// removed from aidevboard's own board. Confirmed live the feed sorts
+// newest-first by default (with or without a sort= param, same order
+// either way), so pagination stops the moment a page's own newest job is
+// already past the cutoff -- never wastes a request paging into pure
+// backlog. AYN's own existing global prune (job_postings, no source
+// filter) still applies on top of this exactly like every other vendor:
+// posted_at is stamped to now() on every run a job is still returned by
+// aidevboard's own feed, so it only drops out once aidevboard itself stops
+// listing it or this function stops confirming it for FRESHNESS_DAYS.
+//
+// isTrendingTechTitle is still run here too, deliberately, rather than
+// trusting the site's own "AI Dev Jobs" branding at face value -- a real
+// sampled title ("Principal Enterprise Technology Architect") is generic
+// enough it isn't obviously AI-specific on its own, and this app's own
+// standing rule is every source gets checked, none get a pass on name
+// alone.
+const AIDEVBOARD_MAX_AGE_DAYS = 3;
+const AIDEVBOARD_MAX_PAGES = 8; // 200/hour budget, real headroom under it
+
+async function pollAiDevBoard(): Promise<Row[]> {
+  const out: Row[] = [];
+  const cutoffMs = Date.now() - AIDEVBOARD_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+  const nowIso = new Date().toISOString();
+  try {
+    for (let page = 1; page <= AIDEVBOARD_MAX_PAGES; page++) {
+      const r = await fetchWithTimeout(`https://aidevboard.com/api/v1/jobs?page=${page}`);
+      if (!r || !r.ok) break;
+      const body = await r.json().catch(() => null) as { jobs?: unknown[]; has_next?: boolean } | null;
+      const jobs = Array.isArray(body?.jobs) ? body!.jobs! : [];
+      if (!jobs.length) break;
+
+      let sawFresh = false;
+      for (const raw of jobs) {
+        const j = raw as {
+          id?: string; title?: string; description?: string; apply_url?: string; location?: string;
+          workplace?: string; remote_scope?: string; job_type?: string; experience_level?: string;
+          tags?: string[]; salary_min?: number | null; salary_max?: number | null;
+          published_at?: string; company_name?: string; company_slug?: string; company_logo_url?: string;
+        };
+        if (!j.id || !j.title || !j.apply_url || !j.published_at) continue;
+        const publishedMs = Date.parse(j.published_at);
+        if (Number.isNaN(publishedMs) || publishedMs < cutoffMs) continue; // stale at the source, never mind AYN's own prune
+        sawFresh = true;
+        if (!j.title || !isTrendingTechTitle(j.title)) continue;
+        const description = stripHtml(j.description || "").slice(0, 20000);
+        if (description.length < 40) continue;
+        if (!isInTargetRegion(j.location ? String(j.location) : null)) continue;
+        // No currency field exists on this API at all (checked live, absent
+        // from every sample) -- only ever asserted for a US/Canada-located
+        // row with a real figure present, never guessed at for the rest,
+        // matching this app's own "never invent a fact" rule.
+        const inNorthAmerica = j.location ? isInTargetRegion(String(j.location)) : false;
+        const hasSalary = typeof j.salary_min === "number" || typeof j.salary_max === "number";
+        out.push({
+          source: "aidevboard",
+          external_id: j.id,
+          company: j.company_name || "Unknown",
+          company_slug: j.company_slug || null,
+          company_logo_url: j.company_logo_url || null,
+          title: String(j.title).slice(0, 300),
+          description,
+          location: j.location ? String(j.location).slice(0, 300) : null,
+          apply_url: j.apply_url,
+          posted_at: nowIso,
+          employment_type: j.job_type ? toSlug(j.job_type) : null,
+          seniority: j.experience_level ? toSlug(j.experience_level) : null,
+          category: Array.isArray(j.tags) && j.tags.length ? toSlug(j.tags[0]) : null,
+          work_mode: j.remote_scope ? toSlug(j.remote_scope) : (j.workplace ? toSlug(j.workplace) : null),
+          city: null,
+          salary_min: typeof j.salary_min === "number" ? j.salary_min : null,
+          salary_max: typeof j.salary_max === "number" ? j.salary_max : null,
+          salary_currency: hasSalary && inNorthAmerica ? "USD" : null,
+          skills: Array.isArray(j.tags) && j.tags.length ? j.tags.slice(0, 20) : null,
+          mass_posting_count: null,
+        } as Row);
+      }
+      // Sorted newest-first, confirmed live -- once a whole page has
+      // nothing left inside the freshness window, every page after it can
+      // only be older still, so stop rather than pay for pages of pure
+      // backlog this source's own filter would drop anyway.
+      if (!sawFresh) break;
+      if (body?.has_next === false) break;
+    }
+  } catch { /* whatever was collected before the failure is still returned */ }
+  return out;
+}
+
 // v3.166.0 — real company sizes vary wildly (Airbnb alone returned 193 jobs
 // in one call during testing; a live 20-company Greenhouse batch returned
 // over 2,500), so a fixed company-count budget alone isn't a reliable
@@ -765,6 +876,21 @@ Deno.serve(async (req: Request) => {
     const workdayRows: Row[] = [];
     void pollWorkday; // real, dormant, kept for a future headless-browser-routed pass
 
+    // v3.311.0 — its own, single global call (no per-company batching, this
+    // is one feed, not a "known slugs" list to rotate through), and
+    // deliberately kept OUT of the urlToken dedup pass below. That pass
+    // assumes a job's own unique id sits in the URL PATH (true for
+    // Greenhouse/Lever/Ashby/Workday's own real board URLs) -- aidevboard's
+    // apply_urls are arbitrary custom-employer domains, e.g.
+    // careers.withwaymo.com/jobs?gh_jid=8165872, where the id is a QUERY
+    // PARAM and the path alone is just "/jobs". Running that through
+    // urlToken() would collapse to the generic token "jobs" -- a real risk
+    // of silently overwriting a completely unrelated existing row that
+    // happens to share the same generic trailing path segment, not a
+    // genuine duplicate. Its own onConflict (source, external_id) upsert
+    // below is exact and correct regardless.
+    const aiDevBoardRows = await pollAiDevBoard();
+
     const allRows = [...ghRows, ...leverRows, ...ashbyRows, ...workdayRows];
     // v3.197.0 — checked here, on every row, before it's ever inserted or
     // updated: a cheap keyword pass against text already in memory, no
@@ -773,10 +899,23 @@ Deno.serve(async (req: Request) => {
     // false negative here, since the deeper AI checker still gets a later
     // look at anything this misses once a listing ages into its own
     // candidate pool).
-    for (const row of allRows) {
+    for (const row of [...allRows, ...aiDevBoardRows]) {
       const { suspected, reason } = detectScamSignal(row.description, row.title);
       row.scam_suspected = suspected;
       row.scam_reason = reason;
+    }
+
+    let aiDevBoardUpserted = 0;
+    if (aiDevBoardRows.length) {
+      // upsert alone (insert-or-update in one call) is correct and simpler
+      // here than the four-vendor toUpdate/toInsert split above -- this
+      // source has no separate "upgrade a freehire row" concept to handle,
+      // just its own (source, external_id) identity, confirmed live or
+      // refreshed on every run either way.
+      const { error, count } = await admin
+        .from("job_postings")
+        .upsert(aiDevBoardRows, { onConflict: "source,external_id", count: "exact" });
+      if (!error) aiDevBoardUpserted = count ?? aiDevBoardRows.length;
     }
 
     const toUpdate: Array<{ id: string; row: Row }> = [];
@@ -812,9 +951,10 @@ Deno.serve(async (req: Request) => {
       ok: true,
       companiesPolled: { greenhouse: ghBatch.length, lever: leverBatch.length, ashby: ashbyBatch.length, workday: 0 }, // workday disabled, see workdayRows' own note
       companiesKnown: { greenhouse: ghSlugs.size, lever: leverSlugs.size, ashby: ashbySlugs.size, workday: workdaySites.size, workdayQualified: workdayQualified.size, workdayBatchWouldHavePolled: workdayBatch.length },
-      jobsFound: { greenhouse: ghRows.length, lever: leverRows.length, ashby: ashbyRows.length, workday: workdayRows.length },
+      jobsFound: { greenhouse: ghRows.length, lever: leverRows.length, ashby: ashbyRows.length, workday: workdayRows.length, aidevboard: aiDevBoardRows.length },
       upgraded: updated,
       inserted,
+      aiDevBoardUpserted,
     }), { headers: { ...corsHeaders(req), "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e) }), {
