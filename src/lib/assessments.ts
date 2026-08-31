@@ -12,22 +12,45 @@ import { maintenanceErrorFrom } from "@/lib/featureError";
 
 const FN = `${SUPABASE_URL}/functions/v1/resume-hub`;
 
+// v3.313.0 — real, reported bug: a stale access token after the tab sat
+// idle/backgrounded a while produces a genuine 401 here too, same as
+// resumeHub.ts's own identical fix (see that file's own comment for the
+// full root cause). This file has its own separate call(), so it needed
+// the same fix on its own path rather than inheriting the other one.
+async function isExpiredJwt(status: number, data: unknown): Promise<boolean> {
+  if (status !== 401) return false;
+  const coded = data as { code?: string; message?: string; error?: string };
+  return coded?.code === "PGRST301" || /jwt|invalid session|invalid token/i.test(String(coded?.message || coded?.error || ""));
+}
+
 async function call<T>(body: unknown): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error("Not signed in");
-  const r = await fetch(FN, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+    "Content-Type": "application/json",
+  };
+  const r = await fetch(FN, { method: "POST", headers, body: JSON.stringify(body) });
   const text = await r.text();
   let parsed: unknown;
   try { parsed = JSON.parse(text); } catch { parsed = { error: text }; }
+
+  if (!r.ok && await isExpiredJwt(r.status, parsed)) {
+    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+    if (!refreshErr && refreshed.session) {
+      const retryHeaders = { ...headers, Authorization: `Bearer ${refreshed.session.access_token}` };
+      const r2 = await fetch(FN, { method: "POST", headers: retryHeaders, body: JSON.stringify(body) });
+      const text2 = await r2.text();
+      let parsed2: unknown;
+      try { parsed2 = JSON.parse(text2); } catch { parsed2 = { error: text2 }; }
+      if (r2.ok) return parsed2 as T;
+      const maintenance2 = maintenanceErrorFrom(parsed2);
+      if (maintenance2) throw maintenance2;
+      throw new Error((parsed2 as { error?: string })?.error || `Request failed (${r2.status})`);
+    }
+  }
   if (!r.ok) {
     const maintenance = maintenanceErrorFrom(parsed);
     if (maintenance) throw maintenance;

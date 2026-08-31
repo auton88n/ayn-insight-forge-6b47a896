@@ -9,22 +9,43 @@ import { SUPABASE_URL } from "@/config";
 
 const FN = `${SUPABASE_URL}/functions/v1/resume-hub`;
 
+// v3.313.0 — real, reported bug: a stale access token after the tab sat
+// idle/backgrounded a while produces a genuine 401 here too, same as
+// resumeHub.ts's own identical fix (see that file's own comment for the
+// full root cause). Shared by call() and stripeCall() below, this file's
+// own two separate hand-rolled fetch functions.
+function looksLikeExpiredJwt(status: number, data: unknown): boolean {
+  if (status !== 401) return false;
+  const coded = data as { code?: string; message?: string; error?: string };
+  return coded?.code === "PGRST301" || /jwt|invalid session|invalid token/i.test(String(coded?.message || coded?.error || ""));
+}
+
 async function call<T>(body: unknown): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error("Not signed in");
-  const r = await fetch(FN, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+    "Content-Type": "application/json",
+  };
+  const r = await fetch(FN, { method: "POST", headers, body: JSON.stringify(body) });
   const text = await r.text();
   let parsed: unknown;
   try { parsed = JSON.parse(text); } catch { parsed = { error: text }; }
+
+  if (!r.ok && looksLikeExpiredJwt(r.status, parsed)) {
+    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+    if (!refreshErr && refreshed.session) {
+      const retryHeaders = { ...headers, Authorization: `Bearer ${refreshed.session.access_token}` };
+      const r2 = await fetch(FN, { method: "POST", headers: retryHeaders, body: JSON.stringify(body) });
+      const text2 = await r2.text();
+      let parsed2: unknown;
+      try { parsed2 = JSON.parse(text2); } catch { parsed2 = { error: text2 }; }
+      if (r2.ok) return parsed2 as T;
+      throw new Error((parsed2 as { error?: string })?.error || `Request failed (${r2.status})`);
+    }
+  }
   if (!r.ok) throw new Error((parsed as { error?: string })?.error || `Request failed (${r.status})`);
   return parsed as T;
 }
@@ -112,16 +133,25 @@ async function stripeCall<T>(body: unknown): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error("Not signed in");
-  const r = await fetch(`${SUPABASE_URL}/functions/v1/stripe-billing`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+    "Content-Type": "application/json",
+  };
+  const STRIPE_FN = `${SUPABASE_URL}/functions/v1/stripe-billing`;
+  const r = await fetch(STRIPE_FN, { method: "POST", headers, body: JSON.stringify(body) });
   const out = await r.json().catch(() => ({}));
+
+  if (!r.ok && looksLikeExpiredJwt(r.status, out)) {
+    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+    if (!refreshErr && refreshed.session) {
+      const retryHeaders = { ...headers, Authorization: `Bearer ${refreshed.session.access_token}` };
+      const r2 = await fetch(STRIPE_FN, { method: "POST", headers: retryHeaders, body: JSON.stringify(body) });
+      const out2 = await r2.json().catch(() => ({}));
+      if (r2.ok) return out2 as T;
+      throw new Error(out2?.error || `Request failed (${r2.status})`);
+    }
+  }
   if (!r.ok) throw new Error(out?.error || `Request failed (${r.status})`);
   return out as T;
 }

@@ -15,6 +15,21 @@ async function authHeaders() {
   };
 }
 
+// v3.313.0 — this file's own fetch is a plain, manually-built request, not
+// the Supabase client's internal one, so the fetchWithAuthRetry fix on
+// integrations/supabase/client.ts (real, live-confirmed bug: a stale token
+// after the tab was backgrounded a while) never covers it -- every action
+// here (tailor, score, cover letter, proposals, assessments, and most of
+// what Resume Hub's real pages actually call) needed the identical fix on
+// its own path. Same narrow detection, same one-retry-then-give-up
+// discipline: PGRST301 or "Invalid session" and a genuine 401 only, never
+// account_suspended/account_restricted (both real 403s, untouched by this).
+async function isExpiredJwt(status: number, data: unknown): Promise<boolean> {
+  if (status !== 401) return false;
+  const coded = data as { code?: string; message?: string; error?: string };
+  return coded?.code === "PGRST301" || /jwt|invalid session|invalid token/i.test(String(coded?.message || coded?.error || ""));
+}
+
 async function call<T>(fn: string, body: unknown): Promise<T> {
   const headers = await authHeaders();
   const r = await fetch(`${FUNCTIONS_BASE}/${fn}`, {
@@ -25,18 +40,38 @@ async function call<T>(fn: string, body: unknown): Promise<T> {
   const text = await r.text();
   let data: unknown;
   try { data = JSON.parse(text); } catch { data = { error: text }; }
-  if (!r.ok) {
-    const maintenance = maintenanceErrorFrom(data);
-    if (maintenance) throw maintenance;
-    // v3.28.0 — suspension and per account restrictions answer with a code and
-    // a written message. Show the message, not the code.
-    const coded = data as { code?: string; message?: string; error?: string };
-    if (coded?.code === "account_suspended" || coded?.code === "account_restricted" || coded?.code === "insufficient_credits") {
-      throw new Error(coded.message || "This account cannot do that right now.");
+
+  if (!r.ok && await isExpiredJwt(r.status, data)) {
+    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+    if (!refreshErr && refreshed.session) {
+      const retryHeaders = { ...headers, Authorization: `Bearer ${refreshed.session.access_token}` };
+      const r2 = await fetch(`${FUNCTIONS_BASE}/${fn}`, { method: "POST", headers: retryHeaders, body: JSON.stringify(body) });
+      const text2 = await r2.text();
+      let data2: unknown;
+      try { data2 = JSON.parse(text2); } catch { data2 = { error: text2 }; }
+      if (r2.ok) return data2 as T;
+      // Refresh worked but the retry still failed for some other real
+      // reason -- fall through to the normal error handling below using
+      // this retry's own response, not the original stale-token one.
+      return handleCallError(r2.status, data2);
     }
-    throw new Error(coded?.error || `Request failed (${r.status})`);
+    // Refresh itself failed -- a genuinely dead session, not just a stale
+    // token. Fall through and surface the ORIGINAL error honestly.
   }
+  if (!r.ok) return handleCallError(r.status, data);
   return data as T;
+}
+
+function handleCallError(status: number, data: unknown): never {
+  const maintenance = maintenanceErrorFrom(data);
+  if (maintenance) throw maintenance;
+  // v3.28.0 — suspension and per account restrictions answer with a code and
+  // a written message. Show the message, not the code.
+  const coded = data as { code?: string; message?: string; error?: string };
+  if (coded?.code === "account_suspended" || coded?.code === "account_restricted" || coded?.code === "insufficient_credits") {
+    throw new Error(coded.message || "This account cannot do that right now.");
+  }
+  throw new Error(coded?.error || `Request failed (${status})`);
 }
 
 // v3.200.0 — the one action on this whole page that deliberately works
