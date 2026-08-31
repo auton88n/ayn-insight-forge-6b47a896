@@ -1146,6 +1146,47 @@
     return /^(yes|true|1|on|checked)$/i.test(value.trim());
   }
 
+  // Shared by fillCombobox's direct scan and its two fallback passes
+  // (virtualized-list stepping, one-level nested-category drill) below --
+  // pulled out so all three run the identical match rule (exact text,
+  // then substring either direction) instead of three copies drifting.
+  function findOptionMatch(listbox, wanted) {
+    const options = Array.from(listbox.querySelectorAll('[role="option"]')).filter(visible);
+    return {
+      options,
+      match: options.find((o) => o.textContent.trim().toLowerCase() === wanted)
+        || options.find((o) => o.textContent.trim().toLowerCase().includes(wanted) || wanted.includes(o.textContent.trim().toLowerCase())),
+    };
+  }
+
+  // v3.308.0 -- a real "Province or Territory" field (13 Canadian
+  // provinces/territories, alphabetical) reported "Ontario" as not found
+  // even though it's a genuine, spelled-correctly option in the widget --
+  // live-verified cause: this class of long, alphabetical single-select
+  // (province/state/country lists are the common real-world case) is
+  // virtualized, only rendering the handful of options near the current
+  // scroll/keyboard position into the DOM at once, so a plain
+  // querySelectorAll pass over the listbox never sees an option sitting
+  // further down the list. Real, live-tested fix: when the direct scan
+  // above finds nothing, step through with ArrowDown (the same input a
+  // sighted person would use to reach it) and re-scan after each step,
+  // since virtualized lists render new option nodes as the highlighted
+  // position moves past their un-rendered range. Bounded to 40 steps --
+  // comfortably past the longest real list this pattern shows up on
+  // (13 Canadian provinces, 50 US states, ~195 countries would need a
+  // higher cap, but a country field is virtually always typeahead-filtered
+  // rather than a bare long list -- and this only ever runs after the
+  // cheap direct scan already failed, not on every fill.
+  async function findOptionByStepping(listbox, wanted, el) {
+    for (let i = 0; i < 40; i++) {
+      el.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+      await new Promise((r) => setTimeout(r, 60));
+      const { match } = findOptionMatch(listbox, wanted);
+      if (match) return match;
+    }
+    return null;
+  }
+
   // v3.286.0 -- Radix Select / react-select-style widgets: not a real
   // <select>, a button/div with role="combobox" that opens a real
   // role="listbox" popup on click. Scoped correctly on purpose -- via
@@ -1157,7 +1198,8 @@
   // which is exactly the kind of timing assumption that silently breaks
   // on a slower render. Verified afterward by re-reading the trigger's
   // own displayed text, not just trusted because a click happened.
-  async function fillCombobox(el, value) {
+  async function fillCombobox(el, value, depth) {
+    depth = depth || 0;
     const wanted = value.trim().toLowerCase();
     el.click();
     const listboxId = el.getAttribute("aria-controls");
@@ -1167,18 +1209,48 @@
       if (!listbox) await new Promise((r) => setTimeout(r, 100));
     }
     if (!listbox) return { ok: false };
-    const options = Array.from(listbox.querySelectorAll('[role="option"]'));
-    const match = options.find((o) => o.textContent.trim().toLowerCase() === wanted)
-      || options.find((o) => o.textContent.trim().toLowerCase().includes(wanted) || wanted.includes(o.textContent.trim().toLowerCase()));
+    let { match } = findOptionMatch(listbox, wanted);
+    if (!match) match = await findOptionByStepping(listbox, wanted, el);
     if (!match) {
       el.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
       return { ok: false };
     }
     match.click();
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 150));
     const landed = match.getAttribute("aria-selected") === "true"
       || (el.textContent || "").trim().toLowerCase().includes(match.textContent.trim().toLowerCase());
-    return { ok: landed };
+    if (landed) return { ok: true };
+    // v3.308.0 -- a real, live-tested second shape: some "select one"
+    // widgets are two levels deep -- clicking a top-level entry (e.g. a
+    // "How did you hear about us?" category like "Advertising") doesn't
+    // select a value at all, it opens a second, narrower listbox of real
+    // leaf options nested under it (e.g. "Print - Paper/Journal/Magazine").
+    // Only followed once (depth 1) -- a genuine leaf value is never itself
+    // a category, so a second miss here means the wanted value truly
+    // isn't offered, not that it's three levels deep.
+    if (depth === 0) {
+      const nestedListboxId = match.getAttribute("aria-controls") || el.getAttribute("aria-controls");
+      let nested = nestedListboxId ? document.getElementById(nestedListboxId) : null;
+      for (let i = 0; i < 10 && !nested; i++) {
+        // Plain JS filter, not a CSS :not(#id) selector -- listbox.id can
+        // legitimately be empty (an unnamed popup), and an empty-id
+        // selector is invalid CSS that throws, not a harmless no-match.
+        nested = Array.from(document.querySelectorAll('[role="listbox"]')).find((lb) => lb !== listbox && visible(lb)) || null;
+        if (!nested) await new Promise((r) => setTimeout(r, 100));
+      }
+      if (nested && nested !== listbox) {
+        let { match: leafMatch } = findOptionMatch(nested, wanted);
+        if (!leafMatch) leafMatch = await findOptionByStepping(nested, wanted, el);
+        if (leafMatch) {
+          leafMatch.click();
+          await new Promise((r) => setTimeout(r, 150));
+          const nestedLanded = leafMatch.getAttribute("aria-selected") === "true"
+            || (el.textContent || "").trim().toLowerCase().includes(leafMatch.textContent.trim().toLowerCase());
+          return { ok: nestedLanded };
+        }
+      }
+    }
+    return { ok: false };
   }
 
   // v3.289.0 -- reported directly: a "Location" field showing

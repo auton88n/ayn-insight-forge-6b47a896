@@ -50,7 +50,8 @@
 // resolves cleanly. Cloud's own deployment was unaffected either way.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
-import { isUsOrCanadaLocation } from "../_shared/geoScope.ts";
+import { classifyRegion } from "../_shared/geoScope.ts";
+import { isTrendingTechCategory } from "../_shared/trendingCategories.ts";
 import { stripHtml } from "../_shared/htmlText.ts";
 import { detectScamSignal } from "../_shared/scamSignals.ts";
 
@@ -84,27 +85,36 @@ const FRESHNESS_DAYS = 3;
 // posting is miscategorized, not as the primary check anymore.
 const LANGUAGE_FILTER = "en";
 
-// v3.163.0 — narrowed to US and Canada only, requested directly: the
-// founder chose to concentrate the whole product on these two markets
-// deliberately (simpler data-residency/privacy posture — no GDPR
-// extraterritorial exposure once EU/Middle East users are no longer being
-// targeted at all — plus richer, easier-to-verify public data in both
-// countries) rather than spread thin across four regions pre-launch, with
-// Europe and the Middle East explicitly left as a later expansion, not a
-// permanent exclusion. Superseded v3.134.0's four-region restriction; the
-// REGION_GROUPS structure itself (separate query + page budget per group,
-// so a smaller region can't be starved by a larger one) is kept as-is
-// since it's still the right shape for exactly one region today and for
-// whichever region gets added back first later.
+// v3.309.0 — the "later expansion" v3.163.0 explicitly planned for,
+// arriving now: requested directly, "expand the jobs to cover middle east
+// and Europe and North America and Australia." REGION_GROUPS grows from
+// one entry to four; the structure itself (a separate freehire query and
+// a separate page budget per region, so a smaller region can never be
+// starved by a larger one sharing the same pool) is unchanged, it's still
+// exactly the right shape for four regions that it was for one.
 //
-// maxPages raised 8 to 20 for the one remaining group — removing two
-// groups frees real budget in the same per-run window (previously split
-// three ways), and North America's own measured volume (~77,000 new
-// postings/day) is the region that benefits most from a bigger pull per
-// run, per the same "check more often, pull more each time" reasoning
-// v3.134.0 already established.
-const REGION_GROUPS: Array<{ name: string; countries: string; maxPages: number }> = [
-  { name: "north_america", countries: "ca,us", maxPages: 20 },
+// North America's own budget comes down from 20 to 12 pages to make real
+// room for the other three, not because its own volume shrank — it is
+// still the largest, best-covered region by a wide margin (~77,000 new
+// postings/day, per the v3.163.0 measurement), so it keeps the biggest
+// single share. Europe gets the second-largest budget as the next most
+// data-rich, best-verifiable region; Middle East and Australia get
+// smaller, real, dedicated budgets rather than being left to compete for
+// whatever North America and Europe don't use.
+//
+// Country codes are real ISO 3166-1 alpha-2, passed straight through to
+// freehire's own countries= param the same way "ca,us" always was — but,
+// per the v3.169.0 finding that freehire's own country filter is leaky
+// (real foreign postings were confirmed live slipping through the old
+// "ca,us" filter too), this alone was never trusted to correctly scope a
+// region. syncRegion below re-checks every row's real location against
+// classifyRegion() and only keeps it if that independent classifier
+// agrees it belongs to the region actually being synced right now.
+const REGION_GROUPS: Array<{ name: "north_america" | "europe" | "middle_east" | "australia"; countries: string; maxPages: number }> = [
+  { name: "north_america", countries: "ca,us", maxPages: 12 },
+  { name: "europe", countries: "gb,de,fr,es,it,nl,be,ch,ie,pt,pl,se,no,dk,at,fi", maxPages: 8 },
+  { name: "middle_east", countries: "ae,sa,il,qa,kw,bh,om", maxPages: 5 },
+  { name: "australia", countries: "au", maxPages: 4 },
 ];
 
 const BLOCKED_AGGREGATOR_HOSTS = [
@@ -288,12 +298,14 @@ function looksNonLatinScript(text: string): boolean {
  * in the response, not averaged away into one combined total. */
 async function syncRegion(
   admin: ReturnType<typeof createClient>,
+  regionName: "north_america" | "europe" | "middle_east" | "australia",
   countries: string,
   maxPages: number,
   knownLogos: Map<string, string | null>,
-): Promise<{ fetched: number; upserted: number }> {
+): Promise<{ fetched: number; upserted: number; skippedOffCategory: number }> {
   let fetched = 0;
   let upserted = 0;
+  let skippedOffCategory = 0;
 
   for (let page = 0; page < maxPages; page++) {
     const url = `${FREEHIRE_BASE}?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}&posted_within=${FRESHNESS_DAYS}&sort=posted_at&order=desc&countries=${countries}&posting_language=${LANGUAGE_FILTER}`;
@@ -349,24 +361,33 @@ async function syncRegion(
       })
       .filter((row) => row.description.length >= 40) // skip anything too thin to score against
       .filter((row) => !looksNonLatinScript(row.description) && !looksNonLatinScript(row.title))
-      // v3.169.0 — found live during a verification sweep: freehire's own
-      // countries=ca,us param (the only scoping this function had) is
-      // leaky -- real UK/Peru/Australia/Dubai/India/Turkey/Brazil/
-      // Philippines/Italy postings were confirmed live in the table
-      // despite it. The same local backstop ats-direct-sync already
-      // proved out is the real fix, not trusting freehire's own filter.
-      .filter((row) => isUsOrCanadaLocation(row.location));
+      // v3.309.0 — region-aware, not a blanket US/Canada check: a row is
+      // only kept if the real, independent location classifier agrees it
+      // belongs to the SPECIFIC region this call is currently syncing.
+      // Per the v3.169.0 finding this replaces, freehire's own countries=
+      // param is leaky (confirmed live: real foreign postings slipped
+      // through the old "ca,us" filter too), so the same distrust applies
+      // to every one of the four regions now, not just the original one —
+      // a Europe query that leaks a US row, or vice versa, gets caught
+      // here exactly the way an out-of-region leak always was.
+      .filter((row) => classifyRegion(row.location) === regionName);
+
+    const categoryChecked = rows.filter((row) => {
+      const ok = isTrendingTechCategory(row.category);
+      if (!ok) skippedOffCategory++;
+      return ok;
+    });
 
     // v3.135.0 — resolve this page's distinct companies before upserting,
     // so company_logo_url lands in the same write as everything else
     // rather than a second pass. Best-effort: a slow/failed freehire
     // companies lookup only ever leaves a row's logo null, never blocks
     // the posting itself from saving.
-    const slugs = rows.map((row) => row.company_slug).filter((s): s is string => !!s);
+    const slugs = categoryChecked.map((row) => row.company_slug).filter((s): s is string => !!s);
     if (slugs.length) {
       await resolveLogosForSlugs(slugs, knownLogos).catch(() => { /* individual lookups already fail soft */ });
     }
-    const rowsWithLogos = rows.map((row) => ({
+    const rowsWithLogos = categoryChecked.map((row) => ({
       ...row,
       company_logo_url: row.company_slug ? (knownLogos.get(row.company_slug) ?? null) : null,
     }));
@@ -380,7 +401,7 @@ async function syncRegion(
     if (jobs.length < PAGE_SIZE) break; // reached the last page for this region
   }
 
-  return { fetched, upserted };
+  return { fetched, upserted, skippedOffCategory };
 }
 
 // v3.194.0 -- verified closure check before pruning. freehire's own
@@ -576,9 +597,9 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const byRegion: Record<string, { fetched: number; upserted: number }> = {};
+    const byRegion: Record<string, { fetched: number; upserted: number; skippedOffCategory: number }> = {};
     for (const group of REGION_GROUPS) {
-      byRegion[group.name] = await syncRegion(admin, group.countries, group.maxPages, knownLogos);
+      byRegion[group.name] = await syncRegion(admin, group.name, group.countries, group.maxPages, knownLogos);
     }
     const fetched = Object.values(byRegion).reduce((n, r) => n + r.fetched, 0);
     const upserted = Object.values(byRegion).reduce((n, r) => n + r.upserted, 0);

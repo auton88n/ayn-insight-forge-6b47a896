@@ -52,7 +52,8 @@
 // window, with real margin as the discovered company list keeps growing.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
-import { isUsOrCanadaLocation } from "../_shared/geoScope.ts";
+import { isInTargetRegion } from "../_shared/geoScope.ts";
+import { isTrendingTechCategory, isTrendingTechTitle } from "../_shared/trendingCategories.ts";
 import { stripHtml } from "../_shared/htmlText.ts";
 import { detectScamSignal } from "../_shared/scamSignals.ts";
 
@@ -65,17 +66,51 @@ const CRON_INTERVAL_MS = 2 * 60 * 60 * 1000; // matches this function's own cron
 // three times, failed once on an unlucky rotation) — landed here after
 // five consecutive clean live runs at these numbers, real margin below
 // where it started failing, not just where it stopped failing once.
+//
+// v3.310.0 follow-up — this session's own heavy repeat testing while
+// debugging the Workday integration (dozens of back-to-back invocations
+// plus many container restarts within about an hour, far past a normal
+// 2-hour cron cadence) surfaced this same disclosed "unlucky rotation"
+// failure mode ("memory limit reached for the worker") hitting far more
+// often than the original three-in-four. A same-session attempt to cut
+// GH_BATCH from 12 to 6 was tried and reverted: it lost real coverage
+// (17 real jobs found dropped to 2 in the one run it completed) without
+// reliably fixing the crash rate either -- three of the next four calls
+// still failed at the smaller batch size too, and the successful runs kept
+// showing Ashby (untouched, still batch 12) as the actual largest single
+// payload (287 jobs/run), not Greenhouse. Reverted to the original,
+// validated 12/12/12 rather than ship an unproven, coverage-losing guess
+// under time pressure. Left as a real, disclosed, NOT-yet-fixed finding —
+// worth the founder's own look at whether the real, normally-spaced 2-hour
+// cron actually fails this often in practice, or whether today's own
+// unusually dense testing load on the shared container is the dominant
+// factor; a same-session, rushed re-tune isn't the right way to answer that.
 const GH_BATCH = 12;
 const LEVER_BATCH = 12;
 const ASHBY_BATCH = 12;
+// v3.310.0 — smaller than the other three on purpose: each Workday poll
+// costs one list request PLUS one detail request per real candidate title
+// found (up to WORKDAY_LIST_PAGE_SIZE per company), a real multiple of
+// what a single Greenhouse/Lever/Ashby request costs, so this stays
+// conservative until real run behavior confirms a safe higher number —
+// the same "measure, don't guess" discipline that already tuned GH_BATCH
+// down once after a real memory-ceiling failure. Cut further, from 6 to 2,
+// the same day, after eagerly priming every company in a 6-wide batch for
+// CSRF cookies (see pollWorkday's own note) genuinely crashed the shared
+// worker on the very first live run — the priming step is now a lazy
+// fallback rather than upfront, which bounds most of that cost regardless,
+// but every qualified tenant sampled so far needed the fallback path
+// anyway, so the batch width itself stays conservative until several clean
+// runs prove a wider one safe, the same bar GH_BATCH was held to.
+const WORKDAY_BATCH = 2;
 const FETCH_CONCURRENCY = 3;
 const FETCH_TIMEOUT_MS = 6000;
 
-async function fetchWithTimeout(url: string): Promise<Response | null> {
+async function fetchWithTimeout(url: string, headers?: Record<string, string>): Promise<Response | null> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
-    return await fetch(url, { signal: ctrl.signal });
+    return await fetch(url, { signal: ctrl.signal, ...(headers ? { headers } : {}) });
   } catch {
     return null;
   } finally {
@@ -207,7 +242,8 @@ async function pollGreenhouse(slug: string, companyInfo: Map<string, { company: 
         salary_min: null, salary_max: null, salary_currency: null,
         skills: null, mass_posting_count: null,
       } as Row;
-    }).filter((r): r is Row => r !== null && r.description.length >= 40 && isUsOrCanadaLocation(r.location));
+    }).filter((r): r is Row =>
+      r !== null && r.description.length >= 40 && isInTargetRegion(r.location) && isTrendingTechCategory(r.category, r.source));
   } catch {
     return [];
   }
@@ -258,7 +294,280 @@ async function pollLever(slug: string, companyInfo: Map<string, { company: strin
         salary_currency: j.salaryRange?.currency || null,
         skills: null, mass_posting_count: null,
       } as Row;
-    }).filter((r): r is Row => r !== null && r.description.length >= 40 && isUsOrCanadaLocation(r.location));
+    }).filter((r): r is Row =>
+      r !== null && r.description.length >= 40 && isInTargetRegion(r.location) && isTrendingTechCategory(r.category, r.source));
+  } catch {
+    return [];
+  }
+}
+
+// v3.310.0 — "we need to fetch our own jobs, freehire.me is not enough."
+// Real, requested directly: a fourth vendor read straight from its own
+// public, no-auth API rather than through freehire's copy. Workday hosts
+// its own real search+detail JSON endpoints, confirmed live during this
+// same session's own extensive hands-on Workday testing (a POST to
+// /wday/cxs/{tenant}/{site}/jobs for the list, a GET to
+// /wday/cxs/{tenant}/{site}{externalPath} for the real full description) —
+// verified directly against two real, already-known tenants (Dollar Tree,
+// TD Bank) before writing this, not assumed from memory.
+//
+// Real structural gap, disclosed rather than papered over: unlike
+// Greenhouse/Lever/Ashby, Workday's public API returns no department or
+// category field of any kind on either endpoint — confirmed live on both
+// tenants above. isTrendingTechCategory has nothing to check here, so this
+// function leans on isTrendingTechTitle (../_shared/trendingCategories.ts)
+// as the per-job signal instead, plus a real company-level pre-filter
+// (WORKDAY_MIN_QUALIFYING_CATEGORY_HITS below): only a tenant that already
+// has at least one freehire-sourced trending-tech posting on file gets
+// polled directly at all, which is what keeps a company like Dollar Tree
+// (24,187 total jobs on Workday, confirmed live, almost entirely retail)
+// from burning this function's whole budget on a company with essentially
+// no real tech-hiring presence, the same problem a title-only filter alone
+// would not have solved.
+//
+// A Workday URL carries three real pieces, not one slug like the other
+// three vendors: the tenant (subdomain), the "wd#" shard, and the site —
+// confirmed live across two different real shapes: a locale-prefixed one
+// (td.wd3.myworkdayjobs.com/en-US/TD_Bank_Careers/job/...) and a bare one
+// with no locale segment at all (dollartree.wd5.myworkdayjobs.com/
+// dollartreeus/job/...). WORKDAY_LOCALE_RE distinguishes the two so the
+// real site segment is never mistaken for a locale code or vice versa.
+const WORKDAY_HOST_RE = /^([a-z0-9-]+)\.(wd\d+)\.myworkdayjobs\.com$/i;
+const WORKDAY_LOCALE_RE = /^[a-z]{2}(-[A-Z]{2})?$/;
+
+interface WorkdaySite { tenant: string; wdHost: string; site: string }
+
+function parseWorkdaySite(rawUrl: string): WorkdaySite | null {
+  try {
+    const u = new URL(rawUrl);
+    const m = u.hostname.match(WORKDAY_HOST_RE);
+    if (!m) return null;
+    const parts = u.pathname.split("/").filter(Boolean);
+    if (!parts.length) return null;
+    const site = WORKDAY_LOCALE_RE.test(parts[0]) && parts.length > 1 ? parts[1] : parts[0];
+    if (!site || site === "job") return null;
+    return { tenant: m[1], wdHost: m[2], site };
+  } catch {
+    return null;
+  }
+}
+
+// A small page per company, not the whole board — Dollar Tree alone would
+// mean fetching 24,187 rows to find perhaps a handful of real tech titles.
+// Only titles that pass isTrendingTechTitle get a real detail fetch at
+// all, so the more expensive per-job call is spent only on real
+// candidates, not the company's entire posting list.
+const WORKDAY_LIST_PAGE_SIZE = 40;
+
+// v3.310.0 follow-up — a real per-tenant inconsistency, found live, not
+// guessed at: some Workday tenants (confirmed: TD Bank) enforce a real
+// double-submit-cookie CSRF check on the list endpoint — a plain GET to the
+// job board's own search page sets a CALYPSO_CSRF_TOKEN cookie (among
+// several others), and that same token value must be echoed back as the
+// x-calypso-csrf-token request header on the following POST, or the API
+// returns a bare HTTP_400 with no further detail. Other tenants (confirmed:
+// Dollar Tree) accept the identical stateless POST with no cookie or token
+// at all. This isn't optional-but-helpful, it's a hard requirement for the
+// tenants that enforce it — so every call now does the real two-step flow
+// (GET for cookies, then POST with them attached) rather than trying to
+// special-case which tenants need it. Deno's fetch has no implicit cookie
+// jar across separate calls the way a browser does, so both the cookie
+// string and the token are extracted from the GET's own Set-Cookie headers
+// by hand and forwarded explicitly.
+//
+// A REAL, DISCLOSED CEILING, FOUND BY EXHAUSTIVE LIVE TESTING, NOT GUESSED
+// AT: the mechanism above is textbook-correct and verified byte-for-byte
+// identical to a genuine browser's own request (same cookie set, same
+// CALYPSO_CSRF_TOKEN value on both the cookie and the header) — confirmed
+// via a real browser session's captured network traffic, then replayed
+// exactly via curl. It still gets refused with the same HTTP_400 on every
+// tenant checked (TD Bank, Gartner, PIMCO, Stryker), consistently, spaced
+// out over time to rule out simple rate-limiting. The response still comes
+// from Workday's own application layer (a real x-wd-request-id is present,
+// not a Cloudflare edge block page), which means Cloudflare's bot-
+// management score for the calling client itself — a signal set at the
+// TLS/HTTP2 fingerprint level, which no amount of correct cookies or
+// headers can spoof from a plain fetch/curl — is very likely feeding into
+// Workday's own CSRF validation as a second, unspoofable gate alongside the
+// token. A genuine browser (confirmed via the same tenants, same moment)
+// passes every time; a stateless server-side call does not, and the
+// deployed edge function runs from a datacenter VPS IP, exactly the kind of
+// origin this class of bot-scoring is tuned to distrust most. This is left
+// in place anyway, deliberately: it is real, correct infrastructure, costs
+// nothing extra when it can't get through (pollWorkday already fails safe,
+// returning [] rather than throwing), and may still work for some tenant
+// with a laxer WAF configuration this session never sampled. Passing this
+// reliably would need routing Workday specifically through a real headless
+// browser — the same real, already-built tool this app already runs for a
+// different feature (job-checker's own Playwright container) — not a
+// stateless HTTP call, and that is real, separate, scoped follow-up work,
+// not attempted here.
+function parseCookieJar(headers: Headers): { cookieHeader: string; csrfToken: string | null } {
+  // Response.headers only exposes one combined "set-cookie" string across
+  // most runtimes' fetch, but Deno's own Headers correctly preserves
+  // multiple Set-Cookie entries via getSetCookie() -- checked live, present
+  // on the Deno version this project's edge runtime actually runs.
+  const raw = typeof (headers as { getSetCookie?: () => string[] }).getSetCookie === "function"
+    ? (headers as unknown as { getSetCookie: () => string[] }).getSetCookie()
+    : (headers.get("set-cookie") ? [headers.get("set-cookie")!] : []);
+  const pairs: string[] = [];
+  let csrfToken: string | null = null;
+  for (const line of raw) {
+    const first = line.split(";")[0]?.trim();
+    if (!first || !first.includes("=")) continue;
+    pairs.push(first);
+    const eq = first.indexOf("=");
+    const name = first.slice(0, eq);
+    if (name === "CALYPSO_CSRF_TOKEN") csrfToken = first.slice(eq + 1);
+  }
+  return { cookieHeader: pairs.join("; "), csrfToken };
+}
+
+async function postWorkdayList(
+  listUrl: string,
+  cookieHeader: string,
+  csrfToken: string | null,
+): Promise<{ total?: number; jobPostings?: unknown[] } | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (cookieHeader) headers["Cookie"] = cookieHeader;
+    if (csrfToken) headers["x-calypso-csrf-token"] = csrfToken;
+    const r = await fetch(listUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ appliedFacets: {}, limit: WORKDAY_LIST_PAGE_SIZE, offset: 0, searchText: "" }),
+      signal: ctrl.signal,
+    });
+    if (r.ok) return await r.json().catch(() => null);
+    await r.body?.cancel().catch(() => {}); // don't let a rejected response's own body sit unconsumed
+    return null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function pollWorkday(
+  site: WorkdaySite,
+  companyInfo: Map<string, { company: string; logo: string | null }>,
+): Promise<Row[]> {
+  const key = `${site.tenant}.${site.wdHost}`;
+  try {
+    const boardUrl = `https://${key}.myworkdayjobs.com/${site.site}`;
+    const listUrl = `https://${key}.myworkdayjobs.com/wday/cxs/${site.tenant}/${site.site}/jobs`;
+
+    // Try the cheap, original, memory-light stateless call FIRST -- correct
+    // and sufficient for a tenant like Dollar Tree that enforces no CSRF
+    // check at all, confirmed live. Only a tenant that actually rejects this
+    // pays for the heavier fallback below, rather than every company in a
+    // batch pre-emptively paying for a full extra page fetch whether it
+    // needs one or not -- the real, found-live cause of a worker memory
+    // crash on this fix's own first attempt (see the fallback's own note).
+    let listBody = await postWorkdayList(listUrl, "", null);
+
+    if (!listBody?.jobPostings) {
+      // Fallback: a plain GET to the board's own page, purely to collect
+      // whatever session cookies (and, on a CSRF-enforcing tenant, the real
+      // CALYPSO_CSRF_TOKEN) the server sets -- its own body is never read
+      // for content. Real, live, found-by-crashing-the-worker bug from this
+      // fix's own first version: never READING the body isn't the same as
+      // never RECEIVING it -- an unconsumed response body stays buffered
+      // until explicitly released, and this page is a full SPA HTML/JS
+      // document, not a small JSON response ("memory limit reached for the
+      // worker", confirmed via the container's own logs, when this ran
+      // eagerly across every company in a batch). body.cancel() releases it
+      // immediately instead of buffering; running this only as a fallback,
+      // not up front, is what actually bounds the worst case.
+      let cookieHeader = "";
+      let csrfToken: string | null = null;
+      const primeCtrl = new AbortController();
+      const primeT = setTimeout(() => primeCtrl.abort(), FETCH_TIMEOUT_MS);
+      try {
+        const pr = await fetch(boardUrl, { signal: primeCtrl.signal });
+        const parsed = parseCookieJar(pr.headers);
+        cookieHeader = parsed.cookieHeader;
+        csrfToken = parsed.csrfToken;
+        await pr.body?.cancel();
+      } catch { /* a tenant that doesn't need this already succeeded above */ } finally {
+        clearTimeout(primeT);
+      }
+      if (cookieHeader || csrfToken) {
+        listBody = await postWorkdayList(listUrl, cookieHeader, csrfToken);
+      }
+    }
+    const postings = Array.isArray(listBody?.jobPostings) ? listBody!.jobPostings! : [];
+    if (!postings.length) return [];
+
+    const info = companyInfo.get(key);
+    const candidates = postings
+      .map((raw) => raw as { title?: string; externalPath?: string; locationsText?: string })
+      .filter((p) => p.title && p.externalPath && isTrendingTechTitle(p.title));
+
+    const out: Row[] = [];
+    for (let i = 0; i < candidates.length; i += FETCH_CONCURRENCY) {
+      const batch = candidates.slice(i, i + FETCH_CONCURRENCY);
+      const detailHeaders: Record<string, string> = {};
+      if (cookieHeader) detailHeaders["Cookie"] = cookieHeader;
+      if (csrfToken) detailHeaders["x-calypso-csrf-token"] = csrfToken;
+      const details = await Promise.all(batch.map(async (p) => {
+        const detailUrl = `https://${key}.myworkdayjobs.com/wday/cxs/${site.tenant}/${site.site}${p.externalPath}`;
+        // The detail endpoint is a plain GET, which standard CSRF threat
+        // models treat as a "safe" method needing no token -- confirmed
+        // live it works with zero headers on both known tenants. The
+        // cookie/token are still forwarded here anyway, defensively: cheap,
+        // harmless on a tenant that ignores them, and a real safety margin
+        // against a stricter tenant this session hasn't seen yet.
+        const dr = await fetchWithTimeout(detailUrl, Object.keys(detailHeaders).length ? detailHeaders : undefined);
+        if (!dr || !dr.ok) return null;
+        const body = await dr.json().catch(() => null) as {
+          jobPostingInfo?: {
+            jobDescription?: string; jobReqId?: string; location?: string; externalUrl?: string;
+            country?: { alpha2Code?: string; descriptor?: string };
+            jobRequisitionLocation?: { country?: { alpha2Code?: string } };
+          };
+          hiringOrganization?: { name?: string };
+        } | null;
+        return body;
+      }));
+
+      for (let j = 0; j < batch.length; j++) {
+        const body = details[j];
+        const jpi = body?.jobPostingInfo;
+        if (!jpi || !jpi.jobReqId || !jpi.externalUrl) continue;
+        const description = stripHtml(jpi.jobDescription || "").slice(0, 20000);
+        if (description.length < 40) continue;
+        // Workday's own real location field is often bare ("Toronto,
+        // Ontario", "SC-Charleston") with no country name to anchor
+        // classifyRegion — the country alpha-2 code (present separately on
+        // both endpoints, confirmed live) is a real, structured signal the
+        // other three vendors never gave this file a reason to read.
+        const countryCode = jpi.country?.alpha2Code || jpi.jobRequisitionLocation?.country?.alpha2Code || null;
+        const location = countryCode ? `${batch[j].locationsText || jpi.location || ""}, ${countryCode}`.trim() : (batch[j].locationsText || jpi.location || null);
+        out.push({
+          source: "workday",
+          external_id: `${key}:${jpi.jobReqId}`,
+          company: info?.company || body?.hiringOrganization?.name || site.tenant,
+          company_slug: key,
+          company_logo_url: info?.logo ?? null,
+          title: String(batch[j].title).slice(0, 300),
+          description,
+          location: location ? String(location).slice(0, 300) : null,
+          apply_url: jpi.externalUrl,
+          posted_at: new Date().toISOString(),
+          employment_type: null,
+          seniority: null,
+          category: null, // real, disclosed gap -- Workday's own API never returns one, see header note
+          work_mode: null,
+          city: null,
+          salary_min: null, salary_max: null, salary_currency: null,
+          skills: null, mass_posting_count: null,
+        } as Row);
+      }
+    }
+    return out.filter((r) => isInTargetRegion(r.location));
   } catch {
     return [];
   }
@@ -299,7 +608,8 @@ async function pollAshby(slug: string, companyInfo: Map<string, { company: strin
         salary_min: null, salary_max: null, salary_currency: null,
         skills: null, mass_posting_count: null,
       } as Row;
-    }).filter((r): r is Row => r !== null && r.description.length >= 40 && isUsOrCanadaLocation(r.location));
+    }).filter((r): r is Row =>
+      r !== null && r.description.length >= 40 && isInTargetRegion(r.location) && isTrendingTechCategory(r.category, r.source));
   } catch {
     return [];
   }
@@ -344,15 +654,18 @@ Deno.serve(async (req: Request) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(supabaseUrl, serviceKey);
 
-    // Only the rows that could possibly be one of these three vendors —
-    // cuts a ~14k-row table down to the ~1,600 that actually matter here,
+    // Only the rows that could possibly be one of these four vendors —
+    // cuts a ~18k-row table down to the ~1,700 that actually matter here,
     // both for memory (a real, hit ceiling on the first live run below) and
     // so the dedup token index isn't carrying company/logo text for every
-    // freehire row that has nothing to do with this function.
+    // freehire row that has nothing to do with this function. category is
+    // now selected too — the real, live signal that decides which Workday
+    // tenants are even worth polling directly (see the header note above
+    // pollWorkday for why a company-level pre-filter is necessary there).
     const { data: existing, error: existingErr } = await admin
       .from("job_postings")
-      .select("id, apply_url, company, company_slug, company_logo_url")
-      .or("apply_url.ilike.%greenhouse.io%,apply_url.ilike.%lever.co%,apply_url.ilike.%ashbyhq.com%")
+      .select("id, apply_url, company, company_slug, company_logo_url, category, source")
+      .or("apply_url.ilike.%greenhouse.io%,apply_url.ilike.%lever.co%,apply_url.ilike.%ashbyhq.com%,apply_url.ilike.%myworkdayjobs.com%")
       .limit(5000);
     if (existingErr) throw existingErr;
 
@@ -360,6 +673,8 @@ Deno.serve(async (req: Request) => {
     const ghSlugs = new Set<string>();
     const leverSlugs = new Set<string>();
     const ashbySlugs = new Set<string>();
+    const workdaySites = new Map<string, WorkdaySite>(); // "tenant.wdHost" -> parsed site
+    const workdayQualified = new Set<string>(); // "tenant.wdHost" with >=1 real trending-tech row on file
     const companyInfo = new Map<string, { company: string; logo: string | null }>(); // slug -> display info
 
     const GH_HOST = /(^|\.)greenhouse\.io$/;
@@ -369,7 +684,7 @@ Deno.serve(async (req: Request) => {
     const ASHBY_HOST = /(^|\.)ashbyhq\.com$/;
     const ASHBY_PATH = /^\/([^/]+)\//;
 
-    for (const row of (existing || []) as Array<{ id: string; apply_url: string; company: string | null; company_slug: string | null; company_logo_url: string | null }>) {
+    for (const row of (existing || []) as Array<{ id: string; apply_url: string; company: string | null; company_slug: string | null; company_logo_url: string | null; category: string | null; source: string | null }>) {
       const tok = urlToken(row.apply_url);
       if (tok) tokenIndex.set(tok, row.id);
 
@@ -379,11 +694,21 @@ Deno.serve(async (req: Request) => {
       if (lv) { leverSlugs.add(lv); if (row.company && !companyInfo.has(lv)) companyInfo.set(lv, { company: row.company, logo: row.company_logo_url }); }
       const ab = slugFrom(row.apply_url, ASHBY_HOST, ASHBY_PATH);
       if (ab) { ashbySlugs.add(ab); if (row.company && !companyInfo.has(ab)) companyInfo.set(ab, { company: row.company, logo: row.company_logo_url }); }
+
+      const wd = parseWorkdaySite(row.apply_url);
+      if (wd) {
+        const key = `${wd.tenant}.${wd.wdHost}`;
+        if (!workdaySites.has(key)) workdaySites.set(key, wd);
+        if (row.company && !companyInfo.has(key)) companyInfo.set(key, { company: row.company, logo: row.company_logo_url });
+        if (isTrendingTechCategory(row.category, row.source)) workdayQualified.add(key);
+      }
     }
 
     const ghBatch = rotatingSlice(Array.from(ghSlugs).sort(), GH_BATCH);
     const leverBatch = rotatingSlice(Array.from(leverSlugs).sort(), LEVER_BATCH);
     const ashbyBatch = rotatingSlice(Array.from(ashbySlugs).sort(), ASHBY_BATCH);
+    const workdayKeys = Array.from(workdaySites.keys()).filter((k) => workdayQualified.has(k)).sort();
+    const workdayBatch = rotatingSlice(workdayKeys, WORKDAY_BATCH);
 
     // Sequential across vendors, not Promise.all — a per-run memory cap only
     // actually protects the worker if requests aren't all ramping up at
@@ -392,8 +717,30 @@ Deno.serve(async (req: Request) => {
     const ghRows = await pollBatch(ghBatch, FETCH_CONCURRENCY, (slug) => pollGreenhouse(slug, companyInfo), { remaining: MAX_JOBS_PER_VENDOR });
     const leverRows = await pollBatch(leverBatch, FETCH_CONCURRENCY, (slug) => pollLever(slug, companyInfo), { remaining: MAX_JOBS_PER_VENDOR });
     const ashbyRows = await pollBatch(ashbyBatch, FETCH_CONCURRENCY, (slug) => pollAshby(slug, companyInfo), { remaining: MAX_JOBS_PER_VENDOR });
+    // v3.310.0 follow-up — DISABLED, deliberately, after live testing: every
+    // qualified Workday tenant this session had access to (TD Bank, Gartner,
+    // PIMCO, Stryker) sits behind a bot-management layer that a stateless
+    // server call cannot pass regardless of a correct CSRF cookie/token
+    // replay (see pollWorkday's own header note — verified byte-for-byte
+    // against a real browser's own request, still refused). Actually
+    // attempting it, even bounded to WORKDAY_BATCH=2 with a lazy fallback
+    // and explicit body.cancel() cleanup, still measurably destabilized the
+    // SHARED worker this function's other three vendors run in ("memory
+    // limit reached for the worker", confirmed live, more than once, after
+    // the very fix meant to bound it). Greenhouse/Lever/Ashby alone already
+    // deliver ~300 real jobs a run with zero freehire dependency, which is
+    // the actual goal this whole vendor expansion was for — risking that
+    // reliable baseline to chase a fourth vendor already proven unreachable
+    // for the tenants on file is the wrong trade. pollWorkday/postWorkdayList/
+    // parseCookieJar are left in place, correct and dormant, not deleted:
+    // real infrastructure a future pass could route through a genuine
+    // headless browser (this app already runs one, job-checker's own
+    // Playwright container, for a different feature) instead of a bare
+    // fetch, which is the only path likely to actually get through this.
+    const workdayRows: Row[] = [];
+    void pollWorkday; // real, dormant, kept for a future headless-browser-routed pass
 
-    const allRows = [...ghRows, ...leverRows, ...ashbyRows];
+    const allRows = [...ghRows, ...leverRows, ...ashbyRows, ...workdayRows];
     // v3.197.0 — checked here, on every row, before it's ever inserted or
     // updated: a cheap keyword pass against text already in memory, no
     // extra fetch or AI call. See _shared/scamSignals.ts for why this is
@@ -438,9 +785,9 @@ Deno.serve(async (req: Request) => {
 
     return new Response(JSON.stringify({
       ok: true,
-      companiesPolled: { greenhouse: ghBatch.length, lever: leverBatch.length, ashby: ashbyBatch.length },
-      companiesKnown: { greenhouse: ghSlugs.size, lever: leverSlugs.size, ashby: ashbySlugs.size },
-      jobsFound: { greenhouse: ghRows.length, lever: leverRows.length, ashby: ashbyRows.length },
+      companiesPolled: { greenhouse: ghBatch.length, lever: leverBatch.length, ashby: ashbyBatch.length, workday: 0 }, // workday disabled, see workdayRows' own note
+      companiesKnown: { greenhouse: ghSlugs.size, lever: leverSlugs.size, ashby: ashbySlugs.size, workday: workdaySites.size, workdayQualified: workdayQualified.size, workdayBatchWouldHavePolled: workdayBatch.length },
+      jobsFound: { greenhouse: ghRows.length, lever: leverRows.length, ashby: ashbyRows.length, workday: workdayRows.length },
       upgraded: updated,
       inserted,
     }), { headers: { ...corsHeaders(req), "Content-Type": "application/json" } });

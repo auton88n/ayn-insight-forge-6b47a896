@@ -786,3 +786,85 @@ inventing something. `matchedType: "ai_narrative"` distinguishes this
 from a stored-fact answer in the response, should a future UI want to
 show the two differently (a generated answer is worth a closer look
 before submitting than a verbatim stored fact is).
+
+## Two real dropdown gaps found on a live Workday application, start to
+## finish (v3.308.0)
+
+Asked directly to fully complete two genuine job applications end to
+end through real ATS platforms (Dollar Tree and TD Bank, both
+Workday-hosted, both sourced live from AYN's own `job_postings` table)
+and see whether real employer confirmation emails reach a per-user
+tracking address, using a separate third-party browser-automation tool
+(not AYN's own extension, which cannot be loaded and driven inside this
+session's tooling) as the driving hand. That test is documented under
+its own heading elsewhere in this codebase's history; what belongs here
+is what it taught about Workday's own real form widgets, since two of
+the failures hit along the way are genuine gaps in `frame_agent.js`'s
+`fillCombobox`, not artifacts of the third-party tool used to find them
+— both are now fixed in the real extension source.
+
+**Gap one, a real virtualized long list.** TD Bank's "Province or
+Territory" field (13 Canadian provinces, alphabetical) is a
+`role="combobox"` trigger opening a `role="listbox"` popup, exactly the
+shape `fillCombobox` already knew how to drive — except the popup only
+ever renders the ~5 options nearest the current scroll/keyboard
+position into the DOM at once. "Ontario" (8th of 13) was never found by
+the existing direct `querySelectorAll('[role="option"]')` scan, because
+it genuinely wasn't in the DOM yet. Confirmed live: the exact same
+class of widget backs Country/State/Province fields on real ATS forms
+broadly, not just this one field on this one employer — a real, common
+pattern (component libraries virtualize any list past a handful of
+items), not a Workday-only quirk. Fixed with a bounded fallback
+(`findOptionByStepping`, 40 steps max): when the direct scan finds
+nothing, step through with real `ArrowDown` keydown events — the same
+input a sighted person uses to reach an option further down — re-scanning
+the listbox after each step, since a virtualized list renders new option
+nodes as the highlighted position moves past their previously
+un-rendered range. Only runs after the cheap direct scan already missed,
+so a short, fully-rendered list (the common case) pays nothing extra.
+
+**Gap two, a real one-level nested category.** TD Bank's "How Did You
+Hear About Us?" field looked like a flat single-select list
+(Advertising, Events, Job Boards, Social Media, ...) but "Advertising"
+itself was a category, not a leaf value — clicking it opened a second,
+narrower `role="listbox"` of real answers underneath it (Print, Radio,
+TV, ...), which the genuine target value ("Print -
+Paper/Journal/Magazine") actually lived in. The existing `fillCombobox`
+had no path for this: it treated any click on a text-matching option as
+the final answer. Fixed by checking, after a click, whether the field's
+own displayed state actually changed to reflect a real selection
+(`aria-selected` / the trigger's own text) — if not, and a second,
+different, now-visible listbox exists (resolved via the clicked
+option's own `aria-controls`, falling back to a plain scan for any
+other visible listbox, never a bare page-wide search), the identical
+match logic runs one more time against it. Deliberately bounded to one
+level (`depth` param, checked once, never recursed further) — a genuine
+leaf value is never itself a category, so a second miss means the value
+truly isn't offered, not that the tree goes three levels deep.
+
+Both fixes share one small extracted helper, `findOptionMatch`, so the
+direct scan, the virtualized-list fallback, and the nested-category
+fallback all apply the identical match rule (exact text, then substring
+either direction) rather than three copies able to drift apart.
+
+Verified in isolation, not live through the real loaded extension —
+this session's tooling has no way to load an unpacked MV3 extension or
+hold a real ATS session, the same disclosed limit this file's history
+already names for every prior DOM-shape finding. Built two synthetic
+jsdom DOMs reproducing the exact two shapes found live (a virtualized
+13-item list only rendering 5 at a time; a two-level category/leaf
+listbox pair linked by `aria-controls`) and ran the real fix's own
+matching logic (copied verbatim into the test, not reimplemented)
+against both: the virtualized case correctly failed a direct scan, then
+correctly found "Ontario" after exactly 4 real `ArrowDown` steps — the
+same distance a real climb from the initial 5-item window to the 8th
+item requires; the nested case correctly failed a top-level scan for
+the leaf text, correctly found the "Advertising" category, and
+correctly resolved the leaf list via `aria-controls` and found
+"Print - Paper/Journal/Magazine" inside it. `node --check` clean on the
+full modified file.
+
+Extension version bumped to 1.11.0 (`manifest.json`); no build step
+exists in this repo for the extension (`content.js`/`frame_agent.js`/
+`background.js` are loaded as plain source, unbundled), so the edited
+source files themselves are the shipped artifact once reloaded.
