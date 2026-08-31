@@ -409,10 +409,16 @@ Return the complete improved resume in the same schema, plus suggestions: an arr
 
       // Self-verification — check the model's own output against the rules
       // in code before anyone sees it, instead of only asking nicely and
-      // trusting compliance. One retry, same pattern tailor's own
-      // figure-preservation check already uses.
+      // trusting compliance. v3.312.0 — was one retry, adopted only if
+      // strictly better than the first draft; a real, live-reproduced case
+      // on the sibling cover_letter action found this loses its only
+      // safety net the moment a retry ALSO has a violation (a tie or a
+      // worse retry silently kept the original flawed draft, with no third
+      // attempt). Now a real loop, up to two retries, always keeping
+      // whichever attempt across all three has the fewest violations.
       let writeViolations = verifyWriteQuality(JSON.stringify(resume), rewritten.resume);
-      if (writeViolations.length) {
+      let rewriteBest = writeViolations.length;
+      for (let attempt = 0; attempt < 2 && rewriteBest > 0; attempt++) {
         const retryNote = violationsToRetryNote(writeViolations);
         const retry = await callAI({
           model: DEFAULT_MODEL, temperature: 0.3, system: rewriteSystem,
@@ -420,9 +426,10 @@ Return the complete improved resume in the same schema, plus suggestions: an arr
           toolName: "emit_rewrite", toolSchema: rewriteSchema,
         });
         const retried = retry.structured as { resume?: unknown; suggestions?: string[] } | undefined;
-        if (retried?.resume) {
-          const retryViolations = verifyWriteQuality(JSON.stringify(resume), retried.resume);
-          if (retryViolations.length < writeViolations.length) { rewritten = retried; writeViolations = retryViolations; }
+        if (!retried?.resume) continue;
+        const retryViolations = verifyWriteQuality(JSON.stringify(resume), retried.resume);
+        if (retryViolations.length < rewriteBest) {
+          rewritten = retried; writeViolations = retryViolations; rewriteBest = retryViolations.length;
         }
       }
 
@@ -704,10 +711,14 @@ Return the complete resume in the schema, plus suggestions: short strings naming
       if (!built?.resume) return json({ error: "Failed to build resume" }, 500);
 
       // Self-verification, same as rewrite: check the model's own output
-      // against the rules in code, one retry, before scoring or charging.
+      // against the rules in code. v3.312.0 — same loop-and-keep-best fix
+      // as rewrite's own sibling check, for the same reason: a single
+      // retry adopted only if strictly better than the first draft has no
+      // recovery when the retry also has a violation.
       const genInputText = JSON.stringify({ profile: canonical, personal: personalForPrompt });
       let genViolations = verifyWriteQuality(genInputText, built.resume);
-      if (genViolations.length) {
+      let genBest = genViolations.length;
+      for (let attempt = 0; attempt < 2 && genBest > 0; attempt++) {
         const retryNote = violationsToRetryNote(genViolations);
         const retry = await callAI({
           model: DEFAULT_MODEL, temperature: 0.3, system: genSystem,
@@ -715,9 +726,10 @@ Return the complete resume in the schema, plus suggestions: short strings naming
           toolName: "emit_resume_from_profile", toolSchema: genSchema,
         });
         const retried = retry.structured as { resume?: unknown; suggestions?: string[] } | undefined;
-        if (retried?.resume) {
-          const retryViolations = verifyWriteQuality(genInputText, retried.resume);
-          if (retryViolations.length < genViolations.length) { built = retried; genViolations = retryViolations; }
+        if (!retried?.resume) continue;
+        const retryViolations = verifyWriteQuality(genInputText, retried.resume);
+        if (retryViolations.length < genBest) {
+          built = retried; genViolations = retryViolations; genBest = retryViolations.length;
         }
       }
 
@@ -935,10 +947,18 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       // in this person's real background), so it can never push the model
       // toward the "missing" bucket — zero new fabrication risk, same as
       // every other check in this file.
+      // v3.312.0 — same loop-and-keep-best-across-all-attempts fix as
+      // rewrite/resume_generate's own sibling checks, for the same reason:
+      // one retry adopted only if strictly better than the immediately
+      // prior attempt has no recovery when the retry also has a violation
+      // (a real, live-reproduced case on the sibling cover_letter action —
+      // a genuine fabricated figure survived a retry that also fabricated
+      // one, and got silently kept since neither was "strictly better").
       const missingReqTexts = gap.missing.map((req) => req.text);
       let writeViolations = verifyWriteQuality(bundle.text, r.structured, missingReqTexts);
       for (const kw of verifyKeywordAlignment(gap, r.structured)) writeViolations.push({ kind: "keyword_gap", detail: kw });
-      if (writeViolations.length) {
+      let tailorBest = writeViolations.length;
+      for (let attempt = 0; attempt < 2 && tailorBest > 0; attempt++) {
         const retryNote = violationsToRetryNote(writeViolations);
         const retry = await callAI({
           model: DEFAULT_MODEL, temperature: 0.2, system,
@@ -947,7 +967,9 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
         });
         const retryViolations = verifyWriteQuality(bundle.text, retry.structured, missingReqTexts);
         for (const kw of verifyKeywordAlignment(gap, retry.structured)) retryViolations.push({ kind: "keyword_gap", detail: kw });
-        if (retryViolations.length < writeViolations.length) { r = retry; writeViolations = retryViolations; }
+        if (retryViolations.length < tailorBest) {
+          r = retry; writeViolations = retryViolations; tailorBest = retryViolations.length;
+        }
       }
       const missingFigures = writeViolations.filter((v) => v.kind === "figure").map((v) => v.detail);
 
@@ -1089,22 +1111,40 @@ RULES:
       // prompt-asked (found live: tailor's summary echoed a genuinely
       // missing requirement as claimed experience; this closes the same
       // gap on the cover letter path before it can happen here too).
+      // v3.312.0 — real, live-reproduced gap in this exact check, found by
+      // testing the cover letter fix above rather than shipping it
+      // untested: a genuine run fabricated a "25%" figure the source never
+      // stated. The detection itself was correct (confirmed by rerunning
+      // extractFigures/droppedFigures against the real captured text in
+      // isolation, before touching this code — it flagged "25%"
+      // immediately, first try), so the gap was never that this check
+      // missed it, only that a single retry, adopted ONLY if strictly
+      // better than the very first draft, has no recovery left when the
+      // retry ALSO happens to invent something — the code fell back to the
+      // still-flawed original rather than trying again. Rewritten as a
+      // real loop, up to two retries, always keeping whichever attempt
+      // (across all three) has the fewest total violations seen so far —
+      // not just "is this retry better than the one immediately before
+      // it," which is what let a tied-or-worse second attempt lose to an
+      // already-bad first one.
       const missingReqTexts = gap.missing.map((req) => req.text);
       let coverMissingFigures = droppedFigures(coverBody, bundle.text).filter((f) => f.length > 1);
       let coverProseViolations = verifyProseQuality(coverBody, false, missingReqTexts);
-      if (coverMissingFigures.length || coverProseViolations.length) {
+      let bestViolationCount = coverMissingFigures.length + coverProseViolations.length;
+      for (let attempt = 0; attempt < 2 && bestViolationCount > 0; attempt++) {
         const figureNote = coverMissingFigures.length
           ? `THE PREVIOUS DRAFT CITED FIGURES THAT DO NOT APPEAR IN THE SECTIONS: ${coverMissingFigures.slice(0, 20).join(", ")}\nRewrite the letter using only figures that appear verbatim in the sections, or no figures at all.\n`
           : "";
         const proseNote = coverProseViolations.length ? violationsToRetryNote(coverProseViolations) : "";
         const retry = await callAI({ system, user: `${userMsg}\n\n${figureNote}${proseNote}` });
         const fixed = String(retry.text || "").trim();
-        if (fixed) {
-          const stillMissing = droppedFigures(fixed, bundle.text).filter((f) => f.length > 1);
-          const stillProse = verifyProseQuality(fixed, false, missingReqTexts);
-          if (stillMissing.length + stillProse.length < coverMissingFigures.length + coverProseViolations.length) {
-            coverBody = fixed; coverMissingFigures = stillMissing; coverProseViolations = stillProse;
-          }
+        if (!fixed) continue;
+        const retryMissing = droppedFigures(fixed, bundle.text).filter((f) => f.length > 1);
+        const retryProse = verifyProseQuality(fixed, false, missingReqTexts);
+        const retryCount = retryMissing.length + retryProse.length;
+        if (retryCount < bestViolationCount) {
+          coverBody = fixed; coverMissingFigures = retryMissing; coverProseViolations = retryProse;
+          bestViolationCount = retryCount;
         }
       }
 
@@ -1174,12 +1214,15 @@ MATCHED (required items this resume already evidences): ${JSON.stringify(gap.mat
 MISSING (required items this resume does not evidence): ${JSON.stringify(gap.missing.slice(0, 8).map((r) => r.text))}
 NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) => r.text))}`;
 
+      // v3.312.0 — same loop-and-keep-best fix as the sibling checks in
+      // rewrite/resume_generate/tailor/cover_letter.
       let r = await callAI({ system: fitSystem, user: "Write the verdict now." });
       let adviceViolations = verifyProseQuality(r.text, false);
-      if (adviceViolations.length) {
+      let adviceBest = adviceViolations.length;
+      for (let attempt = 0; attempt < 2 && adviceBest > 0; attempt++) {
         const retry = await callAI({ system: fitSystem, user: `Write the verdict now.\n\n${violationsToRetryNote(adviceViolations)}` });
         const retryViolations = verifyProseQuality(retry.text, false);
-        if (retryViolations.length < adviceViolations.length) { r = retry; adviceViolations = retryViolations; }
+        if (retryViolations.length < adviceBest) { r = retry; adviceViolations = retryViolations; adviceBest = retryViolations.length; }
       }
       return json({ verdict, coverage: Math.round(coverage * 100), advice: r.text });
     }
@@ -1467,13 +1510,21 @@ RULES:
             for (const cand of narrativeCandidates) {
               let text = narrByFieldId.get(cand.id) || "";
               if (!text) continue;
-              const narrFigureMiss = droppedFigures(text, narrBundle.text).filter((f) => f.length > 1);
-              const narrProse = verifyProseQuality(text, false);
-              if (narrFigureMiss.length || narrProse.length) {
-                // One retry, this single question only -- cheaper and more
+              let narrFigureMiss = droppedFigures(text, narrBundle.text).filter((f) => f.length > 1);
+              let narrProse = verifyProseQuality(text, false);
+              // v3.312.0 — up to two retries, keeping whichever attempt has
+              // the fewest violations across all of them, not just "is this
+              // retry better than the immediately prior one" — same fix as
+              // every sibling self-verification check in this file, for the
+              // same real, live-reproduced reason (a retry can itself
+              // fabricate something and still lose to an already-flawed
+              // original under the old strict-improvement-only rule).
+              let narrBest = narrFigureMiss.length + narrProse.length;
+              for (let attempt = 0; attempt < 2 && narrBest > 0; attempt++) {
+                // Targets this single question only -- cheaper and more
                 // targeted than re-running the whole batch, and matches how
-                // every other self-verification retry in this file already
-                // scopes its own fix.
+                // every other self-verification retry in this file scopes
+                // its own fix.
                 const retryNote = `${narrFigureMiss.length ? `THE PREVIOUS ANSWER CITED FIGURES NOT IN APPLICANT SECTIONS: ${narrFigureMiss.slice(0, 10).join(", ")}\n` : ""}${narrProse.length ? violationsToRetryNote(narrProse) : ""}`;
                 const retryR = await callAI({
                   system: narrSystem,
@@ -1485,10 +1536,12 @@ RULES:
                 // net if anything else here misbehaves unexpectedly.
                 const retryParsed = parseJsonLoose<{ answers?: Array<{ id: string; text: string }> }>(retryR.text);
                 const fixed = String(retryParsed?.answers?.[0]?.text || "").trim();
-                if (fixed) {
-                  const stillFigureMiss = droppedFigures(fixed, narrBundle.text).filter((f) => f.length > 1);
-                  const stillProse = verifyProseQuality(fixed, false);
-                  if (stillFigureMiss.length + stillProse.length < narrFigureMiss.length + narrProse.length) text = fixed;
+                if (!fixed) continue;
+                const stillFigureMiss = droppedFigures(fixed, narrBundle.text).filter((f) => f.length > 1);
+                const stillProse = verifyProseQuality(fixed, false);
+                const stillCount = stillFigureMiss.length + stillProse.length;
+                if (stillCount < narrBest) {
+                  text = fixed; narrFigureMiss = stillFigureMiss; narrProse = stillProse; narrBest = stillCount;
                 }
               }
               const match = answerMatches.find((a) => a.fieldId === cand.id);
