@@ -60,6 +60,21 @@ export const GATEWAY_URL = AI_RELAY_URL || "https://ai.gateway.lovable.dev/v1/ch
 export const DEFAULT_MODEL = "google/gemini-2.5-flash";
 export const QUALITY_MODEL = "google/gemini-2.5-pro";
 
+// v3.311.0 — a real, live production bug: parse_file's own Stage 3 (the
+// vision/PDF path in index.ts) had a SECOND, separate, hardcoded
+// `Deno.env.get("LOVABLE_API_KEY")` check that never went through this same
+// AI_RELAY_URL/RELAY_SECRET logic -- so every resume upload on this
+// self-hosted deployment threw "LOVABLE_API_KEY not configured" before any
+// file-type-specific logic even ran, regardless of DOCX/PDF/text, since
+// that check sat unconditionally at the very top of the action, ahead of
+// even the mammoth DOCX path that never needed an AI key at all. Exported
+// here so GATEWAY_URL and its matching auth key can never drift apart
+// again -- one function, same fallback callAI() itself already uses,
+// instead of a second hand-copied check living in a different file.
+export function relayApiKey(): string | undefined {
+  return AI_RELAY_URL ? Deno.env.get("RELAY_SECRET") : Deno.env.get("LOVABLE_API_KEY");
+}
+
 
 
 export async function callAI(opts: {

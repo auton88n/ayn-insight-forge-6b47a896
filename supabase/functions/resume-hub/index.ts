@@ -45,7 +45,7 @@ import {
 // v3.131.0 — stage 3: the AI gateway call and its usage telemetry. See
 // lib/ai.ts's own header comment.
 import {
-  type AiCtx, setAiCtx, PRICES, logAiUsage, GATEWAY_URL, DEFAULT_MODEL, QUALITY_MODEL, callAI,
+  type AiCtx, setAiCtx, PRICES, logAiUsage, GATEWAY_URL, DEFAULT_MODEL, QUALITY_MODEL, callAI, relayApiKey,
 } from "./lib/ai.ts";
 // v3.131.0 — stage 4: resume-quality scoring. See lib/resumeScoring.ts's
 // own header comment.
@@ -176,8 +176,17 @@ Deno.serve(async (req) => {
       if (!isDocx && !isPdf && !isText) {
         return json({ error: "Unsupported file type. Please upload a PDF, DOCX, or plain text resume." }, 415);
       }
-      const apiKey = Deno.env.get("LOVABLE_API_KEY");
-      if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
+      // v3.311.0 — real, live bug, fixed: this used to be a hardcoded
+      // Deno.env.get("LOVABLE_API_KEY") check, unconditional, sitting ahead
+      // of every stage below including the mammoth DOCX path that never
+      // needed an AI key at all — meaning every resume upload on this
+      // self-hosted deployment threw "LOVABLE_API_KEY not configured"
+      // before the file was ever even looked at. relayApiKey() (lib/ai.ts)
+      // is the same AI_RELAY_URL/RELAY_SECRET fallback callAI() already
+      // uses correctly; this check is now also deferred to Stage 3, the
+      // only stage that actually needs it (a DOCX that mammoth reads fine,
+      // or plain text, never reaches this line at all).
+      const apiKey = relayApiKey();
 
       // Stage 1: try to extract plain text natively
       let resumeText = "";
@@ -233,6 +242,7 @@ EDUCATION vs CERTIFICATIONS: education is degree-granting programs only (Bachelo
       // Stage 3 — vision/file fallback for PDFs only (mammoth already
       // handles every real DOCX; the branch above catches the rest).
       // Use the gateway's OpenAI-compatible `file` content block with a data URL.
+      if (!apiKey) throw new Error("AI relay not configured");
       const realMime = "application/pdf";
 
       const userContent = [
