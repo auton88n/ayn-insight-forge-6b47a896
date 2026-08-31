@@ -173,6 +173,15 @@ export function autoApplyFill(params: {
   resumeLabel?: string; resumeFileUrl?: string;
   coverLetterLabel?: string; coverLetterFileUrl?: string;
   submit?: boolean;
+  // v3.316.0 — the one real gap in the Answer Library: a real answer
+  // typed here for a "not on file" screening question used to be spent
+  // once and discarded, so the identical question on the next real
+  // application showed the same empty prompt again. Every answer-match
+  // question already carries its own known slug (matchedType) whenever
+  // it's one of ProfileTab's real screening questions — this is that
+  // slug, paired with whatever the person actually typed or confirmed,
+  // so the backend can write it back to their own profile once.
+  learnedAnswers?: Array<{ slug: string; value: string }>;
 }): Promise<AutoApplyFillResult> {
   return call<AutoApplyFillResult>("resume-hub", { action: "auto_apply_fill", ...params });
 }

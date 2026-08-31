@@ -1724,12 +1724,17 @@ RULES:
       // stale by the time this action opens its own fresh browser session.
       // job-checker re-resolves each label against the live page itself —
       // see /fill_form's own header comment for the full reasoning.
-      const { jobId, textValues, radioSelections, resumeLabel, resumeFileUrl, coverLetterLabel, coverLetterFileUrl, submit, applyUrl } = payload as {
+      const { jobId, textValues, radioSelections, resumeLabel, resumeFileUrl, coverLetterLabel, coverLetterFileUrl, submit, applyUrl, learnedAnswers } = payload as {
         jobId?: string;
         textValues?: Array<{ label: string; value: string; isIdentity?: boolean }>;
         radioSelections?: Array<{ groupLabel: string; optionLabel: string }>;
         resumeLabel?: string; resumeFileUrl?: string; coverLetterLabel?: string; coverLetterFileUrl?: string; submit?: boolean;
         applyUrl?: string; // from auto_apply_extract's own resolvedUrl — see its comment
+        // v3.316.0 — a real answer typed for a "not on file" screening
+        // question, tagged with the known KNOWN_QUESTIONS slug it answers.
+        // Written back best-effort after a successful fill, never blocking
+        // or failing the real fill response this action exists for.
+        learnedAnswers?: Array<{ slug: string; value: string }>;
       };
       if (!jobId || !(textValues?.length || radioSelections?.length)) return json({ error: "jobId and at least one of textValues/radioSelections required" }, 400);
       const { data: job } = await adminFill.from("jobs").select("id, source_url, auto_apply_charged_at")
@@ -1774,6 +1779,20 @@ RULES:
       if (!alreadyCharged) {
         await creditSpend(adminFill, user.id, COST_AUTO_APPLY, "auto_apply", `job:${jobId}`);
         await adminFill.from("jobs").update({ auto_apply_charged_at: new Date().toISOString() }).eq("id", jobId);
+      }
+
+      // v3.316.0 — the write-back half of the Answer Library gap. A real
+      // fill already succeeded by this point; a failure here must never
+      // turn that into an error response, so it's isolated in its own
+      // try/catch and never awaited into the response path.
+      if (learnedAnswers?.length) {
+        try {
+          const answersObj: Record<string, string> = {};
+          for (const la of learnedAnswers) if (la?.slug && la.value) answersObj[la.slug] = la.value;
+          if (Object.keys(answersObj).length) {
+            await adminFill.rpc("merge_screening_answers", { p_user_id: user.id, p_answers: answersObj });
+          }
+        } catch { /* best-effort — the real fill result above already succeeded */ }
       }
 
       return json({ ...fillRes, chargedCredits: alreadyCharged ? 0 : COST_AUTO_APPLY });

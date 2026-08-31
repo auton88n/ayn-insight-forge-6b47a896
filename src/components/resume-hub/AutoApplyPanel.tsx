@@ -147,6 +147,18 @@ export default function AutoApplyPanel({
         .filter((rm) => rm.chosenOptionLabel)
         .map((rm) => ({ groupLabel: rm.groupLabel, optionLabel: rm.chosenOptionLabel! }));
 
+      // v3.316.0 — the one real gap the Answer Library had: everything to
+      // recognize and answer a known screening question already existed
+      // (the resolvers, the Profile section) except the write-back. Any
+      // answer-match question with a real known slug (matchedType) gets
+      // whatever the person actually typed or confirmed here saved to
+      // their own profile, once, so the identical question never shows
+      // up as "not on file" again on a future application.
+      const learnedAnswers = (result.answerMatches ?? [])
+        .filter((m) => m.matchedType)
+        .map((m) => ({ slug: m.matchedType!, value: (values[m.fieldId] ?? "").trim() }))
+        .filter((la) => la.value.length > 0);
+
       const r = await autoApplyFill({
         jobId,
         applyUrl: result.applyUrl,
@@ -157,6 +169,7 @@ export default function AutoApplyPanel({
         coverLetterLabel: coverField?.label,
         coverLetterFileUrl: coverField ? await uploadCoverLetter() : undefined,
         submit,
+        learnedAnswers: learnedAnswers.length > 0 ? learnedAnswers : undefined,
       });
 
       if (r.screenshotBase64) setScreenshot(`data:image/png;base64,${r.screenshotBase64}`);
