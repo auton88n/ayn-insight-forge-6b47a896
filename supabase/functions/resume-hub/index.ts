@@ -1801,33 +1801,26 @@ RULES:
     // ---------------- job_board_score (free) ----------------
     // v3.134.0 — the point of storing real, clean JD text from job_postings
     // ahead of time (job-board-sync) is that a browse list can show a real
-    // match score per job, not just a list of titles. Running the full
-    // match action's AI call for every job on a page would be slow and
-    // expensive at browse-list scale; this stays zero-AI-call so scoring a
-    // whole page of jobs costs nothing but CPU.
+    // match score per job, not just a list of titles.
     //
-    // v3.149.0 — asked directly for something more systematic than a
-    // single flat "matched JD lines" ratio: computeQuickScore weighs
-    // title fit, skill overlap, and years of experience as three
-    // separate, named signals (still deterministic, still free — see its
-    // own header comment in _shared/tailoring.ts for exactly how each is
-    // computed and why the skills check runs the opposite direction from
-    // computeGap's JD-parsing approach on purpose).
-    //
-    // Deliberately, honestly cruder than match/tailor/job_fit_advice: those
-    // three all also run semanticGapRecheck (an embedding call per missing
-    // requirement) so a paraphrased requirement can still count as matched.
-    // Live-verified this actually matters, not just a theoretical gap: the
-    // identical real JD and profile scored far lower here than through
-    // job_fit_advice, because semanticGapRecheck caught matches this
-    // keyword-only pass couldn't. Adding it here would mean ~5-8 embedding
-    // calls per job, times up to 50 jobs a page — real latency/cost this
-    // feature can't carry for a browse list. The frontend labels this
-    // "quick match" rather than a bare percentage for exactly this reason;
-    // clicking into a specific job for the full written analysis still goes
-    // through the real match/tailor/cover_letter actions, unchanged, with
-    // the semantic recheck intact, using this same stored JD text as jdText.
-    // This is the accepted tradeoff, not a bug to fix quietly later.
+    // v3.317.0 — the deliberate v3.134.0/v3.149.0 tradeoff (a zero-AI-call
+    // deterministic score, honestly cruder than match/tailor/job_fit_advice)
+    // is retired. Asked directly for one accurate scoring system used
+    // everywhere, not a crude one for browse lists and an accurate one for
+    // a single opened job — and confirmed first, with real data, that the
+    // JD text itself was never the problem (2,617 of 2,788 real postings
+    // already carry a substantial, complete description, median 5,572
+    // characters) — the gap was always the SCORING METHOD, not the input.
+    // Now runs the identical computeGap + semanticGapRecheck pipeline the
+    // real match action trusts, so a browse-list score and a clicked-into
+    // score can no longer disagree about what's genuinely matched. Kept
+    // affordable the same way every other AI-touching action in this file
+    // already is: real, per-job caching (ai_result_cache, 24h, keyed on
+    // job content + this profile's own section text) so a repeat view of
+    // the same job by the same profile costs nothing after the first —
+    // only a genuinely new-to-this-user job on a page ever pays for an
+    // embedding call, and even then only for whatever the deterministic
+    // pass didn't already resolve, same as match's own real cost profile.
     if (action === "job_board_score") {
       const adminScore = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminScore, "tailoring"); if (off) return off; }
@@ -1846,15 +1839,23 @@ RULES:
         return json({ scores: capped.map((j) => ({ id: j.id, match_pct: null })) });
       }
 
-      const profile = {
-        skills: bundle.sections.skills,
-        title: identity?.current_title.value || "",
-        yearsExperience: identity?.computed_years_experience.value || 0,
-      };
-      const scores = capped.map((j) => {
-        const q = computeQuickScore(String(j.description || ""), String(j.title || ""), profile, j.skills);
-        return { id: j.id, match_pct: q.score };
-      });
+      const sectionHash = (await sha256b(bundle.text)).slice(0, 16);
+      const scores = await Promise.all(capped.map(async (j) => {
+        const jdText = String(j.description || "");
+        if (!jdText.trim()) return { id: j.id, match_pct: null };
+        const jdHash = (await sha256b(jdText)).slice(0, 24);
+        const cacheKey = `boardscore:${user.id}:${sectionHash}:${jdHash}`;
+        const cached = await cacheGet<{ match_pct: number }>(adminScore, cacheKey);
+        if (cached) return { id: j.id, match_pct: cached.match_pct };
+
+        let gap = computeGap(jdText, bundle);
+        gap = await semanticGapRecheck(gap, bundle);
+        const total = gap.matched.length + gap.missing.length;
+        const match_pct = total > 0 ? Math.round((gap.matched.length / total) * 100) : null;
+
+        if (match_pct != null) cacheSet(adminScore, cacheKey, user.id, "job_board_score", { match_pct }, 24 * 60 * 60 * 1000);
+        return { id: j.id, match_pct };
+      }));
       return json({ scores });
     }
 
