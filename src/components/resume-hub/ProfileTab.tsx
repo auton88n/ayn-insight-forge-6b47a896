@@ -108,13 +108,31 @@ type Career = {
 
 const EMPTY: Career = { skills: [], experiences: [], education: [], certifications: [], work_auth: {}, preferences: {}, derived: {}, screening_answers: {} };
 
-// v3.185.0 — reported directly from a screenshot: trimmed from 6 to the 2
-// that are real choices. job-board-sync has been deliberately scoped to
-// Canada and the US only since v3.163.0 (a founder decision, not a gap --
-// UK/EU/Australia/UAE were left as a disclosed later expansion, not a
-// permanent exclusion) -- so the other 4 were dead options with nothing
-// behind them: no postings from those countries exist to match against.
-const WORK_COUNTRIES = ["Canada", "United States"];
+// v3.185.0 trimmed this to Canada/US only, back when job-board-sync was
+// deliberately scoped to those two countries alone (v3.163.0) -- every
+// other country was a real dead option, no postings behind it to match
+// against. That scope itself was always disclosed as a later expansion,
+// not a permanent exclusion, and it since expanded for real (v3.309.0):
+// job-board-sync and ats-direct-sync now source real postings across
+// North America, Europe, Middle East, and Australia. Widened here to
+// match -- the exact same real country set _shared/geoScope.ts's own
+// classifyRegion() already checks against, not a new, separate list that
+// could quietly drift out of sync with what AYN can actually match a
+// person against. Ordered by region so the chip row reads in clusters.
+const WORK_COUNTRIES = [
+  // North America
+  "Canada", "United States",
+  // Europe
+  "United Kingdom", "Germany", "France", "Spain", "Italy", "Netherlands",
+  "Belgium", "Switzerland", "Ireland", "Portugal", "Poland", "Sweden",
+  "Norway", "Denmark", "Austria", "Finland", "Romania", "Greece",
+  "Hungary", "Czech Republic",
+  // Middle East
+  "United Arab Emirates", "Saudi Arabia", "Israel", "Qatar", "Kuwait",
+  "Bahrain", "Oman",
+  // Australia
+  "Australia",
+];
 const LEVELS: { value: SkillLevel; label: string }[] = [
   { value: "familiar", label: "Familiar" },
   { value: "proficient", label: "Proficient" },
