@@ -277,6 +277,18 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     try {
       const { resume, gapAnalysis } = await resumeHubApi.tailor(selected.jd_text, idemKey, selected.title);
       delete pendingIdemKeys.current[idemMapKey]; // succeeded — next click is a genuinely new charge
+      // v3.315.0 — asked directly for the job's own title to apply
+      // automatically, no click needed (unlike a missing skill: a title is
+      // a much softer, more commonly-blurred claim in real hiring practice
+      // than a specific technical skill, and this reuses the exact same
+      // real-title-only text the old manual "Use this job's title" button
+      // already wrote — no new inflation risk introduced, just no longer
+      // gated behind a click). Skipped for the same placeholder guard the
+      // old button already had: a manually-added job with no real title
+      // yet must never overwrite a real resume title with "Untitled role".
+      if (selected.title && selected.title !== "Untitled role" && resume.basics) {
+        resume.basics.title = selected.title;
+      }
       // Regenerating replaces the stored copy for this job.
       await supabase.from("resume_versions").delete().eq("user_id", userId).eq("created_for_job_id", selected.id);
       const { error } = await supabase.from("resume_versions").insert({
@@ -310,16 +322,28 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     setTailored({ ...tailored, content: nextContent });
   };
 
-  const useJobTitle = () => {
-    if (!selected) return;
-    patchTailoredContent(c => ({ ...c, basics: { ...c.basics, title: selected.title } }));
-  };
-
-  const addSuggestedSkill = (idx: number) => {
+  // v3.315.0 — the only real "add" moment for a genuinely missing skill:
+  // this is a knowing, deliberate choice the person makes themselves,
+  // never automatic (unlike the title above). Two things happen on
+  // confirm, together: the resume itself gets the skill (an honest choice
+  // the person made, not something AYN silently claimed for them), and
+  // the same skill lands on the Skills to Learn tracker so there's a real,
+  // concrete follow-through -- not just a claim on a document, a page
+  // telling them exactly what to go learn before the interview happens.
+  const addSuggestedSkill = async (idx: number) => {
     const item = gapSuggestions[idx];
-    if (!item || !item.value.trim()) return;
-    patchTailoredContent(c => ({ ...c, skills: [...(c.skills ?? []), item.value.trim()] }));
+    if (!item || !item.value.trim() || !selected) return;
+    const skill = item.value.trim();
+    await patchTailoredContent(c => ({ ...c, skills: [...(c.skills ?? []), skill] }));
     setGapSuggestions(prev => prev.filter((_, i) => i !== idx));
+    const { error } = await supabase.from("skills_to_learn").insert({
+      user_id: userId, job_id: selected.id, job_title: selected.title, company: selected.company, skill,
+    });
+    if (error) {
+      toast({ title: "Added to your resume", description: "Couldn't add it to Skills to learn — try again from there.", variant: "destructive" });
+    } else {
+      toast({ title: "Added", description: `"${skill}" is on your resume and on your Skills to learn page.` });
+    }
   };
 
   const dismissSuggestion = (idx: number) => setGapSuggestions(prev => prev.filter((_, i) => i !== idx));
@@ -689,30 +713,12 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                   </div>
                 )}
 
-                {/* v3.129.0 — a manually-added job defaults to the literal
-                    placeholder title "Untitled role" until the person edits
-                    it; without this guard, the mismatch below fires on that
-                    placeholder and offers to overwrite the resume's real
-                    title with the word "Untitled role". */}
-                {tailored && selected.title && selected.title !== "Untitled role" && tailored.content.basics?.title &&
-                  tailored.content.basics.title.trim().toLowerCase() !== selected.title.trim().toLowerCase() && (
-                  <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      This role's title is <span className="font-medium text-foreground">"{selected.title}"</span>.
-                      Your resume says <span className="font-medium text-foreground">"{tailored.content.basics.title}"</span>.
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={useJobTitle}>Use this job's title</Button>
-                      <span className="text-[11px] text-muted-foreground">Nothing changes unless you choose this.</span>
-                    </div>
-                  </div>
-                )}
-
                 {tailored && gapSuggestions.length > 0 && (
                   <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2.5">
                     <p className="text-xs text-muted-foreground">
-                      This role also asks for a few things not on your resume. Only add one if it's genuinely true.
-                      Edit the text first if your own wording fits better.
+                      This role also asks for a few things you don't have on your resume yet. Add one only if
+                      you're genuinely willing to learn it before an interview — it goes on your resume and on
+                      your Skills to learn page, so you have a real reason to actually pick it up.
                     </p>
                     {gapSuggestions.map((s, idx) => (
                       <div key={s.text} className="flex items-center gap-2">

@@ -2225,6 +2225,39 @@ export type Database = {
         }
         Relationships: []
       }
+      skills_to_learn: {
+        Row: {
+          added_at: string
+          company: string | null
+          id: string
+          job_id: string | null
+          job_title: string | null
+          learned_at: string | null
+          skill: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          company?: string | null
+          id?: string
+          job_id?: string | null
+          job_title?: string | null
+          learned_at?: string | null
+          skill: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          company?: string | null
+          id?: string
+          job_id?: string | null
+          job_title?: string | null
+          learned_at?: string | null
+          skill?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       job_postings: {
         Row: {
           apply_url: string

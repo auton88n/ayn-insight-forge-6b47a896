@@ -25,7 +25,7 @@ import { CandidateCardMockup, InboxMockup, SameResumeMockup, TailoredDocsMockup 
 import { PAIN, HEAD_TO_HEAD, AI_CONTRAST, DISCOVER_CHIPS, TRUST, FAQS, SEEKER_TILES, SEEKER_STEPS } from './landingContent';
 import {
   ProfileAccountTab, MatchedJobsAccountTab, SavedJobsAccountTab, ProposalsAccountTab,
-  AssessmentsAccountTab, SettingsAccountTab,
+  AssessmentsAccountTab, SettingsAccountTab, SkillsToLearnAccountTab,
 } from './AccountTabs';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -41,7 +41,7 @@ export type HomeTabId =
   | 'search' | 'features' | 'how-it-works' | 'why-ayn'
   | 'get-discovered' | 'proof' | 'faq'
   | 'pricing' | 'contact' | 'about' | 'help'
-  | 'profile' | 'matched-jobs' | 'saved-jobs' | 'proposals' | 'assessments' | 'account-settings';
+  | 'profile' | 'matched-jobs' | 'saved-jobs' | 'proposals' | 'assessments' | 'account-settings' | 'skills-to-learn';
 
 // v3.219.0 -- every tab now takes the same two callbacks, whether it needs
 // them or not (a plain () => JSX.Element is still a valid value here --
@@ -89,6 +89,10 @@ export const ACCOUNT_TAB_META: { id: HomeTabId; label: string }[] = [
   { id: 'saved-jobs', label: 'Saved jobs' },
   { id: 'proposals', label: 'Proposals' },
   { id: 'assessments', label: 'Assessments' },
+  // v3.315.0 — the real follow-through on a confirm-first choice made in
+  // Saved jobs: when a person adds a skill a job wants that they don't
+  // have yet, it lands here too, not just on the resume.
+  { id: 'skills-to-learn', label: 'Skills to learn' },
   { id: 'account-settings', label: 'Settings' },
 ];
 
@@ -779,5 +783,6 @@ export const HOME_TAB_CONTENT: Record<Exclude<HomeTabId, 'search'>, (props: TabP
   'saved-jobs': SavedJobsAccountTab,
   proposals: ProposalsAccountTab,
   assessments: AssessmentsAccountTab,
+  'skills-to-learn': SkillsToLearnAccountTab,
   'account-settings': SettingsAccountTab,
 };

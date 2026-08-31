@@ -37,6 +37,7 @@ const ProfileTab = lazy(() => import('@/components/resume-hub/ProfileTab'));
 const ProposalsTab = lazy(() => import('@/components/resume-hub/ProposalsTab'));
 const BrowseJobs = lazy(() => import('@/components/resume-hub/BrowseJobs'));
 const AssessmentsTab = lazy(() => import('@/components/resume-hub/AssessmentsTab'));
+const SkillsToLearnTab = lazy(() => import('@/components/resume-hub/SkillsToLearnTab'));
 
 function useAccountAuth() {
   const [userId, setUserId] = useState<string | null | undefined>(undefined);
@@ -213,6 +214,30 @@ export const AssessmentsAccountTab = ({ onStartFree }: TabProps) => {
     <RhScope>
       <Suspense fallback={<TabFallback />}>
         <AssessmentsTab />
+      </Suspense>
+    </RhScope>
+  );
+};
+
+// v3.315.0 -- the real follow-through on the confirm-first skill-add in
+// Saved jobs (JobsTab): a page, not just a claim on a document. onSelectTab
+// lands on Saved jobs when a group's "Open job" link is clicked, since a
+// skill's own job_id is only ever meaningful within that same tab.
+export const SkillsToLearnAccountTab = ({ onSelectTab, onStartFree }: TabProps) => {
+  const { userId } = useAccountAuth();
+  if (userId === undefined) return <TabFallback />;
+  if (!userId) return <SignInPrompt label="Skills to learn" onStartFree={onStartFree} />;
+  return (
+    <RhScope>
+      <Suspense fallback={<TabFallback />}>
+        <SkillsToLearnTab
+          userId={userId}
+          onOpenJob={(jobId) => {
+            sessionStorage.setItem('ayn_focus_job', jobId);
+            sessionStorage.setItem('ayn_focus_job_from', 'browse');
+            onSelectTab('saved-jobs');
+          }}
+        />
       </Suspense>
     </RhScope>
   );

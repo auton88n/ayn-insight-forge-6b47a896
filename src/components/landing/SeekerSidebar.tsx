@@ -34,7 +34,7 @@ import {
   Search, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
   CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, LogIn,
   LogOut, User, Menu, X, Briefcase, Inbox, ClipboardCheck, Settings as SettingsIcon, Target, Gavel,
-  ChevronDown, Building2, Download,
+  ChevronDown, Building2, Download, GraduationCap,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -63,6 +63,7 @@ const TAB_ICONS: Record<Exclude<HomeTabId, 'search'>, typeof Search> = {
   'saved-jobs': Briefcase,
   proposals: Inbox,
   assessments: ClipboardCheck,
+  'skills-to-learn': GraduationCap,
   'account-settings': SettingsIcon,
 };
 
