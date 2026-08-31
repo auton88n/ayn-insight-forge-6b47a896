@@ -573,9 +573,33 @@ async function pollWorkday(
   }
 }
 
+// v3.311.0 — includeCompensation=true, checked live before trusting it:
+// Ashby's own API already returns real, structured salary data on this
+// same call (summaryComponents[], one entry per compensationType --
+// "Salary", "Bonus", "EquityPercentage" -- each carrying its own
+// minValue/maxValue/currencyCode), just never requested. A real,
+// zero-extra-cost close on part of this app's own documented ~34%
+// salary-coverage gap, for this one vendor. Confirmed live against a real
+// company board: a genuine $150K-$180K USD salary component present and
+// correctly shaped, not every job has one (equity/bonus-only rows are
+// real too), so this only ever adds a number when Ashby's own data
+// actually has one, never invents or estimates.
+function ashbySalaryComponent(compensation: unknown): { min: number | null; max: number | null; currency: string | null } {
+  const comp = compensation as { summaryComponents?: unknown[] } | null | undefined;
+  const components = Array.isArray(comp?.summaryComponents) ? comp!.summaryComponents! : [];
+  const salary = components.find((c) => (c as { compensationType?: string })?.compensationType === "Salary") as
+    { minValue?: number | null; maxValue?: number | null; currencyCode?: string | null } | undefined;
+  if (!salary) return { min: null, max: null, currency: null };
+  return {
+    min: typeof salary.minValue === "number" ? salary.minValue : null,
+    max: typeof salary.maxValue === "number" ? salary.maxValue : null,
+    currency: salary.currencyCode || null,
+  };
+}
+
 async function pollAshby(slug: string, companyInfo: Map<string, { company: string; logo: string | null }>): Promise<Row[]> {
   try {
-    const r = await fetchWithTimeout(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(slug)}`);
+    const r = await fetchWithTimeout(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(slug)}?includeCompensation=true`);
     if (!r || !r.ok) return [];
     const body = await r.json().catch(() => null) as { jobs?: unknown[] } | null;
     const jobs = Array.isArray(body?.jobs) ? body!.jobs! : [];
@@ -585,10 +609,11 @@ async function pollAshby(slug: string, companyInfo: Map<string, { company: strin
       const j = raw as {
         id?: string; title?: string; descriptionPlain?: string; applyUrl?: string; jobUrl?: string;
         location?: string; department?: string; team?: string; employmentType?: string; workplaceType?: string;
-        isListed?: boolean;
+        isListed?: boolean; compensation?: unknown;
       };
       const url = j.applyUrl || j.jobUrl;
       if (!j.id || !j.title || !url || j.isListed === false) return null;
+      const salary = ashbySalaryComponent(j.compensation);
       return {
         source: "ashby",
         external_id: j.id,
@@ -605,7 +630,7 @@ async function pollAshby(slug: string, companyInfo: Map<string, { company: strin
         category: (j.department || j.team) ? toSlug((j.department || j.team)!) : null,
         work_mode: j.workplaceType ? String(j.workplaceType).toLowerCase() : null,
         city: null,
-        salary_min: null, salary_max: null, salary_currency: null,
+        salary_min: salary.min, salary_max: salary.max, salary_currency: salary.currency,
         skills: null, mass_posting_count: null,
       } as Row;
     }).filter((r): r is Row =>
