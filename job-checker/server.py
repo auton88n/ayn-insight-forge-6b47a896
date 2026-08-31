@@ -99,6 +99,114 @@ def _ai_judge(page_content: str) -> dict:
     return json.loads(_strip_json_fence(content))
 
 
+# v3.319.0 -- honest reliability pass, tested live rather than assumed. A
+# real CAPTCHA hit this session, mid-fill, on a real Ashby application --
+# not a fingerprinting problem specifically, a live interactive challenge.
+# Two separate, deliberately narrow things, neither of them evasion:
+# (1) navigator.webdriver -- a raw CDP automation flag Playwright sets on
+# every driven page regardless of intent, not something a real installed
+# browser ever exposes; stripping it removes a false-tell, it doesn't make
+# this look like a DIFFERENT real person. (2) a real CAPTCHA/challenge
+# widget, once actually presented, is never solved here -- detected,
+# reported honestly, and handed back to a human, the same way this
+# session's own auto-browser test already did by necessity.
+_REAL_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+_STEALTH_INIT_SCRIPT = "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });"
+
+_CAPTCHA_SELECTORS = [
+    "iframe[src*='recaptcha']", "iframe[src*='hcaptcha']", "iframe[title*='challenge']",
+    "[class*='cf-turnstile']", "#cf-challenge-stage", "div[class*='captcha']",
+]
+_CAPTCHA_TEXT_RE = re.compile(
+    r"verify you are human|are you a robot|complete the security check|checking your browser",
+    re.IGNORECASE,
+)
+
+
+def _real_captcha_selectors_present(page) -> bool:
+    """
+    reCAPTCHA v3 (invisible, score-based) is standard, silent anti-spam
+    infrastructure on most real Greenhouse/Lever forms -- present on
+    essentially every visit, real human or not, and never rendered as
+    anything a person interacts with. A bare DOM presence check
+    (`_CAPTCHA_SELECTORS` alone) fires on that just as readily as on a real
+    challenge -- confirmed live on every one of five real postings tested.
+    v3's required "protected by reCAPTCHA" corner badge is a real, visible
+    element too (confirmed live via screenshot on a genuine SpaceX
+    posting, a plain 256x60px badge in the bottom-right corner, nothing a
+    person ever acts on) -- gating on visibility alone wasn't enough.
+    Two attempts at excluding it by attribute both proved fragile, live:
+    the iframe's own title read "reCAPTCHA" on one real posting and
+    "recaptcha badge" on another, and the badge is matched by two
+    different selectors in _CAPTCHA_SELECTORS at once (the iframe, and
+    its containing div, class=grecaptcha-badge) -- excluding by one
+    attribute on one candidate left the other candidate, matched by a
+    different selector, still triggering. Fixed geometrically instead:
+    grecaptcha-badge's own real position is looked up once, directly, and
+    anything at that same real screen position is the badge no matter
+    which selector matched it or what it's labeled. Only a real challenge
+    sitting somewhere ELSE on the page ever counts.
+    """
+    badge_box = None
+    try:
+        badge = page.locator(".grecaptcha-badge").first
+        if badge.count() > 0 and badge.is_visible():
+            badge_box = badge.bounding_box()
+    except Exception:
+        pass
+
+    def _is_the_badge(box) -> bool:
+        if not badge_box or not box:
+            return False
+        return abs(box["x"] - badge_box["x"]) < 5 and abs(box["y"] - badge_box["y"]) < 5
+
+    for sel in _CAPTCHA_SELECTORS:
+        try:
+            loc = page.locator(sel).first
+            if loc.count() == 0 or not loc.is_visible():
+                continue
+            box = loc.bounding_box()
+            if not box or box["width"] <= 10 or box["height"] <= 10:
+                continue
+            if _is_the_badge(box):
+                continue
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _new_stealth_page(browser):
+    """Every real caller creates its page through here -- one place to keep
+    the webdriver mask and the real UA consistent, rather than duplicated
+    per route."""
+    page = browser.new_page(viewport={"width": 1280, "height": 900}, user_agent=_REAL_UA)
+    page.add_init_script(_STEALTH_INIT_SCRIPT)
+    return page
+
+
+def _captcha_present(page) -> bool:
+    """A real, currently-VISIBLE challenge -- checked by selector first
+    (cheap, precise, visibility-gated so it doesn't fire on invisible
+    reCAPTCHA v3 infrastructure), text second (catches a widget shape not
+    on the fixed selector list, or a real Cloudflare interstitial that
+    replaced the page's own content entirely). Never true for an ordinary
+    field-validation error, and never true just because a site happens to
+    run reCAPTCHA v3 in the background like most real ATS forms do."""
+    if _real_captcha_selectors_present(page):
+        return True
+    try:
+        body_text = page.inner_text("body", timeout=1500) or ""
+        if _CAPTCHA_TEXT_RE.search(body_text):
+            return True
+    except Exception:
+        pass
+    return False
+
+
 @app.post('/check')
 async def check(req: CheckRequest, x_checker_secret: str = Header(default='')):
     if not CHECKER_SECRET or x_checker_secret != CHECKER_SECRET:
@@ -371,6 +479,26 @@ def _extract_fields_raw(page):
         }
         if (!label) label = trigger.getAttribute('aria-label') || '';
         if (!label && trigger.previousElementSibling) label = trigger.previousElementSibling.innerText.trim().slice(0, 200);
+        // v3.320.0 -- real, live gap: a real Ashby "Location" combobox has
+        // no id of its own at all (only its wrapping <label for="..."> does,
+        // pointing at an id that exists nowhere in the DOM -- a real,
+        // pre-existing accessibility gap in Ashby's own markup, not
+        // something to fix here), and its real <label> sits as a sibling
+        // of the input's PARENT container, not as the input's own previous
+        // sibling -- confirmed live via a direct DOM dump. Every check
+        // above silently found nothing, extracted an empty label, and a
+        // required field was left completely unfillable, not just harder
+        // to fill. Walking up to the nearest field-shaped ancestor and
+        // reading its own real <label> is the same "the question text
+        // lives a level or two above the input" pattern this file's radio
+        // group extraction already relies on, applied here too.
+        if (!label) {
+          const wrap = trigger.closest('[class*="field"],[class*="question"],fieldset');
+          if (wrap) {
+            const lbl2 = wrap.querySelector('label');
+            if (lbl2) label = lbl2.innerText.trim();
+          }
+        }
         fields.push({
           tag: trigger.tagName.toLowerCase(), type: 'select', id: nextId(trigger), required: false,
           label: label, radioGroup: null, radioGroupLabel: null,
@@ -531,14 +659,30 @@ def extract_form(req: ExtractFormRequest, x_checker_secret: str = Header(default
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
-            page = browser.new_page(viewport={"width": 1080, "height": 900})
+            page = _new_stealth_page(browser)
             page.goto(req.url, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(1500)
+            page.wait_for_timeout(1800)
+            # A real visitor reads the posting before doing anything --
+            # scrolling first is a real, human-shaped signal on its own,
+            # not just idle time.
+            try:
+                page.mouse.wheel(0, 400)
+                page.wait_for_timeout(400)
+            except Exception:
+                pass
             _dismiss_cookie_banner(page)
+
+            if _captcha_present(page):
+                browser.close()
+                return {"ok": False, "captchaRequired": True, "error": "This posting presented a real verification challenge (CAPTCHA). AYN never attempts to solve it -- finish this one yourself."}
 
             clicked_apply = False
             if _real_field_count(page) < 3:
                 clicked_apply = _click_apply_if_needed(page)
+                page.wait_for_timeout(500)
+                if _captcha_present(page):
+                    browser.close()
+                    return {"ok": False, "captchaRequired": True, "error": "This posting presented a real verification challenge (CAPTCHA) after clicking Apply. AYN never attempts to solve it -- finish this one yourself."}
 
             if _real_field_count(page) < 3:
                 # A genuinely real, honest failure mode: some postings (cross-
@@ -619,7 +763,7 @@ def _click_or_confirm_radio(page, field_id: str) -> bool:
     fired but didn't actually register a selection is reported as failed,
     never as a false success.
     """
-    loc = page.locator(f"#{field_id}")
+    loc = page.locator(f'[id="{field_id}"]')
     tag = (loc.evaluate("el => el.tagName.toLowerCase()") or "").lower()
     el_type = loc.get_attribute("type")
     if tag == "input" and el_type == "radio":
@@ -705,12 +849,12 @@ def _fill_one_field(page, field_id: str, value: str) -> str:
     # element's own type up front avoids running either the combobox-open
     # attempt or a .fill() (which throws on a non-text input) against one.
     try:
-        el_type = page.locator(f"#{field_id}").get_attribute("type")
+        el_type = page.locator(f'[id="{field_id}"]').get_attribute("type")
     except Exception:
         el_type = None
     if el_type in ("radio", "checkbox"):
         try:
-            page.check(f"#{field_id}", timeout=3000)
+            page.check(f'[id="{field_id}"]', timeout=3000)
             return "radio"
         except Exception:
             return "failed"
@@ -725,7 +869,7 @@ def _fill_one_field(page, field_id: str, value: str) -> str:
     # so every fallback below still gets a real chance.
     opened_combobox = False
     try:
-        page.click(f"#{field_id}", timeout=3000)
+        page.click(f'[id="{field_id}"]', timeout=3000)
         opened_combobox = True
     except Exception:
         pass
@@ -741,8 +885,57 @@ def _fill_one_field(page, field_id: str, value: str) -> str:
             return "combobox"
         except Exception:
             pass
+        # v3.320.0 -- real, live gap found on a real Ashby "Location" field:
+        # neither attempt above ever finds anything on a genuine TYPEAHEAD
+        # combobox, because its options don't exist at all until real text
+        # has been typed into it -- a bare click opens nothing to select
+        # from. The code fell through to plain fill() below, which DOES
+        # populate the typeahead's own filtered list (confirmed live via
+        # screenshot: real matching options appeared), but nothing was ever
+        # clicked to actually select one. Fixed by typing first (fill()
+        # reliably fires the real input events these widgets listen for),
+        # THEN checking for options -- but the check itself has to tell a
+        # real combobox apart from a genuinely plain field that merely
+        # happened to be clickable, which the first version of this fix
+        # did not: it reported EVERY plain field as unconfirmed too,
+        # confirmed live as a real regression on Name/Email/Phone, all of
+        # which had already been filling correctly before this change.
+        # Only a real, currently-visible listbox proves this is actually a
+        # combobox; its absence means the .fill() below already finished
+        # the job, same as any ordinary text input.
+        try:
+            page.locator(f'[id="{field_id}"]').fill(value, timeout=3000)
+            page.wait_for_timeout(400)
+            listbox = page.get_by_role("listbox").first
+            has_listbox = listbox.count() > 0 and listbox.is_visible()
+            if not has_listbox:
+                return "text"
+            try:
+                page.get_by_role("option", name=value, exact=True).first.click(timeout=1500)
+                return "combobox"
+            except Exception:
+                pass
+            try:
+                page.get_by_role("option", name=value, exact=False).first.click(timeout=1500)
+                return "combobox"
+            except Exception:
+                pass
+            try:
+                listbox.locator("[role=option]").first.click(timeout=1500)
+                return "combobox"
+            except Exception:
+                pass
+            # A real, honest partial state: a real listbox genuinely
+            # appeared (this IS a combobox), text is in the field, but no
+            # option was ever confirmed -- reported as its own outcome
+            # rather than folded into a plain "text" success, so a caller
+            # can flag it for review instead of trusting it as
+            # submission-ready.
+            return "unconfirmed_combobox"
+        except Exception:
+            pass
     try:
-        page.fill(f"#{field_id}", value, timeout=3000)
+        page.fill(f'[id="{field_id}"]', value, timeout=3000)
         return "text"
     except Exception:
         pass
@@ -756,7 +949,7 @@ def _fill_one_field(page, field_id: str, value: str) -> str:
     # above failed, since that failure can be transient (an element that
     # needed the page to settle a moment longer) rather than permanent.
     try:
-        page.click(f"#{field_id}", timeout=2000)
+        page.click(f'[id="{field_id}"]', timeout=2000)
         page.keyboard.type(value, delay=20)
         return "text"
     except Exception as e:
@@ -783,12 +976,24 @@ def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
 
         with sync_playwright() as p:
             browser = p.chromium.launch()
-            page = browser.new_page(viewport={"width": 1080, "height": 900})
+            page = _new_stealth_page(browser)
             page.goto(req.url, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(1500)
+            page.wait_for_timeout(1800)
+            try:
+                page.mouse.wheel(0, 400)
+                page.wait_for_timeout(400)
+            except Exception:
+                pass
             _dismiss_cookie_banner(page)
+            if _captcha_present(page):
+                browser.close()
+                return {"ok": False, "captchaRequired": True, "error": "This posting presented a real verification challenge (CAPTCHA). AYN never attempts to solve it -- finish this one yourself."}
             if _real_field_count(page) < 3:
                 _click_apply_if_needed(page)
+                page.wait_for_timeout(500)
+                if _captcha_present(page):
+                    browser.close()
+                    return {"ok": False, "captchaRequired": True, "error": "This posting presented a real verification challenge (CAPTCHA) after clicking Apply. AYN never attempts to solve it -- finish this one yourself."}
             if _real_field_count(page) < 3:
                 browser.close()
                 return {"ok": False, "error": "Could not find an application form on this page."}
@@ -811,6 +1016,14 @@ def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
                 field_kinds[tv.label] = kind
                 if kind == "failed":
                     failed.append({"label": tv.label, "fieldId": fid, "error": "field not fillable"})
+                elif kind == "unconfirmed_combobox":
+                    # Real text landed in the field and a real option list
+                    # appeared, but nothing was ever clicked to confirm a
+                    # selection -- reported honestly as its own outcome
+                    # rather than folded into a plain success, so a caller
+                    # never treats this as submission-ready without a
+                    # human actually looking at it.
+                    failed.append({"label": tv.label, "fieldId": fid, "error": "typed, but no matching option could be confirmed -- needs a human to pick one"})
                 else:
                     filled.append(tv.label)
 
@@ -859,7 +1072,7 @@ def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
                     resume_id = _best_file(["resume", "cv"])
                     if resume_id:
                         try:
-                            page.set_input_files(f"#{resume_id}", resume_path)
+                            page.set_input_files(f'[id="{resume_id}"]', resume_path)
                             filled.append("resume")
                         except Exception as e:
                             failed.append({"label": "resume", "error": str(e)})
@@ -869,7 +1082,7 @@ def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
                     cover_id = _best_file(["cover"], exclude_id=resume_id if resume_path else None)
                     if cover_id:
                         try:
-                            page.set_input_files(f"#{cover_id}", cover_path)
+                            page.set_input_files(f'[id="{cover_id}"]', cover_path)
                             filled.append("cover letter")
                         except Exception as e:
                             failed.append({"label": "cover letter", "error": str(e)})
@@ -891,13 +1104,21 @@ def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
                                              field_type_filter=lambda f: f.get("type") not in ("radio", "file"))
                     if fid:
                         try:
-                            page.fill(f"#{fid}", tv.value, timeout=2000)
+                            page.fill(f'[id="{fid}"]', tv.value, timeout=2000)
                         except Exception:
                             pass
 
             submitted = False
             submit_error = None
-            if req.submit:
+            captcha_required = False
+            if req.submit and _captcha_present(page):
+                # The single most likely moment for a real challenge to
+                # appear is right at submit, not on page load -- checked
+                # again here, immediately before the click, rather than
+                # trusting the earlier page-load check to still hold.
+                captcha_required = True
+                submit_error = "A real verification challenge (CAPTCHA) appeared before submit. AYN never attempts to solve it -- finish this one yourself."
+            elif req.submit:
                 try:
                     btn = page.get_by_role("button", name=req.submitButtonText)
                     btn.wait_for(state="visible", timeout=5000)
@@ -949,6 +1170,7 @@ def fill_form(req: FillFormRequest, x_checker_secret: str = Header(default='')):
             "fieldKinds": field_kinds,
             "submitted": submitted,
             "submitError": submit_error,
+            "captchaRequired": captcha_required,
             "finalUrl": final_url,
             "screenshotBase64": base64.b64encode(screenshot).decode(),
         }

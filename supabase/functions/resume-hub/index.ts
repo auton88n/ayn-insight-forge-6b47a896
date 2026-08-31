@@ -1655,6 +1655,45 @@ RULES:
     // flagWidgetClassification's own header for why a single flag never
     // wipes a shared classification out from under everyone else relying
     // on it, and docs/map/extension.md for the full loop this closes.
+    // v3.321.0 -- the one real, missing piece between the extension's
+    // already-mature fill engine and "one click, filled and submitted,
+    // once they've agreed." A real, explicit, recorded, revocable opt-in
+    // -- the same shape talent_pool_get/talent_pool_set already use for
+    // AYN's other "acts on your behalf" decision -- checked by content.js
+    // before it ever clicks a real submit button. Free (a plain read,
+    // rate-limited only, matching every other ext_/auto_apply_* utility
+    // action).
+    if (action === "auto_apply_consent_get") {
+      const adminC = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminC, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminC, user.id, action); if (blocked) return blocked; }
+      const { data } = await adminC.from("auto_apply_consent")
+        .select("opted_in, consented_at, revoked_at, consent_version")
+        .eq("user_id", user.id).maybeSingle();
+      return json({ opted_in: data?.opted_in === true, consented_at: data?.consented_at ?? null, consent_version: data?.consent_version ?? null });
+    }
+
+    if (action === "auto_apply_consent_set") {
+      const adminC = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminC, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminC, user.id, action); if (blocked) return blocked; }
+      { const limited = await rateLimitGate(adminC, user.id, action, 20, 15); if (limited) return limited; }
+      const { opted_in, consent_version } = payload as { opted_in?: boolean; consent_version?: string };
+      if (typeof opted_in !== "boolean") return json({ error: "opted_in required" }, 400);
+      const now = new Date().toISOString();
+      const row = {
+        user_id: user.id,
+        opted_in,
+        consented_at: opted_in ? now : null,
+        revoked_at: opted_in ? null : now,
+        consent_version: opted_in ? (consent_version || "v3.321.0-extension-submit") : null,
+        updated_at: now,
+      };
+      const { error } = await adminC.from("auto_apply_consent").upsert(row, { onConflict: "user_id" });
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, opted_in });
+    }
+
     if (action === "auto_apply_flag_widget") {
       const adminFlag = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminFlag, "tailoring"); if (off) return off; }

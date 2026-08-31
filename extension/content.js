@@ -113,6 +113,98 @@
     return data;
   }
 
+  // v3.321.0 -- the one real, missing piece between this file's already
+  // mature fill engine and "one click, filled and submitted, once
+  // they've agreed." content.js was deliberately rebuilt at v3.276.0 to
+  // never click a third-party site's own submit button, per direct
+  // founder feedback at the time. This is the opposite behavior, built
+  // the same way AYN builds every other "acts on your behalf" decision:
+  // a real, explicit, server-recorded, revocable opt-in (auto_apply_
+  // consent, mirroring talent_pool_consent's own shape exactly), checked
+  // fresh every run, never assumed.
+  async function getConsent(session) {
+    try {
+      return await callHub(session, { action: "auto_apply_consent_get" });
+    } catch (e) {
+      return { opted_in: false };
+    }
+  }
+  async function setConsent(session, opted_in) {
+    return callHub(session, { action: "auto_apply_consent_set", opted_in });
+  }
+
+  // Phrases real ATS platforms show, in their own words, when they refuse
+  // a submission -- the same list, same reasoning, already proven live in
+  // job-checker's own server-side fill path (_REJECTION_PHRASES): narrow
+  // and literal on purpose, never a broad "error"/"failed" match, which
+  // would also catch a genuine field-validation message that has nothing
+  // to do with an anti-spam rejection. Only ever used to report a
+  // rejection honestly, never to work around one.
+  const REJECTION_PHRASES = [
+    "flagged as possible spam", "flagged as spam", "couldn't submit your application",
+    "could not submit your application", "we couldn't submit", "unable to submit your application",
+    "your submission was blocked", "application was not submitted", "suspicious activity detected",
+    "automated submission", "bot detection",
+  ];
+  function findRejectionText(bodyText) {
+    if (!bodyText) return null;
+    const lower = bodyText.toLowerCase();
+    for (const phrase of REJECTION_PHRASES) {
+      const idx = lower.indexOf(phrase);
+      if (idx === -1) continue;
+      const start = Math.max(bodyText.lastIndexOf("\n", idx), bodyText.lastIndexOf(". ", idx) + 1, 0);
+      const ends = [bodyText.indexOf("\n", idx), bodyText.indexOf(". ", idx)].filter((e) => e !== -1);
+      const end = ends.length ? Math.min(...ends) : bodyText.length;
+      const snippet = bodyText.slice(start, end).trim();
+      return (snippet || phrase).slice(0, 220);
+    }
+    return null;
+  }
+
+  // A real submit control, not a "Next"/"Continue" step in a multi-page
+  // wizard and not the earlier "Apply"/"Apply now" button that only
+  // reveals the form in the first place (a completely different control,
+  // matched by _click_apply_if_needed's own equivalent pattern on the
+  // job-checker side, never this one). type=submit is the one real,
+  // unambiguous HTML signal a control IS a form's own final submission;
+  // the text fallback stays narrow for the same reason.
+  const SUBMIT_TEXT_RE = /^(submit( this)?( application)?|send( my)? application)$/i;
+  function findSubmitButton() {
+    const native = Array.from(document.querySelectorAll('button[type="submit"], input[type="submit"]')).find(
+      (b) => b.offsetParent !== null && !b.disabled
+    );
+    if (native) return native;
+    const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
+    return candidates.find((b) => {
+      if (b.offsetParent === null || b.disabled || b.getAttribute("aria-disabled") === "true") return false;
+      const text = (b.textContent || b.getAttribute("aria-label") || "").trim();
+      return SUBMIT_TEXT_RE.test(text);
+    }) || null;
+  }
+
+  // Clicks the real submit button and verifies honestly afterward -- the
+  // exact same discipline job-checker's own server-side fill already
+  // proved out live: a URL change alone is never trusted as proof, since
+  // some ATS platforms route both a real confirmation AND their own
+  // anti-spam rejection to a URL that differs from the posting; only a
+  // URL change PLUS no rejection phrase in the resulting page's own
+  // visible text counts as a real, honest success.
+  async function attemptSubmit() {
+    const btn = findSubmitButton();
+    // No submit control found is the expected, ordinary outcome on an
+    // intermediate step of a multi-step wizard (only a "Next"/"Continue"
+    // exists there, deliberately never matched by SUBMIT_TEXT_RE) -- not
+    // a failure, so it's worded as a real state, not an error.
+    if (!btn) return { submitted: false, reason: "This step doesn't have a submit button yet -- likely more steps to come." };
+    const beforeUrl = location.href;
+    btn.click();
+    await new Promise((r) => setTimeout(r, 2000));
+    const rejection = findRejectionText(document.body ? document.body.innerText : "");
+    if (rejection) return { submitted: false, reason: `The employer's own application system rejected this: "${rejection}"` };
+    if (location.href === beforeUrl) return { submitted: false, reason: "The page didn't change after submit -- likely a validation error still on the page." };
+    return { submitted: true };
+  }
+
   // v3.287.0 -- the primary resume's own structured content (the exact
   // same shape resumeDocs.js's ported builder expects), fetched once per
   // panel session and cached so clicking "Attach" on more than one file
@@ -355,6 +447,9 @@
     clearPanel();
     panel.appendChild(buildHead("Autofilling…"));
     panel.appendChild(el("div", { class: "body" }, [el("p", { class: "muted", text: "Reading this page and matching it to your AYN profile…" })]));
+    // Fired off now, overlapping with the extraction/matching work below,
+    // rather than adding its own separate wait later.
+    const consentPromise = getConsent(session);
     const { fields, skipped } = extractFields();
 
     // v3.294.0 -- iframe support: an application form embedded in a
@@ -619,6 +714,16 @@
       for (const f of stillNeeded) ul.appendChild(el("li", { text: f }));
       body.appendChild(ul);
     }
+
+    // v3.321.0 -- real, required-field completeness gate. Consent alone is
+    // never enough to submit -- an honestly incomplete required field, a
+    // multi-select question AYN deliberately never guesses at, or a
+    // required resume that never got attached all block auto-submit
+    // regardless of what the person's consent setting says. This can only
+    // ever refuse a submit consent would otherwise allow, never the
+    // reverse.
+    const requiredLabels = new Set(fields.filter((f) => f.required).map((f) => f.label));
+    const requiredMissing = stillNeeded.filter((label) => requiredLabels.has(label));
     // v3.288.0 -- flipped from an allowlist ("only a field that says
     // resume/CV") to a denylist. A field whose own label clearly asks for
     // something else -- cover letter, portfolio, writing sample,
@@ -632,6 +737,10 @@
     // was otherwise the one thing standing between "click autofill" and
     // "click submit."
     const NOT_RESUME_FIELD = /cover\s*letter|portfolio|writing\s*sample|work\s*sample|transcript|reference|id\b|passport|visa|photo|headshot|video|w-?2|w-?4|i-?9|1099/i;
+    // v3.321.0 -- consent is awaited here, right before it's first needed,
+    // so it overlaps with everything above rather than adding its own wait.
+    const consent = await consentPromise;
+    let requiredResumeUnattached = 0;
     if (fileRows.length) {
       body.appendChild(el("p", { class: "warn", text: `${fileRows.length} file field${fileRows.length > 1 ? "s" : ""} to attach:` }));
       for (const f of fileRows) {
@@ -640,16 +749,26 @@
         row.appendChild(el("span", { text: f.label, style: "font-size: 14px;" }));
         if (isResumeField) {
           const btn = el("button", { class: "btn btn-primary", text: "Attach my resume", style: "padding: 7px 14px; font-size: 13px; flex-shrink: 0;" });
-          btn.addEventListener("click", async () => {
+          const doAttach = async () => {
             btn.disabled = true; btn.textContent = "Attaching…";
             const inputEl = fieldRegistry_().get(f.id);
             const r = inputEl ? await attachResumeFile(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
             if (r.ok) { btn.textContent = "Attached ✓"; btn.style.background = "#1f8f52"; }
             else { btn.disabled = false; btn.textContent = "Try again"; btn.title = r.reason || ""; }
-          });
+            return r.ok;
+          };
+          btn.addEventListener("click", doAttach);
           row.appendChild(btn);
+          // v3.321.0 -- when consent is on, "one click, everything filled"
+          // has to include the resume too, not wait on a second manual
+          // click that would never come in an unattended, agreed-to run.
+          if (consent.opted_in) {
+            const ok = await doAttach();
+            if (!ok && requiredLabels.has(f.label)) requiredResumeUnattached++;
+          }
         } else {
           row.appendChild(el("span", { text: "Attach yourself", class: "muted", style: "font-size: 12.5px; margin: 0;" }));
+          if (consent.opted_in && requiredLabels.has(f.label)) requiredResumeUnattached++;
         }
         body.appendChild(row);
       }
@@ -666,7 +785,63 @@
       for (const s of multiSelectFlags) ul3.appendChild(el("li", { text: s }));
       body.appendChild(ul3);
     }
-    body.appendChild(el("p", { class: "muted", text: "Review the real page, then submit it yourself — AYN never clicks submit for you." }));
+
+    // v3.321.0 -- the one real, gated exception to "AYN never clicks
+    // submit for you": only when the person has explicitly, separately
+    // agreed to it (auto_apply_consent, checked fresh every run, never
+    // assumed), AND this particular run is honestly complete -- every
+    // required field actually filled, every required resume actually
+    // attached, and no "pick several" question AYN can't answer for them
+    // left open. Any one of those blocks it, consent or not; this can
+    // only ever refuse a submit consent would otherwise allow, never make
+    // one happen consent didn't cover.
+    const submitBlockers = [];
+    if (requiredMissing.length) submitBlockers.push(`${requiredMissing.length} required field${requiredMissing.length > 1 ? "s" : ""} not filled`);
+    if (requiredResumeUnattached) submitBlockers.push("a required resume wasn't attached");
+    if (multiSelectFlags.length) submitBlockers.push("a pick-several question needs your own answer");
+
+    if (consent.opted_in && !submitBlockers.length) {
+      const submitNotice = el("p", { class: "muted", text: "Submitting, since you've agreed to let AYN do this…" });
+      body.appendChild(submitNotice);
+      const result = await attemptSubmit();
+      submitNotice.remove();
+      if (result.submitted) {
+        body.appendChild(el("p", { class: "ok", text: "Submitted. AYN filled and sent this application, as you agreed.", style: "color: #1f8f52;" }));
+      } else {
+        body.appendChild(el("p", { class: "warn", text: `Not submitted: ${result.reason}` }));
+        body.appendChild(el("p", { class: "muted", text: "Review the real page, then submit it yourself." }));
+      }
+    } else if (consent.opted_in) {
+      body.appendChild(el("p", { class: "warn", text: `AYN would submit this for you, but ${submitBlockers.join(" and ")} — review and submit it yourself this time.` }));
+    } else {
+      body.appendChild(el("p", { class: "muted", text: "Review the real page, then submit it yourself — AYN never clicks submit for you." }));
+    }
+
+    // A real, always-visible, always-changeable setting -- never buried,
+    // never assumed from a single click. Reflects the value this exact
+    // run used; toggling it only ever affects the NEXT run.
+    const consentRow = el("div", { style: "display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; margin: 6px 0 0; border-top: 1px solid #f0f0f0;" });
+    consentRow.appendChild(el("span", { text: "Let AYN submit for you next time", style: "font-size: 12.5px; color: #6f6f6f;" }));
+    const consentBtn = el("button", {
+      class: consent.opted_in ? "btn btn-primary" : "btn btn-ghost",
+      text: consent.opted_in ? "On" : "Off",
+      style: "padding: 5px 14px; font-size: 12.5px;",
+    });
+    consentBtn.addEventListener("click", async () => {
+      consentBtn.disabled = true;
+      try {
+        const next = !consent.opted_in;
+        await setConsent(session, next);
+        consent.opted_in = next;
+        consentBtn.className = next ? "btn btn-primary" : "btn btn-ghost";
+        consentBtn.textContent = next ? "On" : "Off";
+      } catch (e) {
+        // Best effort -- the button's own state stays as it was.
+      }
+      consentBtn.disabled = false;
+    });
+    consentRow.appendChild(consentBtn);
+    body.appendChild(consentRow);
 
     // v3.298.0 -- the flag half of the same loop the diagnostics button
     // below is part of. A classified widget shape is shared across every
