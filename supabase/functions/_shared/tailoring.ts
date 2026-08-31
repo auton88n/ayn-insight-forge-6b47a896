@@ -249,6 +249,25 @@ const STOP = new Set(("a an the and or of to in on for with as at by from is are
 const GENERIC_QUAL =
   /\b(years?\s+of\s+experience|degree\s*(preferred|required)?|bachelor'?s?|master'?s?(\s+degree)?|communication\s+skills?|team\s*player|problem[- ]solving|self[- ]starter|fast[- ]paced|detail[- ]oriented|work(ing)?\s+independently|interpersonal\s+skills?|time\s+management|organi[sz]ational\s+skills?|leadership\s+skills?|analytical\s+skills?|people\s+skills?|multi[- ]?task)\b/i;
 
+// v3.314.0 — a real, live JD (Bloomreach) opened with three bulleted
+// company-mission sentences ("We're taking autonomous search mainstream,
+// making product discovery more intuitive...") before any heading at all,
+// and every one of them survived extractRequirements as a "missing skill"
+// -- a candidate cannot be missing the employer's own marketing tagline. A
+// first attempt matched only a fixed list of contractions ("we're", "we've")
+// and missed a whole second, real, live occurrence on the same posting's
+// own perks list ("We believe in flexible working hours", "We organize
+// company events", "We facilitate sports, yoga, and meditation..." — none
+// of those specific verbs were on the list). Widened to the general rule
+// instead of enumerating verbs: a genuine requirement bullet is never
+// phrased as the company narrating itself starting with the word "We",
+// regardless of which verb follows -- unlike an imperative ("Design and
+// build..."), a noun phrase ("3+ years of..."), or a "you" statement
+// ("You will..."). Checked against every genuine requirement bullet found
+// across five real, differently-formatted JDs before trusting it: none of
+// them open with "We".
+const COMPANY_VOICE = /^we\b/i;
+
 // Real ATS in 2026 credit synonyms, not just exact keywords — "Adobe
 // Creative Suite" on a resume against a JD asking for "Adobe Creative
 // Cloud" is the same tool, not a gap. This app's own deterministic matcher
@@ -358,17 +377,59 @@ function extractRequirements(jd: string): Array<{ text: string; kind: "required"
   const out: Array<{ text: string; kind: "required" | "nice_to_have" }> = [];
   let bucket: "required" | "nice_to_have" | null = null;
   let inReqSection = false;
+  // v3.314.0 — a real, live JD (Farcana) glued a "Benefits" heading
+  // directly onto its own first bullet ("Benefits- Performance-based
+  // incentives"), and the three bullets after it ("Health insurance",
+  // "Modern office in Yas Creative Hub") still leaked through as "missing
+  // skills" -- a bulleted line was always accepted regardless of section,
+  // since the old `!bulletish && !inReqSection` skip only ever gated prose.
+  // `excluded` is a real, explicit third state: once a benefits/about/perks
+  // heading is seen, every line under it (bulleted or not) is skipped until
+  // a new heading actually resets it -- never guessed at per-line.
+  let excluded = false;
 
   for (const raw of lines) {
     if (!raw) continue;
     const low = raw.toLowerCase();
-    const isHeading = raw.length < 90 && !/[.!?]$/.test(raw);
-    if (isHeading) {
-      if (/(nice to have|preferred|bonus|plus(es)?|desirable|good to have)/.test(low)) { bucket = "nice_to_have"; inReqSection = true; continue; }
-      if (/(requirement|qualification|must have|what you.{0,10}(bring|need|have)|who you are|about you|skills|we.{0,5}re looking for|you have)/.test(low)) { bucket = "required"; inReqSection = true; continue; }
-      if (/(benefit|perk|about (us|the company)|why join|compensation|salary|equal opportunity|how to apply|responsibilit|what you.{0,10}(do|ll do))/.test(low)) { bucket = null; inReqSection = false; continue; }
-    }
     const bulletish = /^[-*•·‣◦o]\s+|^\d+[.)]\s+/.test(raw);
+    // isHeading's own definition (short, no trailing punctuation) also
+    // matches nearly every ordinary bulleted requirement line -- "- AWS"
+    // is exactly as "heading-shaped" as "Job Summary:" by that test alone.
+    // A real live JD (Full Stack Developer, ecsme) proved this out live:
+    // gating on isHeading alone, with no bulletish exception, wrongly
+    // skipped nearly every genuine bullet in its Required Skills section,
+    // dropping 13 real requirements down to 1. A bullet is already a
+    // deliberate, single content item (this file's own long-standing
+    // rule, see the comment further down), never a section label, so it
+    // must never be routed through the heading branch below regardless of
+    // how short or unpunctuated it looks.
+    const isHeading = raw.length < 90 && !/[.!?]$/.test(raw) && !bulletish;
+    if (isHeading) {
+      if (/(nice to have|preferred|bonus|plus(es)?|desirable|good to have)/.test(low)) { bucket = "nice_to_have"; inReqSection = true; excluded = false; continue; }
+      if (/(requirement|qualification|must have|what you.{0,10}(bring|need|have)|who you are|about you|skills|we.{0,5}re looking for|you have)/.test(low)) { bucket = "required"; inReqSection = true; excluded = false; continue; }
+      // v3.314.0 — "about (us|the company)" alone missed a real, live
+      // heading ("More things you'll like about Bloomreach:") that uses
+      // the company's own name instead of the generic phrase -- and once
+      // it fell through unrecognized, `excluded` never got set, so an
+      // entire trailing perks block (Culture/Personal Development/
+      // Well-being, four more sub-headings none of which mention
+      // "benefit" or "perk" either) stayed silently attributed to the
+      // still-open "required" section above it. Widened to bare "about",
+      // safe because "about you" is already intercepted by the required
+      // branch above, checked first -- this one is only ever reached once
+      // that hasn't matched.
+      if (/(benefit|perk|\babout\b|why join|compensation|salary|equal opportunity|how to apply|responsibilit|what you.{0,10}(do|ll do))/.test(low)) { bucket = null; inReqSection = false; excluded = true; continue; }
+      // v3.314.0 — a real, live JD (ecsme) had an unrecognized heading,
+      // "Job Summary:", sitting inside an already-open requirements
+      // section with no closing heading of its own -- since nothing here
+      // matched any of the three branches above, the heading's own text
+      // fell through and was swept in as if it were a requirement line
+      // itself. A heading is never itself a requirement, matched or not;
+      // section state is left alone rather than guessed at, since an
+      // unrecognized heading's meaning is genuinely ambiguous.
+      continue;
+    }
+    if (excluded) continue;
     if (!bulletish && !inReqSection) continue;
     const text = raw.replace(/^[-*•·‣◦o]\s+|^\d+[.)]\s+/, "").trim();
     // v3.143.0 — reported directly against a live JD (Samsara): a "Who You
@@ -407,6 +468,7 @@ function extractRequirements(jd: string): Array<{ text: string; kind: "required"
     // requirement matching on ordinarily-written JDs like this one.
     if (text.length > 200) continue;
     if (GENERIC_QUAL.test(text)) continue;
+    if (COMPANY_VOICE.test(text)) continue;
     // A bullet is already a deliberate, single item -- "- Kubernetes" or
     // "- AWS" is exactly as real a requirement as a full sentence, so it
     // gets a lower bar than free-flowing prose in a requirements section.
