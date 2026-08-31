@@ -1066,9 +1066,9 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       const system = `Write a concise, specific cover letter, 250 to 300 words total. Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}.
 
 STRUCTURE (4 short paragraphs, body text only — no address block, no date, no "Dear ..." salutation placeholders, no bracketed fields of any kind):
-1) Hook (about 50 words): who you are, the specific role, and one specific thing about this employer drawn from COMPANY CONTEXT if present; otherwise open with the role and the candidate's most relevant strength. No clichés.
+1) Hook (about 50 words): open with the specific role, then a specific, real need or challenge this employer actually has — drawn only from COMPANY CONTEXT or from what the job description itself states it needs (never invented) — followed by a one-sentence claim of exactly how the candidate addresses it. Never open with the candidate's own career story, background, or personal motivation for applying — recruiters consistently say they care about relevance and fit, not motivation. No clichés.
 2) Proof (about 100 words): one or two concrete achievements from the sections that map to the job's hardest requirements, with the real number if the sections have one. Show, don't tell.
-3) Alignment (about 75 words): two or three specific tools or skills the job asks for that the sections genuinely support, tied to why this specific employer matters to the candidate.
+3) Alignment (about 75 words): two or three specific tools or skills the job asks for that the sections genuinely support, and how each one maps directly to something the job description or company context actually states it needs. Stay concrete and requirement-anchored — do not explain why the candidate personally admires or wants to work at this employer.
 4) Close (about 40 words): a clear, low-friction ask for a conversation, then sign off with the applicant's real name only.
 
 RULES:
