@@ -1,4 +1,4 @@
-scrapegraphai
+crawl4ai
 playwright
 fastapi
 uvicorn

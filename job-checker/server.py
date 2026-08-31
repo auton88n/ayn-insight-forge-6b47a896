@@ -1,4 +1,4 @@
-import _compat_shim  # noqa: F401 -- must run before scrapegraphai.graphs import
+import asyncio
 import base64
 import json
 import os
@@ -8,12 +8,26 @@ import urllib.request
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict
-from scrapegraphai.graphs import SmartScraperGraph
+from crawl4ai import AsyncWebCrawler
 from playwright.sync_api import sync_playwright
 
 SERVICE_ROLE_KEY = os.environ.get('SERVICE_ROLE_KEY', '')
 CHECKER_SECRET = os.environ.get('CHECKER_SECRET', '')
 BRIDGE_BASE = 'https://ayn.careers/functions/v1/ai-openai-bridge'
+
+# v3.318.0 -- ScrapeGraphAI bundled its own headless-browser fetch and its
+# own LLM call into one opaque step (SmartScraperGraph.run()), with no way
+# to see or bound what it actually sent the model -- confirmed via real
+# 2026 pricing research to be the highest-priced of the real crawler
+# options checked (Crawl4AI, Firecrawl, ScrapeGraphAI), very likely because
+# an oversized page silently chunks into MULTIPLE billed LLM calls rather
+# than one. Crawl4AI's own fetch step is free and decoupled from any LLM
+# call by design (Apache 2.0, self-hosted, the same Playwright engine this
+# file already runs for /extract_form and /fill_form) -- the AI judgment
+# is now a single, explicit, capped call this file controls directly,
+# through the exact same internal ai-openai-bridge _classify_candidates
+# already trusts, not a third-party orchestration layer's own choices.
+MAX_PAGE_CHARS = 12000  # real job_postings.description median is ~5,572 chars (job-board-sync); this stays a generous, fixed ceiling on ONE call's cost regardless of how large a real page's markdown turns out
 
 PROMPT = (
     'Look at this job posting page and answer two separate questions about it.\n\n'
@@ -47,24 +61,56 @@ def health():
     return {'ok': True}
 
 
+def _strip_json_fence(text: str) -> str:
+    """A gateway completion can wrap strict JSON in a ```json ... ``` fence
+    even when told not to -- stripped defensively before parsing, never
+    assumed absent."""
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```[a-zA-Z]*\n?", "", t)
+        t = re.sub(r"\n?```\s*$", "", t)
+    return t.strip()
+
+
+def _ai_judge(page_content: str) -> dict:
+    """
+    Exactly one LLM call, page content capped at MAX_PAGE_CHARS, same
+    PROMPT and same strict-JSON contract the old ScrapeGraphAI call used to
+    produce -- through the same internal bridge _classify_candidates
+    already trusts (the real service-role key as a Bearer token, the one
+    credential this container is actually given, never the real AI
+    credential itself). Plain urllib, same as _classify_candidates, so it
+    runs off the event loop via asyncio.to_thread rather than blocking it.
+    """
+    body = json.dumps({
+        'model': 'google/gemini-2.5-flash',
+        'temperature': 0,
+        'messages': [
+            {'role': 'user', 'content': PROMPT + '\n\n--- PAGE CONTENT ---\n\n' + page_content[:MAX_PAGE_CHARS]},
+        ],
+    }).encode('utf-8')
+    req = urllib.request.Request(
+        BRIDGE_BASE, data=body, method='POST',
+        headers={'Authorization': f'Bearer {SERVICE_ROLE_KEY}', 'Content-Type': 'application/json'},
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = json.loads(resp.read().decode('utf-8'))
+    content = data['choices'][0]['message']['content']
+    return json.loads(_strip_json_fence(content))
+
+
 @app.post('/check')
-def check(req: CheckRequest, x_checker_secret: str = Header(default='')):
+async def check(req: CheckRequest, x_checker_secret: str = Header(default='')):
     if not CHECKER_SECRET or x_checker_secret != CHECKER_SECRET:
         raise HTTPException(status_code=403, detail='forbidden')
-    config = {
-        'llm': {
-            'api_key': SERVICE_ROLE_KEY,
-            'model': 'openai/google/gemini-2.5-flash',
-            'base_url': BRIDGE_BASE,
-            'model_tokens': 8192,
-        },
-        'verbose': False,
-        'headless': True,
-        'timeout': 30,
-    }
     try:
-        graph = SmartScraperGraph(prompt=PROMPT, source=req.url, config=config)
-        result = graph.run()
+        async with AsyncWebCrawler() as crawler:
+            crawl_result = await crawler.arun(url=req.url)
+        page_text = str(crawl_result.markdown or '') if crawl_result.success else ''
+        if not page_text.strip():
+            status = getattr(crawl_result, 'status_code', 'unknown')
+            return {'ok': False, 'error': f'could not load the page (status {status})'}
+        result = await asyncio.to_thread(_ai_judge, page_text)
         return {'ok': True, 'result': result}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
