@@ -15,18 +15,19 @@ const STEPS = [
   { n: 1, text: 'Download the extension below, then unzip it.' },
   { n: 2, text: 'Open chrome://extensions and turn on "Developer mode" (top right).' },
   { n: 3, text: 'Click "Load unpacked" and select the unzipped folder.' },
-  { n: 4, text: 'Save a job in AYN (Browse jobs → Save), open its real application page, then click the AYN icon in your toolbar.' },
+  { n: 4, text: 'On any real job application page, click the AYN icon in your toolbar (or press Ctrl+Shift+Y — Cmd+Shift+Y on Mac). No need to save the job in AYN first.' },
 ];
 
 const WHAT_IT_DOES = [
-  'Reads the real, visible fields on the application page in front of you.',
+  'Reads the real, visible fields on the application page in front of you — including a real resume upload, filled from your primary AYN resume.',
   'Matches them against your own AYN profile — name, email, phone, and the same answer-matching AYN already uses elsewhere.',
   'Fills what it finds, and shows you anything it couldn’t.',
+  'Can submit the application for you too, but only once you’ve explicitly turned that on — off by default, and it still won’t submit an honestly incomplete application even when it’s on.',
 ];
 
 const WHAT_IT_NEVER_DOES = [
   'Never invents a value — every field it fills traces back to something real on your AYN profile.',
-  'Never clicks Submit for you. You review the real page and submit it yourself.',
+  'Never submits without your explicit, separate agreement — by default it fills and stops, same as any other autofill tool, and you review and submit yourself.',
   'Never tries to look more "human" to get past a site’s own bot detection — it runs in your real browser, as you, so there’s nothing to get past.',
 ];
 
