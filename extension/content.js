@@ -381,7 +381,7 @@
   function buildFitCard(m) {
     const score = Math.max(0, Math.min(100, Math.round(m.score)));
     const ring = el("div", { class: "fit-ring" });
-    const tone = score >= 75 ? "#1f8f52" : score >= 50 ? "#e0a422" : "#b0392a";
+    const tone = score >= 75 ? "#1b7b47" : score >= 50 ? "#e0a422" : "#b0392a";
     ring.style.background = `conic-gradient(${tone} ${score * 3.6}deg, #efefef 0deg)`;
     ring.appendChild(el("b", { text: String(score) }));
 
@@ -456,17 +456,42 @@
   // surface. Fonts load as a pure progressive enhancement (a failed
   // @font-face fetch -- an unreachable CDN, a strict page CSP -- silently
   // falls back to the system stack next to it, never a broken panel).
+  // v3.331.0 -- three real, verified-not-guessed fixes from an independent
+  // review of the v3.330.0 re-brand, run before that redesign ever shipped
+  // to production. (1) Both @font-face src URLs above were hand-typed
+  // Google Fonts CDN paths that turned out to 404 -- confirmed live via
+  // curl, both by the reviewer and again here before this fix. Replaced
+  // with a real @import of Google's own CSS2 endpoint, which content-
+  // negotiates the current, correct, versioned asset URL on every real
+  // request instead of trusting a hardcoded hash that can (and did) go
+  // stale. (2) White text on the primary button's own bright ember
+  // gradient measured 3.47:1 at the dark end and 2.32:1 at the light end
+  // -- both fail WCAG AA's 4.5:1 floor for 14px/600-weight text, which
+  // does not qualify as "large text." Rather than darken the real,
+  // brand-verified gradient itself, the button's text switched to --ink
+  // instead of white -- 5.13:1 against the dark end, 7.66:1 against the
+  // light end, both comfortably compliant, with the actual brand gradient
+  // left completely untouched. (3) --dim (#a89484) measured 2.90:1 on
+  // --card and 2.70:1 on --bg, well under even the 3:1 floor for bold/
+  // large text -- real for three text uses (.close's resting color,
+  // .fit-no, .fit-gaps), so those three moved to --muted or --warn as
+  // appropriate; --dim's two remaining uses (.btn-ghost:hover's border,
+  // .callout-neutral's accent stripe) are borders, not text, and don't
+  // carry the same contrast requirement. --muted itself was darkened for
+  // real margin (was passing at 4.83:1, a ~7% margin against the 4.5:1
+  // floor) rather than left sitting right at the edge, since it's used
+  // for real paragraph-length body text. --fit-no also being --warn now
+  // (instead of --dim) restores the real semantic meaning a "requirement
+  // not met" indicator should carry, which the redesign had accidentally
+  // muted into indistinguishable from decorative gray.
   style.textContent = `
-    @font-face { font-family: "AYN Outfit"; font-weight: 600 800; font-display: swap;
-      src: url("https://fonts.gstatic.com/s/outfit/v11/QGYyz_MVcBeNP4NjuGObqx1XmO1I4TC0Lk4.woff2") format("woff2"); }
-    @font-face { font-family: "AYN Figtree"; font-weight: 400 600; font-display: swap;
-      src: url("https://fonts.gstatic.com/s/figtree/v11/_Xmz-HUzqDCFdgfMsYiV_F7wfDBBUW7dEQ.woff2") format("woff2"); }
+    @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Figtree:wght@400;500;600&display=swap");
     :host { all: initial; }
     * { box-sizing: border-box; }
-    .panel { --ink: #1c1712; --muted: #776b5e; --dim: #a89484; --bg: #fbf6f0; --card: #ffffff;
+    .panel { --ink: #14100c; --muted: #6b5e50; --dim: #a89484; --bg: #fbf6f0; --card: #ffffff;
       --border: #ece1d3; --ember: #e85d3a; --ember2: #ff8a5c;
       --gradient: linear-gradient(135deg, var(--ember) 0%, var(--ember2) 100%);
-      --trust: #1f8f52; --warn: #b0392a; --gold: #cf8a1d;
+      --trust: #1b7b47; --warn: #b0392a; --gold: #cf8a1d;
       width: min(392px, 100vw); height: 100vh; background: var(--bg); color: var(--ink);
       box-shadow: -16px 0 40px -20px rgba(28,23,18,0.22);
       font-family: "AYN Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -481,7 +506,7 @@
       font-size: 14.5px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
     .head-title { font-size: 12px; font-weight: 500; color: var(--muted); overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap; }
-    .close { cursor: pointer; background: none; border: none; color: var(--dim); font-size: 17px; line-height: 1;
+    .close { cursor: pointer; background: none; border: none; color: var(--muted); font-size: 17px; line-height: 1;
       padding: 5px; border-radius: 7px; flex-shrink: 0; }
     .close:hover { background: var(--bg); color: var(--ink); }
     .body { padding: 18px; overflow-y: auto; flex: 1; }
@@ -494,7 +519,7 @@
       border-radius: 9px; border: none; font-weight: 600; font-size: 14px; cursor: pointer;
       transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease; }
     .btn:active:not(:disabled) { transform: scale(0.97); }
-    .btn-primary { background: var(--gradient); color: #fff; box-shadow: 0 3px 10px -2px rgba(232,93,58,0.45); }
+    .btn-primary { background: var(--gradient); color: var(--ink); box-shadow: 0 3px 10px -2px rgba(232,93,58,0.45); }
     .btn-primary:hover:not(:disabled) { box-shadow: 0 4px 14px -2px rgba(232,93,58,0.55); }
     .btn-primary:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
     .btn-ghost { background: var(--card); color: var(--ink); border: 1px solid var(--border); }
@@ -522,8 +547,8 @@
     .fit-row { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); margin: 0 0 3px; }
     .fit-row b { color: var(--ink); font-weight: 600; }
     .fit-yes { color: var(--trust); font-weight: 700; }
-    .fit-no { color: var(--dim); font-weight: 700; }
-    .fit-gaps { font-size: 12px; color: var(--dim); margin: 6px 0 0; }
+    .fit-no { color: var(--warn); font-weight: 700; }
+    .fit-gaps { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
     .fit-summary { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin: 8px 0 0; }
   `;
   root.appendChild(style);
@@ -1120,7 +1145,7 @@
             btn.disabled = true; btn.textContent = "Attaching…";
             const inputEl = fieldRegistry_().get(f.id);
             const r = inputEl ? await attachResumeFile(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
-            if (r.ok) { btn.textContent = "Attached ✓"; btn.style.background = "#1f8f52"; }
+            if (r.ok) { btn.textContent = "Attached ✓"; btn.style.background = "#1b7b47"; btn.style.color = "#fff"; }
             else { btn.disabled = false; btn.textContent = "Try again"; btn.title = r.reason || ""; }
             return r.ok;
           };
@@ -1139,7 +1164,7 @@
             const r = inputEl ? await tailorAndAttach(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
             btn.disabled = false;
             if (r.ok) {
-              tailorBtn.textContent = "Tailored ✓"; tailorBtn.style.background = "#1f8f52"; tailorBtn.style.color = "#fff";
+              tailorBtn.textContent = "Tailored ✓"; tailorBtn.style.background = "#1b7b47"; tailorBtn.style.color = "#fff";
               btn.textContent = "Attach my resume instead";
               if (r.credits && typeof r.credits.spent === "number") statusP.textContent = `${r.credits.spent} credit${r.credits.spent === 1 ? "" : "s"} used.`;
             } else {
@@ -1169,7 +1194,7 @@
             const inputEl = fieldRegistry_().get(f.id);
             const r = inputEl ? await writeCoverLetterAndAttach(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
             if (r.ok) {
-              writeBtn.textContent = "Attached ✓"; writeBtn.style.background = "#1f8f52"; writeBtn.style.color = "#fff";
+              writeBtn.textContent = "Attached ✓"; writeBtn.style.background = "#1b7b47"; writeBtn.style.color = "#fff";
               if (r.credits && typeof r.credits.spent === "number") statusP.textContent = `${r.credits.spent} credit${r.credits.spent === 1 ? "" : "s"} used.`;
             } else {
               writeBtn.disabled = false; writeBtn.textContent = "Write & attach cover letter";
@@ -1219,7 +1244,7 @@
       const result = await attemptSubmit();
       submitNotice.remove();
       if (result.submitted) {
-        body.appendChild(el("p", { class: "ok", text: "Submitted. AYN filled and sent this application, as you agreed.", style: "color: #1f8f52;" }));
+        body.appendChild(el("p", { class: "ok", text: "Submitted. AYN filled and sent this application, as you agreed.", style: "color: #1b7b47;" }));
       } else {
         body.appendChild(el("p", { class: "warn", text: `Not submitted: ${result.reason}` }));
         body.appendChild(el("p", { class: "muted", text: "Review the real page, then submit it yourself." }));
