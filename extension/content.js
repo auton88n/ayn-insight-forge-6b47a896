@@ -224,13 +224,27 @@
     return cachedResumeContent;
   }
 
+  // The one real, working way to set a file input's value from script --
+  // DataTransfer, not blocked by browser security the way an older
+  // assumption held. Read back afterward (input.files.length, the real
+  // name) rather than trusted blind. Shared by every real caller below
+  // (the static resume, a freshly tailored one, a freshly written cover
+  // letter) so there is exactly one place that ever touches a file
+  // input's own value.
+  function attachFileBlob(inputEl, blob, filename, mimeType) {
+    const file = new File([blob], filename, { type: mimeType });
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    inputEl.files = dt.files;
+    inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+    inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+    const landed = inputEl.files.length === 1 && inputEl.files[0].name === filename;
+    return { ok: landed };
+  }
+
   // Builds a real resume PDF from the person's own AYN profile (via the
   // vendored, ported resumeDocs.js -- see its own header comment) and
-  // attaches it to a real <input type=file> the same way a person
-  // dragging a file in would -- DataTransfer is the only real, working
-  // way to set a file input's value from script, not blocked by browser
-  // security the way an older assumption held. Read back afterward
-  // (input.files.length, the real name) rather than trusted blind.
+  // attaches it to a real <input type=file>.
   async function attachResumeFile(session, inputEl) {
     if (typeof window.__aynBuildResumePdfBlob !== "function") {
       return { ok: false, reason: "PDF builder didn't load on this page." };
@@ -244,14 +258,86 @@
       return { ok: false, reason: "Couldn't build the resume file." };
     }
     const name = (content.basics && content.basics.name ? content.basics.name.replace(/\s+/g, "_") : "Resume") + "_Resume.pdf";
-    const file = new File([blob], name, { type: "application/pdf" });
-    const dt = new DataTransfer();
-    dt.items.add(file);
-    inputEl.files = dt.files;
-    inputEl.dispatchEvent(new Event("change", { bubbles: true }));
-    inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-    const landed = inputEl.files.length === 1 && inputEl.files[0].name === name;
-    return { ok: landed };
+    return attachFileBlob(inputEl, blob, name, "application/pdf");
+  }
+
+  // v3.327.0 -- a best-effort read of the job description already on
+  // this exact page, the same way the person reading it themselves
+  // would -- no site-specific selector, no separate fetch. Real, honest
+  // limit disclosed rather than hidden: on a platform whose apply STEP
+  // sits on a different page than the job description itself, this
+  // reads whatever this one page actually shows, which may be thin or
+  // just the form's own labels -- tailor/cover_letter both already
+  // refuse to write anything ungrounded rather than invent around a
+  // weak JD, so a thin read degrades to an honest refusal, never a
+  // fabricated result.
+  function getPageJdText() {
+    const text = ((document.body && document.body.innerText) || "").trim();
+    if (text.length < 200) return null;
+    return text.slice(0, 20000);
+  }
+
+  // v3.327.0 -- "why does it attach the same resume everywhere instead
+  // of tailoring one for this job," asked directly after a real Reddit
+  // application showed exactly that. Both tailor and cover_letter
+  // already exist and are already proven (the web app's own Jobs tab
+  // has called them for a long time) -- this wires the SAME two backend
+  // actions into the extension's own file-attach step for the first
+  // time, rather than building a second, different resume-writing path.
+  // Deliberately does not send a guessed jobTitle: passing one wrong
+  // risks corrupting the tailored resume's own title field, and the
+  // backend's own resolveTailorTitle already has a careful, real
+  // fallback (the candidate's own current title) for when none is
+  // given -- the safer choice is to send nothing rather than guess.
+  async function tailorAndAttach(session, inputEl) {
+    if (typeof window.__aynBuildResumePdfBlob !== "function") {
+      return { ok: false, reason: "PDF builder didn't load on this page." };
+    }
+    const jdText = getPageJdText();
+    if (!jdText) return { ok: false, reason: "Couldn't find enough of a real job description on this page to tailor from." };
+    let result;
+    try {
+      result = await callHub(session, { action: "tailor", jdText });
+    } catch (e) {
+      return { ok: false, reason: e.message || "Could not tailor a resume for this job." };
+    }
+    if (!result || !result.resume) return { ok: false, reason: "AYN could not tailor a resume from what's on file." };
+    let blob;
+    try {
+      blob = window.__aynBuildResumePdfBlob(result.resume);
+    } catch (e) {
+      return { ok: false, reason: "Couldn't build the tailored resume file." };
+    }
+    const name = (result.resume.basics && result.resume.basics.name ? result.resume.basics.name.replace(/\s+/g, "_") : "Resume") + "_Tailored_Resume.pdf";
+    const attached = attachFileBlob(inputEl, blob, name, "application/pdf");
+    return { ...attached, credits: result.credits };
+  }
+
+  // Same reasoning as tailorAndAttach -- deliberately no guessed
+  // company name sent either, for the same "send nothing rather than
+  // guess wrong" reason; cover_letter's own prompt already has a real,
+  // separate company-context lookup it uses when none is given.
+  async function writeCoverLetterAndAttach(session, inputEl) {
+    if (typeof window.__aynBuildCoverLetterPdfBlob !== "function") {
+      return { ok: false, reason: "PDF builder didn't load on this page." };
+    }
+    const jdText = getPageJdText();
+    if (!jdText) return { ok: false, reason: "Couldn't find enough of a real job description on this page to write from." };
+    let result;
+    try {
+      result = await callHub(session, { action: "cover_letter", jdText });
+    } catch (e) {
+      return { ok: false, reason: e.message || "Could not write a cover letter for this job." };
+    }
+    if (!result || !result.body) return { ok: false, reason: "AYN could not write a cover letter from what's on file." };
+    let blob;
+    try {
+      blob = window.__aynBuildCoverLetterPdfBlob(result.body);
+    } catch (e) {
+      return { ok: false, reason: "Couldn't build the cover letter file." };
+    }
+    const attached = attachFileBlob(inputEl, blob, "Cover_Letter.pdf", "application/pdf");
+    return { ...attached, credits: result.credits };
   }
 
   // ---------------------------------------------------------------
@@ -269,6 +355,7 @@
   const scanUnrecognizedWidgets = window.__aynScanUnrecognizedWidgets;
   const fillTextLike = window.__aynFillTextLike;
   const fillRadio = window.__aynFillRadio;
+  const detectPlatform = window.__aynDetectPlatform;
   function fieldRegistry_() { return window.__aynFieldRegistry(); }
 
 
@@ -325,6 +412,10 @@
     .ok { color: #191919; font-size: 15px; font-weight: 600; line-height: 1.5; margin: 0 0 14px; }
     ul.fail-list { margin: 0 0 12px; padding-left: 18px; color: #8a8a8a; font-size: 13.5px; line-height: 1.75; }
     .callout { border-left: 2.5px solid #d9534f; padding: 2px 0 2px 12px; margin: 0 0 14px; }
+    .callout-neutral { border-left: 2.5px solid #e2e2e2; padding: 2px 0 2px 12px; margin: 0 0 14px; }
+    .link-toggle { background: none; border: none; padding: 0; color: #e85d3a; font-size: 12.5px;
+      font-weight: 500; cursor: pointer; text-decoration: underline; }
+    .btn-sm { padding: 6px 12px; font-size: 12.5px; }
   `;
   root.appendChild(style);
   const panel = document.createElement("div");
@@ -351,10 +442,36 @@
     return el("div", { class: "head" }, [left, el("button", { class: "close", text: "×", onclick: closePanel })]);
   }
   function clearPanel() { panel.innerHTML = ""; }
+
+  // v3.323.0 -- a real gap found comparing AYN's actual coverage against
+  // a real, live multi-step application (Workday: 7 steps, an account
+  // gate as step 1) -- AYN has never had any way to tell someone "this
+  // isn't the whole application, there's more after this page." Shown
+  // once, above whatever the normal result for this step already is
+  // (filled fields, nothing found, whatever) -- this never replaces or
+  // blocks the real fill, it's added context so a step that's mostly a
+  // login form doesn't read as AYN failing.
+  function wizardNotice(wizardStep) {
+    if (!wizardStep) return null;
+    const { current, total, stepName } = wizardStep;
+    const box = el("div", { class: "callout" });
+    const label = stepName ? `Step ${current} of ${total}: ${stepName}` : `Step ${current} of ${total}`;
+    box.appendChild(el("p", { text: `This looks like a ${total}-step application (${label}).`, style: "margin: 0 0 4px; font-weight: 600;" }));
+    box.appendChild(el("p", { class: "muted", text: "AYN filled what it can on this step. Continue to the next step yourself, then reopen AYN there." }));
+    return box;
+  }
+
   let liveObserver = null;
   function closePanel() {
     if (liveObserver) { liveObserver.disconnect(); liveObserver = null; }
     host.remove();
+    // v3.326.0 -- detector.js (auto-open on a real, recognized apply
+    // page, see its own header) checks this before ever triggering
+    // again on the same page load. Closing the panel is a real,
+    // deliberate "not now" -- without this, a page that keeps matching
+    // the same detection signal (an unchanged URL, an unchanged field
+    // count) would just pop straight back open the moment it closed.
+    window.__aynAutoDismissed = true;
   }
 
   // v3.285.0 -- a real, adoptable improvement: a multi-step wizard or a
@@ -450,7 +567,7 @@
     // Fired off now, overlapping with the extraction/matching work below,
     // rather than adding its own separate wait later.
     const consentPromise = getConsent(session);
-    const { fields, skipped } = extractFields();
+    const { fields, skipped, wizardStep } = extractFields();
 
     // v3.294.0 -- iframe support: an application form embedded in a
     // frame runs its own copy of frame_agent.js (see background.js's
@@ -611,6 +728,8 @@
     if (!fields.length && !skipped.length) {
       clearPanel();
       panel.appendChild(buildHead("No form found"));
+      const wn = wizardNotice(wizardStep);
+      if (wn) panel.appendChild(wn);
       panel.appendChild(el("div", { class: "body" }, [el("p", { class: "muted", text: "Couldn't find a fillable application form on this page." })]));
       return;
     }
@@ -621,6 +740,8 @@
       // rather than a generic "no form found."
       clearPanel();
       panel.appendChild(buildHead("Nothing to autofill here"));
+      const wn2 = wizardNotice(wizardStep);
+      if (wn2) panel.appendChild(wn2);
       const body = el("div", { class: "body" });
       body.appendChild(el("p", { class: "muted", text: "This page only has slider/range controls -- those are preferences, not facts, so AYN leaves them for you to set:" }));
       const ul = el("ul", { class: "fail-list" });
@@ -657,6 +778,23 @@
     const legalFilled = []; // { label, answer } -- verified separately, always
     let filledCount = 0;
 
+    // v3.322.0 -- a real, live bug found on the Learning Commons
+    // Greenhouse posting: a checkbox-group OPTION (e.g. "Tech Talks") is
+    // its own separate field to the backend, with only its own bare
+    // option text as m.label -- the group's real question ("Have we met
+    // you at one of our events? If so, which one(s)?") lives on the
+    // local, already-extracted field entry (checkboxGroupLabel), never on
+    // the backend's answer match, so an unanswered option showed up in
+    // the "not on file" list standing alone with no question attached.
+    // Radio groups don't have this problem -- fillRadioAny already
+    // carries r.groupLabel as the real question -- this is checkbox-only.
+    const fieldById = new Map(fields.map((f) => [f.id, f]));
+    function displayLabel(fieldId, bareLabel) {
+      const f = fieldById.get(fieldId);
+      const group = f && f.checkboxGroupLabel;
+      return group && group !== bareLabel ? `${group}: ${bareLabel}` : bareLabel;
+    }
+
     // v3.282.0 -- a wrong or unconfirmed answer to a work-authorization/
     // sponsorship/age-eligibility question is a real, serious mistake on
     // a real application, not just an inconvenience -- these get called
@@ -666,15 +804,26 @@
     // KNOWN_QUESTIONS resolvers look for.
     const LEGAL_SENSITIVE = /sponsor|work.{0,15}authoriz|legally (eligible|authorized)|visa status|\b18 years|legal drinking age/i;
 
+    // v3.324.0 -- "regenerate this one answer," a real, distinct
+    // capability found comparing AYN against a real competitor's own
+    // extension: matchedType === "ai_narrative" (auto_apply_extract's own
+    // v3.307.0 narrative-answer pass) is the one class of field this
+    // actually applies to -- an AI-authored, open-ended answer, not a
+    // plain fact like name/email where "regenerate" has no real meaning.
+    // Only fields that actually filled successfully get the affordance;
+    // one that failed to fill has a different, already-handled problem.
+    const narrativeFilled = [];
     for (const m of [...idRows, ...ansRows]) {
       const value = m.value ?? m.answer ?? "";
-      if (!value) { notOnFile.push(m.label); continue; }
+      const shownLabel = displayLabel(m.fieldId, m.label);
+      if (!value) { notOnFile.push(shownLabel); continue; }
       const r = await fillTextLikeAny(m.fieldId, value, m.label);
       if (r.ok) {
         filledCount++;
         if (LEGAL_SENSITIVE.test(m.label)) legalFilled.push({ label: m.label, answer: value });
+        if (m.matchedType === "ai_narrative") narrativeFilled.push({ fieldId: m.fieldId, label: m.label, value });
       } else {
-        failed.push(m.label);
+        failed.push(shownLabel);
       }
     }
     for (const r of radioRows) {
@@ -690,6 +839,8 @@
 
     clearPanel();
     panel.appendChild(buildHead("Filled"));
+    const wn3 = wizardNotice(wizardStep);
+    if (wn3) panel.appendChild(wn3);
     const body = el("div", { class: "body" });
     body.appendChild(el("p", { class: "ok", text: `${filledCount} field${filledCount === 1 ? "" : "s"} filled from your AYN profile.` }));
 
@@ -715,6 +866,66 @@
       body.appendChild(ul);
     }
 
+    // v3.324.0 -- "regenerate this one answer," a real, distinct
+    // capability found comparing AYN against a real competitor's own
+    // extension. This is not the free-text answer box the v3.279.0
+    // history above deliberately removed -- that was "type the answer
+    // AYN couldn't find," a second form; this is "AYN already wrote one,
+    // tell it how to make this specific one better," only ever shown next
+    // to a real, already-filled open-ended answer, never a blank field.
+    for (const nf of narrativeFilled) {
+      const card = el("div", { class: "callout-neutral" });
+      card.appendChild(el("p", { text: nf.label, style: "margin: 0 0 4px; font-weight: 600; font-size: 13px;" }));
+      const valueP = el("p", { class: "muted", text: nf.value, style: "margin: 0 0 8px; font-size: 12.5px;" });
+      card.appendChild(valueP);
+
+      const toggleBtn = el("button", { class: "link-toggle", text: "Not quite right? Tell AYN how to fix it" });
+      const editRow = el("div", { style: "display: none; gap: 6px; margin-top: 8px; flex-direction: column;" });
+      const guidanceInput = el("input", { type: "text", placeholder: "e.g. mention my Python experience, keep it shorter" });
+      guidanceInput.style.fontSize = "12.5px";
+      const regenBtn = el("button", { class: "btn btn-ghost btn-sm", text: "Regenerate" });
+      const statusP = el("p", { class: "muted", text: "", style: "margin: 4px 0 0; font-size: 11.5px;" });
+      editRow.appendChild(guidanceInput);
+      editRow.appendChild(regenBtn);
+      editRow.appendChild(statusP);
+      card.appendChild(toggleBtn);
+      card.appendChild(editRow);
+
+      toggleBtn.addEventListener("click", () => {
+        const showing = editRow.style.display !== "none";
+        editRow.style.display = showing ? "none" : "flex";
+        if (!showing) guidanceInput.focus();
+      });
+      regenBtn.addEventListener("click", async () => {
+        const guidance = guidanceInput.value.trim();
+        if (!guidance) { statusP.textContent = "Type what you'd like changed first."; return; }
+        regenBtn.disabled = true;
+        statusP.textContent = "Regenerating…";
+        try {
+          const res = await callHub(session, {
+            action: "auto_apply_regenerate_answer",
+            label: nf.label,
+            previousAnswer: nf.value,
+            guidance,
+          });
+          const newText = res && res.text;
+          if (!newText) throw new Error("AYN could not write a better answer from what's on file.");
+          const fillRes = await fillTextLikeAny(nf.fieldId, newText, nf.label);
+          if (!fillRes.ok) throw new Error("Wrote a new answer but could not fill it back into the page.");
+          nf.value = newText;
+          valueP.textContent = newText;
+          guidanceInput.value = "";
+          statusP.textContent = "Updated.";
+        } catch (e) {
+          statusP.textContent = e.message || "Could not regenerate this answer.";
+        } finally {
+          regenBtn.disabled = false;
+        }
+      });
+
+      body.appendChild(card);
+    }
+
     // v3.321.0 -- real, required-field completeness gate. Consent alone is
     // never enough to submit -- an honestly incomplete required field, a
     // multi-select question AYN deliberately never guesses at, or a
@@ -722,7 +933,14 @@
     // regardless of what the person's consent setting says. This can only
     // ever refuse a submit consent would otherwise allow, never the
     // reverse.
-    const requiredLabels = new Set(fields.filter((f) => f.required).map((f) => f.label));
+    // v3.322.0 -- built through the same displayLabel() the "not on
+    // file"/"failed" lists now use (a no-op for anything that isn't a
+    // checkbox-group option), so a required checkbox option still
+    // correctly counts as missing even though its display string now
+    // carries its group question -- checked live: a bare-label Set here
+    // would have silently stopped matching those once stillNeeded
+    // switched to the combined string, undercounting real blockers.
+    const requiredLabels = new Set(fields.filter((f) => f.required).map((f) => displayLabel(f.id, f.label)));
     const requiredMissing = stillNeeded.filter((label) => requiredLabels.has(label));
     // v3.288.0 -- flipped from an allowlist ("only a field that says
     // resume/CV") to a denylist. A field whose own label clearly asks for
@@ -737,6 +955,7 @@
     // was otherwise the one thing standing between "click autofill" and
     // "click submit."
     const NOT_RESUME_FIELD = /cover\s*letter|portfolio|writing\s*sample|work\s*sample|transcript|reference|id\b|passport|visa|photo|headshot|video|w-?2|w-?4|i-?9|1099/i;
+    const IS_COVER_LETTER_FIELD = /cover\s*letter/i;
     // v3.321.0 -- consent is awaited here, right before it's first needed,
     // so it overlaps with everything above rather than adding its own wait.
     const consent = await consentPromise;
@@ -745,8 +964,12 @@
       body.appendChild(el("p", { class: "warn", text: `${fileRows.length} file field${fileRows.length > 1 ? "s" : ""} to attach:` }));
       for (const f of fileRows) {
         const isResumeField = !NOT_RESUME_FIELD.test(f.label);
-        const row = el("div", { style: "display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px;" });
-        row.appendChild(el("span", { text: f.label, style: "font-size: 14px;" }));
+        const isCoverLetterField = IS_COVER_LETTER_FIELD.test(f.label);
+        const row = el("div", { style: "display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px;" });
+        const topRow = el("div", { style: "display: flex; align-items: center; justify-content: space-between; gap: 10px;" });
+        topRow.appendChild(el("span", { text: f.label, style: "font-size: 14px;" }));
+        row.appendChild(topRow);
+        const statusP = el("p", { class: "muted", text: "", style: "margin: 0; font-size: 11.5px;" });
         if (isResumeField) {
           const btn = el("button", { class: "btn btn-primary", text: "Attach my resume", style: "padding: 7px 14px; font-size: 13px; flex-shrink: 0;" });
           const doAttach = async () => {
@@ -758,7 +981,31 @@
             return r.ok;
           };
           btn.addEventListener("click", doAttach);
-          row.appendChild(btn);
+          // v3.327.0 -- a real, separate option next to the free, instant
+          // static attach: a resume tailored to the job on THIS page.
+          // Deliberately never auto-run, even when "let AYN submit for
+          // you" consent is on -- unlike the free static attach above,
+          // this spends real credits every time, and doing that silently
+          // on an unattended run risks a real, unwanted charge nobody
+          // explicitly asked for on this specific application.
+          const tailorBtn = el("button", { class: "btn btn-ghost", text: "Tailor for this job", style: "padding: 7px 14px; font-size: 13px; flex-shrink: 0;" });
+          tailorBtn.addEventListener("click", async () => {
+            btn.disabled = true; tailorBtn.disabled = true; tailorBtn.textContent = "Tailoring…"; statusP.textContent = "";
+            const inputEl = fieldRegistry_().get(f.id);
+            const r = inputEl ? await tailorAndAttach(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
+            btn.disabled = false;
+            if (r.ok) {
+              tailorBtn.textContent = "Tailored ✓"; tailorBtn.style.background = "#1f8f52"; tailorBtn.style.color = "#fff";
+              btn.textContent = "Attach my resume instead";
+              if (r.credits && typeof r.credits.spent === "number") statusP.textContent = `${r.credits.spent} credit${r.credits.spent === 1 ? "" : "s"} used.`;
+            } else {
+              tailorBtn.disabled = false; tailorBtn.textContent = "Tailor for this job";
+              statusP.textContent = r.reason || "Could not tailor a resume for this job.";
+            }
+          });
+          const btnRow = el("div", { style: "display: flex; gap: 8px;" }, [btn, tailorBtn]);
+          row.appendChild(btnRow);
+          row.appendChild(statusP);
           // v3.321.0 -- when consent is on, "one click, everything filled"
           // has to include the resume too, not wait on a second manual
           // click that would never come in an unattended, agreed-to run.
@@ -766,6 +1013,28 @@
             const ok = await doAttach();
             if (!ok && requiredLabels.has(f.label)) requiredResumeUnattached++;
           }
+        } else if (isCoverLetterField) {
+          // v3.327.0 -- previously this field only ever said "Attach
+          // yourself," even though AYN can genuinely write one -- the
+          // web app's own Jobs tab has done this for a long time, just
+          // never reached from here. Same manual-click-only rule as
+          // Tailor above, for the same real reason: a real credit spend.
+          const writeBtn = el("button", { class: "btn btn-ghost", text: "Write & attach cover letter", style: "padding: 7px 14px; font-size: 13px; flex-shrink: 0;" });
+          writeBtn.addEventListener("click", async () => {
+            writeBtn.disabled = true; writeBtn.textContent = "Writing…"; statusP.textContent = "";
+            const inputEl = fieldRegistry_().get(f.id);
+            const r = inputEl ? await writeCoverLetterAndAttach(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
+            if (r.ok) {
+              writeBtn.textContent = "Attached ✓"; writeBtn.style.background = "#1f8f52"; writeBtn.style.color = "#fff";
+              if (r.credits && typeof r.credits.spent === "number") statusP.textContent = `${r.credits.spent} credit${r.credits.spent === 1 ? "" : "s"} used.`;
+            } else {
+              writeBtn.disabled = false; writeBtn.textContent = "Write & attach cover letter";
+              statusP.textContent = r.reason || "Could not write a cover letter for this job.";
+            }
+          });
+          row.appendChild(el("div", { style: "display: flex; gap: 8px;" }, [writeBtn]));
+          row.appendChild(statusP);
+          if (consent.opted_in && requiredLabels.has(f.label)) requiredResumeUnattached++;
         } else {
           row.appendChild(el("span", { text: "Attach yourself", class: "muted", style: "font-size: 12.5px; margin: 0;" }));
           if (consent.opted_in && requiredLabels.has(f.label)) requiredResumeUnattached++;
@@ -896,6 +1165,15 @@
           multiSelectFlags,
           fileFieldLabels: fileRows.map((f) => f.label),
           legalSensitiveLabels: legalFilled.map((f) => f.label),
+          // v3.325.0 -- which known ATS platform this run was on, if any,
+          // and whether that platform has ever actually had a real fix
+          // verified against it. The real, honest use of this: a pattern
+          // of failures clustering on platform:"icims"/verified:false is
+          // a genuine signal something there is worth chasing down, the
+          // same way a hostname clustering already helped find every
+          // real bug fixed this session -- never a gate on whether
+          // extraction runs, which stays identical on every site.
+          platform: detectPlatform(),
         };
         await callHub(session, {
           action: "ext_diag_report",

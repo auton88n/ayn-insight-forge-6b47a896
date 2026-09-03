@@ -15,14 +15,16 @@ const STEPS = [
   { n: 1, text: 'Download the extension below, then unzip it.' },
   { n: 2, text: 'Open chrome://extensions and turn on "Developer mode" (top right).' },
   { n: 3, text: 'Click "Load unpacked" and select the unzipped folder.' },
-  { n: 4, text: 'On any real job application page, click the AYN icon in your toolbar (or press Ctrl+Shift+Y — Cmd+Shift+Y on Mac). No need to save the job in AYN first.' },
+  { n: 4, text: 'That’s it — on a real application page on a site AYN recognizes, it opens on its own. Anywhere else, click the AYN icon in your toolbar (or press Ctrl+Shift+Y — Cmd+Shift+Y on Mac). No need to save the job in AYN first.' },
 ];
 
 const WHAT_IT_DOES = [
+  'Recognizes a real application page on its own, on sites AYN already knows, and opens there without you clicking anything. Close it once on a page and it stays closed there, so it never fights you.',
   'Reads the real, visible fields on the application page in front of you — including a real resume upload, filled from your primary AYN resume.',
   'Matches them against your own AYN profile — name, email, phone, and the same answer-matching AYN already uses elsewhere.',
   'Fills what it finds, and shows you anything it couldn’t.',
-  'Can submit the application for you too, but only once you’ve explicitly turned that on — off by default, and it still won’t submit an honestly incomplete application even when it’s on.',
+  'For an open-ended question it writes an honest answer for, you can tell it how to make that one answer better (shorter, mention a specific skill) and it rewrites just that field.',
+  'Can submit the application for you too, but only once you’ve explicitly turned that on. Off by default, and it still won’t submit an honestly incomplete application even when it’s on.',
 ];
 
 const WHAT_IT_NEVER_DOES = [

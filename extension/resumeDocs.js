@@ -168,4 +168,36 @@
     layoutPdf(doc, blocks, size, true);
     return doc.output("blob");
   };
+
+  // v3.327.0 -- a real, live gap found by the founder testing the
+  // extension against a real Reddit application: it only ever attached
+  // one static, un-tailored resume file, and had nothing at all to offer
+  // for a real "Cover Letter" upload field -- both capabilities already
+  // exist in AYN's own web app (the tailor/cover_letter actions), just
+  // never wired into the extension's own file-attach step. This is that
+  // second, much simpler builder a plain cover-letter body needs -- no
+  // block model, no shrink-to-fit ladder, just wrapped paragraph text at
+  // a fixed, comfortable letter size, since a real cover letter (per
+  // this app's own house style, under ~300 words) essentially always
+  // fits one page on its own; a genuinely long one still spills to a
+  // real second page rather than being clipped.
+  window.__aynBuildCoverLetterPdfBlob = function (bodyText) {
+    const doc = new jsPDF({ unit: "pt", format: "letter" });
+    const width = PAGE_W - MARGIN * 2;
+    const lineH = 15.5;
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(11);
+    const paragraphs = String(bodyText || "").split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+    let y = MARGIN;
+    for (const para of paragraphs) {
+      const wrapped = doc.splitTextToSize(para, width);
+      for (const line of wrapped) {
+        if (y > PAGE_H - MARGIN) { doc.addPage(); y = MARGIN; }
+        doc.text(line, MARGIN, y);
+        y += lineH;
+      }
+      y += lineH * 0.6;
+    }
+    return doc.output("blob");
+  };
 })();

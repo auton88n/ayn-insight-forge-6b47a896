@@ -36,6 +36,46 @@
 (() => {
   let fieldRegistry = new Map();
 
+  // v3.325.0 -- real platform detection, added deliberately narrow.
+  // Hostname matching against a real, public domain carries zero risk of
+  // being wrong -- a hostname either matches or it doesn't -- so this is
+  // safe to list broadly. What it does NOT do is drive any selector or
+  // attribute guess for a platform this hasn't actually been tested
+  // against: a specific Greenhouse attribute pulled from reading a
+  // competitor's own code was checked directly against a real, live
+  // Greenhouse posting before writing anything here and came back zero
+  // matches -- dead on arrival, exactly the risk of hardcoding a claim
+  // never confirmed against AYN's own real target pages. iCIMS is listed
+  // for the same reason (real, common, worth knowing when we're on it)
+  // but has no matching behavior anywhere in this file -- every real
+  // attempt to reach a live iCIMS posting this session hit that
+  // platform's own "Human Verification" wall before any page content
+  // ever loaded, so there is nothing here to verify yet. This function
+  // exists to be a real, honest place to attach a platform-specific fix
+  // TO once it is actually confirmed live, not a shortcut past that.
+  const PLATFORM_HOSTS = [
+    { id: "greenhouse", test: (h) => /(^|\.)greenhouse\.io$/.test(h), verified: true },
+    { id: "lever", test: (h) => /(^|\.)lever\.co$/.test(h), verified: false },
+    { id: "ashby", test: (h) => /(^|\.)ashbyhq\.com$/.test(h), verified: false },
+    { id: "workday", test: (h) => /\.myworkdayjobs\.com$/.test(h) || /\.myworkdaysite\.com$/.test(h), verified: true },
+    // A real, live tenant confirmed this session: hcgn.fa.us2.oraclecloud.com.
+    // "fa" (Fusion Applications) as its own dot-separated segment is the
+    // actual positive signal this is a real Oracle Recruiting Cloud
+    // tenant, not something to exclude.
+    { id: "oracle_recruiting_cloud", test: (h) => /(^|\.)fa\.[a-z0-9]+\.oraclecloud\.com$/.test(h), verified: true },
+    { id: "recruitee", test: (h) => /(^|\.)recruitee\.com$/.test(h), verified: true },
+    { id: "eightfold", test: (h) => /(^|\.)eightfold\.ai$/.test(h), verified: true },
+    { id: "workable", test: (h) => /(^|\.)workable\.com$/.test(h), verified: false },
+    { id: "icims", test: (h) => /(^|\.)icims\.com$/.test(h), verified: false },
+    { id: "smartrecruiters", test: (h) => /(^|\.)smartrecruiters\.com$/.test(h), verified: false },
+    { id: "zoho_recruit", test: (h) => /(^|\.)zohorecruit\.com$/.test(h), verified: false },
+  ];
+  function detectPlatform() {
+    const h = (location.hostname || "").toLowerCase();
+    const hit = PLATFORM_HOSTS.find((p) => p.test(h));
+    return hit ? { id: hit.id, verified: hit.verified } : null;
+  }
+
   // v3.293.0 -- a heavy synthetic stress pass across ~15 form/DOM
   // categories found this real, confirmed gap: offsetParent/getClientRects
   // both stay non-empty for a plain visibility:hidden element (it still
@@ -47,9 +87,89 @@
   // replacement, and the native input IS the one that actually submits),
   // since visibility:hidden has no such legitimate "still functionally
   // present" use on a real application field.
+  // v3.322.0 -- real, live bug found on a real Greenhouse application
+  // (Learning Commons): every react-select-style Yes/No question on the
+  // page (six of them, one per demographic/eligibility question) carries
+  // its own hidden shadow input purely for native HTML5 required-field
+  // validation -- <input required aria-hidden="true" tabindex="-1"
+  // class="...requiredInput" value="">, a real, standard react-select
+  // implementation detail, not something styled with display:none or
+  // visibility:hidden the way this check already catches. It still has
+  // real layout (getClientRects().length > 0), so it passed visible()
+  // and got extracted as a genuine, separate, unlabeled field -- one
+  // ghost per question, five of six on the real page tested (matching
+  // exactly what was reported live). visibleText() already treats
+  // aria-hidden as invisible for LABEL text; this was the one place
+  // that same rule was never applied to extraction eligibility itself.
+  // v3.323.0 -- checked directly against a real competitor's own
+  // extraction code rather than guessed at: this only ever checked
+  // aria-hidden on the element itself, never an ancestor. A real,
+  // legitimate shape it would have missed -- an aria-hidden wrapper
+  // around an otherwise-still-rendered field, the same pattern the
+  // react-select shadow input fixed above already proved ATS vendors
+  // ship -- walks up. Also picks up `inert`, a newer, increasingly-used
+  // HTML attribute marking a whole subtree non-interactive that this
+  // never checked at any level before. offsetParent/getClientRects
+  // already catches most display:none-on-ancestor cases on their own
+  // (an ancestor's display:none makes both null/empty regardless of
+  // depth), so this walk is scoped to what that check can't see:
+  // aria-hidden/inert specifically, which carry no layout effect of
+  // their own.
   function visible(el) {
+    let node = el;
+    while (node && node.nodeType === 1) {
+      if (node.getAttribute("aria-hidden") === "true" || node.hasAttribute("inert")) return false;
+      node = node.parentElement;
+    }
     if (el.offsetParent === null && el.getClientRects().length === 0) return false;
-    return getComputedStyle(el).visibility !== "hidden";
+    if (getComputedStyle(el).visibility === "hidden") return false;
+    // v3.323.0 -- a real, live honeypot found on a real Workday
+    // application (Cisco): name="website", data-automation-id=
+    // "beecatcher" -- literally named for what it is -- a real <input>,
+    // real <label>, no aria-hidden anywhere, `display`/`visibility`
+    // both innocuous, deliberately rendered at 1px by 1px so no human
+    // ever sees or clicks it while every check above still passes it.
+    // This is a common anti-bot pattern well beyond Workday, not
+    // something worth a Workday-specific fix. Filling a trap like this
+    // is not a cosmetic miss -- a real value landing in it is a classic
+    // signal anti-bot systems use to flag or reject the whole
+    // submission, on any site that ships one.
+    //
+    // Scoped twice over now, both from real, live counter-examples found
+    // testing this exact fix, not guessed at. First: a genuinely visible
+    // LABEL used purely as a file-input's click trigger (a real, live
+    // Greenhouse posting) uses the identical near-zero-size CSS trick as
+    // a legitimate screen-reader-only accessibility pattern -- a label
+    // is never itself something a value can land in, so the floor never
+    // applies to plain text/label carriers, only to actual controls.
+    // Second, narrower than "any control": a real, live Oracle Recruiting
+    // Cloud posting had a genuine, required, fully accessible consent
+    // checkbox (a real resolvable aria-labelledby, no aria-hidden
+    // anywhere) rendered at opacity:0/0x0 for the exact same reason a
+    // styled checkbox almost always is -- the native control stays
+    // there and operable for a screen reader while a custom-drawn
+    // checkmark represents it visually. That is a completely different,
+    // extremely common, LEGITIMATE pattern from a text-entry honeypot --
+    // nobody hides a real, custom-styled TEXT input at 0px the way a
+    // checkbox/radio's native control routinely is; that shape only
+    // exists for binary controls. The real risk this exists to close is
+    // specifically a bot typing plausible garbage into a disguised text
+    // field (both real honeypots found this session, Workday's and
+    // Oracle's own, were both type=text) -- so the floor is scoped to
+    // free-text-entry shapes only, never checkbox/radio/select/button,
+    // which keeps catching both real traps while letting this real,
+    // needed consent control through.
+    if (isFreeTextControl(el)) {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 2 && r.height <= 2) return false;
+    }
+    return true;
+  }
+  const TEXT_INPUT_TYPES = new Set(["text", "email", "tel", "url", "number", "search", "password", ""]);
+  function isFreeTextControl(el) {
+    if (el.tagName === "TEXTAREA") return true;
+    if (el.tagName !== "INPUT") return false;
+    return TEXT_INPUT_TYPES.has((el.getAttribute("type") || "").toLowerCase());
   }
 
   // v3.298.0 -- a real, live bug found on a real Lever application form
@@ -529,7 +649,81 @@
         if (!visible(el) && !(trigger && visible(trigger))) continue;
         const fid = `ayn-f-${n++}`;
         fieldRegistry.set(fid, el);
-        out.push({ id: fid, tag: "input", type: "file", required: !!el.required, label: labelFor(el) || "Attachment" });
+        // v3.323.0 -- a real, live bug found on a real eightfold posting
+        // (NVIDIA), root cause one level deeper than the fallback walk
+        // below: when trigger came from nearbyUploadTrigger (a real,
+        // separate BUTTON with no formal label[for]/wrapping-<label>
+        // association -- labelFor() already checks and would have found
+        // either of those correctly on its own), labelFor(el) has
+        // nothing good to fall back to and reaches its own generic
+        // previous-sibling-text rung instead, which has no way to know a
+        // real, better-labeled trigger even exists elsewhere. On this
+        // real page that sibling happened to be a genuinely unrelated
+        // promotional line ("Find out how well you match with this
+        // job") sitting immediately before the raw input, not this
+        // field's label at all. The trigger button's own visible text IS
+        // the real, correct label whenever it's not just a formal
+        // <label>, so it's read directly, first, in that one specific
+        // case -- a formal label[for]/wrapping-<label> trigger is left
+        // exactly as before, since labelFor() already resolves those
+        // correctly on its own.
+        // v3.323.0 -- the trigger's own aria-label is checked ahead of
+        // its rendered text, not just as a fallback: this exact button's
+        // real, visible caption sits inside a child marked aria-hidden=
+        // "true" (a real, common, legitimate pattern -- the button's own
+        // aria-label already states the accessible name once, so the
+        // visible duplicate is hidden from assistive tech to avoid
+        // announcing it twice), which made visibleText() correctly
+        // return empty by its own definition even though a sighted
+        // person plainly sees the text. The aria-label is the real,
+        // authoritative name here, confirmed live to hold the exact
+        // right text on this exact button.
+        let fLabel = "";
+        if (trigger && trigger.tagName !== "LABEL" && visible(trigger)) {
+          const triggerAria = trigger.getAttribute("aria-label");
+          fLabel = (triggerAria && triggerAria.trim()) || visibleText(trigger).trim();
+        }
+        if (!fLabel) fLabel = labelFor(el);
+        // v3.322.0 -- a real, live ambiguity found on the same Learning
+        // Commons posting: Resume/CV and Cover Letter are two genuinely
+        // separate file fields, but both resolve to the literal trigger
+        // text "Attach" -- Greenhouse's own real markup only names which
+        // is which on a heading that's a sibling of the WHOLE upload
+        // block, several levels above the trigger, not on the trigger or
+        // the input itself. Only reached when the resolved label is
+        // empty or a bare generic trigger word (a file input with its
+        // own real, specific <label> keeps that text unchanged). Walks
+        // up from the trigger the same way scanUnrecognizedWidgets'
+        // container search already does, trying candidateNearbyText at
+        // each level and taking the first real hit -- verified live: the
+        // real heading only ever showed up 3-4 levels out, never on the
+        // trigger or its immediate parent, and a fixed hop count would
+        // have missed it on a differently-nested ATS.
+        //
+        // v3.323.0 -- a real, live regression found on a real eightfold
+        // posting (NVIDIA): the original check fired the walk whenever
+        // the label merely CONTAINED a trigger word anywhere in it --
+        // "Upload Your Resume (English)" contains "upload", so it always
+        // triggered the walk too, even though that label was already
+        // specific and correct, needing no replacement at all. The walk
+        // then landed on a real, unrelated promotional line ("Find out
+        // how well you match with this job") that happened to sit as the
+        // input's own immediate previous sibling -- a genuinely wrong
+        // label replacing a genuinely right one. Fixed by only treating
+        // a label as the bare, uninformative kind this fallback exists
+        // for when it's SHORT (a real specific label like eightfold's
+        // own is never this short) -- "Attach"/"Choose file"/"Browse"
+        // all clear it, "Upload Your Resume (English)" does not.
+        const looksGenericTrigger = fLabel && fLabel.trim().length <= 20 && UPLOAD_TRIGGER_TEXT_RE.test(fLabel.trim());
+        if (!fLabel || looksGenericTrigger) {
+          let node = trigger || el;
+          for (let hop = 0; hop < 6 && node; hop++) {
+            const nearby = candidateNearbyText(node);
+            if (nearby) { fLabel = nearby; break; }
+            node = node.parentElement;
+          }
+        }
+        out.push({ id: fid, tag: "input", type: "file", required: !!el.required, label: fLabel || "Attachment" });
         continue;
       }
       if (!visible(el)) continue;
@@ -888,7 +1082,82 @@
       }
     }
 
-    return { fields: out, skipped };
+    return { fields: out, skipped, wizardStep: detectWizardStep() };
+  }
+
+  // v3.323.0 -- a real, live gap found comparing AYN against Workday, not
+  // a label-resolution problem (Workday's own field markup turned out to
+  // already use real label-for associations the generic engine already
+  // reads correctly, verified live). The actual gap: Workday's real
+  // apply flow is a mandatory multi-step wizard (a real, live Cisco
+  // posting: Create Account, My Information, My Experience, Application
+  // Questions, Voluntary Disclosures, Self Identify, Review -- 7 steps,
+  // one page at a time), and AYN has never had any concept of "there is
+  // more than this one page" on ANY platform, not just this one --
+  // several other major ATS platforms (Taleo, SAP SuccessFactors,
+  // iCIMS) share the same multi-step-wizard shape. Rather than hardcode
+  // Workday's own progress-bar markup (confirmed live but Workday-
+  // specific, absent on a single-page Greenhouse/Lever/Ashby form), this
+  // looks for the one thing that generalizes across vendors: a short,
+  // standalone "step N of M" caption, the same plain-English convention
+  // most step wizards render regardless of the framework underneath.
+  // Deliberately does NOT try to auto-advance the wizard or create an
+  // account on anyone's behalf -- account creation on a third-party site
+  // is a materially bigger action than filling a visible field, and
+  // stays a manual, person-driven step; this only makes the person aware
+  // there IS a multi-step flow so a mostly-empty first step doesn't read
+  // as AYN failing.
+  const WIZARD_STEP_RE = /\bstep\s+(\d+)\s+of\s+(\d+)\b/i;
+  function detectWizardStep() {
+    const candidates = queryDeep(document, "label, span, div, li, p, h1, h2, h3, h4");
+    for (const cand of candidates) {
+      // v3.323.0 -- a real, live case found on the same Workday posting
+      // as the honeypot fix right above: the step caption itself
+      // ("current step 1 of 7") is a legitimate aria-live,
+      // screen-reader-only label -- rendered near-zero size on purpose,
+      // the same real accessibility pattern a genuine step indicator
+      // often uses so a sighted user sees a plain numbered badge while a
+      // screen reader announces the full sentence. That's a different
+      // bar than a fillable field needs: visible() (with its new
+      // anti-honeypot size floor) correctly excludes it as something a
+      // human wouldn't click, but this only needs to know a wizard
+      // genuinely exists on the page, not that this specific caption is
+      // pixel-visible -- checked directly, not assumed: only skips
+      // markup that's actually gone (aria-hidden/inert/hidden/
+      // display:none), the one thing that would mean stale or
+      // irrelevant content, not the size floor meant for form fields.
+      if (cand.hidden || cand.getAttribute("aria-hidden") === "true" || cand.hasAttribute("inert")) continue;
+      const csDisplay = getComputedStyle(cand).display;
+      if (csDisplay === "none") continue;
+      const own = Array.from(cand.childNodes)
+        .filter((n) => n.nodeType === 3)
+        .map((n) => n.textContent.trim())
+        .join(" ")
+        .trim();
+      // Scoped to a short, standalone caption (the real shape a step
+      // indicator renders as) so a job description mentioning "step 3 of
+      // our hiring process" in a long paragraph can never match -- a
+      // real requirement bullet or JD sentence is always far longer than
+      // this once its own full text is considered, not just the phrase.
+      if (own.length > 40) continue;
+      const m = WIZARD_STEP_RE.exec(own);
+      if (!m) continue;
+      const current = parseInt(m[1], 10);
+      const total = parseInt(m[2], 10);
+      if (!(current >= 1 && total >= current)) continue;
+      // The step's own name/title, when present, usually sits as a
+      // sibling label right next to the "step N of M" caption (Workday's
+      // own shape: two adjacent label elements inside one list item) --
+      // best effort only, the count alone is still useful without it.
+      // Same reasoning as the caption's own gate above -- the sibling
+      // step-name label can be the identical screen-reader-only shape,
+      // so this only skips genuinely gone markup, not visible()'s
+      // fillable-field size floor.
+      const sib = cand.nextElementSibling;
+      const stepName = sib && !(sib.hidden || sib.getAttribute("aria-hidden") === "true") ? visibleText(sib).trim().slice(0, 80) : "";
+      return { current, total, stepName };
+    }
+    return null;
   }
 
   // v3.290.0 -- Form Intelligence: everything above this point is the
@@ -1028,6 +1297,25 @@
         // 2 to 6: a real toggle pair or small choice group, not a button
         // toolbar (which would falsely look like a huge "radio group").
         if (siblings.length < 2 || siblings.length > 6) continue;
+        // v3.322.0 -- a real, live bug found on the same Learning Commons
+        // Greenhouse posting as the aria-hidden fix above: this exact
+        // container shape (2 to 6 sibling buttons) also matches the
+        // near-universal "Attach / Dropbox / Google Drive / Enter
+        // manually" resume-upload row -- Attach is a real <label> for the
+        // already-registered file input, and Dropbox/Google Drive/Enter
+        // manually are real alternate entry methods for that SAME field,
+        // not a genuine multi-option choice group. Sent to Form
+        // Intelligence for classification, this got mis-typed into a
+        // second, phantom "Resume/CV" question standing next to the real
+        // one, reported live as the file field appearing three times
+        // over. A button group that already contains (wraps, or is a
+        // label for) a field this scan already knows about is never a
+        // new candidate -- it's decorating that known field, not asking
+        // a separate question.
+        const wrapsKnownField = Array.from(container.querySelectorAll("input, textarea, select")).some((f) =>
+          alreadyKnownEls.has(f)
+        );
+        if (wrapsKnownField) continue;
         seenGroupParents.add(container);
         const cid = `ayn-cand-${n++}`;
         candidates.push({
@@ -1364,6 +1652,7 @@
   window.__aynFieldRegistry = () => fieldRegistry;
   window.__aynFillTextLike = fillTextLike;
   window.__aynFillRadio = fillRadio;
+  window.__aynDetectPlatform = detectPlatform;
 
   // v3.294.0 -- sub-frame self-report + fill-request listener. The top
   // frame never runs any of this -- content.js drives its own local

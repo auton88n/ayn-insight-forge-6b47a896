@@ -1617,6 +1617,95 @@ RULES:
       });
     }
 
+    // v3.324.0 -- "regenerate this one answer," a real, distinct
+    // capability found comparing AYN against a real competitor's own
+    // extension. auto_apply_extract's own narrative-answer pass above
+    // (v3.307.0) writes an open-ended textarea answer once, automatically;
+    // this lets the person redo just THAT one answer with their own typed
+    // guidance ("make it shorter", "mention my Rust experience") instead
+    // of redoing the whole form. The guidance is a real instruction by
+    // design here -- unlike resume_gap_probe's own free-text answer field,
+    // where an instruction-shaped input is an attack this file already
+    // hardened against (see stripInstructionLikeSpans), a person telling
+    // AYN how to phrase their own answer is the intended use, not a
+    // threat. The one rule that still has to hold regardless: the output
+    // must trace to something real, never to whatever the guidance merely
+    // ASKED for. droppedFigures below checks the OUTPUT against the real
+    // grounding text (APPLICANT SECTIONS), never against the guidance
+    // itself -- a person typing "say I have 10 years of Rust" when
+    // nothing in their real profile supports it gets the honest limits of
+    // what's actually there, not a fabricated fact, because an
+    // instruction to invent something has no path to succeed no matter
+    // how it's phrased. Free, rate-limited only, matching the narrative
+    // pass it improves on -- a smaller, single-question version of that
+    // same free capability, not a distinct paid outcome.
+    if (action === "auto_apply_regenerate_answer") {
+      const adminRegen = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminRegen, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminRegen, user.id, action); if (blocked) return blocked; }
+      { const limited = await rateLimitGate(adminRegen, user.id, action, 15, 15); if (limited) return limited; }
+
+      const { label, previousAnswer, guidance } = payload as {
+        label?: string; previousAnswer?: string; guidance?: string;
+      };
+      if (!label || typeof label !== "string") return json({ error: "label is required" }, 400);
+      const guidanceText = typeof guidance === "string" ? guidance.trim().slice(0, 500) : "";
+      if (!guidanceText) return json({ error: "guidance is required" }, 400);
+
+      const [identity, canonical] = await Promise.all([
+        loadIdentity(adminRegen, user.id, {}).catch(() => null),
+        loadCanonical(adminRegen, user.id),
+      ]);
+      if (!canonical) return json({ error: "No profile on file yet." }, 400);
+
+      const regenBundle = buildSections(identity, canonical);
+      if (!regenBundle.text || regenBundle.chars < 60) {
+        return json({ error: "Not enough profile detail on file to regenerate this from." }, 400);
+      }
+      const regenApplicantBlock = identity ? identityContactBlock(identity) : "";
+      const regenSystem = `The candidate is not satisfied with an answer AYN already wrote for a real application question and has given their own instruction for how to improve it. Write ONE better answer (1 to 3 sentences, under 400 characters) using ONLY facts from APPLICANT SECTIONS${regenApplicantBlock ? " and the APPLICANT block" : ""}. Apply as much of the candidate's own instruction as is honestly supported by those real facts. If the instruction asks for something not supported by any real fact given to you (a skill, a number, an experience that never appears), do not invent it -- write the best honest answer you can from what is real, and if the instruction cannot be honored at all from real facts, say so plainly in one short added sentence rather than inventing anything.
+
+RULES:
+- First person is correct here ("I led...", "In my role as...").
+- No clichés ("I am excited to", "leverage", "passionate", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "seasoned professional", "self-starter", "go-getter", "team player", "hit the ground running", "best-in-class", "world-class", "game-changer", "cutting-edge", "testament to", "boasts a", "renowned", "groundbreaking"). NO EM DASHES, NO EN DASHES, EVER, NO EXCEPTIONS. Write ranges with the word "to". Must not read as AI-generated -- no telltale AI phrasing, no uniform sentence rhythm, no overused connector words; write like an actual person would.
+- Output ONLY JSON: {"text":"..."}`;
+      const regenUser = `APPLICANT SECTIONS:\n${regenBundle.text}${regenApplicantBlock ? `\n\nAPPLICANT:\n${regenApplicantBlock}` : ""}\n\nQUESTION: ${label.slice(0, 300)}\n\nPREVIOUS ANSWER: ${typeof previousAnswer === "string" && previousAnswer ? previousAnswer.slice(0, 1000) : "(none yet)"}\n\nCANDIDATE'S INSTRUCTION: ${guidanceText}`;
+
+      let text = "";
+      try {
+        const regenR = await callAI({ system: regenSystem, user: regenUser });
+        const regenParsed = parseJsonLoose<{ text?: string }>(regenR.text);
+        text = String(regenParsed?.text || "").trim();
+      } catch (e) {
+        return json({ error: `Could not regenerate this answer: ${(e as Error).message}` }, 502);
+      }
+      if (!text) return json({ error: "Could not write an honest answer from what's on file." }, 422);
+
+      // Same up-to-two-retries-keep-the-best pattern as the narrative
+      // pass above, for the identical, already-proven reason: a retry
+      // can itself fabricate something and still lose to an
+      // already-flawed original under a strict-improvement-only rule.
+      let figureMiss = droppedFigures(text, regenBundle.text).filter((f) => f.length > 1);
+      let prose = verifyProseQuality(text, false);
+      let best = figureMiss.length + prose.length;
+      for (let attempt = 0; attempt < 2 && best > 0; attempt++) {
+        const retryNote = `${figureMiss.length ? `THE PREVIOUS ANSWER CITED FIGURES NOT IN APPLICANT SECTIONS: ${figureMiss.slice(0, 10).join(", ")}\n` : ""}${prose.length ? violationsToRetryNote(prose) : ""}`;
+        const retryR = await callAI({
+          system: regenSystem,
+          user: `${regenUser}\n\nRewrite the answer.\n${retryNote}\nOutput ONLY JSON: {"text":"..."}`,
+        });
+        const retryParsed = parseJsonLoose<{ text?: string }>(retryR.text);
+        const fixed = String(retryParsed?.text || "").trim();
+        if (!fixed) continue;
+        const stillFigureMiss = droppedFigures(fixed, regenBundle.text).filter((f) => f.length > 1);
+        const stillProse = verifyProseQuality(fixed, false);
+        const stillCount = stillFigureMiss.length + stillProse.length;
+        if (stillCount < best) { text = fixed; figureMiss = stillFigureMiss; prose = stillProse; best = stillCount; }
+      }
+
+      return json({ text });
+    }
+
     // v3.290.0 -- Form Intelligence: the shared fallback for a widget
     // shape neither content.js's nor job-checker's own deterministic scan
     // recognizes. See lib/formIntelligence.ts's own header for the full

@@ -1,37 +1,44 @@
 /**
  * AYN Auto-Apply — background service worker.
  *
- * Deliberately minimal: no default_popup, so clicking the toolbar icon
- * always fires chrome.action.onClicked (MV3 gives a page a popup OR an
- * onClicked handler, never both — a default_popup would silently swallow
- * every click). All real UI lives in content.js's own in-page overlay,
- * injected on demand, only into the one tab the person is actually
- * looking at — this extension never runs anywhere until you click it.
+ * v3.294.0 -- no default_popup, so clicking the toolbar icon always
+ * fires chrome.action.onClicked (MV3 gives a page a popup OR an
+ * onClicked handler, never both — a default_popup would silently
+ * swallow every click). All real UI lives in content.js's own in-page
+ * overlay.
+ * v3.326.0 -- the real fill flow now has two doors in, not one: a
+ * manual click, and detector.js's own real, verified-ATS-host-plus-
+ * real-field-count signal (see its own header) asking for the same
+ * thing automatically. Both funnel through this one function so
+ * neither path can drift from the other -- there is one real fill
+ * flow, reached two ways, never two different ones.
  */
+// A real, if narrow, race this needed guarding against: detector.js
+// checks window.__aynAutoApplyHost before it ever sends this message,
+// but that check and content.js actually setting that flag are on two
+// sides of a real async gap (this whole scripting.executeScript call).
+// A second AYN_AUTO_DETECTED message arriving from another frame in
+// that same gap would otherwise start a second, redundant injection
+// before the first one's own guard could stop it. Cleared once the
+// injection settles either way, so a genuine later re-detection (a new
+// navigation on the same tab) is never permanently blocked.
+const autoInjectingTabs = new Set();
+
+async function injectFillFlow(tabId) {
+  await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    files: ["frame_agent.js"],
+  });
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["vendor/jspdf.umd.min.js", "resumeDocs.js", "content.js"],
+  });
+}
+
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab.id || !tab.url || !/^https?:\/\//.test(tab.url)) return;
   try {
-    // v3.294.0 -- frame_agent.js (the extraction/candidate-scan/fill
-    // core, factored out of content.js) is injected into EVERY frame on
-    // the page, not just the top one — the real fix for an application
-    // form embedded in an <iframe>, which was completely invisible
-    // before this. A sub-frame self-reports its own fields the moment
-    // it loads (see that file's own header and the onMessage relay
-    // below); the top frame alone gets vendor/jspdf.umd.min.js,
-    // resumeDocs.js, and content.js, the same as before — those build
-    // the actual UI and talk to the backend, and must only ever exist
-    // once per page, not once per frame. Both calls land in the same
-    // per-frame ISOLATED-world execution context, so content.js can
-    // call straight into what frame_agent.js already exposed on window
-    // in the top frame without loading it a second time.
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id, allFrames: true },
-      files: ["frame_agent.js"],
-    });
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ["vendor/jspdf.umd.min.js", "resumeDocs.js", "content.js"],
-    });
+    await injectFillFlow(tab.id);
   } catch (e) {
     console.error("AYN Auto-Apply: could not run on this page", e);
   }
@@ -48,6 +55,17 @@ chrome.action.onClicked.addListener(async (tab) => {
 // anything itself.
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || typeof msg !== "object" || !sender.tab) return false;
+
+  if (msg.type === "AYN_AUTO_DETECTED") {
+    const tabId = sender.tab.id;
+    if (tabId != null && !autoInjectingTabs.has(tabId)) {
+      autoInjectingTabs.add(tabId);
+      injectFillFlow(tabId)
+        .catch((e) => console.error("AYN Auto-Apply: auto-detect injection failed", e))
+        .finally(() => autoInjectingTabs.delete(tabId));
+    }
+    return false;
+  }
 
   if (msg.type === "AYN_FRAME_REPORT") {
     // From a sub-frame, up to the top frame (frameId 0) of the same tab.
