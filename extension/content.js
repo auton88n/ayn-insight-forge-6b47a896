@@ -813,15 +813,29 @@
     // Only fields that actually filled successfully get the affordance;
     // one that failed to fill has a different, already-handled problem.
     const narrativeFilled = [];
+    // v3.328.0 -- "remember what I typed for next time." Only text-like
+    // fields (this loop), not radio groups -- reading back which radio
+    // option a person picked is a different kind of lookup this pass
+    // doesn't attempt, a real, disclosed scope limit rather than
+    // guessed-at. Tracks {fieldId, label} for anything left unanswered
+    // here so the real, current DOM value can be read back later, once
+    // the person has actually had a chance to type something in.
+    const notOnFileTracked = [];
     for (const m of [...idRows, ...ansRows]) {
       const value = m.value ?? m.answer ?? "";
       const shownLabel = displayLabel(m.fieldId, m.label);
-      if (!value) { notOnFile.push(shownLabel); continue; }
+      if (!value) { notOnFile.push(shownLabel); notOnFileTracked.push({ fieldId: m.fieldId, label: m.label }); continue; }
       const r = await fillTextLikeAny(m.fieldId, value, m.label);
       if (r.ok) {
         filledCount++;
         if (LEGAL_SENSITIVE.test(m.label)) legalFilled.push({ label: m.label, answer: value });
         if (m.matchedType === "ai_narrative") narrativeFilled.push({ fieldId: m.fieldId, label: m.label, value });
+        // v3.328.0 -- a reused answer from a past application, not
+        // freshly matched -- worth a real, distinct signal in the
+        // summary so the person specifically double-checks it, since a
+        // wrongly-reused stored answer is a real mistake, not just a
+        // display nicety.
+        if (m.matchedType === "answer_bank") narrativeFilled.push({ fieldId: m.fieldId, label: m.label, value, reused: true });
       } else {
         failed.push(shownLabel);
       }
@@ -875,7 +889,15 @@
     // to a real, already-filled open-ended answer, never a blank field.
     for (const nf of narrativeFilled) {
       const card = el("div", { class: "callout-neutral" });
-      card.appendChild(el("p", { text: nf.label, style: "margin: 0 0 4px; font-weight: 600; font-size: 13px;" }));
+      const labelP = el("p", { style: "margin: 0 0 4px; font-weight: 600; font-size: 13px;" });
+      labelP.appendChild(document.createTextNode(nf.label));
+      if (nf.reused) {
+        labelP.appendChild(el("span", {
+          text: " · reused from a past application",
+          style: "font-weight: 500; color: #b0392a; font-size: 11.5px;",
+        }));
+      }
+      card.appendChild(labelP);
       const valueP = el("p", { class: "muted", text: nf.value, style: "margin: 0 0 8px; font-size: 12.5px;" });
       card.appendChild(valueP);
 
@@ -1188,6 +1210,50 @@
       }
     });
     body.appendChild(diagBtn);
+
+    // v3.328.0 -- "remember what I typed for next time," the real
+    // feature this was built to close the gap on: not AI inventing an
+    // answer, only ever replaying something the person genuinely typed
+    // themselves once already. Reads the CURRENT, real DOM value of
+    // every field this run reported as not on file -- by the time
+    // someone reaches for this button they've had a real chance to type
+    // into the actual page, unlike right when the panel first opens.
+    if (notOnFileTracked.length) {
+      const saveAnswersBtn = el("button", { class: "btn btn-ghost", text: "Save what I typed, for next time", style: "width:100%; margin-bottom: 8px; font-size: 12.5px;" });
+      const saveStatusP = el("p", { class: "muted", text: "", style: "margin: 4px 0 0; font-size: 11.5px; text-align: center;" });
+      saveAnswersBtn.addEventListener("click", async () => {
+        saveAnswersBtn.disabled = true; saveAnswersBtn.textContent = "Saving…"; saveStatusP.textContent = "";
+        const toSave = [];
+        for (const t of notOnFileTracked) {
+          if (!t.fieldId) continue;
+          const el2 = fieldRegistry_().get(t.fieldId);
+          const val = el2 && typeof el2.value === "string" ? el2.value.trim() : "";
+          if (val) toSave.push({ label: t.label, answer: val });
+        }
+        if (!toSave.length) {
+          saveAnswersBtn.disabled = false; saveAnswersBtn.textContent = "Save what I typed, for next time";
+          saveStatusP.textContent = "Nothing typed in yet to save.";
+          return;
+        }
+        let saved = 0;
+        for (const item of toSave) {
+          try {
+            await callHub(session, { action: "auto_apply_save_answer", label: item.label, answer: item.answer });
+            saved++;
+          } catch (e) {
+            // One field's save failing must never block the rest --
+            // matches the same honest, per-item degrade every other
+            // batched action in this panel already uses.
+          }
+        }
+        saveAnswersBtn.disabled = false; saveAnswersBtn.textContent = "Save what I typed, for next time";
+        saveStatusP.textContent = saved
+          ? `Saved ${saved} answer${saved === 1 ? "" : "s"} for next time.`
+          : "Couldn't save those answers, try again.";
+      });
+      body.appendChild(saveAnswersBtn);
+      body.appendChild(saveStatusP);
+    }
 
     const closeBtn = el("button", { class: "btn btn-ghost", text: "Done", style: "width:100%" });
     closeBtn.addEventListener("click", closePanel);
