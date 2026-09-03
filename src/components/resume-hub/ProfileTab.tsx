@@ -101,6 +101,27 @@ const SCREENING_QUESTIONS: Array<{ key: string; label: string; placeholder: stri
   { key: "hr_contact_consent", label: "OK for HR to contact you about other open roles at the same company?", placeholder: "e.g. Yes" },
 ];
 
+// Voluntary EEO self-identification. Real US applications sometimes ask
+// these for equal-opportunity reporting; they are legally optional, never
+// affect a hiring decision, and always carry a real "prefer not to answer"
+// choice on the source form itself. Kept in the exact same
+// screening_answers bucket and the exact same verbatim-only autofill
+// mechanism as every other entry above, on purpose -- there is no AI
+// involved anywhere in resolving one of these on a real application, and
+// there never should be: a field here is either something the person
+// explicitly, deliberately typed for themselves, once, or it stays "not
+// on file" and is left for them to answer directly, exactly like a blank
+// screening answer already does. Rendered as its own labeled section
+// (see AutofillTab below), not folded anonymously into the grid above,
+// since this deserves the same real, separate framing a genuine EEO form
+// section gets, not just another checkbox next to "drug test."
+const EEO_QUESTIONS: Array<{ key: string; label: string; placeholder: string }> = [
+  { key: "eeo_gender", label: "Gender", placeholder: "e.g. Female, Male, Non-binary, or Prefer not to answer" },
+  { key: "eeo_race_ethnicity", label: "Race / ethnicity", placeholder: "e.g. Asian, Black or African American, Hispanic or Latino, White, or Prefer not to answer" },
+  { key: "eeo_disability", label: "Disability status", placeholder: "e.g. Yes, No, or Prefer not to answer" },
+  { key: "eeo_veteran", label: "Veteran status", placeholder: "e.g. Not a veteran, Veteran, or Prefer not to answer" },
+];
+
 type Career = {
   skills: Skill[]; experiences: Exp[]; education: Edu[]; certifications: Cert[];
   work_auth: WorkAuth; preferences: Prefs; derived: Derived; screening_answers: ScreeningAnswers;
@@ -1455,6 +1476,30 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
               placeholder={q.placeholder}
             />
           ))}
+        </div>
+
+        {/* Deliberately its own labeled section, not part of the grid
+            above -- a real EEO form section always gets a real, separate
+            explanation, never folded into an unrelated question list. */}
+        <div className="pt-2 mt-2 border-t" style={{ borderColor: "var(--rh-hair)" }}>
+          <p className="text-sm font-medium" style={{ color: "var(--rh-ink)" }}>Voluntary self-identification</p>
+          <p className="text-xs mb-3" style={{ color: "var(--rh-muted)" }}>
+            Some US applications ask these for equal-opportunity reporting. They are always optional and never affect a hiring decision.
+            Leave any of these blank and AYN leaves the real question on the application for you to answer yourself -- it never guesses one of these,
+            for you or on your behalf.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {EEO_QUESTIONS.map(q => (
+              <PlainField
+                key={q.key}
+                label={q.label}
+                value={career.screening_answers[q.key] || ""}
+                onChange={v => setScreening(q.key, v)}
+                onBlur={queueSave}
+                placeholder={q.placeholder}
+              />
+            ))}
+          </div>
         </div>
       </Group>
 

@@ -1,8 +1,8 @@
 # AYN Privacy Policy
 
-Version: 2.0
-Last updated: 18 August 2026
-Effective: 18 August 2026
+Version: 2.1
+Last updated: 3 September 2026
+Effective: 3 September 2026
 
 ---
 
@@ -45,7 +45,7 @@ AYN helps job seekers apply for roles and helps approved employers find candidat
 - Stripe provides your subscription status and the last four digits and brand of your card. **We never receive or store your full card number.**
 - If you sign in through a third-party identity provider, we receive your email address and basic profile.
 
-**What the browser extension collects.** The extension reads the visible text of a job posting on a page you are viewing, together with that page's address, so it can assess fit against the real posting. It does not read your browsing history, does not operate on pages it does not identify as job-related, and is read-only. It never enters data into, interacts with, or submits anything on any page.
+**What the browser extension collects.** A small script checks each page you visit to judge, from the page's own address and the shape of its form fields, whether it looks like a real job application; it does not read your browsing history, and it does not store or send anything about a page that does not look like one. On a page it does identify as a real application, the extension reads that page's own form fields and address, so it can fill them from your AYN profile and resume, and, only when you have separately turned that setting on and only when every required field could be filled, submit the form on your behalf. Auto-submit is checked fresh every time and can be turned off at any point; short of that, you always see every field before anything is sent and you submit it yourself. Signing in from the extension uses the same account credentials as the web app, not a separate token.
 
 ## 3. Purposes and legal bases
 

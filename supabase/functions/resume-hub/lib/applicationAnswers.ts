@@ -266,7 +266,12 @@ const KNOWN_QUESTIONS: QuestionType[] = [
   },
   {
     slug: "preferred_name",
-    keywords: /preferred name|nickname|name you go by/i,
+    // A real, pre-existing miss found while regex-testing the EEO entries
+    // above: this pattern's own example sentence ("What name DO you go
+    // by?") never actually matched it, since the regex only ever expected
+    // "name you go by" with no "do" in between -- confirmed live with a
+    // standalone match test before and after this fix.
+    keywords: /preferred name|nickname|name (do you |you )?go by/i,
     examples: ["What name do you go by?"],
     resolve: (c) => c.screening_answers["preferred_name"] || null,
   },
@@ -275,6 +280,47 @@ const KNOWN_QUESTIONS: QuestionType[] = [
     keywords: /contact you (about|regarding) other|other (open )?(positions|roles)/i,
     examples: ["May Human Resources contact you regarding other positions?"],
     resolve: (c) => c.screening_answers["hr_contact_consent"] || null,
+  },
+  // Voluntary EEO self-identification. Resolved the identical way every
+  // other screening question above already is -- a stored value read back
+  // verbatim, nothing here ever asks a model to write or infer one of
+  // these. Given real, dedicated deterministic resolvers (not left to the
+  // Pass 3 AI-selector fallback below) on purpose: that fallback is safe
+  // (selection-only, verified against the real bank), but a category this
+  // sensitive deserves the same zero-AI-involvement, zero-cost, Pass 1
+  // certainty every other factual screening question already gets, not
+  // just a fallback's best guess at what "eeo_gender" might mean.
+  {
+    slug: "eeo_gender",
+    keywords: /\bgender\b/i,
+    examples: ["Gender", "What is your gender?", "Gender Identity"],
+    resolve: (c) => c.screening_answers["eeo_gender"] || null,
+  },
+  // Real OFCCP-compliant forms sometimes split this into two separate
+  // questions (a Hispanic/Latino ethnicity yes/no, and a separate race
+  // category that excludes it). One combined profile field is a real,
+  // disclosed simplification of that split shape, matching how most
+  // non-OFCCP-strict ATS forms actually present it as a single question --
+  // the same honest "close, not perfect, never invented" trade-off
+  // highest_education's own resolver above already discloses for a
+  // different real gap.
+  {
+    slug: "eeo_race_ethnicity",
+    keywords: /\brace\b|\bethnicity\b|hispanic or latino/i,
+    examples: ["Race / Ethnicity", "Race", "Are you Hispanic or Latino?"],
+    resolve: (c) => c.screening_answers["eeo_race_ethnicity"] || null,
+  },
+  {
+    slug: "eeo_disability",
+    keywords: /disabilit/i,
+    examples: ["Disability Status", "Do you have a disability, or have you had one in the past?"],
+    resolve: (c) => c.screening_answers["eeo_disability"] || null,
+  },
+  {
+    slug: "eeo_veteran",
+    keywords: /veteran/i,
+    examples: ["Veteran Status", "Are you a protected veteran?"],
+    resolve: (c) => c.screening_answers["eeo_veteran"] || null,
   },
 ];
 

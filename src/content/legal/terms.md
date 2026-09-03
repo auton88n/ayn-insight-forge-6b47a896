@@ -1,8 +1,8 @@
 # AYN Terms of Service
 
-Version: 1.1
-Last updated: 18 August 2026
-Effective: 18 August 2026
+Version: 1.2
+Last updated: 3 September 2026
+Effective: 3 September 2026
 
 ---
 
@@ -50,7 +50,7 @@ You acknowledge and agree that:
 
 **(b) We do not verify identity, credentials, or backgrounds.** AYN does not verify the identity, credentials, qualifications, employment history, criminal record, immigration status, or right to work of any Job Seeker. For Employers, AYN performs limited automated checks at signup, including confirming that the signup email address belongs to a business domain matching the stated company website, and that the stated company address is within a country AYN operates in. **These checks confirm consistency of the information provided. They are not identity verification, background checks, or confirmation that any individual, company, or role is genuine, solvent, or lawfully operating.** Users deal with one another at their own risk and are responsible for their own due diligence.
 
-**(c) AYN does not apply on your behalf.** The browser extension operates in read-only mode. It does not enter data into, interact with, or submit any form on any website. Any application submitted to any employer is submitted by the User personally.
+**(c) You control what gets submitted.** The browser extension can fill a real job application's fields from your AYN profile and resume, and, only once you have separately turned that option on, submit the application on your behalf. That setting is checked fresh every time, is never assumed from an earlier session, and never fires if a required field could not be filled. Outside of that setting, the extension fills the page and leaves the review and the submission to you. Either way, any application submitted to any employer is submitted using your own account and your own choice, and you are responsible for reviewing it before it is sent.
 
 **(d) Automated output is probabilistic and may be wrong.** Match scores, Generated Output, assessment evaluations, inferred attributes, and candidate rankings are produced by machine learning systems. They may contain errors, omissions, or inaccurate characterisations. You must review all output before relying on or transmitting it. **You bear sole responsibility for anything you send to a third party.**
 
@@ -183,7 +183,7 @@ You will not, and will not permit any person to:
 
 ## 14. Third-party sites and services
 
-The browser extension reads text from pages you visit. Your use of any third-party job board, applicant tracking system, or careers site remains governed by that site's own terms, and compliance with them is your responsibility. AYN is not affiliated with, endorsed by, or responsible for any such site.
+The browser extension reads a page's own fields and address to judge whether it is a real job application, and fills it from your AYN profile when it is. Your use of any third-party job board, applicant tracking system, or careers site remains governed by that site's own terms, and compliance with them is your responsibility. AYN is not affiliated with, endorsed by, or responsible for any such site.
 
 ## 15. Service availability and changes
 
