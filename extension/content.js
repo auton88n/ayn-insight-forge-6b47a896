@@ -440,53 +440,91 @@
   document.documentElement.appendChild(host);
   const root = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
+  // v3.330.0 -- full re-brand, reported directly against a real screenshot:
+  // "not this ugly design... redesign the extension completely to be
+  // better, more useful, easy to navigate, and AYN branded." The v3.292.0
+  // pass (see this file's own top comment) deliberately stripped this
+  // panel down to plain white and a bare accent dot, in service of a real,
+  // separate goal at the time -- "open instantly, read clearly, nothing
+  // competing for attention." That goal was correct and stays: nothing
+  // below adds a loading delay, a new screen, or visual noise. What it
+  // was missing is AYN's own actual identity -- the same warm paper
+  // background, ember gradient, and Outfit/Figtree type pairing already
+  // proven out across the real web app -- which a flat white panel with
+  // one 6px orange dot never carried. Every token here is the same real
+  // hex the web app already uses, not a new palette invented for this
+  // surface. Fonts load as a pure progressive enhancement (a failed
+  // @font-face fetch -- an unreachable CDN, a strict page CSP -- silently
+  // falls back to the system stack next to it, never a broken panel).
   style.textContent = `
+    @font-face { font-family: "AYN Outfit"; font-weight: 600 800; font-display: swap;
+      src: url("https://fonts.gstatic.com/s/outfit/v11/QGYyz_MVcBeNP4NjuGObqx1XmO1I4TC0Lk4.woff2") format("woff2"); }
+    @font-face { font-family: "AYN Figtree"; font-weight: 400 600; font-display: swap;
+      src: url("https://fonts.gstatic.com/s/figtree/v11/_Xmz-HUzqDCFdgfMsYiV_F7wfDBBUW7dEQ.woff2") format("woff2"); }
+    :host { all: initial; }
     * { box-sizing: border-box; }
-    .panel { width: min(384px, 100vw); height: 100vh; background: #ffffff; color: #191919;
-      border-left: 1px solid #ececec; box-shadow: -12px 0 32px -18px rgba(0,0,0,0.18);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    .panel { --ink: #1c1712; --muted: #776b5e; --dim: #a89484; --bg: #fbf6f0; --card: #ffffff;
+      --border: #ece1d3; --ember: #e85d3a; --ember2: #ff8a5c;
+      --gradient: linear-gradient(135deg, var(--ember) 0%, var(--ember2) 100%);
+      --trust: #1f8f52; --warn: #b0392a; --gold: #cf8a1d;
+      width: min(392px, 100vw); height: 100vh; background: var(--bg); color: var(--ink);
+      box-shadow: -16px 0 40px -20px rgba(28,23,18,0.22);
+      font-family: "AYN Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
       font-size: 14px; line-height: 1.55; display: flex; flex-direction: column; }
-    .head { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;
-      border-bottom: 1px solid #f0f0f0; flex-shrink: 0; }
-    .head-left { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-    .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #e85d3a; flex-shrink: 0; }
-    .head b { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: #191919; }
-    .head-title { font-size: 13px; font-weight: 500; color: #8a8a8a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .close { cursor: pointer; background: none; border: none; color: #9a9a9a; font-size: 17px; line-height: 1;
+    .head { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;
+      background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .head-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .mark { width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0; display: block;
+      box-shadow: 0 2px 8px -2px rgba(232,93,58,0.45); }
+    .head-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+    .head b { font-family: "AYN Outfit", -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 14.5px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
+    .head-title { font-size: 12px; font-weight: 500; color: var(--muted); overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }
+    .close { cursor: pointer; background: none; border: none; color: var(--dim); font-size: 17px; line-height: 1;
       padding: 5px; border-radius: 7px; flex-shrink: 0; }
-    .close:hover { background: #f5f5f5; color: #191919; }
-    .body { padding: 20px; overflow-y: auto; flex: 1; }
+    .close:hover { background: var(--bg); color: var(--ink); }
+    .body { padding: 18px; overflow-y: auto; flex: 1; }
     .row { margin-bottom: 14px; }
-    label.field-label { display: block; font-size: 12.5px; color: #8a8a8a; margin-bottom: 6px; font-weight: 500; }
-    input { width: 100%; padding: 10px 12px; border-radius: 8px;
-      border: 1px solid #e2e2e2; font-size: 14px; background: #fff; color: #191919; }
-    input:focus { outline: none; border-color: #e85d3a; box-shadow: 0 0 0 3px rgba(232,93,58,0.12); }
+    label.field-label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+    input { width: 100%; padding: 10px 12px; border-radius: 9px;
+      border: 1px solid var(--border); font-size: 14px; background: var(--card); color: var(--ink); }
+    input:focus { outline: none; border-color: var(--ember); box-shadow: 0 0 0 3px rgba(232,93,58,0.14); }
     .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 16px;
-      border-radius: 8px; border: none; font-weight: 500; font-size: 14px; cursor: pointer; }
-    .btn-primary { background: #e85d3a; color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: #d54e2c; }
-    .btn-primary:disabled { opacity: 0.5; cursor: default; }
-    .btn-ghost { background: #f5f5f5; color: #191919; }
-    .btn-ghost:hover { background: #ececec; }
-    .muted { color: #6f6f6f; font-size: 13.5px; line-height: 1.6; margin: 0 0 12px; }
-    .warn { color: #b0392a; font-size: 13.5px; line-height: 1.6; margin: 0 0 12px; }
-    .ok { color: #191919; font-size: 15px; font-weight: 600; line-height: 1.5; margin: 0 0 14px; }
-    ul.fail-list { margin: 0 0 12px; padding-left: 18px; color: #8a8a8a; font-size: 13.5px; line-height: 1.75; }
-    .callout { border-left: 2.5px solid #d9534f; padding: 2px 0 2px 12px; margin: 0 0 14px; }
-    .callout-neutral { border-left: 2.5px solid #e2e2e2; padding: 2px 0 2px 12px; margin: 0 0 14px; }
-    .link-toggle { background: none; border: none; padding: 0; color: #e85d3a; font-size: 12.5px;
-      font-weight: 500; cursor: pointer; text-decoration: underline; }
+      border-radius: 9px; border: none; font-weight: 600; font-size: 14px; cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease; }
+    .btn:active:not(:disabled) { transform: scale(0.97); }
+    .btn-primary { background: var(--gradient); color: #fff; box-shadow: 0 3px 10px -2px rgba(232,93,58,0.45); }
+    .btn-primary:hover:not(:disabled) { box-shadow: 0 4px 14px -2px rgba(232,93,58,0.55); }
+    .btn-primary:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
+    .btn-ghost { background: var(--card); color: var(--ink); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--bg); border-color: var(--dim); }
+    .muted { color: var(--muted); font-size: 13.5px; line-height: 1.6; margin: 0 0 12px; }
+    .warn { color: var(--warn); font-size: 13.5px; line-height: 1.6; margin: 0 0 12px; }
+    .ok { font-family: "AYN Outfit", sans-serif; color: var(--ink); font-size: 15.5px; font-weight: 700;
+      line-height: 1.5; margin: 0 0 14px; }
+    ul.fail-list { margin: 0 0 12px; padding-left: 18px; color: var(--muted); font-size: 13.5px; line-height: 1.75; }
+    .callout { background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--warn);
+      border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; box-shadow: 0 1px 3px rgba(28,23,18,0.05); }
+    .callout-neutral { background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--dim);
+      border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; box-shadow: 0 1px 3px rgba(28,23,18,0.05); }
+    .link-toggle { background: none; border: none; padding: 0; color: var(--ember); font-size: 12.5px;
+      font-weight: 600; cursor: pointer; text-decoration: underline; }
     .btn-sm { padding: 6px 12px; font-size: 12.5px; }
-    .fit-card { border: 1px solid #efefef; border-radius: 10px; padding: 14px; margin: 0 0 14px; display: flex; gap: 12px; }
-    .fit-ring { flex-shrink: 0; width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-    .fit-ring b { font-size: 15px; color: #191919; background: #fff; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-    .fit-title { font-size: 13px; font-weight: 600; color: #191919; margin: 0 0 6px; }
-    .fit-row { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #6f6f6f; margin: 0 0 3px; }
-    .fit-row b { color: #191919; font-weight: 500; }
-    .fit-yes { color: #1f8f52; font-weight: 700; }
-    .fit-no { color: #b0392a; font-weight: 700; }
-    .fit-gaps { font-size: 12px; color: #8a8a8a; margin: 6px 0 0; }
-    .fit-summary { font-size: 12.5px; color: #6f6f6f; line-height: 1.6; margin: 8px 0 0; }
+    .fit-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 15px;
+      margin: 0 0 14px; display: flex; gap: 13px; box-shadow: 0 2px 8px -2px rgba(28,23,18,0.08); }
+    .fit-ring { flex-shrink: 0; width: 48px; height: 48px; border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; }
+    .fit-ring b { font-family: "AYN Outfit", sans-serif; font-size: 15px; font-weight: 700; color: var(--ink);
+      background: var(--card); width: 40px; height: 40px; border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; }
+    .fit-title { font-family: "AYN Outfit", sans-serif; font-size: 13.5px; font-weight: 700; color: var(--ink); margin: 0 0 7px; }
+    .fit-row { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); margin: 0 0 3px; }
+    .fit-row b { color: var(--ink); font-weight: 600; }
+    .fit-yes { color: var(--trust); font-weight: 700; }
+    .fit-no { color: var(--dim); font-weight: 700; }
+    .fit-gaps { font-size: 12px; color: var(--dim); margin: 6px 0 0; }
+    .fit-summary { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin: 8px 0 0; }
   `;
   root.appendChild(style);
   const panel = document.createElement("div");
@@ -505,10 +543,19 @@
     return e;
   }
   function buildHead(title) {
+    // The real, already-bundled toolbar icon -- the same image Chrome
+    // itself already shows for this extension -- not an invented mark.
+    // web_accessible_resources makes chrome.runtime.getURL() loadable as
+    // a real <img> from inside the page's own rendering context; a
+    // failed load (a stripped-down browser policy, a very unusual page)
+    // just leaves an empty 26px square, never a broken panel.
+    const mark = el("img", { class: "mark", src: chrome.runtime.getURL("icon48.png"), alt: "" });
     const left = el("div", { class: "head-left" }, [
-      el("span", { class: "dot" }),
-      el("b", { text: "AYN" }),
-      el("span", { class: "head-title", text: title }),
+      mark,
+      el("div", { class: "head-text" }, [
+        el("b", { text: "AYN" }),
+        el("span", { class: "head-title", text: title }),
+      ]),
     ]);
     return el("div", { class: "head" }, [left, el("button", { class: "close", text: "×", onclick: closePanel })]);
   }
