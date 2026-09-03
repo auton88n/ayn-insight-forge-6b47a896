@@ -25,8 +25,17 @@
  * left over from the server-side Playwright path this same action also
  * serves. jobId is now optional on the backend; this script no longer
  * touches Saved Jobs at all. Click the icon on any application page,
- * signed in or not, and it goes straight to reading and filling that
- * page.
+ * signed in or not, and it goes straight to reading the page.
+ *
+ * v3.332.0 -- reading, not filling, is now where it actually stops until
+ * a real click: opening the panel (icon click, detector.js's own auto-
+ * open, or a fresh sign-in) lands on showReady(), a real landing screen
+ * with the free fit check already loading and, if this page has a resume
+ * or cover-letter file field, per-job "Tailor my resume" / "Write cover
+ * letter" buttons right there -- fields are only actually written once
+ * "Fill this application" is clicked. Full re-brand alongside it (see the
+ * CSS block below): AYN's real "Charcoal & Ember" identity, and every
+ * result now reads as structured stat pills and chips instead of prose.
  */
 (() => {
   // v3.279.0 -- real bug, reported directly: "why it vanish and I can't
@@ -169,6 +178,13 @@
   // unambiguous HTML signal a control IS a form's own final submission;
   // the text fallback stays narrow for the same reason.
   const SUBMIT_TEXT_RE = /^(submit( this)?( application)?|send( my)? application)$/i;
+
+  // v3.332.0 -- hoisted from inside autofill() so the new ready/landing
+  // screen can also ask "does this page even have a resume-type file
+  // field" before extraction ever runs against the backend -- same two
+  // patterns, one definition, used by both.
+  const NOT_RESUME_FIELD = /cover\s*letter|portfolio|writing\s*sample|work\s*sample|transcript|reference|id\b|passport|visa|photo|headshot|video|w-?2|w-?4|i-?9|1099/i;
+  const IS_COVER_LETTER_FIELD = /cover\s*letter/i;
   function findSubmitButton() {
     const native = Array.from(document.querySelectorAll('button[type="submit"], input[type="submit"]')).find(
       (b) => b.offsetParent !== null && !b.disabled
@@ -295,6 +311,12 @@
     }
     const jdText = getPageJdText();
     if (!jdText) return { ok: false, reason: "Couldn't find enough of a real job description on this page to tailor from." };
+    // v3.332.0 -- fetched in parallel with the tailor call itself, not
+    // after: this is the real, already-on-file resume (before any of
+    // today's tailoring), needed so the results screen can show what
+    // actually changed rather than just declaring success. Free, cached,
+    // and never blocks the tailor call on its own completion.
+    const beforePromise = fetchPrimaryResumeContent(session);
     let result;
     try {
       result = await callHub(session, { action: "tailor", jdText });
@@ -310,7 +332,8 @@
     }
     const name = (result.resume.basics && result.resume.basics.name ? result.resume.basics.name.replace(/\s+/g, "_") : "Resume") + "_Tailored_Resume.pdf";
     const attached = attachFileBlob(inputEl, blob, name, "application/pdf");
-    return { ...attached, credits: result.credits };
+    const before = await beforePromise;
+    return { ...attached, credits: result.credits, resume: result.resume, gapAnalysis: result.gapAnalysis, before };
   }
 
   // Same reasoning as tailorAndAttach -- deliberately no guessed
@@ -337,7 +360,62 @@
       return { ok: false, reason: "Couldn't build the cover letter file." };
     }
     const attached = attachFileBlob(inputEl, blob, "Cover_Letter.pdf", "application/pdf");
-    return { ...attached, credits: result.credits };
+    return { ...attached, credits: result.credits, body: result.body };
+  }
+
+  // v3.332.0 -- "more useful": every other real signal AYN has about a job
+  // (score, tailor, a real submit) already lives on the web app's own
+  // Jobs pipeline (Saved -> Applied -> Interviewing -> ...), but nothing
+  // in the extension ever wrote to it -- an application filled here left
+  // no trace anywhere in AYN itself. This mirrors the exact same insert
+  // BrowseJobs.tsx's own saveJob already does (same table, same columns,
+  // same select-then-insert de-dupe on user_id+source_url -- not a new
+  // mechanism, the identical one already proven live in the web app),
+  // reached the same way this file already reads `resumes` directly: a
+  // raw, RLS-scoped REST call, since there is no resume-hub action for
+  // this. Never invents a company name or a fact about the role -- title
+  // is the real page's own <title>, exactly what a person would see in
+  // their own browser tab, never guessed at.
+  async function saveJobToPipeline(session, { title, jdText, sourceUrl: explicitUrl }, opts = {}) {
+    try {
+      // v3.332.0 -- a real submit navigates the page BEFORE this ever
+      // runs (attemptSubmit only reports success once the URL has already
+      // changed) -- location.href at call time would be the confirmation
+      // page, not the job. Every caller that runs after a possible
+      // navigation must capture and pass its own sourceUrl from before
+      // that happened; this only falls back to the live location for the
+      // manual, no-navigation "Save this job" button.
+      const sourceUrl = (explicitUrl || location.href).split("#")[0].slice(0, 2000);
+      const existingR = await fetch(
+        `${SUPABASE_URL}/rest/v1/jobs?select=id,application_status&user_id=eq.${session.user.id}&source_url=eq.${encodeURIComponent(sourceUrl)}&limit=1`,
+        { headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.access_token}` } }
+      );
+      const existing = existingR.ok ? await existingR.json() : [];
+      let jobId = existing[0] && existing[0].id;
+      if (!jobId) {
+        const insertR = await fetch(`${SUPABASE_URL}/rest/v1/jobs`, {
+          method: "POST",
+          headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json", Prefer: "return=representation" },
+          body: JSON.stringify({
+            user_id: session.user.id, source: "extension", source_url: sourceUrl,
+            jd_text: jdText ? jdText.slice(0, 20000) : null, title: title || null,
+          }),
+        });
+        if (!insertR.ok) return { ok: false };
+        const rows = await insertR.json();
+        jobId = rows[0] && rows[0].id;
+      }
+      if (jobId && opts.markApplied) {
+        await fetch(`${SUPABASE_URL}/rest/v1/jobs?id=eq.${jobId}`, {
+          method: "PATCH",
+          headers: { apikey: ANON_KEY, Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({ application_status: "applied", application_status_changed_at: new Date().toISOString() }),
+        });
+      }
+      return { ok: true };
+    } catch (e) {
+      return { ok: false };
+    }
   }
 
   // A free, automatic "why you're a good fit" read, shown the moment the
@@ -369,36 +447,165 @@
   // from `match`, which is itself bound by the same HONESTY RULE every
   // other scoring/tailoring action in this app already enforces -- only
   // ever credits a skill that's actually evidenced.
-  function fitRow(label, pct) {
+  // v3.332.0 -- score thresholds and their tone are decided ONCE, here, and
+  // reused everywhere a score needs a color or a word (the ring, the
+  // verdict label, a later "match improved from X to Y" line) -- so a
+  // score can never render green in one spot and read as a weak match in
+  // another. Nothing here is a guess: every number passed in already came
+  // back from a real, grounded `match`/`tailor` call.
+  function scoreTone(score) {
+    if (score >= 75) return { hex: "#1b7b47", word: "Strong fit" };
+    if (score >= 50) return { hex: "#cf8a1d", word: "Worth a look" };
+    return { hex: "#b0392a", word: "Real gaps here" };
+  }
+  function scoreRing(score, size) {
+    const s = Math.max(0, Math.min(100, Math.round(score)));
+    const tone = scoreTone(s);
+    const dim = size || 48;
+    const ring = el("div", { class: "fit-ring", style: `width:${dim}px;height:${dim}px;` });
+    ring.style.background = `conic-gradient(${tone.hex} ${s * 3.6}deg, #efefef 0deg)`;
+    const inner = el("b", { text: String(s), style: `width:${dim - 8}px;height:${dim - 8}px;` });
+    ring.appendChild(inner);
+    return ring;
+  }
+  // A single, small, labeled pill -- the "smart card" replacement for a
+  // plain-text row. Every value shown here traces back to a real number
+  // or a real string AYN's backend returned; nothing is synthesized for
+  // display.
+  function statPill(label, pct) {
     const ok = typeof pct === "number" && pct >= 60;
-    const row = el("div", { class: "fit-row" });
-    row.appendChild(el("span", { text: ok ? "✓" : "○", class: ok ? "fit-yes" : "fit-no" }));
-    row.appendChild(el("span", { text: label }));
-    if (typeof pct === "number") row.appendChild(el("b", { text: `${pct}%` }));
-    return row;
+    const mid = typeof pct === "number" && pct >= 35 && pct < 60;
+    const cls = ok ? "pill-ok" : mid ? "pill-mid" : "pill-warn";
+    return el("span", { class: `pill ${cls}`, text: typeof pct === "number" ? `${label} ${pct}%` : label });
+  }
+  function chip(text, tone) {
+    return el("span", { class: `chip${tone ? ` chip-${tone}` : ""}`, text });
   }
 
+  // v3.332.0 -- rebuilt from a paragraph into real, scannable cards.
+  // Reported directly against a live screenshot: "why i have a chunk of
+  // writing instead of smart cards." The old version rendered m.summary
+  // (a real, AI-written 2-3 sentence paragraph) as body text every time --
+  // accurate, but the single least scannable thing on the whole panel.
+  // The score/breakdown/missing_keywords underneath it are unchanged (this
+  // is still the same `match` response, nothing re-requested or
+  // reinterpreted) -- only the LAYOUT changed: a verdict word instead of a
+  // bare number, three stat pills instead of three text rows, gap chips
+  // instead of a joined sentence. m.summary is not deleted -- it is still
+  // real, AI-written context -- it just moves to the ring's own title
+  // attribute (a native tooltip) so it's one hover away rather than always
+  // taking up vertical space.
   function buildFitCard(m) {
     const score = Math.max(0, Math.min(100, Math.round(m.score)));
-    const ring = el("div", { class: "fit-ring" });
-    const tone = score >= 75 ? "#1b7b47" : score >= 50 ? "#e0a422" : "#b0392a";
-    ring.style.background = `conic-gradient(${tone} ${score * 3.6}deg, #efefef 0deg)`;
-    ring.appendChild(el("b", { text: String(score) }));
+    const tone = scoreTone(score);
+    const ring = scoreRing(score, 50);
+    if (m.summary) ring.title = m.summary;
 
     const right = el("div", { style: "flex: 1; min-width: 0;" });
-    right.appendChild(el("p", { class: "fit-title", text: "Why you're a fit for this one" }));
-    const b = m.breakdown || {};
-    right.appendChild(fitRow("Skills", b.skills_match));
-    right.appendChild(fitRow("Experience", b.experience_match));
-    right.appendChild(fitRow("Education", b.education_match));
+    const head = el("div", { style: "display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom: 8px;" });
+    head.appendChild(el("p", { class: "fit-title", text: tone.word, style: `margin:0; color:${tone.hex};` }));
+    right.appendChild(head);
 
-    const missing = (m.missing_keywords || []).slice(0, 3);
+    const b = m.breakdown || {};
+    const pills = el("div", { class: "chip-list" }, [
+      statPill("Skills", b.skills_match),
+      statPill("Experience", b.experience_match),
+      statPill("Education", b.education_match),
+    ]);
+    right.appendChild(pills);
+
+    const missing = (m.missing_keywords || []).slice(0, 4);
+    const missingMore = (m.missing_keywords || []).length - missing.length;
     if (missing.length) {
-      right.appendChild(el("p", { class: "fit-gaps", text: `Real gaps AYN found: ${missing.join(", ")}` }));
+      right.appendChild(el("p", { class: "fit-gaps-label", text: "Real gaps AYN found" }));
+      const gapChips = el("div", { class: "chip-list" });
+      for (const g of missing) gapChips.appendChild(chip(g, "warn"));
+      if (missingMore > 0) gapChips.appendChild(chip(`+${missingMore} more`));
+      right.appendChild(gapChips);
     }
-    if (m.summary) right.appendChild(el("p", { class: "fit-summary", text: m.summary }));
 
     return el("div", { class: "fit-card" }, [ring, right]);
+  }
+
+  // v3.332.0 -- "we need to have resume tailor and cover letter... with
+  // buttons the differences and what will be added to the resume." Before
+  // this, a tailor click just flipped a button to "Tailored ✓" -- the
+  // actual resume attached to the page was invisible; the person had to
+  // download and open it to see what AYN actually did. Everything shown
+  // here is a real, structural diff of two real objects (the resume on
+  // file before today, and the one `tailor` just returned), never a
+  // second AI call describing itself -- the same "code decides facts, the
+  // model only phrases them" rule this whole app is built on. `before` can
+  // be null (a canonical profile with no `resumes` row yet) and every
+  // section here degrades honestly rather than guessing at what changed.
+  function buildTailorDiffCard(r, preScore) {
+    const card = el("div", {});
+    const after = r.resume || {};
+    const before = r.before || null;
+
+    if (typeof preScore === "number" && typeof r.gapAnalysis?.matchPct === "number") {
+      const preT = scoreTone(preScore);
+      const postT = scoreTone(r.gapAnalysis.matchPct);
+      const box = el("div", { class: "diff-card" });
+      box.appendChild(el("p", { class: "diff-card-label", text: "Match, before and after" }));
+      box.appendChild(el("div", { class: "diff-score-row" }, [
+        el("span", { class: "diff-score-tag", text: `${Math.round(preScore)}%`, style: `color:${preT.hex};` }),
+        el("span", { class: "diff-arrow", text: "→" }),
+        el("span", { class: "diff-score-tag", text: `${Math.round(r.gapAnalysis.matchPct)}%`, style: `color:${postT.hex};` }),
+      ]));
+      card.appendChild(box);
+    }
+
+    const beforeSkills = new Set((before && Array.isArray(before.skills) ? before.skills : []).map((s) => String(s).trim().toLowerCase()));
+    const afterSkills = Array.isArray(after.skills) ? after.skills : [];
+    const addedSkills = before ? afterSkills.filter((s) => !beforeSkills.has(String(s).trim().toLowerCase())) : [];
+    if (addedSkills.length) {
+      const box = el("div", { class: "diff-card" });
+      box.appendChild(el("p", { class: "diff-card-label", text: `${addedSkills.length} skill${addedSkills.length === 1 ? "" : "s"} added to match this job` }));
+      const chips = el("div", { class: "chip-list" });
+      for (const s of addedSkills.slice(0, 10)) chips.appendChild(chip(s, "ok"));
+      box.appendChild(chips);
+      card.appendChild(box);
+    }
+
+    const beforeSummary = before && before.basics && before.basics.summary ? before.basics.summary : "";
+    const afterSummary = after.basics && after.basics.summary ? after.basics.summary : "";
+    if (beforeSummary && afterSummary && beforeSummary.trim() !== afterSummary.trim()) {
+      const box = el("div", { class: "diff-card" });
+      box.appendChild(el("p", { class: "diff-card-label", text: "Summary, reworded for this job" }));
+      const stack = el("div", { class: "diff-before-after" });
+      stack.appendChild(el("p", { class: "diff-block diff-block-before", text: beforeSummary }));
+      stack.appendChild(el("p", { class: "diff-block diff-block-after", text: afterSummary }));
+      box.appendChild(stack);
+      card.appendChild(box);
+    }
+
+    const stillMissing = (r.gapAnalysis && r.gapAnalysis.missing || []).slice(0, 4);
+    if (stillMissing.length) {
+      const box = el("div", { class: "diff-card" });
+      box.appendChild(el("p", { class: "diff-card-label", text: "Still not on your resume" }));
+      const chips = el("div", { class: "chip-list" });
+      for (const g of stillMissing) chips.appendChild(chip(g, "warn"));
+      box.appendChild(chips);
+      card.appendChild(box);
+    }
+
+    if (!card.children.length) {
+      card.appendChild(el("p", { class: "muted", text: "Tailored for this job -- your skills and wording were already a strong match, so there wasn't much to change." }));
+    }
+    return card;
+  }
+
+  // v3.332.0 -- a cover letter used to attach as a PDF with zero preview:
+  // the person could not see a single word of what AYN wrote without
+  // downloading it. This is the exact text `cover_letter` returned,
+  // rendered plainly -- not summarized, not re-generated.
+  function buildCoverLetterPreview(body) {
+    const words = body.trim().split(/\s+/).filter(Boolean).length;
+    const box = el("div", { class: "diff-card" });
+    box.appendChild(el("p", { class: "diff-card-label", text: `What AYN wrote (${words} words)` }));
+    box.appendChild(el("p", { class: "letter-preview", text: body }));
+    return box;
   }
 
   // ---------------------------------------------------------------
@@ -491,7 +698,7 @@
     .panel { --ink: #14100c; --muted: #6b5e50; --dim: #a89484; --bg: #fbf6f0; --card: #ffffff;
       --border: #ece1d3; --ember: #e85d3a; --ember2: #ff8a5c;
       --gradient: linear-gradient(135deg, var(--ember) 0%, var(--ember2) 100%);
-      --trust: #1b7b47; --warn: #b0392a; --gold: #cf8a1d;
+      --trust: #1b7b47; --warn: #b0392a; --gold: #cf8a1d; --gold-text: #8a5806;
       width: min(392px, 100vw); height: 100vh; background: var(--bg); color: var(--ink);
       box-shadow: -16px 0 40px -20px rgba(28,23,18,0.22);
       font-family: "AYN Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -537,19 +744,56 @@
       font-weight: 600; cursor: pointer; text-decoration: underline; }
     .btn-sm { padding: 6px 12px; font-size: 12.5px; }
     .fit-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 15px;
-      margin: 0 0 14px; display: flex; gap: 13px; box-shadow: 0 2px 8px -2px rgba(28,23,18,0.08); }
-    .fit-ring { flex-shrink: 0; width: 48px; height: 48px; border-radius: 50%; display: flex;
-      align-items: center; justify-content: center; }
-    .fit-ring b { font-family: "AYN Outfit", sans-serif; font-size: 15px; font-weight: 700; color: var(--ink);
-      background: var(--card); width: 40px; height: 40px; border-radius: 50%; display: flex;
-      align-items: center; justify-content: center; }
-    .fit-title { font-family: "AYN Outfit", sans-serif; font-size: 13.5px; font-weight: 700; color: var(--ink); margin: 0 0 7px; }
-    .fit-row { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); margin: 0 0 3px; }
-    .fit-row b { color: var(--ink); font-weight: 600; }
-    .fit-yes { color: var(--trust); font-weight: 700; }
-    .fit-no { color: var(--warn); font-weight: 700; }
-    .fit-gaps { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
-    .fit-summary { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin: 8px 0 0; }
+      margin: 0 0 14px; display: flex; gap: 13px; box-shadow: 0 2px 8px -2px rgba(28,23,18,0.08); cursor: default; }
+    .fit-ring { flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .fit-ring b { font-family: "AYN Outfit", sans-serif; font-size: 14px; font-weight: 700; color: var(--ink);
+      background: var(--card); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .fit-title { font-family: "AYN Outfit", sans-serif; font-size: 14px; font-weight: 700; margin: 0; }
+    .fit-gaps-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+      color: var(--muted); margin: 10px 0 5px; }
+
+    /* Smart cards: stat pills + chips replace prose paragraphs everywhere
+       in this panel -- v3.332.0, reported directly: "why i have a chunk of
+       writing instead of smart cards shows the differences." */
+    .chip-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pill { display: inline-flex; align-items: center; padding: 4px 9px; border-radius: 999px;
+      font-size: 11.5px; font-weight: 600; border: 1px solid transparent; }
+    .pill-ok { background: rgba(27,123,71,0.1); color: var(--trust); border-color: rgba(27,123,71,0.22); }
+    .pill-mid { background: rgba(207,138,29,0.12); color: var(--gold-text); border-color: rgba(207,138,29,0.24); }
+    .pill-warn { background: rgba(176,57,42,0.1); color: var(--warn); border-color: rgba(176,57,42,0.2); }
+    .chip { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px;
+      font-size: 11.5px; font-weight: 500; background: var(--bg); color: var(--ink); border: 1px solid var(--border); }
+    .chip-warn { background: rgba(176,57,42,0.07); color: var(--warn); border-color: rgba(176,57,42,0.18); }
+    .chip-ok { background: rgba(27,123,71,0.08); color: var(--trust); border-color: rgba(27,123,71,0.2); }
+
+    /* Ready/landing screen -- the first thing shown, click required before
+       AYN touches the page. */
+    .stat-line { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted);
+      margin: 0 0 14px; }
+    .stat-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--trust); flex-shrink: 0; }
+    .action-stack { display: flex; flex-direction: column; gap: 9px; margin-bottom: 6px; }
+    .action-row { display: flex; gap: 8px; }
+    .action-row .btn { flex: 1; }
+    .btn-lg { padding: 13px 18px; font-size: 15px; }
+    .not-now { display: block; width: 100%; text-align: center; background: none; border: none;
+      color: var(--muted); font-size: 12.5px; padding: 10px 0 0; cursor: pointer; }
+    .not-now:hover { color: var(--ink); }
+
+    /* Diff cards -- what a tailor/cover-letter action actually changed,
+       shown as structured before/after, never a wall of AI prose. */
+    .diff-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 14px 15px; margin: 0 0 12px; box-shadow: 0 2px 8px -2px rgba(28,23,18,0.06); }
+    .diff-card-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+      color: var(--muted); margin: 0 0 8px; }
+    .diff-score-row { display: flex; align-items: center; gap: 10px; }
+    .diff-arrow { color: var(--dim); font-size: 15px; }
+    .diff-score-tag { font-family: "AYN Outfit", sans-serif; font-weight: 700; font-size: 17px; }
+    .diff-before-after { display: flex; flex-direction: column; gap: 8px; }
+    .diff-block { border-radius: 8px; padding: 8px 10px; font-size: 12.5px; line-height: 1.55; }
+    .diff-block-before { background: var(--bg); color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(107,94,80,0.35); }
+    .diff-block-after { background: rgba(27,123,71,0.06); color: var(--ink); border: 1px solid rgba(27,123,71,0.16); }
+    .letter-preview { background: var(--bg); border-radius: 8px; padding: 10px 12px; font-size: 12.5px;
+      line-height: 1.6; color: var(--ink); white-space: pre-wrap; max-height: 180px; overflow-y: auto; }
   `;
   root.appendChild(style);
   const panel = document.createElement("div");
@@ -680,7 +924,7 @@
       goBtn.disabled = true; goBtn.textContent = "Signing in…";
       try {
         const session = await signIn(emailInput.value.trim(), passInput.value);
-        await autofill(session);
+        await showReady(session);
       } catch (e) {
         err.textContent = e.message || "Sign-in failed.";
         err.style.display = "block";
@@ -696,21 +940,137 @@
     ]));
   }
 
-  // The one real step: extract THIS page's own fields, match them against
-  // your real AYN profile, and fill immediately -- no picking a job first
-  // (a saved-jobs record was never needed for the matching itself, only
-  // for the earlier, server-side Playwright path -- see the backend's own
-  // v3.278.0 comment on auto_apply_extract), no separate "review then
-  // click Fill" step. You still see and can edit anything that came back
-  // wrong, right here, but nothing waits on a second click.
-  async function autofill(session) {
+  // v3.332.0 -- reported directly against a live screenshot: "as soon as i
+  // login ayn autofill right away needs to have a button for that." The
+  // panel used to skip straight from opening (or from signing in) to
+  // filling the page, with no click in between and no chance to see the
+  // fit card or reach for Tailor/Cover letter first. This is the real,
+  // explicit landing screen that was missing -- shown the moment the panel
+  // opens (a manual icon click, an auto-detected job page, or a fresh
+  // sign-in), it fires the free fit check and a cheap, local field scan
+  // (no backend call, no AI, just DOM structure) so it can show real
+  // context and real per-job actions, and it does nothing to the page
+  // itself until one of its buttons is actually clicked.
+  async function showReady(session) {
+    clearPanel();
+    panel.appendChild(buildHead("Ready to help"));
+    const body = el("div", { class: "body" });
+
+    const fitSlot = el("div", {});
+    body.appendChild(fitSlot);
+    let latestFit = null;
+    const fitPromise = fetchFit(session);
+    fitPromise.then((m) => {
+      latestFit = m;
+      if (m) fitSlot.replaceWith(buildFitCard(m));
+      else fitSlot.remove();
+    });
+
+    let localFields = [];
+    try {
+      localFields = extractFields().fields || [];
+    } catch (e) {
+      localFields = [];
+    }
+    const fileFields = localFields.filter((f) => f.type === "file");
+    const resumeField = fileFields.find((f) => !NOT_RESUME_FIELD.test(f.label));
+    const coverField = fileFields.find((f) => IS_COVER_LETTER_FIELD.test(f.label));
+    const fillableCount = localFields.length;
+
+    body.appendChild(el("div", { class: "stat-line" }, [
+      el("span", { class: "stat-dot" }),
+      el("span", {
+        text: fillableCount
+          ? `${fillableCount} field${fillableCount === 1 ? "" : "s"} on this page AYN can read`
+          : "Couldn't find a form on this page yet",
+      }),
+    ]));
+
+    // A tailor/cover-letter run always attaches a real file and shows a
+    // real, structured diff before handing back to the same screen --
+    // never a second, different flow than the one Fill leads to.
+    function afterAttach(title, r, diffCard) {
+      clearPanel();
+      panel.appendChild(buildHead(title));
+      const b2 = el("div", { class: "body" });
+      b2.appendChild(el("p", { class: "ok", text: "Attached. It'll go out with the application when you submit." }));
+      b2.appendChild(diffCard);
+      if (r.credits && typeof r.credits.spent === "number") {
+        b2.appendChild(el("p", { class: "muted", text: `${r.credits.spent} credit${r.credits.spent === 1 ? "" : "s"} used.`, style: "margin-top: -6px;" }));
+      }
+      const cont = el("button", { class: "btn btn-primary", text: "Continue filling the rest of the form", style: "width:100%; margin-top: 6px;" });
+      cont.addEventListener("click", () => autofill(session, { fitPromise }));
+      b2.appendChild(cont);
+      const back = el("button", { class: "btn btn-ghost", text: "Back", style: "width:100%; margin-top: 8px;" });
+      back.addEventListener("click", () => showReady(session));
+      b2.appendChild(back);
+      panel.appendChild(b2);
+    }
+
+    const stack = el("div", { class: "action-stack" });
+    const fillBtn = el("button", { class: "btn btn-primary btn-lg", text: "Fill this application" });
+    fillBtn.addEventListener("click", () => autofill(session, { fitPromise }));
+    stack.appendChild(fillBtn);
+
+    if (resumeField || coverField) {
+      const row = el("div", { class: "action-row" });
+      if (resumeField) {
+        const tBtn = el("button", { class: "btn btn-ghost", text: "Tailor my resume" });
+        tBtn.addEventListener("click", async () => {
+          tBtn.disabled = true; tBtn.textContent = "Tailoring…";
+          const inputEl = fieldRegistry_().get(resumeField.id);
+          const r = inputEl ? await tailorAndAttach(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
+          if (r.ok) {
+            afterAttach("Tailored for this job", r, buildTailorDiffCard(r, latestFit && typeof latestFit.score === "number" ? latestFit.score : null));
+          } else {
+            tBtn.disabled = false; tBtn.textContent = "Tailor my resume"; tBtn.title = r.reason || "";
+          }
+        });
+        row.appendChild(tBtn);
+      }
+      if (coverField) {
+        const cBtn = el("button", { class: "btn btn-ghost", text: "Write cover letter" });
+        cBtn.addEventListener("click", async () => {
+          cBtn.disabled = true; cBtn.textContent = "Writing…";
+          const inputEl = fieldRegistry_().get(coverField.id);
+          const r = inputEl ? await writeCoverLetterAndAttach(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
+          if (r.ok) {
+            afterAttach("Cover letter written", r, buildCoverLetterPreview(r.body));
+          } else {
+            cBtn.disabled = false; cBtn.textContent = "Write cover letter"; cBtn.title = r.reason || "";
+          }
+        });
+        row.appendChild(cBtn);
+      }
+      stack.appendChild(row);
+    }
+    body.appendChild(stack);
+
+    const notNow = el("button", { class: "not-now", text: "Not now" });
+    notNow.addEventListener("click", closePanel);
+    body.appendChild(notNow);
+
+    panel.appendChild(body);
+  }
+
+  // Extract THIS page's own fields, match them against your real AYN
+  // profile, and fill -- no picking a job first (a saved-jobs record was
+  // never needed for the matching itself, only for the earlier, server-
+  // side Playwright path -- see the backend's own v3.278.0 comment on
+  // auto_apply_extract). Reached by clicking "Fill this application" on
+  // the ready screen above (v3.332.0), never automatically.
+  async function autofill(session, opts = {}) {
     clearPanel();
     panel.appendChild(buildHead("Autofilling…"));
     panel.appendChild(el("div", { class: "body" }, [el("p", { class: "muted", text: "Reading this page and matching it to your AYN profile…" })]));
     // Fired off now, overlapping with the extraction/matching work below,
-    // rather than adding its own separate wait later.
+    // rather than adding its own separate wait later. v3.332.0 -- a caller
+    // that already fetched this on the ready screen (see showReady) passes
+    // it straight through via opts.fitPromise, so clicking "Fill this
+    // application" never fires a second, redundant `match` call for a fit
+    // card that's already on its way.
     const consentPromise = getConsent(session);
-    const fitPromise = fetchFit(session);
+    const fitPromise = opts.fitPromise || fetchFit(session);
     const { fields, skipped, wizardStep } = extractFields();
 
     // v3.294.0 -- iframe support: an application form embedded in a
@@ -1122,9 +1482,8 @@
     // value, and you still review the real page before you submit --
     // reported directly, a form with one ambiguous "Attachment" field
     // was otherwise the one thing standing between "click autofill" and
-    // "click submit."
-    const NOT_RESUME_FIELD = /cover\s*letter|portfolio|writing\s*sample|work\s*sample|transcript|reference|id\b|passport|visa|photo|headshot|video|w-?2|w-?4|i-?9|1099/i;
-    const IS_COVER_LETTER_FIELD = /cover\s*letter/i;
+    // "click submit." (Both patterns are hoisted to module scope now --
+    // see the top of this file -- so the ready screen can use them too.)
     // v3.321.0 -- consent is awaited here, right before it's first needed,
     // so it overlaps with everything above rather than adding its own wait.
     const consent = await consentPromise;
@@ -1239,12 +1598,26 @@
     if (multiSelectFlags.length) submitBlockers.push("a pick-several question needs your own answer");
 
     if (consent.opted_in && !submitBlockers.length) {
+      // v3.332.0 -- captured BEFORE attemptSubmit() runs, since a real
+      // success there means the page has already navigated -- title/url
+      // read any later than this would describe the confirmation page,
+      // not the job that was actually applied to.
+      const preSubmitTitle = document.title;
+      const preSubmitUrl = location.href;
+      const preSubmitJdText = getPageJdText();
       const submitNotice = el("p", { class: "muted", text: "Submitting, since you've agreed to let AYN do this…" });
       body.appendChild(submitNotice);
       const result = await attemptSubmit();
       submitNotice.remove();
       if (result.submitted) {
         body.appendChild(el("p", { class: "ok", text: "Submitted. AYN filled and sent this application, as you agreed.", style: "color: #1b7b47;" }));
+        // A real, completed submit is the one unambiguous signal AYN can
+        // act on without asking -- record it into the same Jobs pipeline
+        // the web app's own Saved -> Applied transition uses (see
+        // saveJobToPipeline's own header). Best effort, never shown as an
+        // error if it fails -- the real application already went through
+        // either way.
+        saveJobToPipeline(session, { title: preSubmitTitle, jdText: preSubmitJdText, sourceUrl: preSubmitUrl }, { markApplied: true });
       } else {
         body.appendChild(el("p", { class: "warn", text: `Not submitted: ${result.reason}` }));
         body.appendChild(el("p", { class: "muted", text: "Review the real page, then submit it yourself." }));
@@ -1402,6 +1775,21 @@
       body.appendChild(saveStatusP);
     }
 
+    // v3.332.0 -- "more useful": everything else AYN knows about a job
+    // lives in the web app's own Saved Jobs pipeline; this is the one
+    // explicit, opt-in way to put THIS job there too, for the common
+    // manual-review path (an auto-submit already records itself above,
+    // with no click needed, since that's a real completed action -- a
+    // fill alone isn't, so this stays a real button, not an assumption).
+    const trackBtn = el("button", { class: "btn btn-ghost", text: "Save this job to AYN", style: "width:100%; margin-bottom: 8px;" });
+    trackBtn.addEventListener("click", async () => {
+      trackBtn.disabled = true; trackBtn.textContent = "Saving…";
+      const r = await saveJobToPipeline(session, { title: document.title, jdText: getPageJdText() });
+      trackBtn.textContent = r.ok ? "Saved to AYN ✓" : "Couldn't save — try again";
+      if (!r.ok) trackBtn.disabled = false;
+    });
+    body.appendChild(trackBtn);
+
     const closeBtn = el("button", { class: "btn btn-ghost", text: "Done", style: "width:100%" });
     closeBtn.addEventListener("click", closePanel);
     body.appendChild(closeBtn);
@@ -1412,7 +1800,7 @@
   async function start() {
     const session = await ensureSession();
     if (!session) return showSignIn();
-    return autofill(session);
+    return showReady(session);
   }
 
   start();
