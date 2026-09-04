@@ -1472,22 +1472,38 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       // structural signal that a question wants more than a short fact --
       // never attempted for a plain <input>, which is what a short factual
       // answer (already matchApplicationAnswers' own job) actually looks
-      // like. Capped at 4 questions and skipped entirely when there is
-      // nothing to answer, so a standard form with no narrative fields
-      // costs nothing extra, and one form can never trigger an unbounded
-      // number of real AI calls. Deliberately free, matching Form
-      // Intelligence's own reasoning: this makes auto_apply_extract's
-      // existing output more complete, not a distinct paid outcome.
+      // like. Skipped entirely when there is nothing to answer, so a
+      // standard form with no narrative fields costs nothing extra.
+      //
+      // v3.343.0 -- the cap was 4, and asked for directly right after an
+      // on-page "click here for a draft" badge shipped for whatever a
+      // page's 5th+ narrative question left blank: "no i want ai to help
+      // to answer and dont get on my way." Read plainly, that's the
+      // opposite of an extra control to click -- every real open-ended
+      // question should just get a real, honest draft the same way the
+      // first four already did, automatically, as part of the one normal
+      // Fill pass. Raised to a generous 10, not removed outright -- still
+      // one real AI call regardless of how many questions it covers (a
+      // single batched request, unchanged), so this only bounds a
+      // genuinely pathological page (a broken scraper trap, not a real
+      // job application) from ballooning the one call's own output size,
+      // never a real form's actual question count.
       const narrativeCandidates = answerMatches
         .filter((a) => a.answer == null)
         .map((a) => remaining.find((r) => r.id === a.fieldId))
         .filter((r): r is { id: string; label: string; type: string | null } => !!r && r.type === "textarea")
-        .slice(0, 4);
+        .slice(0, 10);
       if (narrativeCandidates.length && canonical) {
         const narrBundle = buildSections(identity, canonical);
         if (narrBundle.text && narrBundle.chars >= 60) {
           const narrApplicantBlock = identity ? identityContactBlock(identity) : "";
-          const narrSystem = `For each real application question below, write a short, honest answer (1 to 3 sentences, under 400 characters) using ONLY facts from APPLICANT SECTIONS${narrApplicantBlock ? " and the APPLICANT block" : ""}. Connect the candidate's real skills, experience, and impact to the question as directly as you honestly can -- real, relevant experience is still real and worth stating even without an exact industry or company match; do not require a perfect thematic fit before writing something. Never invent a company, employer, metric, date, name, or accomplishment, and never state a specific personal motivation, feeling, or story that is not directly supported by a real fact given to you (for example, never invent "my grandmother was a teacher" or "I have always been passionate about this field" with no real fact behind it). Only return an empty string when there is truly nothing real and relevant to connect to the question at all.
+          const narrSystem = `For each real application question below, write a short, honest, CONFIDENT answer (1 to 3 sentences, under 400 characters) using ONLY facts from APPLICANT SECTIONS${narrApplicantBlock ? " and the APPLICANT block" : ""}. Never invent a company, employer, metric, date, name, or accomplishment, and never state a specific personal motivation, feeling, or story that is not directly supported by a real fact given to you (for example, never invent "my grandmother was a teacher" or "I have always been passionate about this field" with no real fact behind it). Within that hard limit, make the strongest honest case possible -- real, relevant experience is still real and worth stating confidently even without an exact industry or company match; do not require a perfect thematic fit before writing something, and do not hedge or soften a real qualification just because the match isn't literal. Only return an empty string when there is truly nothing real and relevant to connect to the question at all.
+
+HOW TO WRITE A STRONG HONEST ANSWER, NOT JUST A TRUE ONE:
+- Open with the single most impressive, most relevant real fact first -- the sentence a hiring manager would actually remember -- not a flat chronological recap starting with the job title.
+- State the connection to what's being asked directly and with real conviction ("This is exactly the kind of problem I solve" / "This directly translates to..."), never as a tentative guess ("this might be relevant" / "this could apply").
+- If a real number, scale, or result already exists in APPLICANT SECTIONS, lead with it -- a concrete result is always more convincing than a description of effort.
+- Still never claim a skill, employer, or outcome that isn't there. The strength comes from how confidently and well you state what's real, never from adding anything that isn't.
 
 RULES:
 - First person is correct here ("I led...", "In my role as..."), the same as a real person answering a real question about themselves.
@@ -1732,7 +1748,18 @@ RULES:
         return json({ error: "Not enough profile detail on file to regenerate this from." }, 400);
       }
       const regenApplicantBlock = identity ? identityContactBlock(identity) : "";
-      const regenSystem = `The candidate is not satisfied with an answer AYN already wrote for a real application question and has given their own instruction for how to improve it. Write ONE better answer (1 to 3 sentences, under 400 characters) using ONLY facts from APPLICANT SECTIONS${regenApplicantBlock ? " and the APPLICANT block" : ""}. Apply as much of the candidate's own instruction as is honestly supported by those real facts. If the instruction asks for something not supported by any real fact given to you (a skill, a number, an experience that never appears), do not invent it -- write the best honest answer you can from what is real, and if the instruction cannot be honored at all from real facts, say so plainly in one short added sentence rather than inventing anything.
+      // v3.343.0 -- v3.342.0's own on-page "click for a draft" badge (an
+      // inline trigger with no instruction to give) is gone -- reported
+      // directly as getting in the way rather than helping, see
+      // auto_apply_extract's own v3.343.0 comment for what replaced it:
+      // the batch narrative pass itself now covers real open-ended
+      // questions automatically, no click needed. This action's only
+      // remaining caller is the panel's own "Not quite right? Tell AYN
+      // how to fix it" flow, which has always required real guidance
+      // before its Regenerate button is even clickable -- restored that
+      // requirement here too, rather than leave a no-guidance branch with
+      // nothing left to call it.
+      const regenSystem = `The candidate is not satisfied with an answer AYN already wrote for a real application question and has given their own instruction for how to improve it. Write ONE better, CONFIDENT answer (1 to 3 sentences, under 400 characters) using ONLY facts from APPLICANT SECTIONS${regenApplicantBlock ? " and the APPLICANT block" : ""}. Apply as much of the candidate's own instruction as is honestly supported by those real facts. If the instruction asks for something not supported by any real fact given to you (a skill, a number, an experience that never appears), do not invent it -- write the best honest answer you can from what is real, and if the instruction cannot be honored at all from real facts, say so plainly in one short added sentence rather than inventing anything. Lead with the most impressive real fact that fits, state the connection to the question directly and with real conviction rather than hedging, and never soften a genuine qualification just because the match isn't a literal one -- the strength comes from how well you state what's real, never from adding anything that isn't.
 
 RULES:
 - First person is correct here ("I led...", "In my role as...").

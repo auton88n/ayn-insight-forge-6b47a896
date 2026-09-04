@@ -66,6 +66,19 @@
  * typed or chose on the page and writes it to the same user_answer_bank
  * every reuse path already draws from, now covering a fixed-choice
  * question too, not just a typed one.
+ *
+ * v3.342.0/v3.343.0 -- a real, on-page "click for a draft" badge was
+ * built and shipped for an open-ended question the batch narrative
+ * pass hadn't answered (see resume-hub's own auto_apply_extract), then
+ * removed in the very next round of direct feedback: "no i want ai to
+ * help to answer and dont get on my way." Read plainly, a clickable
+ * control sitting inside a real page's own field is exactly the kind
+ * of getting-in-the-way this app has already reversed once before, for
+ * the same reason, on the inline answer boxes above. The actual fix
+ * lives on the backend, not here: the batch narrative pass's own
+ * question cap raised from 4 to 10, so a real open-ended question gets
+ * a real, honest, automatically-filled draft as part of the one normal
+ * Fill pass, no click, no extra control on the page at all.
  */
 (() => {
   // v3.279.0 -- real bug, reported directly: "why it vanish and I can't
@@ -225,6 +238,12 @@
   // anywhere else. Everything else "not on file" is a real, fair
   // candidate for "answer once here, reuse forever."
   const CONSENT_CHECKBOX_RE = /\bi agree\b|\bi consent\b|\bi acknowledge\b|\bi understand that\b|privacy policy|terms (of|and)/i;
+
+  // Module scope (not local to autofill()) so a fix this file's own
+  // history already hit once (a const referenced before its own
+  // declaration point further down the same function -- a real,
+  // live "Cannot access before initialization" crash) can't recur here.
+  const LEGAL_SENSITIVE = /sponsor|work.{0,15}authoriz|legally (eligible|authorized)|visa status|\b18 years|legal drinking age/i;
   function findSubmitButton() {
     const native = Array.from(document.querySelectorAll('button[type="submit"], input[type="submit"]')).find(
       (b) => b.offsetParent !== null && !b.disabled
@@ -1473,8 +1492,8 @@
     // out on their own, by name, with the exact answer filled, instead of
     // blending into the generic "N fields filled" line. Matched on the
     // label's own wording, the same class of phrasing the backend's own
-    // KNOWN_QUESTIONS resolvers look for.
-    const LEGAL_SENSITIVE = /sponsor|work.{0,15}authoriz|legally (eligible|authorized)|visa status|\b18 years|legal drinking age/i;
+    // KNOWN_QUESTIONS resolvers look for. LEGAL_SENSITIVE itself now
+    // lives at module scope, near CONSENT_CHECKBOX_RE.
 
     // v3.324.0 -- "regenerate this one answer," a real, distinct
     // capability found comparing AYN against a real competitor's own
