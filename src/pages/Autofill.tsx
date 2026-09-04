@@ -20,6 +20,20 @@
 // rows for a not-on-file question (a real fixed-choice one included, not
 // just free text). Updated to describe what that button pair actually
 // does now, not just that a gap is named.
+//
+// v3.340.0 -- "close it once on a page and it stays closed" stopped
+// being the whole story once minimizePanel() shipped: closing no longer
+// makes the panel disappear, it collapses to a small tab on the edge of
+// the page that reopens it exactly where you left off. Rewrote the
+// first "what it does" bullet to describe that, instead of only the
+// auto-open suppression, which is still real and still true.
+//
+// v3.341.0 -- reported directly: answering a not-on-file question
+// inside the panel read as a second form, confusing rather than
+// helpful. content.js's own inline text box and choice buttons are
+// gone; a question like this is now answered the one ordinary way,
+// directly on the real page. Rewrote the "not on file yet" bullet to
+// describe that instead of the removed in-panel answer box.
 import { useEffect } from 'react';
 import { Download, CheckCircle2 } from 'lucide-react';
 import { SEO } from '@/components/shared/SEO';
@@ -34,11 +48,11 @@ const STEPS = [
 ];
 
 const WHAT_IT_DOES = [
-  'Recognizes a real application page on its own, on sites AYN already knows, and opens there without you clicking anything. Close it once on a page and it stays closed there, so it never fights you.',
+  'Recognizes a real application page on its own, on sites AYN already knows, and opens there without you clicking anything. Close it and it never auto-reopens on that same page, and it does not actually disappear either: a small tab stays on the edge of the page, click it and the panel comes right back, exactly where you left it.',
   'Scores how well you fit the role the moment it opens, free, no click needed. A real match percentage, broken down by skills, experience, and education, plus the specific things you are missing, computed the same way as the rest of AYN, not just described.',
   'Fills the page from your real, visible fields once you click Fill, including a real resume upload from your primary AYN resume, matched against your own AYN profile, name, email, phone, and the same answer-matching AYN already uses elsewhere.',
   'Can tailor your resume or write a cover letter for this specific job, right there, as its own real action. You see a before-and-after of what actually changed, not just a checkmark next to a file you would have to download to read.',
-  'Anything not on file yet, you can answer right in the panel, including a real question with a fixed set of choices, not just a text box. It fills the real page and remembers the answer, so it is genuinely on file the next time, not asked again.',
+  'Anything not on file yet, you just fill in on the real page, the same way you always would. One click on "Save what I typed, for next time" and AYN remembers it, so it is genuinely on file the next application, not asked again.',
   'For an open-ended question it writes an honest answer for, you can tell it how to make that one answer better (shorter, mention a specific skill) and it rewrites just that field.',
   'Can submit the application for you too, but only once you’ve explicitly turned that on. Off by default, and it still won’t submit an honestly incomplete application even when it’s on.',
 ];

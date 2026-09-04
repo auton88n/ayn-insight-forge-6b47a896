@@ -53,6 +53,19 @@
  * excluded from all of this -- see CONSENT_CHECKBOX_RE -- that's a
  * one-time agreement to one employer's own policy, never reusable profile
  * data, and never something AYN decides for you.
+ *
+ * v3.341.0 -- reported directly, right after v3.336.0 shipped: having a
+ * second place to answer questions, inside the panel, read as confusing
+ * rather than helpful -- "let the user fill it in the real page and ayn
+ * can know the answers, memorize them." Reversed the inline part of
+ * that same interaction: the panel's own text box and clickable choice
+ * buttons are gone, a not-on-file question is filled the one and only
+ * ordinary way, directly on the real page. The memory half is untouched
+ * and unchanged -- "Save what I typed, for next time" (a real button,
+ * shown once results are ready) reads back whatever the person actually
+ * typed or chose on the page and writes it to the same user_answer_bank
+ * every reuse path already draws from, now covering a fixed-choice
+ * question too, not just a typed one.
  */
 (() => {
   // v3.279.0 -- real bug, reported directly: "why it vanish and I can't
@@ -1546,114 +1559,18 @@
       body.appendChild(box);
     }
 
-    // v3.336.0 -- reported directly: answering a "not on file" question
-    // should happen right here, once, and be remembered -- not "type it
-    // on the real page every single time." The v3.279.0 history above
-    // removed an inline answer box for a real, different reason: it typed
-    // an answer with no payoff, no memory, no reuse -- "why does it ask
-    // me questions... what's the point of autofilling." This is not that.
-    // Every answer given here does two real things in one click: fills
-    // the actual page field via the same fillTextLike/fillRadio this
-    // whole panel already trusts, AND saves to user_answer_bank via the
-    // existing auto_apply_save_answer action -- the same store "Save what
-    // I typed, for next time" already writes to -- so the next
-    // application, on any site, gets it from your real AYN profile like
-    // everything else. A legal consent line ("I agree to Reddit's
-    // Privacy Policy") is deliberately excluded -- see CONSENT_CHECKBOX_RE
-    // -- that's a one-time agreement to one employer's own policy, never
-    // reusable profile data, and never something AYN decides for you.
-    const answeredLabels = new Set();
-
-    function buildTextAnswerRow(fieldId, label) {
-      answeredLabels.add(displayLabel(fieldId, label));
-      const row = el("div", { class: "callout-neutral" });
-      row.appendChild(el("p", { text: label, style: "margin: 0 0 8px; font-weight: 600; font-size: 13px;" }));
-      const input = el("input", { type: "text", placeholder: "Type your answer", style: "flex: 1;" });
-      const saveBtn = el("button", { class: "btn btn-primary btn-sm", text: "Save & fill" });
-      const statusP = el("p", { class: "muted", text: "", style: "margin: 6px 0 0; font-size: 11.5px;" });
-      const inputRow = el("div", { style: "display: flex; gap: 6px;" }, [input, saveBtn]);
-      saveBtn.addEventListener("click", async () => {
-        const val = input.value.trim();
-        if (!val) { statusP.textContent = "Type an answer first."; return; }
-        saveBtn.disabled = true; input.disabled = true; saveBtn.textContent = "Saving…";
-        const targetEl = fieldRegistry_().get(fieldId);
-        const fillRes = targetEl ? await fillTextLikeAny(fieldId, val, label) : { ok: false };
-        let savedOk = false;
-        try {
-          await callHub(session, { action: "auto_apply_save_answer", label, answer: val });
-          savedOk = true;
-        } catch (e) {
-          // Best effort -- the real page fill above is the more important
-          // half and must not be undone by a save failing.
-        }
-        if (fillRes.ok) {
-          saveBtn.textContent = "Filled ✓"; saveBtn.style.background = "#1b7b47"; saveBtn.style.color = "#fff";
-          statusP.textContent = savedOk
-            ? "Saved to your AYN profile, for next time too."
-            : "Filled on the page, but couldn't save it for reuse -- try again later.";
-        } else {
-          saveBtn.disabled = false; input.disabled = false; saveBtn.textContent = "Save & fill";
-          statusP.textContent = "Couldn't fill this on the page -- type it there directly instead.";
-        }
-      });
-      row.appendChild(inputRow);
-      row.appendChild(statusP);
-      return row;
-    }
-
-    function buildRadioAnswerRow(groupName, groupLabel) {
-      // Every option here is real, structural data this exact page already
-      // has -- never invented, never a free-text box standing in for what
-      // the real form only ever offers as a fixed choice.
-      const options = fields.filter((f) => f.radioGroup === groupName && f.label);
-      if (!options.length) return null;
-      answeredLabels.add(groupLabel);
-      const row = el("div", { class: "callout-neutral" });
-      row.appendChild(el("p", { text: groupLabel, style: "margin: 0 0 8px; font-weight: 600; font-size: 13px;" }));
-      const statusP = el("p", { class: "muted", text: "", style: "margin: 6px 0 0; font-size: 11.5px;" });
-      const optRow = el("div", { style: "display: flex; flex-wrap: wrap; gap: 6px;" });
-      for (const opt of options) {
-        const btn = el("button", { class: "btn btn-ghost btn-sm", text: opt.label });
-        btn.addEventListener("click", async () => {
-          for (const b of Array.from(optRow.children)) b.disabled = true;
-          btn.textContent = "Filling…";
-          const res = await fillRadioAny(opt.id);
-          let savedOk = false;
-          try {
-            await callHub(session, { action: "auto_apply_save_answer", label: groupLabel, answer: opt.label });
-            savedOk = true;
-          } catch (e) {
-            // Best effort -- see buildTextAnswerRow's own note above.
-          }
-          if (res.ok) {
-            btn.textContent = `${opt.label} ✓`; btn.style.background = "#1b7b47"; btn.style.color = "#fff";
-            statusP.textContent = savedOk
-              ? "Saved to your AYN profile, for next time too."
-              : "Selected on the page, but couldn't save it for reuse -- try again later.";
-          } else {
-            for (const b of Array.from(optRow.children)) b.disabled = false;
-            btn.textContent = opt.label;
-            statusP.textContent = "Couldn't select this on the page -- choose it there directly instead.";
-          }
-        });
-        optRow.appendChild(btn);
-      }
-      row.appendChild(optRow);
-      row.appendChild(statusP);
-      return row;
-    }
-
-    const answerableText = notOnFileTracked.filter((t) => !CONSENT_CHECKBOX_RE.test(t.label));
-    if (answerableText.length || radioNotOnFileTracked.length) {
-      body.appendChild(el("p", { class: "warn", text: "Not on file yet — answer once here, AYN remembers it for next time:" }));
-      for (const t of answerableText) body.appendChild(buildTextAnswerRow(t.fieldId, t.label));
-      for (const r of radioNotOnFileTracked) {
-        const rowEl = buildRadioAnswerRow(r.groupName, r.groupLabel);
-        if (rowEl) body.appendChild(rowEl);
-      }
-    }
-
-    const stillNeeded = [...notOnFile, ...failed].filter((f) => !answeredLabels.has(f));
+    // v3.341.0 -- reported directly: a second form to type into, right
+    // inside the panel, read as confusing -- "let the user fill it in
+    // the real page and ayn can know the answers, memorize them." The
+    // v3.336.0 inline answer-and-save rows above (buildTextAnswerRow/
+    // buildRadioAnswerRow) are gone; a not-on-file question is now only
+    // ever answered once, on the real page, the ordinary way. What
+    // "Save what I typed, for next time" (further down) does with that
+    // is unchanged from v3.328.0: read the real, current value the
+    // person already typed or chose, and store it in the same
+    // user_answer_bank every other reuse path already writes to -- this
+    // block just stopped duplicating that typing inside the panel too.
+    const stillNeeded = [...notOnFile, ...failed];
     if (stillNeeded.length) {
       body.appendChild(el("p", { class: "warn", text: "Fill these directly on the page:" }));
       const ul = el("ul", { class: "fail-list" });
@@ -2012,22 +1929,47 @@
     // every field this run reported as not on file -- by the time
     // someone reaches for this button they've had a real chance to type
     // into the actual page, unlike right when the panel first opens.
-    if (notOnFileTracked.length) {
+    //
+    // v3.341.0 -- now the ONLY save path for a not-on-file question
+    // (the inline panel rows are gone, see this file's own note above),
+    // so it has to cover a fixed-choice question too, not just a typed
+    // one: for each real radio/toggle group left unmatched, checks
+    // which of that group's own real options the person actually chose
+    // on the page (a native input's .checked, or aria-checked/
+    // aria-pressed for a custom button-shaped one -- the exact same
+    // check frame_agent.js's own fillRadio already verifies a fill
+    // against, just read instead of set). Frame-hosted fields are a
+    // real, disclosed gap here, same as the text-field half above
+    // always had: fieldRegistry_() only ever sees this frame's own
+    // elements, so a question living inside a sub-frame's own <iframe>
+    // can't be read back this way -- unchanged scope, not a new one.
+    function isOptionChosen(optEl) {
+      if (!optEl) return false;
+      if (optEl.tagName === "INPUT") return !!optEl.checked;
+      const state = optEl.getAttribute("aria-checked") || optEl.getAttribute("aria-pressed");
+      return state === "true";
+    }
+    if (notOnFileTracked.length || radioNotOnFileTracked.length) {
       const saveAnswersBtn = el("button", { class: "btn btn-ghost", text: "Save what I typed, for next time", style: "width:100%; margin-bottom: 8px; font-size: 12.5px;" });
       const saveStatusP = el("p", { class: "muted", text: "", style: "margin: 4px 0 0; font-size: 11.5px; text-align: center;" });
       saveAnswersBtn.addEventListener("click", async () => {
         saveAnswersBtn.disabled = true; saveAnswersBtn.textContent = "Saving…"; saveStatusP.textContent = "";
         const toSave = [];
         for (const t of notOnFileTracked) {
-          // v3.336.0 -- same exclusion as the new inline answer rows
-          // above: a consent-checkbox label is never reusable profile
-          // data, so this bulk fallback can't save one either, even if
-          // someone happened to type something into that exact field on
-          // the real page themselves.
+          // v3.336.0 -- a consent-checkbox label is never reusable
+          // profile data, so this bulk fallback can't save one either,
+          // even if someone happened to type something into that exact
+          // field on the real page themselves.
           if (!t.fieldId || CONSENT_CHECKBOX_RE.test(t.label)) continue;
           const el2 = fieldRegistry_().get(t.fieldId);
           const val = el2 && typeof el2.value === "string" ? el2.value.trim() : "";
           if (val) toSave.push({ label: t.label, answer: val });
+        }
+        for (const r of radioNotOnFileTracked) {
+          if (!r.groupName || CONSENT_CHECKBOX_RE.test(r.groupLabel || "")) continue;
+          const options = fields.filter((f) => f.radioGroup === r.groupName && f.label);
+          const chosen = options.find((opt) => isOptionChosen(fieldRegistry_().get(opt.id)));
+          if (chosen) toSave.push({ label: r.groupLabel, answer: chosen.label });
         }
         if (!toSave.length) {
           saveAnswersBtn.disabled = false; saveAnswersBtn.textContent = "Save what I typed, for next time";
