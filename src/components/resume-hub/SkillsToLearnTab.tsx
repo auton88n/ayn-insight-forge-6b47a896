@@ -26,6 +26,17 @@ type Row = {
   learned_at: string | null;
 };
 
+// v3.316.0 — asked directly: when a skill is missing, show a real
+// suggestion for a course that could help. Never a specific invented
+// course title or provider (see BrowseJobs.tsx's own resolveLogoUrl
+// history — this app's standing rule is code decides facts, never a
+// guess dressed up as a real thing), so this is a plain, always-valid
+// search link for the exact skill name already on the row, not a claim
+// that any particular course exists.
+function courseSearchUrl(skill: string): string {
+  return `https://www.coursera.org/search?query=${encodeURIComponent(skill)}`;
+}
+
 type Group = { key: string; job_title: string | null; company: string | null; rows: Row[] };
 
 export default function SkillsToLearnTab({ userId, onOpenJob }: { userId: string; onOpenJob?: (jobId: string) => void }) {
@@ -124,24 +135,42 @@ export default function SkillsToLearnTab({ userId, onOpenJob }: { userId: string
           </div>
           <div className="space-y-1.5">
             {g.rows.map(r => (
-              <button
+              <div
                 key={r.id}
-                type="button"
-                disabled={busy[r.id]}
-                onClick={() => toggleLearned(r)}
-                className="w-full flex items-center gap-2.5 text-left rounded-lg px-2.5 py-2 transition-colors"
+                className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors"
                 style={{ background: r.learned_at ? "transparent" : "var(--rh-tint)" }}
               >
-                {r.learned_at
-                  ? <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "var(--rh-trust, #0f9d6b)" }} />
-                  : <Circle className="w-4 h-4 shrink-0" style={{ color: "var(--rh-muted)" }} />}
-                <span
-                  className="text-sm flex-1"
-                  style={r.learned_at ? { color: "var(--rh-muted)", textDecoration: "line-through" } : undefined}
+                <button
+                  type="button"
+                  disabled={busy[r.id]}
+                  onClick={() => toggleLearned(r)}
+                  className="flex items-center gap-2.5 text-left flex-1 min-w-0"
                 >
-                  {r.skill}
-                </span>
-              </button>
+                  {r.learned_at
+                    ? <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "var(--rh-trust, #0f9d6b)" }} />
+                    : <Circle className="w-4 h-4 shrink-0" style={{ color: "var(--rh-muted)" }} />}
+                  <span
+                    className="text-sm truncate"
+                    style={r.learned_at ? { color: "var(--rh-muted)", textDecoration: "line-through" } : undefined}
+                  >
+                    {r.skill}
+                  </span>
+                </button>
+                {/* v3.316.0 — a real, always-valid search link, not a claim
+                    a specific course exists. Only shown while the skill is
+                    still unlearned; nothing left to suggest once it's checked off. */}
+                {!r.learned_at && (
+                  <a
+                    href={courseSearchUrl(r.skill)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs shrink-0 whitespace-nowrap"
+                    style={{ color: "var(--rh-accent-2)" }}
+                  >
+                    Find a course <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
             ))}
           </div>
         </Card>

@@ -36,6 +36,23 @@
  * "Fill this application" is clicked. Full re-brand alongside it (see the
  * CSS block below): AYN's real "Charcoal & Ember" identity, and every
  * result now reads as structured stat pills and chips instead of prose.
+ *
+ * v3.336.0 -- a "not on file" question can now be answered right in the
+ * panel, once, and AYN remembers it. v3.279.0's own history above
+ * deliberately removed an inline answer box for a real reason -- it typed
+ * an answer into the page with no memory, no reuse, "why does it ask me
+ * questions... what's the point of autofilling." This is the same
+ * interaction back, but with the actual payoff that was missing then:
+ * every answer given here fills the real page field AND saves to the
+ * same answer bank "Save what I typed, for next time" already writes to,
+ * so it's genuinely on file for the next application, not asked again. A
+ * radio-group question (gender identity, veteran status, work
+ * authorization) shows its real options as real, clickable choices, never
+ * a free-text box standing in for a fixed-choice question. A legal
+ * consent line ("I agree to Reddit's Privacy Policy") is deliberately
+ * excluded from all of this -- see CONSENT_CHECKBOX_RE -- that's a
+ * one-time agreement to one employer's own policy, never reusable profile
+ * data, and never something AYN decides for you.
  */
 (() => {
   // v3.279.0 -- real bug, reported directly: "why it vanish and I can't
@@ -185,6 +202,16 @@
   // patterns, one definition, used by both.
   const NOT_RESUME_FIELD = /cover\s*letter|portfolio|writing\s*sample|work\s*sample|transcript|reference|id\b|passport|visa|photo|headshot|video|w-?2|w-?4|i-?9|1099/i;
   const IS_COVER_LETTER_FIELD = /cover\s*letter/i;
+
+  // v3.336.0 -- a legal/privacy consent line ("By selecting 'I agree,'
+  // I understand my responses will be processed in accordance with
+  // Reddit's Candidate Privacy Policy") is not reusable profile data --
+  // it's a one-time agreement to THIS employer's own specific policy.
+  // Never offered an inline answer box or saved to the answer bank, same
+  // as this app has never let AYN tick a consent box on someone's behalf
+  // anywhere else. Everything else "not on file" is a real, fair
+  // candidate for "answer once here, reuse forever."
+  const CONSENT_CHECKBOX_RE = /\bi agree\b|\bi consent\b|\bi acknowledge\b|\bi understand that\b|privacy policy|terms (of|and)/i;
   function findSubmitButton() {
     const native = Array.from(document.querySelectorAll('button[type="submit"], input[type="submit"]')).find(
       (b) => b.offsetParent !== null && !b.disabled
@@ -482,6 +509,56 @@
     return el("span", { class: `chip${tone ? ` chip-${tone}` : ""}`, text });
   }
 
+  // v3.335.0 -- reported directly against a real screenshot: a gap chip
+  // stretching a full requirement sentence ("At least 7+ years of product
+  // management experience, with prior focus internal technical products,
+  // developer tools...") into a pill shape reads exactly like generic
+  // AI-generated UI -- a component built for a short label, forced onto
+  // content it was never meant to hold. missing_keywords/gapAnalysis.
+  // missing come straight from the deterministic gap analysis's own
+  // Requirement.text (see _shared/tailoring.ts), which is the JD's own
+  // wording -- sometimes a real short skill name ("Terraform"), sometimes
+  // a full requirement clause. The web app's own JobsTab already solved
+  // this correctly for its Badge list (truncate long text, full line on
+  // hover) -- this is the same fix, but a truncated pill still LOOKS like
+  // a short keyword chip even shortened, which is the wrong shape for a
+  // real requirement sentence regardless of length. Short items stay
+  // chips; long ones become a real, readable list instead.
+  const GAP_SHORT_MAX = 30;
+  function renderGapItems(container, items) {
+    const shortOnes = [], longOnes = [];
+    for (const g of items) (g.length <= GAP_SHORT_MAX ? shortOnes : longOnes).push(g);
+    const shownShort = shortOnes.slice(0, 6);
+    const shownLong = longOnes.slice(0, 3);
+    if (shownShort.length) {
+      const gapChips = el("div", { class: "chip-list" });
+      for (const g of shownShort) gapChips.appendChild(chip(g, "warn"));
+      container.appendChild(gapChips);
+    }
+    if (shownLong.length) {
+      const list = el("ul", { class: "gap-list" });
+      for (const g of shownLong) list.appendChild(el("li", { text: g }));
+      container.appendChild(list);
+    }
+    const shownCount = shownShort.length + shownLong.length;
+    if (items.length > shownCount) {
+      container.appendChild(el("p", { class: "gap-more", text: `+${items.length - shownCount} more` }));
+    }
+  }
+
+  // v3.334.0 -- the course-link chips (v3.333.0) are reverted here, not
+  // kept alongside a new consent flow. Reported directly: a course
+  // suggestion only belongs once a skill is genuinely ADDED, with the
+  // person's own consent, to match a job -- that's the existing web app
+  // rule (JobsTab's gapSuggestions warns "add one only if you're
+  // genuinely willing to learn it," and only THEN does it land on the
+  // Skills to learn page with its own course link). These chips were
+  // never that -- they're a purely informational "still missing" read
+  // with no add step at all, so a course link here was suggesting
+  // learning material for something the person never committed to. The
+  // extension has no add-a-missing-skill flow of its own yet (unlike
+  // JobsTab); building one is real, separate work, not done here.
+
   // v3.332.0 -- rebuilt from a paragraph into real, scannable cards.
   // Reported directly against a live screenshot: "why i have a chunk of
   // writing instead of smart cards." The old version rendered m.summary
@@ -514,14 +591,10 @@
     ]);
     right.appendChild(pills);
 
-    const missing = (m.missing_keywords || []).slice(0, 4);
-    const missingMore = (m.missing_keywords || []).length - missing.length;
+    const missing = m.missing_keywords || [];
     if (missing.length) {
       right.appendChild(el("p", { class: "fit-gaps-label", text: "Real gaps AYN found" }));
-      const gapChips = el("div", { class: "chip-list" });
-      for (const g of missing) gapChips.appendChild(chip(g, "warn"));
-      if (missingMore > 0) gapChips.appendChild(chip(`+${missingMore} more`));
-      right.appendChild(gapChips);
+      renderGapItems(right, missing);
     }
 
     return el("div", { class: "fit-card" }, [ring, right]);
@@ -580,13 +653,11 @@
       card.appendChild(box);
     }
 
-    const stillMissing = (r.gapAnalysis && r.gapAnalysis.missing || []).slice(0, 4);
+    const stillMissing = (r.gapAnalysis && r.gapAnalysis.missing) || [];
     if (stillMissing.length) {
       const box = el("div", { class: "diff-card" });
       box.appendChild(el("p", { class: "diff-card-label", text: "Still not on your resume" }));
-      const chips = el("div", { class: "chip-list" });
-      for (const g of stillMissing) chips.appendChild(chip(g, "warn"));
-      box.appendChild(chips);
+      renderGapItems(box, stillMissing);
       card.appendChild(box);
     }
 
@@ -624,6 +695,11 @@
   const fillTextLike = window.__aynFillTextLike;
   const fillRadio = window.__aynFillRadio;
   const detectPlatform = window.__aynDetectPlatform;
+  // v3.334.0 -- these two were never exposed before; see frame_agent.js's
+  // own matching comment on why watchForNewFields() calling them bare
+  // (queryDeep(...), visible(...)) was a real, live "not defined" crash.
+  const queryDeep = window.__aynQueryDeep;
+  const visible = window.__aynVisible;
   function fieldRegistry_() { return window.__aynFieldRegistry(); }
 
 
@@ -713,9 +789,27 @@
       font-size: 14.5px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
     .head-title { font-size: 12px; font-weight: 500; color: var(--muted); overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap; }
-    .close { cursor: pointer; background: none; border: none; color: var(--muted); font-size: 17px; line-height: 1;
-      padding: 5px; border-radius: 7px; flex-shrink: 0; }
-    .close:hover { background: var(--bg); color: var(--ink); }
+    .head-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+    .head-btn { cursor: pointer; background: none; border: none; color: var(--muted); line-height: 1;
+      padding: 6px 7px; border-radius: 7px; }
+    .head-btn:hover { background: var(--bg); color: var(--ink); }
+    .close { font-size: 17px; }
+    .head-btn.back { font-size: 15px; font-weight: 700; }
+
+    /* Floating re-open tab -- v3.340.0. Docked to the right edge, only
+       ever shown once the panel has been minimized (never alongside it),
+       so the person always has a one-click way back in without hunting
+       for the toolbar icon again -- the same pattern a real competitor
+       (Jobright) already uses, requested directly. */
+    .tab { display: none; align-items: center; justify-content: center; width: 46px; height: 60px;
+      background: var(--gradient); border: none; border-radius: 16px 0 0 16px; cursor: pointer; padding: 0;
+      box-shadow: -3px 3px 16px -5px rgba(28,23,18,0.4), 0 2px 10px -2px rgba(232,93,58,0.45);
+      transition: width 0.15s ease, box-shadow 0.15s ease; }
+    .tab:hover { width: 54px; box-shadow: -4px 4px 20px -5px rgba(28,23,18,0.45), 0 3px 12px -2px rgba(232,93,58,0.55); }
+    .tab:active { width: 46px; }
+    .tab-mark-wrap { width: 32px; height: 32px; border-radius: 50%; background: var(--card);
+      display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,0.18); flex-shrink: 0; }
+    .tab-mark { width: 21px; height: 21px; border-radius: 6px; display: block; }
     .body { padding: 18px; overflow-y: auto; flex: 1; }
     .row { margin-bottom: 14px; }
     label.field-label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
@@ -765,6 +859,10 @@
       font-size: 11.5px; font-weight: 500; background: var(--bg); color: var(--ink); border: 1px solid var(--border); }
     .chip-warn { background: rgba(176,57,42,0.07); color: var(--warn); border-color: rgba(176,57,42,0.18); }
     .chip-ok { background: rgba(27,123,71,0.08); color: var(--trust); border-color: rgba(27,123,71,0.2); }
+    .gap-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+    .gap-list li { font-size: 12.5px; line-height: 1.5; color: var(--ink); padding-left: 13px; position: relative; }
+    .gap-list li::before { content: "•"; position: absolute; left: 0; top: 0; color: var(--warn); font-weight: 700; }
+    .gap-more { font-size: 11.5px; color: var(--muted); margin: 6px 0 0; }
 
     /* Ready/landing screen -- the first thing shown, click required before
        AYN touches the page. */
@@ -800,6 +898,18 @@
   panel.className = "panel";
   root.appendChild(panel);
 
+  // v3.340.0 -- the floating re-open tab. Lives in the same shadow root
+  // as the panel, always in the DOM, hidden until minimizePanel() first
+  // shows it. Built with the same el() helper as everything else, which
+  // is safe to call here even though its own declaration sits a few
+  // lines below -- a `function` declaration is hoisted through this
+  // whole closure, not just a `const`.
+  const tabMark = el("img", { class: "tab-mark", src: chrome.runtime.getURL("icon48.png"), alt: "" });
+  const tab = el("button", { class: "tab", "aria-label": "Open AYN" }, [
+    el("span", { class: "tab-mark-wrap" }, [tabMark]),
+  ]);
+  root.appendChild(tab);
+
   function el(tag, props = {}, children = []) {
     const e = document.createElement(tag);
     for (const [k, v] of Object.entries(props)) {
@@ -811,7 +921,17 @@
     for (const c of children) if (c) e.appendChild(c);
     return e;
   }
-  function buildHead(title) {
+  // v3.340.0 -- session is now a second, optional argument so every
+  // screen can offer a real "back to the main screen" button, not just
+  // a way to dismiss the whole thing. Reported directly: the panel
+  // needed to be "easy to navigate" -- before this, "No form found",
+  // "Couldn't read your profile", "Filled", and every other deep screen
+  // had nothing but a title and a close button; the only way back to
+  // anything useful was closing AYN and reopening it from scratch.
+  // Omitted on the sign-in screen (no session exists yet) and on Ready
+  // to help itself (already home -- a back button there would just
+  // reload the same screen it's sitting on).
+  function buildHead(title, session) {
     // The real, already-bundled toolbar icon -- the same image Chrome
     // itself already shows for this extension -- not an invented mark.
     // web_accessible_resources makes chrome.runtime.getURL() loadable as
@@ -826,7 +946,15 @@
         el("span", { class: "head-title", text: title }),
       ]),
     ]);
-    return el("div", { class: "head" }, [left, el("button", { class: "close", text: "×", onclick: closePanel })]);
+    const actions = [];
+    if (session && title !== "Ready to help") {
+      actions.push(el("button", {
+        class: "head-btn back", text: "←", "aria-label": "Back to AYN",
+        onclick: () => showReady(session),
+      }));
+    }
+    actions.push(el("button", { class: "head-btn close", text: "×", "aria-label": "Minimize AYN", onclick: minimizePanel }));
+    return el("div", { class: "head" }, [left, el("div", { class: "head-actions" }, actions)]);
   }
   function clearPanel() { panel.innerHTML = ""; }
 
@@ -848,18 +976,45 @@
     return box;
   }
 
+  // v3.340.0 -- was a hard closePanel() that host.remove()'d the whole
+  // thing, so the only way back in was the toolbar icon or detector.js
+  // re-triggering. Reported directly, asking for the same floating-tab
+  // pattern a real competitor (Jobright) already has: minimizing now
+  // collapses the panel to a small tab docked on the right edge instead
+  // of destroying it, and every screen's content stays exactly as it
+  // was underneath -- reopening never re-fetches or re-charges anything,
+  // it just shows what was already there. host's own CSS has to shrink
+  // to wrap just the tab while minimized, not stay pinned at 100vh --
+  // a fixed-position div with no explicit width shrinks to its visible
+  // content's width, but height:100vh was a hardcoded literal, and a
+  // "transparent" box still intercepts clicks over its own geometry
+  // regardless of what's actually painted -- left as 100vh, minimizing
+  // would have left an invisible column blocking clicks on the real
+  // page for the tab's whole height, most of it nowhere near the tab.
+  const FULL_HOST_CSS = "all: initial; position: fixed; top: 0; right: 0; height: 100vh; z-index: 2147483647;";
+  const MINI_HOST_CSS = "all: initial; position: fixed; top: 50%; right: 0; transform: translateY(-50%); height: auto; z-index: 2147483647;";
   let liveObserver = null;
-  function closePanel() {
+  function minimizePanel() {
     if (liveObserver) { liveObserver.disconnect(); liveObserver = null; }
-    host.remove();
+    panel.style.display = "none";
+    tab.style.display = "flex";
+    host.style.cssText = MINI_HOST_CSS;
     // v3.326.0 -- detector.js (auto-open on a real, recognized apply
     // page, see its own header) checks this before ever triggering
-    // again on the same page load. Closing the panel is a real,
-    // deliberate "not now" -- without this, a page that keeps matching
-    // the same detection signal (an unchanged URL, an unchanged field
-    // count) would just pop straight back open the moment it closed.
+    // again on the same page load. Minimizing is a real, deliberate
+    // "not now" -- without this, a page that keeps matching the same
+    // detection signal (an unchanged URL, an unchanged field count)
+    // would just pop straight back open the moment it minimized. It
+    // never blocks the person's OWN click on the tab below -- that's a
+    // direct, explicit action, not detector.js reopening anything.
     window.__aynAutoDismissed = true;
   }
+  function expandPanel() {
+    tab.style.display = "none";
+    panel.style.display = "";
+    host.style.cssText = FULL_HOST_CSS;
+  }
+  tab.addEventListener("click", expandPanel);
 
   // v3.285.0 -- a real, adoptable improvement: a multi-step wizard or a
   // form that reveals more fields after an earlier answer (e.g. "Yes" to
@@ -953,7 +1108,7 @@
   // itself until one of its buttons is actually clicked.
   async function showReady(session) {
     clearPanel();
-    panel.appendChild(buildHead("Ready to help"));
+    panel.appendChild(buildHead("Ready to help", session));
     const body = el("div", { class: "body" });
 
     const fitSlot = el("div", {});
@@ -991,7 +1146,7 @@
     // never a second, different flow than the one Fill leads to.
     function afterAttach(title, r, diffCard) {
       clearPanel();
-      panel.appendChild(buildHead(title));
+      panel.appendChild(buildHead(title, session));
       const b2 = el("div", { class: "body" });
       b2.appendChild(el("p", { class: "ok", text: "Attached. It'll go out with the application when you submit." }));
       b2.appendChild(diffCard);
@@ -1047,7 +1202,7 @@
     body.appendChild(stack);
 
     const notNow = el("button", { class: "not-now", text: "Not now" });
-    notNow.addEventListener("click", closePanel);
+    notNow.addEventListener("click", minimizePanel);
     body.appendChild(notNow);
 
     panel.appendChild(body);
@@ -1061,7 +1216,7 @@
   // the ready screen above (v3.332.0), never automatically.
   async function autofill(session, opts = {}) {
     clearPanel();
-    panel.appendChild(buildHead("Autofilling…"));
+    panel.appendChild(buildHead("Autofilling…", session));
     panel.appendChild(el("div", { class: "body" }, [el("p", { class: "muted", text: "Reading this page and matching it to your AYN profile…" })]));
     // Fired off now, overlapping with the extraction/matching work below,
     // rather than adding its own separate wait later. v3.332.0 -- a caller
@@ -1231,7 +1386,7 @@
 
     if (!fields.length && !skipped.length) {
       clearPanel();
-      panel.appendChild(buildHead("No form found"));
+      panel.appendChild(buildHead("No form found", session));
       const wn = wizardNotice(wizardStep);
       if (wn) panel.appendChild(wn);
       panel.appendChild(el("div", { class: "body" }, [el("p", { class: "muted", text: "Couldn't find a fillable application form on this page." })]));
@@ -1243,7 +1398,7 @@
       // preference, never a fact to guess), but real, so say so plainly
       // rather than a generic "no form found."
       clearPanel();
-      panel.appendChild(buildHead("Nothing to autofill here"));
+      panel.appendChild(buildHead("Nothing to autofill here", session));
       const wn2 = wizardNotice(wizardStep);
       if (wn2) panel.appendChild(wn2);
       const body = el("div", { class: "body" });
@@ -1259,7 +1414,7 @@
       result = await callHub(session, { action: "auto_apply_extract", fields });
     } catch (e) {
       clearPanel();
-      panel.appendChild(buildHead("Couldn't read your profile"));
+      panel.appendChild(buildHead("Couldn't read your profile", session));
       panel.appendChild(el("div", { class: "body" }, [el("p", { class: "warn", text: e.message })]));
       return;
     }
@@ -1344,8 +1499,20 @@
         failed.push(shownLabel);
       }
     }
+    // v3.336.0 -- radioNotOnFileTracked keeps each unmatched group's real
+    // groupName (the backend's own radioMatches shape already returns this
+    // -- see index.ts's radioGroupsByName), the one thing the earlier
+    // "not on file" list never kept, so the results screen below can look
+    // up that group's REAL options from the local fields array and offer
+    // them as real, clickable choices -- never invented, never a free-text
+    // box standing in for a fixed-choice question.
+    const radioNotOnFileTracked = [];
     for (const r of radioRows) {
-      if (!r.chosenFieldId) { notOnFile.push(r.groupLabel); continue; }
+      if (!r.chosenFieldId) {
+        notOnFile.push(r.groupLabel);
+        radioNotOnFileTracked.push({ groupName: r.groupName, groupLabel: r.groupLabel });
+        continue;
+      }
       const res = await fillRadioAny(r.chosenFieldId);
       if (res.ok) {
         filledCount++;
@@ -1356,7 +1523,7 @@
     }
 
     clearPanel();
-    panel.appendChild(buildHead("Filled"));
+    panel.appendChild(buildHead("Filled", session));
     const wn3 = wizardNotice(wizardStep);
     if (wn3) panel.appendChild(wn3);
     const body = el("div", { class: "body" });
@@ -1379,9 +1546,116 @@
       body.appendChild(box);
     }
 
-    const stillNeeded = [...notOnFile, ...failed];
+    // v3.336.0 -- reported directly: answering a "not on file" question
+    // should happen right here, once, and be remembered -- not "type it
+    // on the real page every single time." The v3.279.0 history above
+    // removed an inline answer box for a real, different reason: it typed
+    // an answer with no payoff, no memory, no reuse -- "why does it ask
+    // me questions... what's the point of autofilling." This is not that.
+    // Every answer given here does two real things in one click: fills
+    // the actual page field via the same fillTextLike/fillRadio this
+    // whole panel already trusts, AND saves to user_answer_bank via the
+    // existing auto_apply_save_answer action -- the same store "Save what
+    // I typed, for next time" already writes to -- so the next
+    // application, on any site, gets it from your real AYN profile like
+    // everything else. A legal consent line ("I agree to Reddit's
+    // Privacy Policy") is deliberately excluded -- see CONSENT_CHECKBOX_RE
+    // -- that's a one-time agreement to one employer's own policy, never
+    // reusable profile data, and never something AYN decides for you.
+    const answeredLabels = new Set();
+
+    function buildTextAnswerRow(fieldId, label) {
+      answeredLabels.add(displayLabel(fieldId, label));
+      const row = el("div", { class: "callout-neutral" });
+      row.appendChild(el("p", { text: label, style: "margin: 0 0 8px; font-weight: 600; font-size: 13px;" }));
+      const input = el("input", { type: "text", placeholder: "Type your answer", style: "flex: 1;" });
+      const saveBtn = el("button", { class: "btn btn-primary btn-sm", text: "Save & fill" });
+      const statusP = el("p", { class: "muted", text: "", style: "margin: 6px 0 0; font-size: 11.5px;" });
+      const inputRow = el("div", { style: "display: flex; gap: 6px;" }, [input, saveBtn]);
+      saveBtn.addEventListener("click", async () => {
+        const val = input.value.trim();
+        if (!val) { statusP.textContent = "Type an answer first."; return; }
+        saveBtn.disabled = true; input.disabled = true; saveBtn.textContent = "Saving…";
+        const targetEl = fieldRegistry_().get(fieldId);
+        const fillRes = targetEl ? await fillTextLikeAny(fieldId, val, label) : { ok: false };
+        let savedOk = false;
+        try {
+          await callHub(session, { action: "auto_apply_save_answer", label, answer: val });
+          savedOk = true;
+        } catch (e) {
+          // Best effort -- the real page fill above is the more important
+          // half and must not be undone by a save failing.
+        }
+        if (fillRes.ok) {
+          saveBtn.textContent = "Filled ✓"; saveBtn.style.background = "#1b7b47"; saveBtn.style.color = "#fff";
+          statusP.textContent = savedOk
+            ? "Saved to your AYN profile, for next time too."
+            : "Filled on the page, but couldn't save it for reuse -- try again later.";
+        } else {
+          saveBtn.disabled = false; input.disabled = false; saveBtn.textContent = "Save & fill";
+          statusP.textContent = "Couldn't fill this on the page -- type it there directly instead.";
+        }
+      });
+      row.appendChild(inputRow);
+      row.appendChild(statusP);
+      return row;
+    }
+
+    function buildRadioAnswerRow(groupName, groupLabel) {
+      // Every option here is real, structural data this exact page already
+      // has -- never invented, never a free-text box standing in for what
+      // the real form only ever offers as a fixed choice.
+      const options = fields.filter((f) => f.radioGroup === groupName && f.label);
+      if (!options.length) return null;
+      answeredLabels.add(groupLabel);
+      const row = el("div", { class: "callout-neutral" });
+      row.appendChild(el("p", { text: groupLabel, style: "margin: 0 0 8px; font-weight: 600; font-size: 13px;" }));
+      const statusP = el("p", { class: "muted", text: "", style: "margin: 6px 0 0; font-size: 11.5px;" });
+      const optRow = el("div", { style: "display: flex; flex-wrap: wrap; gap: 6px;" });
+      for (const opt of options) {
+        const btn = el("button", { class: "btn btn-ghost btn-sm", text: opt.label });
+        btn.addEventListener("click", async () => {
+          for (const b of Array.from(optRow.children)) b.disabled = true;
+          btn.textContent = "Filling…";
+          const res = await fillRadioAny(opt.id);
+          let savedOk = false;
+          try {
+            await callHub(session, { action: "auto_apply_save_answer", label: groupLabel, answer: opt.label });
+            savedOk = true;
+          } catch (e) {
+            // Best effort -- see buildTextAnswerRow's own note above.
+          }
+          if (res.ok) {
+            btn.textContent = `${opt.label} ✓`; btn.style.background = "#1b7b47"; btn.style.color = "#fff";
+            statusP.textContent = savedOk
+              ? "Saved to your AYN profile, for next time too."
+              : "Selected on the page, but couldn't save it for reuse -- try again later.";
+          } else {
+            for (const b of Array.from(optRow.children)) b.disabled = false;
+            btn.textContent = opt.label;
+            statusP.textContent = "Couldn't select this on the page -- choose it there directly instead.";
+          }
+        });
+        optRow.appendChild(btn);
+      }
+      row.appendChild(optRow);
+      row.appendChild(statusP);
+      return row;
+    }
+
+    const answerableText = notOnFileTracked.filter((t) => !CONSENT_CHECKBOX_RE.test(t.label));
+    if (answerableText.length || radioNotOnFileTracked.length) {
+      body.appendChild(el("p", { class: "warn", text: "Not on file yet — answer once here, AYN remembers it for next time:" }));
+      for (const t of answerableText) body.appendChild(buildTextAnswerRow(t.fieldId, t.label));
+      for (const r of radioNotOnFileTracked) {
+        const rowEl = buildRadioAnswerRow(r.groupName, r.groupLabel);
+        if (rowEl) body.appendChild(rowEl);
+      }
+    }
+
+    const stillNeeded = [...notOnFile, ...failed].filter((f) => !answeredLabels.has(f));
     if (stillNeeded.length) {
-      body.appendChild(el("p", { class: "warn", text: "Not on file yet — fill these directly on the page:" }));
+      body.appendChild(el("p", { class: "warn", text: "Fill these directly on the page:" }));
       const ul = el("ul", { class: "fail-list" });
       for (const f of stillNeeded) ul.appendChild(el("li", { text: f }));
       body.appendChild(ul);
@@ -1745,7 +2019,12 @@
         saveAnswersBtn.disabled = true; saveAnswersBtn.textContent = "Saving…"; saveStatusP.textContent = "";
         const toSave = [];
         for (const t of notOnFileTracked) {
-          if (!t.fieldId) continue;
+          // v3.336.0 -- same exclusion as the new inline answer rows
+          // above: a consent-checkbox label is never reusable profile
+          // data, so this bulk fallback can't save one either, even if
+          // someone happened to type something into that exact field on
+          // the real page themselves.
+          if (!t.fieldId || CONSENT_CHECKBOX_RE.test(t.label)) continue;
           const el2 = fieldRegistry_().get(t.fieldId);
           const val = el2 && typeof el2.value === "string" ? el2.value.trim() : "";
           if (val) toSave.push({ label: t.label, answer: val });
@@ -1791,7 +2070,7 @@
     body.appendChild(trackBtn);
 
     const closeBtn = el("button", { class: "btn btn-ghost", text: "Done", style: "width:100%" });
-    closeBtn.addEventListener("click", closePanel);
+    closeBtn.addEventListener("click", minimizePanel);
     body.appendChild(closeBtn);
     panel.appendChild(body);
     watchForNewFields(session);

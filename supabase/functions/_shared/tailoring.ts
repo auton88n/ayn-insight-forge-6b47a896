@@ -1113,6 +1113,30 @@ export function verifyKeywordAlignment(gap: GapAnalysis, outputResume: unknown):
   const gaps: string[] = [];
   for (const req of gap.matched) {
     if (terms(req.text, 1).length > 4) continue;
+    // v3.337.0 — real, live bug: found by actually calling `tailor` end to
+    // end and reading the output resume, not just reading this code. A
+    // requirement like "Experience with Python for building data
+    // pipelines" is a full sentence, but three of its seven words
+    // ("experience", "with", "for") are in STOP, so it reduces to exactly
+    // 4 real terms — right at the >4 cutoff above, so it wasn't skipped,
+    // and this function's whole job downstream (index.ts's own tailorObj.
+    // skills = [...skills, ...toGuarantee]) is to append whatever survives
+    // here VERBATIM into the resume's skills array. The result: a skills
+    // section entry reading as a run-on JD sentence, not an atomic term —
+    // exactly the shape of thing that reads badly to a human reviewer and
+    // to any ATS parser expecting a skills LIST, not prose. The stopword-
+    // filtered term count was never meant to be a proxy for "is this a
+    // full sentence" on its own — a raw length floor catches what it
+    // misses. Every real short atomic term this function exists to
+    // guarantee (PostgreSQL, Kubernetes, CI/CD pipeline, distributed
+    // systems design) comfortably clears real use under 35 characters;
+    // nothing is lost by skipping longer ones here, since the underlying
+    // short skill (e.g. "Python") already exists in skills independently
+    // whenever this fallback would otherwise have fired — this function
+    // only guarantees the LITERAL matched requirement text, never the
+    // short term extracted from it, so a long one was never safe to
+    // guarantee verbatim in the first place.
+    if (req.text.length > 35) continue;
     if (!hasTermInOutput(req.text)) gaps.push(req.text);
   }
   return gaps.slice(0, 8);

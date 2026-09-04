@@ -5,6 +5,21 @@
 // Do Not Sell, the legal documents) already uses, so it reads as a real
 // page on the site, not a one-off. Public -- no sign-in needed to read
 // what it is or download it, matching every other public page here.
+//
+// v3.334.0 -- brought current with what the extension actually does now,
+// not what it did when this page was written. Two real capabilities the
+// v3.330.0/v3.331.0 panel redesign shipped were never mentioned here: the
+// free fit/score check that loads the moment the panel opens, and Tailor
+// resume / Write cover letter as real, explicit per-job actions with a
+// real before-and-after, not a button that just flips to a checkmark.
+// Also swept and fixed six real em/en dash violations of this app's own
+// standing house style, one of them a leftover &mdash; entity.
+//
+// v3.336.0 -- the "shows you anything it couldn't fill" line stopped
+// being true the moment content.js gained real inline answer-and-save
+// rows for a not-on-file question (a real fixed-choice one included, not
+// just free text). Updated to describe what that button pair actually
+// does now, not just that a gap is named.
 import { useEffect } from 'react';
 import { Download, CheckCircle2 } from 'lucide-react';
 import { SEO } from '@/components/shared/SEO';
@@ -15,22 +30,23 @@ const STEPS = [
   { n: 1, text: 'Download the extension below, then unzip it.' },
   { n: 2, text: 'Open chrome://extensions and turn on "Developer mode" (top right).' },
   { n: 3, text: 'Click "Load unpacked" and select the unzipped folder.' },
-  { n: 4, text: 'That’s it — on a real application page on a site AYN recognizes, it opens on its own. Anywhere else, click the AYN icon in your toolbar (or press Ctrl+Shift+Y — Cmd+Shift+Y on Mac). No need to save the job in AYN first.' },
+  { n: 4, text: 'That’s it. On a real application page on a site AYN recognizes, it opens on its own. Anywhere else, click the AYN icon in your toolbar (or press Ctrl+Shift+Y, Cmd+Shift+Y on Mac). No need to save the job in AYN first.' },
 ];
 
 const WHAT_IT_DOES = [
   'Recognizes a real application page on its own, on sites AYN already knows, and opens there without you clicking anything. Close it once on a page and it stays closed there, so it never fights you.',
-  'Reads the real, visible fields on the application page in front of you — including a real resume upload, filled from your primary AYN resume.',
-  'Matches them against your own AYN profile — name, email, phone, and the same answer-matching AYN already uses elsewhere.',
-  'Fills what it finds, and shows you anything it couldn’t.',
+  'Scores how well you fit the role the moment it opens, free, no click needed. A real match percentage, broken down by skills, experience, and education, plus the specific things you are missing, computed the same way as the rest of AYN, not just described.',
+  'Fills the page from your real, visible fields once you click Fill, including a real resume upload from your primary AYN resume, matched against your own AYN profile, name, email, phone, and the same answer-matching AYN already uses elsewhere.',
+  'Can tailor your resume or write a cover letter for this specific job, right there, as its own real action. You see a before-and-after of what actually changed, not just a checkmark next to a file you would have to download to read.',
+  'Anything not on file yet, you can answer right in the panel, including a real question with a fixed set of choices, not just a text box. It fills the real page and remembers the answer, so it is genuinely on file the next time, not asked again.',
   'For an open-ended question it writes an honest answer for, you can tell it how to make that one answer better (shorter, mention a specific skill) and it rewrites just that field.',
   'Can submit the application for you too, but only once you’ve explicitly turned that on. Off by default, and it still won’t submit an honestly incomplete application even when it’s on.',
 ];
 
 const WHAT_IT_NEVER_DOES = [
-  'Never invents a value — every field it fills traces back to something real on your AYN profile.',
-  'Never submits without your explicit, separate agreement — by default it fills and stops, same as any other autofill tool, and you review and submit yourself.',
-  'Never tries to look more "human" to get past a site’s own bot detection — it runs in your real browser, as you, so there’s nothing to get past.',
+  'Never invents a value. Every field it fills traces back to something real on your AYN profile.',
+  'Never submits without your explicit, separate agreement. By default it fills and stops, same as any other autofill tool, and you review and submit yourself.',
+  'Never tries to look more "human" to get past a site’s own bot detection. It runs in your real browser, as you, so there’s nothing to get past.',
 ];
 
 export default function Autofill() {
@@ -67,7 +83,7 @@ export default function Autofill() {
                 <Download size={16} /> Download AYN Autofill
               </a>
               <p className="text-xs" style={{ color: 'hsl(var(--lp-dim))' }}>
-                A .zip file. Not on the Chrome Web Store yet &mdash; installed the same way any
+                A .zip file. Not on the Chrome Web Store yet, installed the same way any
                 developer extension is, in a few clicks below.
               </p>
 

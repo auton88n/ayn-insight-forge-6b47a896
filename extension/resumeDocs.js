@@ -60,7 +60,7 @@
     }
 
     if ((c.certifications || []).length) {
-      blocks.push({ kind: "header", text: "CERTIFICATIONS", gapBefore: 12 });
+      blocks.push({ kind: "header", text: "CERTIFICATIONS & LICENSES", gapBefore: 12 });
       blocks.push({ kind: "plain", text: (c.certifications || []).join(", "), gapBefore: 7 });
     }
 
@@ -174,29 +174,38 @@
   // one static, un-tailored resume file, and had nothing at all to offer
   // for a real "Cover Letter" upload field -- both capabilities already
   // exist in AYN's own web app (the tailor/cover_letter actions), just
-  // never wired into the extension's own file-attach step. This is that
-  // second, much simpler builder a plain cover-letter body needs -- no
-  // block model, no shrink-to-fit ladder, just wrapped paragraph text at
-  // a fixed, comfortable letter size, since a real cover letter (per
-  // this app's own house style, under ~300 words) essentially always
-  // fits one page on its own; a genuinely long one still spills to a
-  // real second page rather than being clipped.
+  // never wired into the extension's own file-attach step.
+  //
+  // v3.339.0 -- reported directly: "why you have different type of resume
+  // tailoring in the extension, it should be the same formatting and rules
+  // as the web app." The resume builder above already was a faithful,
+  // line-for-line port (see this file's own top comment); this one never
+  // was -- it was a genuinely separate, hand-written implementation:
+  // split on PARAGRAPH breaks with an extra hand-tuned gap between them
+  // (lineH * 0.6, nothing web does), a different line height (15.5 vs the
+  // web's TEXT_SIZE * 1.45 = 15.95), and a capitalized "Helvetica" (jsPDF
+  // normalizes this internally so it wasn't actually a bug, confirmed
+  // live before assuming it was, but still worth matching the lowercase
+  // spelling every other call in this codebase uses). Rewritten as an
+  // exact port of src/lib/resumeDocs.ts's own buildTextPdfBlob: split on
+  // every single newline, one uniform line height, no extra paragraph
+  // spacing invented on this side. A cover letter attached from here is
+  // now genuinely the same document the web app would have produced from
+  // the identical text, not a second, different-looking rendering of it.
+  const TEXT_SIZE = 11;
   window.__aynBuildCoverLetterPdfBlob = function (bodyText) {
     const doc = new jsPDF({ unit: "pt", format: "letter" });
-    const width = PAGE_W - MARGIN * 2;
-    const lineH = 15.5;
-    doc.setFont("Helvetica", "normal");
-    doc.setFontSize(11);
-    const paragraphs = String(bodyText || "").split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(TEXT_SIZE);
+    const lineH = TEXT_SIZE * 1.45;
     let y = MARGIN;
-    for (const para of paragraphs) {
-      const wrapped = doc.splitTextToSize(para, width);
+    for (const para of String(bodyText == null ? "" : bodyText).split(/\n/)) {
+      const wrapped = para.trim() ? doc.splitTextToSize(para, CONTENT_W) : [""];
       for (const line of wrapped) {
         if (y > PAGE_H - MARGIN) { doc.addPage(); y = MARGIN; }
         doc.text(line, MARGIN, y);
         y += lineH;
       }
-      y += lineH * 0.6;
     }
     return doc.output("blob");
   };

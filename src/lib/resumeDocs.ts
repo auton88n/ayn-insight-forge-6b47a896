@@ -55,7 +55,7 @@ export function resumeToText(c: ResumeContent): string {
       lines.push("");
     });
   }
-  if ((c.certifications ?? []).length) lines.push("CERTIFICATIONS", (c.certifications ?? []).join(", "), "");
+  if ((c.certifications ?? []).length) lines.push("CERTIFICATIONS & LICENSES", (c.certifications ?? []).join(", "), "");
   if ((c.education ?? []).length) {
     lines.push("EDUCATION");
     (c.education ?? []).forEach(e =>
@@ -127,7 +127,7 @@ function buildResumeBlocks(c: ResumeContent): DocBlock[] {
   }
 
   if ((c.certifications ?? []).length) {
-    blocks.push({ kind: "header", text: "CERTIFICATIONS", gapBefore: 12 });
+    blocks.push({ kind: "header", text: "CERTIFICATIONS & LICENSES", gapBefore: 12 });
     blocks.push({ kind: "plain", text: (c.certifications ?? []).join(", "), gapBefore: 7 });
   }
 

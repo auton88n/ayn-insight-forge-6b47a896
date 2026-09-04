@@ -1652,6 +1652,20 @@
   window.__aynFieldRegistry = () => fieldRegistry;
   window.__aynFillTextLike = fillTextLike;
   window.__aynFillRadio = fillRadio;
+  // v3.334.0 -- real, live bug found via a real user's own chrome://
+  // extensions error log: content.js's watchForNewFields() calls
+  // queryDeep()/visible() directly, assuming they're in scope -- but
+  // content.js and this file are two separate content scripts, each
+  // wrapped in its own IIFE, so a plain top-level `function` declared in
+  // here was never actually reachable from there, only ever whatever this
+  // file explicitly assigns onto window (the five lines above). Every
+  // other __ayn* export here is a thin function reference for exactly
+  // this reason; these two are the same pattern, not new logic --
+  // exposing the real, already-hardened visible() (the aria-hidden/inert
+  // walk, the honeypot checks from a real Cisco/Workday incident) rather
+  // than have content.js grow a second, simpler, silently-diverging copy.
+  window.__aynQueryDeep = queryDeep;
+  window.__aynVisible = visible;
   window.__aynDetectPlatform = detectPlatform;
 
   // v3.294.0 -- sub-frame self-report + fill-request listener. The top

@@ -1234,6 +1234,35 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           </datalist>
         </div>
 
+        {/* v3.338.0 -- reordered ahead of Education, and relabeled to name
+            a license explicitly, not just a certificate: "for all resumes
+            we have to have certification and license before education."
+            The generated document (resumeDocs.ts's buildResumeBlocks, and
+            the extension's own ported copy) has always rendered this
+            section before Education -- this form's own field order never
+            matched that, so someone filling it out saw the opposite order
+            from what their actual downloaded resume shows. Matched here. */}
+        {/* Certifications & licenses */}
+        <div className="space-y-2 pt-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Certifications &amp; licenses ({career.certifications.length})</p>
+            <Button variant="ghost" size="sm" onClick={() => setCareer(p => ({ ...p, certifications: [...p.certifications, { name: "" }] }))}>
+              <Plus className="w-4 h-4 mr-1" /> Add certification or license
+            </Button>
+          </div>
+          {career.certifications.length === 0 && <p className="text-xs text-muted-foreground">No certifications or licenses yet.</p>}
+          {career.certifications.map((c, i) => (
+            <div key={i} className="grid grid-cols-1 sm:grid-cols-3 gap-3 border rounded-lg p-3">
+              <PlainField label="Certification or license" value={c.name} onChange={v => updateCert(i, { ...c, name: v })} onBlur={queueSave} placeholder="AWS Certified Solutions Architect, or Registered Nurse License" />
+              <PlainField label="Issuer" value={c.issuer || ""} onChange={v => updateCert(i, { ...c, issuer: v })} onBlur={queueSave} placeholder="Amazon Web Services, or College of Nurses of Ontario" />
+              <PlainField label="Year" value={c.year || ""} onChange={v => updateCert(i, { ...c, year: v })} onBlur={queueSave} />
+              <div className="sm:col-span-3 flex justify-end">
+                <Button variant="ghost" size="sm" onClick={() => { removeAt(setCareer, "certifications", i); queueSave(); }}>Remove</Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
         {/* Education */}
         <div className="space-y-2 pt-4">
           <div className="flex items-center justify-between">
@@ -1251,27 +1280,6 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
               <PlainField label="End year" value={e.end || ""} onChange={v => updateEdu(i, { ...e, end: v })} onBlur={queueSave} />
               <div className="sm:col-span-2 flex justify-end">
                 <Button variant="ghost" size="sm" onClick={() => { removeAt(setCareer, "education", i); queueSave(); }}>Remove</Button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Certificates */}
-        <div className="space-y-2 pt-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Certificates ({career.certifications.length})</p>
-            <Button variant="ghost" size="sm" onClick={() => setCareer(p => ({ ...p, certifications: [...p.certifications, { name: "" }] }))}>
-              <Plus className="w-4 h-4 mr-1" /> Add certificate
-            </Button>
-          </div>
-          {career.certifications.length === 0 && <p className="text-xs text-muted-foreground">No certificates yet.</p>}
-          {career.certifications.map((c, i) => (
-            <div key={i} className="grid grid-cols-1 sm:grid-cols-3 gap-3 border rounded-lg p-3">
-              <PlainField label="Certificate" value={c.name} onChange={v => updateCert(i, { ...c, name: v })} onBlur={queueSave} placeholder="AWS Certified Solutions Architect" />
-              <PlainField label="Issuer" value={c.issuer || ""} onChange={v => updateCert(i, { ...c, issuer: v })} onBlur={queueSave} placeholder="Amazon Web Services" />
-              <PlainField label="Year" value={c.year || ""} onChange={v => updateCert(i, { ...c, year: v })} onBlur={queueSave} />
-              <div className="sm:col-span-3 flex justify-end">
-                <Button variant="ghost" size="sm" onClick={() => { removeAt(setCareer, "certifications", i); queueSave(); }}>Remove</Button>
               </div>
             </div>
           ))}

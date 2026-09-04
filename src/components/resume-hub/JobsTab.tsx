@@ -721,18 +721,32 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                       your Skills to learn page, so you have a real reason to actually pick it up.
                     </p>
                     {gapSuggestions.map((s, idx) => (
-                      <div key={s.text} className="flex items-center gap-2">
-                        <Input
-                          value={s.value}
-                          onChange={e => setGapSuggestions(prev => prev.map((x, i) => i === idx ? { ...x, value: e.target.value } : x))}
-                          className="h-8 text-sm"
-                        />
-                        <Button size="sm" variant="outline" className="shrink-0" onClick={() => addSuggestedSkill(idx)}>
-                          <Plus className="w-3.5 h-3.5 mr-1" />Add
-                        </Button>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => dismissSuggestion(idx)} aria-label="Skip this suggestion">
-                          <X className="w-3.5 h-3.5" />
-                        </Button>
+                      <div key={s.text} className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={s.value}
+                            onChange={e => setGapSuggestions(prev => prev.map((x, i) => i === idx ? { ...x, value: e.target.value } : x))}
+                            className="h-8 text-sm"
+                          />
+                          <Button size="sm" variant="outline" className="shrink-0" onClick={() => addSuggestedSkill(idx)}>
+                            <Plus className="w-3.5 h-3.5 mr-1" />Add
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => dismissSuggestion(idx)} aria-label="Skip this suggestion">
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                        {/* v3.316.0 — a real, always-valid search link for the
+                            exact skill name, never a specific invented course
+                            (see SkillsToLearnTab's own courseSearchUrl for why). */}
+                        <a
+                          href={`https://www.coursera.org/search?query=${encodeURIComponent(s.value)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs pl-0.5"
+                          style={{ color: "var(--rh-accent-2)" }}
+                        >
+                          See if there's a course for this <ExternalLink className="w-3 h-3" />
+                        </a>
                       </div>
                     ))}
                   </div>
