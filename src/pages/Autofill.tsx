@@ -42,6 +42,17 @@
 // Tailor resume / Write cover letter as a calm, chevron-led list
 // instead of two same-weight buttons. Rewrote the "Fills the page"
 // bullet to describe the real screen you land on, not just the click.
+//
+// v3.348.0 -- asked directly to research 2026 extension design and make
+// the whole panel easier to understand and navigate. Three real,
+// user-visible changes shipped that this page never described: the
+// Ready screen now names the exact page it detected before you click
+// anything, tailoring a resume now offers to also write the cover
+// letter right there afterward (and the reverse) instead of forcing a
+// trip back to the start, and the panel now shows which AYN account
+// it's signed into with a one-click way to sign out, reachable from
+// every screen -- previously the only way out of a wrong account was
+// clearing the extension's storage by hand.
 import { useEffect } from 'react';
 import { Download, CheckCircle2 } from 'lucide-react';
 import { SEO } from '@/components/shared/SEO';
@@ -58,9 +69,10 @@ const STEPS = [
 const WHAT_IT_DOES = [
   'Recognizes a real application page on its own, on sites AYN already knows, and opens there without you clicking anything. Close it and it never auto-reopens on that same page, and it does not actually disappear either: a small tab stays on the edge of the page, click it and the panel comes right back, exactly where you left it.',
   'Scores how well you fit the role the moment it opens, free, no click needed. A real match percentage, broken down by skills, experience, and education, plus the specific things you are missing, computed the same way as the rest of AYN, not just described.',
-  'Opens on a clean Ready screen: one clear Fill button, your real credits left shown right under it, and Tailor resume / Write cover letter as a simple list below, not a wall of same-weight buttons.',
+  'Opens on a clean Ready screen: the exact page it detected, so you can confirm it is reading the right posting before anything happens, one clear Fill button, your real credits left shown right under it, and Tailor resume / Write cover letter as a simple list below, not a wall of same-weight buttons.',
   'Fills the page from your real, visible fields once you click Fill, including a real resume upload from your primary AYN resume, matched against your own AYN profile, name, email, phone, and the same answer-matching AYN already uses elsewhere.',
-  'Can tailor your resume or write a cover letter for this specific job, right there, as its own real action. You see a before-and-after of what actually changed, not just a checkmark next to a file you would have to download to read.',
+  'Can tailor your resume or write a cover letter for this specific job, right there, as its own real action. You see a before-and-after of what actually changed, not just a checkmark next to a file you would have to download to read. Do one and it offers to do the other right there too, no trip back to the start.',
+  'Always shows which AYN account it is signed into, right in the panel, with a one-click Sign out if it is ever the wrong one.',
   'Anything not on file yet, you just fill in on the real page, the same way you always would. One click on "Save what I typed, for next time" and AYN remembers it, so it is genuinely on file the next application, not asked again.',
   'For an open-ended question it writes an honest answer for, you can tell it how to make that one answer better (shorter, mention a specific skill) and it rewrites just that field.',
   'Can submit the application for you too, but only once you’ve explicitly turned that on. Off by default, and it still won’t submit an honestly incomplete application even when it’s on.',

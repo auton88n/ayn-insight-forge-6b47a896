@@ -92,6 +92,40 @@
  * chevron-led list card instead of two buttons competing for the same
  * visual weight as the one real decision on this screen. AYN's own
  * branding throughout, not the competitor's colors.
+ *
+ * v3.348.0 -- asked directly to research 2026 extension design and make
+ * the whole panel easier to understand and navigate. Researched Chrome's
+ * own extension UX guidance ("purposeful and minimal, single purpose")
+ * and this app's own web-sidebar redesign history, then read this panel
+ * end to end rather than guessing at fixes. Four real gaps found and
+ * closed: the panel had no account/sign-out access anywhere (buildHead()
+ * now carries an account row with the signed-in email and a real Sign
+ * out, reachable from every screen); the header's own close button and
+ * the Ready screen's "Not now" did the exact same thing (removed the
+ * duplicate); nothing confirmed which job AYN was reading before Fill
+ * was clicked (a plain "On this page" line, the page's own real title,
+ * now sits at the top of Ready); and a tailor/cover-letter result screen
+ * forced a full reset just to reach the OTHER document-writing action
+ * (afterAttach now offers the one genuine remaining sibling action right
+ * there, never both, never a repeat).
+ *
+ * v3.349.0 -- reported directly, a real screenshot, right after v3.348.0
+ * shipped: "the extantion looks the same design?" Checked rather than
+ * assumed stale -- this was real, not a caching issue: the screen shown
+ * after a Fill actually runs (buildHead("Filled"), roughly the back half
+ * of autofill()) was never touched by any of the "clean cards" redesign
+ * work (v3.330.0 through v3.347.0) -- still hardcoded hex colors
+ * (#191919, #8a8a8a, #6f6f6f, #1b7b47, #f0f0f0) instead of this panel's
+ * own --ink/--muted/--trust/--border tokens, and the exact "wall of
+ * buttons" anti-pattern (Send diagnostics / Save what I typed / Save
+ * this job, three stacked full-width ghost buttons) the Ready screen's
+ * own v3.345.0 fix was built to move away from. Swept every hardcoded
+ * color in this screen onto the real tokens, and grouped the three
+ * trailing utility actions into one list-card with real icons, matching
+ * the Ready screen's Tailor/Cover-letter card exactly -- no click logic
+ * changed, only how it's shown. Verified live end to end (a real local
+ * harness driving the actual content.js/frame_agent.js through a real
+ * Fill pass), not just read.
  */
 (() => {
   // v3.279.0 -- real bug, reported directly: "why it vanish and I can't
@@ -824,8 +858,9 @@
       box-shadow: -16px 0 40px -20px rgba(28,23,18,0.22);
       font-family: "AYN Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
       font-size: 14px; line-height: 1.55; display: flex; flex-direction: column; }
+    .head-wrap { flex-shrink: 0; }
     .head { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;
-      background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+      background: var(--card); border-bottom: 1px solid var(--border); }
     .head-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .mark { width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0; display: block;
       box-shadow: 0 2px 8px -2px rgba(232,93,58,0.45); }
@@ -840,6 +875,26 @@
     .head-btn:hover { background: var(--bg); color: var(--ink); }
     .close { font-size: 17px; }
     .head-btn.back { font-size: 15px; font-weight: 700; }
+    .head-btn.account svg { width: 15px; height: 15px; display: block; }
+
+    /* v3.348.0 -- account row, reachable from every screen via buildHead's
+       own account button. A plain toggle, not a portal/popover -- this
+       panel has no positioning context worth the complexity for two
+       lines of content. */
+    .account-menu { display: none; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 10px 18px 12px; background: var(--card); border-bottom: 1px solid var(--border); }
+    .account-email { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; min-width: 0; }
+
+    /* v3.348.0 -- "what is AYN actually reading right now," a real gap:
+       nothing anywhere confirmed which page/job the panel was scoped to
+       before you clicked Fill. This is the page's own real <title>,
+       never guessed at or parsed into title/company pieces -- most real
+       ATS platforms already format it usefully on their own. */
+    .page-context-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; color: var(--muted); margin: 0 0 3px; }
+    .page-context-title { font-family: "AYN Outfit", sans-serif; font-size: 13.5px; font-weight: 700;
+      color: var(--ink); margin: 0 0 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* Floating re-open tab -- v3.340.0. Docked to the right edge, only
        ever shown once the panel has been minimized (never alongside it),
@@ -918,9 +973,6 @@
     .action-row { display: flex; gap: 8px; }
     .action-row .btn { flex: 1; }
     .btn-lg { padding: 13px 18px; font-size: 15px; }
-    .not-now { display: block; width: 100%; text-align: center; background: none; border: none;
-      color: var(--muted); font-size: 12.5px; padding: 10px 0 0; cursor: pointer; }
-    .not-now:hover { color: var(--ink); }
 
     /* v3.345.0 -- "clean cards, easy to understand," reported directly
        against a real competitor extension's own panel: one dominant
@@ -1003,6 +1055,10 @@
   const ICON_DOC = '<rect x="4" y="2" width="12" height="16" rx="1.5" stroke="currentColor" stroke-width="1.4"/><line x1="7" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1.4"/><line x1="7" y1="10.5" x2="13" y2="10.5" stroke="currentColor" stroke-width="1.4"/><line x1="7" y1="14" x2="11" y2="14" stroke="currentColor" stroke-width="1.4"/>';
   const ICON_ENVELOPE = '<rect x="2" y="4" width="16" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M3 5.5L10 11L17 5.5" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
   const ICON_CHEVRON = '<path d="M7.5 4L13 10L7.5 16" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+  const ICON_USER = '<circle cx="10" cy="6.5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M4 17c0-3.5 2.8-6 6-6s6 2.5 6 6" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/>';
+  const ICON_SAVE = '<path d="M10 3v9m0 0l-3-3m3 3l3-3" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 14v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/>';
+  const ICON_INFO = '<circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.4"/><line x1="10" y1="9" x2="10" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="10" cy="6.5" r="0.9" fill="currentColor"/>';
+  const ICON_BOOKMARK = '<path d="M6 3h8a1 1 0 0 1 1 1v13l-5-3-5 3V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/>';
   // v3.340.0 -- session is now a second, optional argument so every
   // screen can offer a real "back to the main screen" button, not just
   // a way to dismiss the whole thing. Reported directly: the panel
@@ -1013,6 +1069,17 @@
   // Omitted on the sign-in screen (no session exists yet) and on Ready
   // to help itself (already home -- a back button there would just
   // reload the same screen it's sitting on).
+  // v3.348.0 -- "easy to understand and navigate," researched directly
+  // against Chrome's own extension UX guidance (purposeful, minimal,
+  // single-purpose) and this app's own web-sidebar redesign history.
+  // The one real gap found reading this panel end to end: there was no
+  // way, anywhere, to see which account you were signed into or sign
+  // out of it -- once signed in, a wrong account had no escape short of
+  // clearing the extension's storage by hand. buildHead() is the one
+  // function every real screen already routes through (Ready,
+  // Autofilling, Filled, both tailor/cover-letter result screens -- see
+  // every call site below), so the account row lives here once, not
+  // copied onto each screen separately.
   function buildHead(title, session) {
     // The real, already-bundled toolbar icon -- the same image Chrome
     // itself already shows for this extension -- not an invented mark.
@@ -1029,6 +1096,29 @@
       ]),
     ]);
     const actions = [];
+    let menu = null;
+    if (session) {
+      const acctBtn = el("button", { class: "head-btn account", "aria-label": "Account", "aria-expanded": "false" }, [iconEl(ICON_USER)]);
+      menu = el("div", { class: "account-menu" });
+      const email = (session.user && session.user.email) || "Signed in";
+      menu.appendChild(el("span", { class: "account-email", text: email, title: email }));
+      const signOutBtn = el("button", { class: "btn btn-ghost btn-sm", text: "Sign out" });
+      signOutBtn.addEventListener("click", async () => {
+        // A stale mutation observer firing after sign-out would try to
+        // autofill() with a now-cleared session -- disconnect it first,
+        // same cleanup minimizePanel() already does for the same reason.
+        if (liveObserver) { liveObserver.disconnect(); liveObserver = null; }
+        await clearSession();
+        showSignIn();
+      });
+      menu.appendChild(signOutBtn);
+      acctBtn.addEventListener("click", () => {
+        const open = menu.style.display !== "flex";
+        menu.style.display = open ? "flex" : "none";
+        acctBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+      actions.push(acctBtn);
+    }
     if (session && title !== "Ready to help") {
       actions.push(el("button", {
         class: "head-btn back", text: "←", "aria-label": "Back to AYN",
@@ -1036,7 +1126,9 @@
       }));
     }
     actions.push(el("button", { class: "head-btn close", text: "×", "aria-label": "Minimize AYN", onclick: minimizePanel }));
-    return el("div", { class: "head" }, [left, el("div", { class: "head-actions" }, actions)]);
+    const head = el("div", { class: "head" }, [left, el("div", { class: "head-actions" }, actions)]);
+    if (!menu) return head;
+    return el("div", { class: "head-wrap" }, [head, menu]);
   }
   function clearPanel() { panel.innerHTML = ""; }
 
@@ -1139,7 +1231,7 @@
         const hasNew = nowVisible.some((e) => !knownEls.has(e));
         if (!navigated && !hasNew) return;
         liveObserver.disconnect();
-        const notice = el("div", { style: "padding: 10px 20px; background: #f7f7f7; border-top: 1px solid #efefef; font-size: 13.5px; color: #191919; display: flex; align-items: center; justify-content: space-between; gap: 10px;" }, [
+        const notice = el("div", { style: "padding: 10px 20px; background: var(--bg); border-top: 1px solid var(--border); font-size: 13.5px; color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 10px;" }, [
           el("span", { text: navigated ? "This looks like a new step in the application." : "New fields appeared on this page." }),
           el("button", { class: "btn btn-primary", text: navigated ? "Fill this step" : "Fill them too", style: "padding: 6px 14px; font-size: 13px; flex-shrink: 0;", onclick: () => autofill(session) }),
         ]);
@@ -1193,6 +1285,18 @@
     panel.appendChild(buildHead("Ready to help", session));
     const body = el("div", { class: "body" });
 
+    // v3.348.0 -- "what page is AYN actually reading," a real gap found
+    // researching this panel's own navigability: nothing here confirmed
+    // which posting AYN was scoped to before Fill was clicked. The page's
+    // own real <title> -- never guessed at or parsed into title/company
+    // pieces, most real ATS platforms already format it usefully -- so
+    // this is honest context, not an invented summary of the page.
+    const pageTitle = (document.title || "").trim();
+    if (pageTitle) {
+      body.appendChild(el("p", { class: "page-context-label", text: "On this page" }));
+      body.appendChild(el("p", { class: "page-context-title", text: pageTitle, title: pageTitle }));
+    }
+
     const fitSlot = el("div", {});
     body.appendChild(fitSlot);
     let latestFit = null;
@@ -1223,10 +1327,42 @@
       }),
     ]));
 
+    // v3.348.0 -- "let result screens jump sideways," a real navigation
+    // gap: landing here after a tailor or a cover letter meant either
+    // starting over at Ready or continuing to fill the rest of the page
+    // -- there was no way to reach the OTHER document-writing action
+    // (write the cover letter too, right after tailoring) without a full
+    // reset. resumeAttached/coverAttached track what this visit to the
+    // Ready screen has already done; siblingAction offers the one real
+    // remaining action, never both, never a repeat of one already done.
+    let resumeAttached = false;
+    let coverAttached = false;
+    async function doTailor() {
+      const inputEl = resumeField ? fieldRegistry_().get(resumeField.id) : null;
+      if (!inputEl) return { ok: false, reason: "Field no longer on the page." };
+      return tailorAndAttach(session, inputEl);
+    }
+    async function doCoverLetter() {
+      const inputEl = coverField ? fieldRegistry_().get(coverField.id) : null;
+      if (!inputEl) return { ok: false, reason: "Field no longer on the page." };
+      return writeCoverLetterAndAttach(session, inputEl);
+    }
+    function siblingAction(justDid) {
+      if (justDid === "resume" && coverField && !coverAttached) {
+        return { label: "Write cover letter", sub: "Written from your real experience", icon: ICON_ENVELOPE, run: doCoverLetter,
+          onOk: (r) => { coverAttached = true; afterAttach("Cover letter written", r, buildCoverLetterPreview(r.body), "cover"); } };
+      }
+      if (justDid === "cover" && resumeField && !resumeAttached) {
+        return { label: "Tailor my resume", sub: "AI-tailored to this job", icon: ICON_DOC, run: doTailor,
+          onOk: (r) => { resumeAttached = true; afterAttach("Tailored for this job", r, buildTailorDiffCard(r, latestFit && typeof latestFit.score === "number" ? latestFit.score : null), "resume"); } };
+      }
+      return null;
+    }
+
     // A tailor/cover-letter run always attaches a real file and shows a
     // real, structured diff before handing back to the same screen --
     // never a second, different flow than the one Fill leads to.
-    function afterAttach(title, r, diffCard) {
+    function afterAttach(title, r, diffCard, justDid) {
       clearPanel();
       panel.appendChild(buildHead(title, session));
       const b2 = el("div", { class: "body" });
@@ -1234,6 +1370,25 @@
       b2.appendChild(diffCard);
       if (r.credits && typeof r.credits.spent === "number") {
         b2.appendChild(el("p", { class: "muted", text: `${r.credits.spent} credit${r.credits.spent === 1 ? "" : "s"} used.`, style: "margin-top: -6px;" }));
+      }
+      const sib = siblingAction(justDid);
+      if (sib) {
+        const subEl = el("span", { class: "list-row-sub", text: sib.sub });
+        const label = el("div", { class: "list-row-text" }, [el("div", { text: sib.label }), subEl]);
+        const chevron = el("span", { class: "list-row-chevron" }, [iconEl(ICON_CHEVRON)]);
+        const row = el("button", { type: "button", class: "list-row" }, [
+          el("span", { class: "list-row-icon" }, [iconEl(sib.icon)]), label, chevron,
+        ]);
+        row.addEventListener("click", async () => {
+          row.disabled = true; subEl.textContent = "Working…";
+          const rr = await sib.run();
+          if (rr.ok) {
+            sib.onOk(rr);
+          } else {
+            row.disabled = false; subEl.textContent = rr.reason || sib.sub;
+          }
+        });
+        b2.appendChild(el("div", { class: "list-card", style: "margin: 8px 0 12px;" }, [row]));
       }
       const cont = el("button", { class: "btn btn-primary", text: "Continue filling the rest of the form", style: "width:100%; margin-top: 6px;" });
       cont.addEventListener("click", () => autofill(session, { fitPromise }));
@@ -1279,10 +1434,10 @@
         ]);
         tRow.addEventListener("click", async () => {
           tRow.disabled = true; sub.textContent = "Tailoring…";
-          const inputEl = fieldRegistry_().get(resumeField.id);
-          const r = inputEl ? await tailorAndAttach(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
+          const r = await doTailor();
           if (r.ok) {
-            afterAttach("Tailored for this job", r, buildTailorDiffCard(r, latestFit && typeof latestFit.score === "number" ? latestFit.score : null));
+            resumeAttached = true;
+            afterAttach("Tailored for this job", r, buildTailorDiffCard(r, latestFit && typeof latestFit.score === "number" ? latestFit.score : null), "resume");
           } else {
             tRow.disabled = false; sub.textContent = r.reason || "AI-tailored to this job";
           }
@@ -1298,10 +1453,10 @@
         ]);
         cRow.addEventListener("click", async () => {
           cRow.disabled = true; sub2.textContent = "Writing…";
-          const inputEl = fieldRegistry_().get(coverField.id);
-          const r = inputEl ? await writeCoverLetterAndAttach(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
+          const r = await doCoverLetter();
           if (r.ok) {
-            afterAttach("Cover letter written", r, buildCoverLetterPreview(r.body));
+            coverAttached = true;
+            afterAttach("Cover letter written", r, buildCoverLetterPreview(r.body), "cover");
           } else {
             cRow.disabled = false; sub2.textContent = r.reason || "Written from your real experience";
           }
@@ -1310,10 +1465,6 @@
       }
       body.appendChild(card);
     }
-
-    const notNow = el("button", { class: "not-now", text: "Not now" });
-    notNow.addEventListener("click", minimizePanel);
-    body.appendChild(notNow);
 
     panel.appendChild(body);
   }
@@ -1645,10 +1796,10 @@
     if (legalFilled.length) {
       const box = el("div", { class: "callout" });
       box.appendChild(el("p", { class: "warn", text: "Double-check these before submitting — work authorization/eligibility answers matter:", style: "margin: 0 0 6px; font-weight: 600;" }));
-      const ul = el("ul", { style: "margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.7; color: #191919;" });
+      const ul = el("ul", { style: "margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.7; color: var(--ink);" });
       for (const f of legalFilled) {
         const li = el("li", {});
-        li.appendChild(el("span", { text: `${f.label}: `, style: "color: #8a8a8a;" }));
+        li.appendChild(el("span", { text: `${f.label}: `, style: "color: var(--muted);" }));
         li.appendChild(el("b", { text: f.answer || "" }));
         ul.appendChild(li);
       }
@@ -1689,7 +1840,7 @@
       if (nf.reused) {
         labelP.appendChild(el("span", {
           text: " · reused from a past application",
-          style: "font-weight: 500; color: #b0392a; font-size: 11.5px;",
+          style: "font-weight: 500; color: var(--warn); font-size: 11.5px;",
         }));
       }
       card.appendChild(labelP);
@@ -1792,7 +1943,7 @@
             btn.disabled = true; btn.textContent = "Attaching…";
             const inputEl = fieldRegistry_().get(f.id);
             const r = inputEl ? await attachResumeFile(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
-            if (r.ok) { btn.textContent = "Attached ✓"; btn.style.background = "#1b7b47"; btn.style.color = "#fff"; }
+            if (r.ok) { btn.textContent = "Attached ✓"; btn.style.background = "var(--trust)"; btn.style.color = "#fff"; }
             else { btn.disabled = false; btn.textContent = "Try again"; btn.title = r.reason || ""; }
             return r.ok;
           };
@@ -1811,7 +1962,7 @@
             const r = inputEl ? await tailorAndAttach(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
             btn.disabled = false;
             if (r.ok) {
-              tailorBtn.textContent = "Tailored ✓"; tailorBtn.style.background = "#1b7b47"; tailorBtn.style.color = "#fff";
+              tailorBtn.textContent = "Tailored ✓"; tailorBtn.style.background = "var(--trust)"; tailorBtn.style.color = "#fff";
               btn.textContent = "Attach my resume instead";
               if (r.credits && typeof r.credits.spent === "number") statusP.textContent = `${r.credits.spent} credit${r.credits.spent === 1 ? "" : "s"} used.`;
             } else {
@@ -1841,7 +1992,7 @@
             const inputEl = fieldRegistry_().get(f.id);
             const r = inputEl ? await writeCoverLetterAndAttach(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
             if (r.ok) {
-              writeBtn.textContent = "Attached ✓"; writeBtn.style.background = "#1b7b47"; writeBtn.style.color = "#fff";
+              writeBtn.textContent = "Attached ✓"; writeBtn.style.background = "var(--trust)"; writeBtn.style.color = "#fff";
               if (r.credits && typeof r.credits.spent === "number") statusP.textContent = `${r.credits.spent} credit${r.credits.spent === 1 ? "" : "s"} used.`;
             } else {
               writeBtn.disabled = false; writeBtn.textContent = "Write & attach cover letter";
@@ -1898,7 +2049,7 @@
       const result = await attemptSubmit();
       submitNotice.remove();
       if (result.submitted) {
-        body.appendChild(el("p", { class: "ok", text: "Submitted. AYN filled and sent this application, as you agreed.", style: "color: #1b7b47;" }));
+        body.appendChild(el("p", { class: "ok", text: "Submitted. AYN filled and sent this application, as you agreed.", style: "color: var(--trust);" }));
         // A real, completed submit is the one unambiguous signal AYN can
         // act on without asking -- record it into the same Jobs pipeline
         // the web app's own Saved -> Applied transition uses (see
@@ -1919,8 +2070,8 @@
     // A real, always-visible, always-changeable setting -- never buried,
     // never assumed from a single click. Reflects the value this exact
     // run used; toggling it only ever affects the NEXT run.
-    const consentRow = el("div", { style: "display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; margin: 6px 0 0; border-top: 1px solid #f0f0f0;" });
-    consentRow.appendChild(el("span", { text: "Let AYN submit for you next time", style: "font-size: 12.5px; color: #6f6f6f;" }));
+    const consentRow = el("div", { style: "display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; margin: 6px 0 0; border-top: 1px solid var(--border);" });
+    consentRow.appendChild(el("span", { text: "Let AYN submit for you next time", style: "font-size: 12.5px; color: var(--muted);" }));
     const consentBtn = el("button", {
       class: consent.opted_in ? "btn btn-primary" : "btn btn-ghost",
       text: consent.opted_in ? "On" : "Off",
@@ -1958,7 +2109,7 @@
       body.appendChild(el("p", { class: "muted", text: "AYN had to guess at these — tell it if one was wrong:" }));
       for (const c of classifiedSummary) {
         const row = el("div", { style: "display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px;" });
-        row.appendChild(el("span", { text: c.label, style: "font-size: 13px; color: #191919; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;" }));
+        row.appendChild(el("span", { text: c.label, style: "font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;" }));
         const flagBtn = el("button", { class: "btn btn-ghost", text: "Wrong?", style: "padding: 4px 10px; font-size: 12px; flex-shrink: 0;" });
         flagBtn.addEventListener("click", async () => {
           flagBtn.disabled = true; flagBtn.textContent = "Flagging…";
@@ -1974,6 +2125,16 @@
       }
     }
 
+    // v3.348.0 -- "the extension looks the same design," reported
+    // directly against a real screenshot of exactly this screen: three
+    // separate full-width ghost buttons stacked one after another, the
+    // same "wall of buttons" the Ready screen's own v3.345.0 redesign
+    // was built to move away from. All three below (diagnostics, save-
+    // what-I-typed, save-this-job) are now rows in one shared list-card,
+    // same visual language as the Ready screen's Tailor/Cover-letter
+    // card -- none of the click logic below changed, only how it's shown.
+    const utilCard = el("div", { class: "list-card" });
+
     // v3.296.0 -- a real, explicit, opt-in diagnostics channel: sends a
     // structured summary of this exact run straight to AYN's own
     // backend, so it can be read directly rather than relayed by hand.
@@ -1981,9 +2142,14 @@
     // never re-reads the page, never includes a filled VALUE (only
     // labels, kinds, structural widget signatures, and success/failure),
     // and only ever sends when this button is clicked, never silently.
-    const diagBtn = el("button", { class: "btn btn-ghost", text: "Send diagnostics to AYN", style: "width:100%; margin-bottom: 8px; font-size: 12.5px;" });
-    diagBtn.addEventListener("click", async () => {
-      diagBtn.disabled = true; diagBtn.textContent = "Sending…";
+    const diagSub = el("span", { class: "list-row-sub", text: "Helps AYN improve what it read on this page" });
+    const diagLabel = el("div", { class: "list-row-text" }, [el("div", { text: "Send diagnostics to AYN" }), diagSub]);
+    const diagChevron = el("span", { class: "list-row-chevron" }, [iconEl(ICON_CHEVRON)]);
+    const diagRow = el("button", { type: "button", class: "list-row" }, [
+      el("span", { class: "list-row-icon" }, [iconEl(ICON_INFO)]), diagLabel, diagChevron,
+    ]);
+    diagRow.addEventListener("click", async () => {
+      diagRow.disabled = true; diagSub.textContent = "Sending…";
       try {
         const report = {
           fieldCount: fields.length,
@@ -2011,13 +2177,13 @@
           pagePathname: location.pathname,
           report,
         });
-        diagBtn.textContent = "Sent ✓";
+        diagSub.textContent = "Sent ✓";
       } catch (e) {
-        diagBtn.disabled = false;
-        diagBtn.textContent = "Couldn't send — try again";
+        diagRow.disabled = false;
+        diagSub.textContent = "Couldn't send — try again";
       }
     });
-    body.appendChild(diagBtn);
+    utilCard.appendChild(diagRow);
 
     // v3.328.0 -- "remember what I typed for next time," the real
     // feature this was built to close the gap on: not AI inventing an
@@ -2047,10 +2213,14 @@
       return state === "true";
     }
     if (notOnFileTracked.length || radioNotOnFileTracked.length) {
-      const saveAnswersBtn = el("button", { class: "btn btn-ghost", text: "Save what I typed, for next time", style: "width:100%; margin-bottom: 8px; font-size: 12.5px;" });
-      const saveStatusP = el("p", { class: "muted", text: "", style: "margin: 4px 0 0; font-size: 11.5px; text-align: center;" });
-      saveAnswersBtn.addEventListener("click", async () => {
-        saveAnswersBtn.disabled = true; saveAnswersBtn.textContent = "Saving…"; saveStatusP.textContent = "";
+      const saveSub = el("span", { class: "list-row-sub", text: "So it's on file next time, not asked again" });
+      const saveLabel = el("div", { class: "list-row-text" }, [el("div", { text: "Save what I typed, for next time" }), saveSub]);
+      const saveChevron = el("span", { class: "list-row-chevron" }, [iconEl(ICON_CHEVRON)]);
+      const saveAnswersRow = el("button", { type: "button", class: "list-row" }, [
+        el("span", { class: "list-row-icon" }, [iconEl(ICON_SAVE)]), saveLabel, saveChevron,
+      ]);
+      saveAnswersRow.addEventListener("click", async () => {
+        saveAnswersRow.disabled = true; saveSub.textContent = "Saving…";
         const toSave = [];
         for (const t of notOnFileTracked) {
           // v3.336.0 -- a consent-checkbox label is never reusable
@@ -2069,8 +2239,8 @@
           if (chosen) toSave.push({ label: r.groupLabel, answer: chosen.label });
         }
         if (!toSave.length) {
-          saveAnswersBtn.disabled = false; saveAnswersBtn.textContent = "Save what I typed, for next time";
-          saveStatusP.textContent = "Nothing typed in yet to save.";
+          saveAnswersRow.disabled = false;
+          saveSub.textContent = "Nothing typed in yet to save.";
           return;
         }
         let saved = 0;
@@ -2084,13 +2254,12 @@
             // batched action in this panel already uses.
           }
         }
-        saveAnswersBtn.disabled = false; saveAnswersBtn.textContent = "Save what I typed, for next time";
-        saveStatusP.textContent = saved
+        saveAnswersRow.disabled = false;
+        saveSub.textContent = saved
           ? `Saved ${saved} answer${saved === 1 ? "" : "s"} for next time.`
           : "Couldn't save those answers, try again.";
       });
-      body.appendChild(saveAnswersBtn);
-      body.appendChild(saveStatusP);
+      utilCard.appendChild(saveAnswersRow);
     }
 
     // v3.332.0 -- "more useful": everything else AYN knows about a job
@@ -2099,14 +2268,21 @@
     // manual-review path (an auto-submit already records itself above,
     // with no click needed, since that's a real completed action -- a
     // fill alone isn't, so this stays a real button, not an assumption).
-    const trackBtn = el("button", { class: "btn btn-ghost", text: "Save this job to AYN", style: "width:100%; margin-bottom: 8px;" });
-    trackBtn.addEventListener("click", async () => {
-      trackBtn.disabled = true; trackBtn.textContent = "Saving…";
+    const trackSub = el("span", { class: "list-row-sub", text: "Adds it to Saved Jobs in your AYN account" });
+    const trackLabel = el("div", { class: "list-row-text" }, [el("div", { text: "Save this job to AYN" }), trackSub]);
+    const trackChevron = el("span", { class: "list-row-chevron" }, [iconEl(ICON_CHEVRON)]);
+    const trackRow = el("button", { type: "button", class: "list-row" }, [
+      el("span", { class: "list-row-icon" }, [iconEl(ICON_BOOKMARK)]), trackLabel, trackChevron,
+    ]);
+    trackRow.addEventListener("click", async () => {
+      trackRow.disabled = true; trackSub.textContent = "Saving…";
       const r = await saveJobToPipeline(session, { title: document.title, jdText: getPageJdText() });
-      trackBtn.textContent = r.ok ? "Saved to AYN ✓" : "Couldn't save — try again";
-      if (!r.ok) trackBtn.disabled = false;
+      trackSub.textContent = r.ok ? "Saved to AYN ✓" : "Couldn't save — try again";
+      if (!r.ok) trackRow.disabled = false;
     });
-    body.appendChild(trackBtn);
+    utilCard.appendChild(trackRow);
+
+    body.appendChild(utilCard);
 
     const closeBtn = el("button", { class: "btn btn-ghost", text: "Done", style: "width:100%" });
     closeBtn.addEventListener("click", minimizePanel);
