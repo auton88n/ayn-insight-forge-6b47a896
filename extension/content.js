@@ -79,6 +79,19 @@
  * question cap raised from 4 to 10, so a real open-ended question gets
  * a real, honest, automatically-filled draft as part of the one normal
  * Fill pass, no click, no extra control on the page at all.
+ *
+ * v3.345.0/v3.346.0 -- reported directly against a screenshot of the real
+ * Jobright Chrome extension on a live job page: "you see how the
+ * extantion look easy to understand clean cards ayn extantion needs to
+ * be the same." The Ready screen's resume/cover-letter row was two
+ * same-weight ghost buttons sitting beside the one real primary action
+ * ("Fill this application") -- restructured into the pattern actually
+ * being pointed at: one dominant primary button, a plain credit count
+ * (billing_get, already free, already used by the web app's own Billing
+ * page) read right under it, and Tailor/Cover-letter as a calm,
+ * chevron-led list card instead of two buttons competing for the same
+ * visual weight as the one real decision on this screen. AYN's own
+ * branding throughout, not the competitor's colors.
  */
 (() => {
   // v3.279.0 -- real bug, reported directly: "why it vanish and I can't
@@ -909,6 +922,30 @@
       color: var(--muted); font-size: 12.5px; padding: 10px 0 0; cursor: pointer; }
     .not-now:hover { color: var(--ink); }
 
+    /* v3.345.0 -- "clean cards, easy to understand," reported directly
+       against a real competitor extension's own panel: one dominant
+       primary action, everything else read as plain, chevron-led list
+       rows grouped in one bordered card, not a row of same-weight
+       buttons competing for attention. Same AYN colors and copy, just
+       the calmer information architecture. */
+    .credits-line { text-align: center; font-size: 11.5px; color: var(--muted); margin: 8px 0 2px; }
+    .credits-line b { color: var(--ink); font-weight: 700; }
+    .list-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; margin-bottom: 6px; }
+    .list-row { display: flex; align-items: center; gap: 10px; padding: 11px 13px; width: 100%;
+      background: none; border: none; text-align: left; cursor: pointer; font-size: 13.5px;
+      color: var(--ink); font-weight: 600; transition: background 0.12s ease; }
+    .list-row:not(:last-child) { border-bottom: 1px solid var(--border); }
+    .list-row:hover:not(:disabled) { background: var(--bg); }
+    .list-row:disabled { cursor: default; opacity: 0.65; }
+    .list-row-icon { width: 28px; height: 28px; border-radius: 8px; background: var(--bg); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; color: var(--muted); }
+    .list-row-icon svg { width: 14px; height: 14px; display: block; }
+    .list-row-text { flex: 1; min-width: 0; }
+    .list-row-sub { font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 1px; }
+    .list-row-chevron { color: var(--dim); flex-shrink: 0; display: flex; }
+    .list-row-chevron svg { width: 13px; height: 13px; display: block; }
+
     /* Diff cards -- what a tailor/cover-letter action actually changed,
        shown as structured before/after, never a wall of AI prose. */
     .diff-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
@@ -953,6 +990,19 @@
     for (const c of children) if (c) e.appendChild(c);
     return e;
   }
+  // v3.345.0 -- three small, fixed, hand-written SVG glyphs (document,
+  // envelope, chevron) for the new list-card rows below -- innerHTML is
+  // safe here specifically because every string passed in is a literal
+  // written in this file, never anything derived from the page or from
+  // a server response; nothing dynamic ever flows through this helper.
+  function iconEl(pathsHtml) {
+    const span = el("span", {});
+    span.innerHTML = `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">${pathsHtml}</svg>`;
+    return span;
+  }
+  const ICON_DOC = '<rect x="4" y="2" width="12" height="16" rx="1.5" stroke="currentColor" stroke-width="1.4"/><line x1="7" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1.4"/><line x1="7" y1="10.5" x2="13" y2="10.5" stroke="currentColor" stroke-width="1.4"/><line x1="7" y1="14" x2="11" y2="14" stroke="currentColor" stroke-width="1.4"/>';
+  const ICON_ENVELOPE = '<rect x="2" y="4" width="16" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M3 5.5L10 11L17 5.5" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+  const ICON_CHEVRON = '<path d="M7.5 4L13 10L7.5 16" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
   // v3.340.0 -- session is now a second, optional argument so every
   // screen can offer a real "back to the main screen" button, not just
   // a way to dismiss the whole thing. Reported directly: the panel
@@ -1198,40 +1248,68 @@
     const fillBtn = el("button", { class: "btn btn-primary btn-lg", text: "Fill this application" });
     fillBtn.addEventListener("click", () => autofill(session, { fitPromise }));
     stack.appendChild(fillBtn);
+    body.appendChild(stack);
+
+    // v3.345.0 -- reported directly against a competitor's own panel:
+    // one dominant primary button, a plain credit count right under it
+    // ("4 Credits Left"), and resume/cover-letter as calm, chevron-led
+    // list rows in one card -- not two ghost buttons the same visual
+    // weight as the one real decision on this screen. billing_get is
+    // the same free, already-existing action the web app's own Billing
+    // page reads; nothing new on the backend, just read from here too.
+    const creditsLine = el("p", { class: "credits-line", text: "" });
+    body.appendChild(creditsLine);
+    callHub(session, { action: "billing_get" }).then((b) => {
+      if (typeof b?.balance !== "number") return;
+      creditsLine.innerHTML = "";
+      creditsLine.appendChild(document.createTextNode(""));
+      const strong = el("b", { text: String(b.balance) });
+      creditsLine.appendChild(strong);
+      creditsLine.appendChild(document.createTextNode(` credit${b.balance === 1 ? "" : "s"} left`));
+    }).catch(() => {});
 
     if (resumeField || coverField) {
-      const row = el("div", { class: "action-row" });
+      const card = el("div", { class: "list-card" });
       if (resumeField) {
-        const tBtn = el("button", { class: "btn btn-ghost", text: "Tailor my resume" });
-        tBtn.addEventListener("click", async () => {
-          tBtn.disabled = true; tBtn.textContent = "Tailoring…";
+        const sub = el("span", { class: "list-row-sub", text: "AI-tailored to this job" });
+        const label = el("div", { class: "list-row-text" }, [el("div", { text: "Tailor my resume" }), sub]);
+        const chevron = el("span", { class: "list-row-chevron" }, [iconEl(ICON_CHEVRON)]);
+        const tRow = el("button", { type: "button", class: "list-row" }, [
+          el("span", { class: "list-row-icon" }, [iconEl(ICON_DOC)]), label, chevron,
+        ]);
+        tRow.addEventListener("click", async () => {
+          tRow.disabled = true; sub.textContent = "Tailoring…";
           const inputEl = fieldRegistry_().get(resumeField.id);
           const r = inputEl ? await tailorAndAttach(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
           if (r.ok) {
             afterAttach("Tailored for this job", r, buildTailorDiffCard(r, latestFit && typeof latestFit.score === "number" ? latestFit.score : null));
           } else {
-            tBtn.disabled = false; tBtn.textContent = "Tailor my resume"; tBtn.title = r.reason || "";
+            tRow.disabled = false; sub.textContent = r.reason || "AI-tailored to this job";
           }
         });
-        row.appendChild(tBtn);
+        card.appendChild(tRow);
       }
       if (coverField) {
-        const cBtn = el("button", { class: "btn btn-ghost", text: "Write cover letter" });
-        cBtn.addEventListener("click", async () => {
-          cBtn.disabled = true; cBtn.textContent = "Writing…";
+        const sub2 = el("span", { class: "list-row-sub", text: "Written from your real experience" });
+        const label2 = el("div", { class: "list-row-text" }, [el("div", { text: "Write cover letter" }), sub2]);
+        const chevron2 = el("span", { class: "list-row-chevron" }, [iconEl(ICON_CHEVRON)]);
+        const cRow = el("button", { type: "button", class: "list-row" }, [
+          el("span", { class: "list-row-icon" }, [iconEl(ICON_ENVELOPE)]), label2, chevron2,
+        ]);
+        cRow.addEventListener("click", async () => {
+          cRow.disabled = true; sub2.textContent = "Writing…";
           const inputEl = fieldRegistry_().get(coverField.id);
           const r = inputEl ? await writeCoverLetterAndAttach(session, inputEl) : { ok: false, reason: "Field no longer on the page." };
           if (r.ok) {
             afterAttach("Cover letter written", r, buildCoverLetterPreview(r.body));
           } else {
-            cBtn.disabled = false; cBtn.textContent = "Write cover letter"; cBtn.title = r.reason || "";
+            cRow.disabled = false; sub2.textContent = r.reason || "Written from your real experience";
           }
         });
-        row.appendChild(cBtn);
+        card.appendChild(cRow);
       }
-      stack.appendChild(row);
+      body.appendChild(card);
     }
-    body.appendChild(stack);
 
     const notNow = el("button", { class: "not-now", text: "Not now" });
     notNow.addEventListener("click", minimizePanel);

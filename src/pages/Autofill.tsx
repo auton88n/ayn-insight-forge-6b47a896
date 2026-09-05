@@ -34,6 +34,14 @@
 // gone; a question like this is now answered the one ordinary way,
 // directly on the real page. Rewrote the "not on file yet" bullet to
 // describe that instead of the removed in-panel answer box.
+//
+// v3.347.0 -- reported directly against a screenshot of a competitor's
+// own extension panel: "easy to understand clean cards ayn extantion
+// needs to be the same." The panel's Ready screen was rebuilt around
+// one dominant Fill button, a plain credits-left line under it, and
+// Tailor resume / Write cover letter as a calm, chevron-led list
+// instead of two same-weight buttons. Rewrote the "Fills the page"
+// bullet to describe the real screen you land on, not just the click.
 import { useEffect } from 'react';
 import { Download, CheckCircle2 } from 'lucide-react';
 import { SEO } from '@/components/shared/SEO';
@@ -50,6 +58,7 @@ const STEPS = [
 const WHAT_IT_DOES = [
   'Recognizes a real application page on its own, on sites AYN already knows, and opens there without you clicking anything. Close it and it never auto-reopens on that same page, and it does not actually disappear either: a small tab stays on the edge of the page, click it and the panel comes right back, exactly where you left it.',
   'Scores how well you fit the role the moment it opens, free, no click needed. A real match percentage, broken down by skills, experience, and education, plus the specific things you are missing, computed the same way as the rest of AYN, not just described.',
+  'Opens on a clean Ready screen: one clear Fill button, your real credits left shown right under it, and Tailor resume / Write cover letter as a simple list below, not a wall of same-weight buttons.',
   'Fills the page from your real, visible fields once you click Fill, including a real resume upload from your primary AYN resume, matched against your own AYN profile, name, email, phone, and the same answer-matching AYN already uses elsewhere.',
   'Can tailor your resume or write a cover letter for this specific job, right there, as its own real action. You see a before-and-after of what actually changed, not just a checkmark next to a file you would have to download to read.',
   'Anything not on file yet, you just fill in on the real page, the same way you always would. One click on "Save what I typed, for next time" and AYN remembers it, so it is genuinely on file the next application, not asked again.',
