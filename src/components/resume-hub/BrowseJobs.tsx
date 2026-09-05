@@ -1658,7 +1658,14 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     ? [
         selectedSalary && { key: "salary", label: "Salary", value: selectedSalary.text, tone: "gold" as const },
         selected.seniority && { key: "seniority", label: "Seniority", value: SENIORITY_LABELS[selected.seniority] || humanizeSlug(selected.seniority) },
-        selected.work_mode && { key: "mode", label: "Work mode", value: selected.work_mode.charAt(0).toUpperCase() + selected.work_mode.slice(1), tone: "trust" as const },
+        // v3.344.0 — real, live bug caught while verifying the list
+        // card's own new work-mode chip below: a raw value like
+        // "not_remote" only ever got its first letter capitalized here,
+        // rendering as the literal "Not_remote" with the underscore
+        // still showing. humanizeSlug already exists for exactly this
+        // shape of value (used for employment_type/seniority already) —
+        // reused here instead of the narrower, wrong capitalize-only fix.
+        selected.work_mode && { key: "mode", label: "Work mode", value: humanizeSlug(selected.work_mode), tone: "trust" as const },
         selected.employment_type && { key: "type", label: "Type", value: EMPLOYMENT_TYPE_LABELS[selected.employment_type] || humanizeSlug(selected.employment_type) },
       ].filter((c): c is { key: string; label: string; value: string; tone?: "gold" | "trust" } => !!c)
     : [];
@@ -2263,6 +2270,45 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                               </span>
                             )}
                           </div>
+                          {/* v3.344.0 — reported directly against a
+                              competitor's own card: theirs shows type,
+                              seniority, and work mode right on the list
+                              row, real basics you'd otherwise only see
+                              after opening the detail pane. Same three
+                              facts the detail pane's own highlight strip
+                              already computes (EMPLOYMENT_TYPE_LABELS/
+                              SENIORITY_LABELS, work_mode capitalized),
+                              just reused here as small neutral pills
+                              instead of a second, heavier grid — this
+                              row is read in passing, not studied. */}
+                          {(j.employment_type || j.seniority || j.work_mode) && (
+                            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                              {j.employment_type && (
+                                <span
+                                  className="text-[10.5px] font-medium rounded-full px-2 py-0.5"
+                                  style={{ background: "var(--rh-raised)", color: "var(--rh-muted)", border: "1px solid var(--rh-hair)" }}
+                                >
+                                  {EMPLOYMENT_TYPE_LABELS[j.employment_type] || humanizeSlug(j.employment_type)}
+                                </span>
+                              )}
+                              {j.seniority && (
+                                <span
+                                  className="text-[10.5px] font-medium rounded-full px-2 py-0.5"
+                                  style={{ background: "var(--rh-raised)", color: "var(--rh-muted)", border: "1px solid var(--rh-hair)" }}
+                                >
+                                  {SENIORITY_LABELS[j.seniority] || humanizeSlug(j.seniority)}
+                                </span>
+                              )}
+                              {j.work_mode && (
+                                <span
+                                  className="text-[10.5px] font-medium rounded-full px-2 py-0.5"
+                                  style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}
+                                >
+                                  {humanizeSlug(j.work_mode)}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </button>
                       <div className="flex flex-col items-end gap-2 shrink-0">
@@ -2294,6 +2340,25 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                             Seen
                           </Badge>
                         )}
+                        {/* v3.344.0 — the other half of the same
+                            competitor-card gap: their row lets you act
+                            (apply) without opening the job first, this
+                            list only ever offered "open, then apply."
+                            A direct external link to the real apply_url,
+                            same one the detail pane's own primary button
+                            already points at — no new data, no new
+                            action, just reachable one click earlier. */}
+                        <a
+                          href={j.apply_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label="Apply on the company's site"
+                          title="Apply on the company's site"
+                          className="p-1 rounded hover:bg-muted transition"
+                        >
+                          <ExternalLink className="w-4 h-4" style={{ color: "var(--rh-faint, #9ca3af)" }} />
+                        </a>
                         {/* v3.142.0 — asked directly for a bookmark-style
                             save so a job can be kept without leaving the
                             list or reading the full posting first.
