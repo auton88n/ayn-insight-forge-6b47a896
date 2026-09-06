@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
+import { reportClientError } from '@/lib/errorReporting';
 
 const AYN_MARK = '/ayn-mark.svg';
 
@@ -71,22 +72,18 @@ export class ErrorBoundary extends Component<Props, State> {
     }
   }
 
+  // v3.357.0 -- now the shared helper every automatic error report goes
+  // through (also used by main.tsx's own global listeners below), so a
+  // render-crashing bug and a "quiet" one (an unhandled rejection, a
+  // click handler that throws) get the identical dedup/rate-cap
+  // treatment and land in the same place.
   private async reportError(error: Error, errorInfo: ErrorInfo) {
-    try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data: { session } } = await supabase.auth.getSession();
-
-      await (supabase as any).from('error_logs').insert({
-        error_message: (error.message || 'Unknown error').slice(0, 1000),
-        error_stack: error.stack?.slice(0, 5000) || null,
-        component_stack: errorInfo.componentStack?.slice(0, 5000) || null,
-        url: window.location.href,
-        user_id: session?.user?.id || null,
-        user_agent: navigator.userAgent,
-      });
-    } catch {
-      // Silent failure — error reporting should never break the app
-    }
+    await reportClientError({
+      message: error.message || 'Unknown error',
+      stack: error.stack || null,
+      componentStack: errorInfo.componentStack || null,
+      source: 'render_crash',
+    });
   }
 
   public render() {
