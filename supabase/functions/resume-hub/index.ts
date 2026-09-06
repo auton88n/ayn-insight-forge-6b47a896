@@ -1451,6 +1451,30 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
 
       const answerMatches = canonical ? await matchApplicationAnswers(remaining, canonical) : remaining.map((q) => ({ fieldId: q.id, label: q.label, matchedType: null, answer: null, confidence: 0 }));
 
+      // v3.352.0 -- reported directly, a real open-ended question ("How
+      // are you using AI today?") that should have gotten a real,
+      // job-aware narrative draft never got one. Traced to a real, live
+      // risk in applicationAnswers.ts's own pass 3 ("ai_closest_match"):
+      // it is allowed to judge two DIFFERENTLY-worded questions "close
+      // enough" and reuse a past, verbatim answer from a completely
+      // different application's own context. That's a reasonable trade
+      // for a short factual question (salary, relocation, a yes/no), but
+      // a <textarea> is this app's own existing signal that a question
+      // wants more than a stored fact -- a paragraph honestly written FOR
+      // a past, different company is not the same thing as one honestly
+      // written for this one. Reverting an "ai_closest_match" hit on a
+      // textarea back to unresolved costs nothing (matchApplicationAnswers
+      // already ran) and gives the narrative pass below -- built and
+      // quality-checked specifically for this class of question -- the
+      // real shot at it a stale reused paragraph was quietly taking away.
+      const remainingById = new Map(remaining.map((r) => [r.id, r]));
+      for (const a of answerMatches) {
+        if (a.matchedType === "ai_closest_match" && remainingById.get(a.fieldId)?.type === "textarea") {
+          a.answer = null;
+          a.matchedType = null;
+        }
+      }
+
       // v3.307.0 -- narrative answers, deliberately separate from
       // matchApplicationAnswers above. That function is only for a
       // question with one real, already-known correct value (a fact,

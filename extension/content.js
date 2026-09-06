@@ -126,6 +126,119 @@
  * changed, only how it's shown. Verified live end to end (a real local
  * harness driving the actual content.js/frame_agent.js through a real
  * Fill pass), not just read.
+ *
+ * v3.350.0 -- two things reported together, both real. One: "why ayn
+ * extantion dose not remamber whats in the drop down quastions and
+ * chose and save these answes for feuter use." Traced to the one shared
+ * read-back "Save what I typed" always used, `el.value` -- a real,
+ * common shape on Greenhouse and similar ATS pages, a styled "select
+ * one" trigger built as `role="combobox"` on a <div> or <button>, has no
+ * `.value` at all, so it silently read as empty and nothing was ever
+ * saved. A genuine native <select> had a quieter version of the same
+ * bug: `.value` is the chosen option's raw value attribute, not its
+ * visible text, and reuse elsewhere matches by visible text -- saving
+ * the raw value risked a saved answer that could never match anything
+ * again. New readCurrentAnswerText(), the one place any save path in
+ * this file reads a field's current answer from now on, fixes both:
+ * select reads the chosen option's own text, a combobox-shaped trigger
+ * reads its displayed text, both skip a still-showing placeholder
+ * ("Select...", "Choose one") so nothing fake gets saved. Two: "still
+ * the ayn extantion needs huge upgrade in design... less words
+ * everything organized," against a real screenshot of a competitor's
+ * own panel on the identical live page. The Ready screen's own gap-chip
+ * list was the single biggest source of always-on text before anyone
+ * asked for detail -- moved behind a real "See what's missing (N)"
+ * toggle, collapsed by default, same real data, one click away instead
+ * of always shown. The separate two-line "ON THIS PAGE" / title block
+ * above the fit card is gone too, folded into the same one-line dot+text
+ * row the field-count line below it already uses, so the two read as
+ * one compact stack instead of two separate headed sections. Both
+ * verified live: the read-back fix against real DOM shapes (a select
+ * with a mismatched value/text pair, a real div[role=combobox] trigger,
+ * and each one still on its own placeholder), the compaction against a
+ * real local harness screenshot, toggle click included. A full
+ * Jobright-level rebuild (a persistent company-logo job card, an
+ * always-visible credits/upsell row) is not what this pass did -- two
+ * real, verified fixes, not a claim of parity with the reference shown.
+ *
+ * v3.351.0 -- "keep going" on the same direction. Merged what had been
+ * three separate stacked pieces on the Ready screen (a title line, the
+ * fit card, a field-count line) into one bordered card -- title, score,
+ * gaps toggle, and field count all read as one unit now, buildFitCard/
+ * buildJobCardShell both taking the title and field-count text so a
+ * loading state and a resolved one share the same shape and nothing
+ * jumps. Same real merge on the post-Fill "Filled" screen, title only
+ * (the field count there is already stated separately, right below, as
+ * "N fields filled" -- repeating it would be the exact redundant text
+ * this pass is cutting, not adding). The Tailor/Cover-letter card also
+ * picked up a small "Also for this job" label -- it was the one section
+ * on the whole screen with no name at all. Deliberately still no company
+ * logo anywhere: this app's own web history (BrowseJobs' resolveLogoUrl
+ * removal, see the CSS comment above buildFitCard) already found real
+ * harm in a client-side favicon guess sometimes rendering a generic
+ * placeholder as if it were a verified logo, and closing a design gap
+ * is not a reason to reopen a bug this same team already fixed once.
+ * Verified live end to end via a real local harness (both the Ready and
+ * Filled screens, with a real card render and a real toggle click).
+ *
+ * v3.352.0 -- two things reported together, both real. One: "loading
+ * sign when the autofill happen not empty page" -- the "reading this
+ * page" transition could run a few real seconds (frame merging, the
+ * extract call) with one line of text sitting alone at the top of an
+ * otherwise-blank panel, which reads as broken, not busy. A real
+ * spinner now centers in that space instead. Two: "i think ayn miss
+ * some containers and elements... check with the auto browser" against
+ * a real live Dialpad Greenhouse posting. Used the user's own self-
+ * hosted browser-automation tool (read-only: browser.get_html, never
+ * eval_js, which that tool correctly gates behind human approval) to
+ * pull the real page's actual DOM rather than guess from a screenshot.
+ * Found no missing containers -- every field on this page (22 inputs, 2
+ * textareas, including the ones that LOOK like dropdowns) is a plain,
+ * standard `<input>`/`<textarea>` with a real `<label for=...>` in the
+ * top frame, nothing iframe-embedded, nothing frame_agent.js's own
+ * extraction should have any trouble reading. The one real, open-ended
+ * question on the page ("How are you using AI today?", a genuine
+ * <textarea>) led to a real, separate finding in the BACKEND, not the
+ * extension: resume-hub's own applicationAnswers.ts pass 3 ("reuse a
+ * past real answer if it's a close enough match") is allowed to judge
+ * two differently-worded questions close enough and reuse an answer
+ * honestly written for a completely different application's own
+ * context -- fine for a short factual question, a real risk for an
+ * open-ended one, where THIS job's own context is the whole point.
+ * Fixed at the call site (auto_apply_extract): a textarea that pass 3
+ * reused an answer for is now reverted to unresolved so the narrative
+ * pass -- built and quality-checked specifically for this class of
+ * question -- gets the real chance a stale reused paragraph was quietly
+ * taking away. Verified live end to end against the real deployed
+ * function with a real seeded profile and a real bait "past answer":
+ * the exact question came back matchedType "ai_narrative" with a real,
+ * grounded, honestly-written draft citing the seeded experience, not
+ * the bait entry.
+ *
+ * v3.353.0 -- direct follow-up: "what about saving when i fill the
+ * ematy quastions such as Country, Gender, dose not save it why?" Went
+ * back to the same real page's own DOM (fetched read-only again, same
+ * discipline) and looked past just the bare tag this time -- Country,
+ * Gender, Veteran status, and Disability status are all react-select (a
+ * very common library, not unique to this one ATS), which puts
+ * role="combobox" on a real <input>, its own internal search buffer.
+ * The v3.350.0 fix's combobox branch read that input's own textContent
+ * directly -- correct for the <div>/<button>-shaped trigger it was
+ * written for, but an <input> element's textContent is structurally
+ * always empty no matter what's selected, so it silently returned ""
+ * for exactly this shape. The real, chosen label renders as a separate
+ * sibling ("single value") element next to the input, never inside it.
+ * Fixed by climbing to the shared container react-select renders both
+ * pieces inside when the combobox element is itself an <input>; a real
+ * div/button trigger is untouched, still reads its own textContent.
+ * This was never a filling bug -- fillCombobox already fills these
+ * correctly by clicking the real widget, confirmed live in the report's
+ * own screenshots (Gender: Male, Country: UAE, both genuinely filled) --
+ * only the read-back "Save what I typed" used for a field AYN could not
+ * fill on its own. Verified against the exact real DOM captured live
+ * from this page, both states: a still-placeholder field correctly
+ * reads empty (not saved as a fake answer), a genuinely chosen value
+ * ("United Arab Emirates") now reads correctly and would be saved.
  */
 (() => {
   // v3.279.0 -- real bug, reported directly: "why it vanish and I can't
@@ -291,6 +404,67 @@
   // declaration point further down the same function -- a real,
   // live "Cannot access before initialization" crash) can't recur here.
   const LEGAL_SENSITIVE = /sponsor|work.{0,15}authoriz|legally (eligible|authorized)|visa status|\b18 years|legal drinking age/i;
+
+  // v3.350.0 -- reported directly: "why ayn extantion dose not remamber
+  // whats in the drop down quastions and chose and save these answes."
+  // Real bug, traced to the read-back "Save what I typed" always did:
+  // `el.value`. A plain <input>/<textarea> genuinely has that property,
+  // but a real, common shape on Greenhouse and similar ATS pages -- a
+  // "select one" dropdown built as a styled `role="combobox"` trigger
+  // (a <div> or <button>, not a native <select>) -- has no `.value` at
+  // all, so it silently read as empty and was never saved, no error,
+  // nothing. A native `<select>` had a second, quieter version of the
+  // same bug: `.value` returns the chosen OPTION's value attribute
+  // (e.g. "opt_no"), not its visible text ("No") -- fillTextLike's own
+  // select-matching logic (frame_agent.js) matches by visible text, so
+  // saving the raw value risks a saved answer that can never actually
+  // match anything the next time it's replayed. This one helper is now
+  // the only way any save path in this file reads a field's current
+  // answer, so both are fixed in the one place, not per caller.
+  const PLACEHOLDER_OPTION_RE = /^(select|choose|please select|pick|--|—)/i;
+  function readCurrentAnswerText(el) {
+    if (!el) return "";
+    if (el.tagName === "SELECT") {
+      const opt = el.options[el.selectedIndex];
+      const text = opt ? opt.textContent.trim() : "";
+      return PLACEHOLDER_OPTION_RE.test(text) ? "" : text;
+    }
+    if (el.getAttribute("role") === "combobox" || el.dataset?.aynClsMode === "combobox_static") {
+      // v3.353.0 -- "why dose not save it" for Country/Gender, reported
+      // directly, and confirmed against the real live page's own DOM
+      // (fetched read-only, not guessed): react-select -- the library
+      // behind this exact shape on Greenhouse and plenty of other ATS
+      // pages -- puts role="combobox" on a real <input>, used only as
+      // its own internal search buffer. An <input>'s own textContent is
+      // structurally always "" no matter what's selected; the actual
+      // chosen label renders as a separate sibling element next to it
+      // (react-select's own "single value" node), never inside the input
+      // itself. Reading el.textContent directly, which is what this
+      // branch always did before, silently returns nothing for exactly
+      // this shape -- confirmed live, not assumed: the real Country/
+      // Gender/Veteran-status/Disability fields on a real Greenhouse page
+      // are all built exactly this way. When the combobox element is
+      // itself an <input>, climb to the shared container these widgets
+      // render both the input and the selected label inside, and read
+      // that instead -- a real <div>/<button> trigger (the shape this
+      // branch was originally written for) still reads its own
+      // textContent directly, unchanged. Narrowed the condition itself
+      // at the same time, from "any AI-classified widget" to only
+      // combobox_static specifically -- combobox_typeahead (a Location/
+      // City-style field) is a real, plain <input> whose OWN .value is
+      // already the authoritative source (fillTextLike sets it directly
+      // via setNativeValue), so it belongs in the plain .value branch
+      // below, not this one; climbing its ancestors would risk pulling
+      // in unrelated surrounding text instead of the one real value
+      // already sitting correctly in .value.
+      const source = el.tagName === "INPUT"
+        ? (el.closest('[class*="value-container"]') || el.parentElement?.parentElement || el.parentElement || el)
+        : el;
+      const text = (source.textContent || "").trim();
+      return PLACEHOLDER_OPTION_RE.test(text) ? "" : text;
+    }
+    return typeof el.value === "string" ? el.value.trim() : "";
+  }
   function findSubmitButton() {
     const native = Array.from(document.querySelectorAll('button[type="submit"], input[type="submit"]')).find(
       (b) => b.offsetParent !== null && !b.disabled
@@ -651,13 +825,35 @@
   // real, AI-written context -- it just moves to the ring's own title
   // attribute (a native tooltip) so it's one hover away rather than always
   // taking up vertical space.
-  function buildFitCard(m) {
+  // v3.350.0 -- "clean informative modern easy to navigate less words,"
+  // reported directly against a real screenshot of a competitor's own
+  // extension. The gap chips list was the single biggest driver of how
+  // much text sat on screen before anyone had asked for detail -- moved
+  // behind a real, one-line toggle, collapsed by default, same real data
+  // underneath, no less transparent (a click away, not deleted), just
+  // not shown unless actually wanted.
+  // v3.351.0 -- "everything organized," reported directly against a real
+  // competitor's own card: one bordered unit holding the job's own
+  // context (title), the score, and the field count together, not three
+  // separate stacked elements (a title line, then a card, then a field-
+  // count line) that only read as related because they happened to sit
+  // next to each other. pageTitle/fieldSummaryText are both optional so
+  // the same function still renders correctly stand-alone; no fetched or
+  // guessed company logo here on purpose -- this app's own web history
+  // (BrowseJobs' resolveLogoUrl removal) already found and fixed the
+  // real harm in a client-side favicon guess sometimes being a generic
+  // placeholder shown as if it were a verified company logo, and this
+  // pass isn't reopening that.
+  function buildFitCard(m, pageTitle, fieldSummaryText) {
     const score = Math.max(0, Math.min(100, Math.round(m.score)));
     const tone = scoreTone(score);
     const ring = scoreRing(score, 50);
     if (m.summary) ring.title = m.summary;
 
     const right = el("div", { style: "flex: 1; min-width: 0;" });
+    if (pageTitle) {
+      right.appendChild(el("p", { class: "job-card-title", text: pageTitle, title: pageTitle }));
+    }
     const head = el("div", { style: "display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom: 8px;" });
     head.appendChild(el("p", { class: "fit-title", text: tone.word, style: `margin:0; color:${tone.hex};` }));
     right.appendChild(head);
@@ -672,11 +868,39 @@
 
     const missing = m.missing_keywords || [];
     if (missing.length) {
-      right.appendChild(el("p", { class: "fit-gaps-label", text: "Real gaps AYN found" }));
-      renderGapItems(right, missing);
+      const gapsBody = el("div", { style: "display:none;" });
+      gapsBody.appendChild(el("p", { class: "fit-gaps-label", text: "Real gaps AYN found" }));
+      renderGapItems(gapsBody, missing);
+      const gapsToggle = el("button", {
+        class: "link-toggle", style: "margin-top: 8px;",
+        text: `See what's missing (${missing.length})`,
+      });
+      gapsToggle.addEventListener("click", () => {
+        const showing = gapsBody.style.display !== "none";
+        gapsBody.style.display = showing ? "none" : "block";
+        gapsToggle.textContent = showing ? `See what's missing (${missing.length})` : "Hide";
+      });
+      right.appendChild(gapsToggle);
+      right.appendChild(gapsBody);
+    }
+
+    if (fieldSummaryText) {
+      right.appendChild(el("p", { class: "job-card-meta", text: fieldSummaryText }));
     }
 
     return el("div", { class: "fit-card" }, [ring, right]);
+  }
+
+  // The shell shown before the free fit check resolves (or if it never
+  // does) -- same bordered card, same title/meta content, just no ring
+  // or score section yet, so nothing jumps or resizes once the real one
+  // swaps in beyond the ring itself appearing.
+  function buildJobCardShell(pageTitle, fieldSummaryText) {
+    if (!pageTitle && !fieldSummaryText) return el("div", {});
+    const col = el("div", { style: "flex: 1; min-width: 0;" });
+    if (pageTitle) col.appendChild(el("p", { class: "job-card-title", text: pageTitle, title: pageTitle }));
+    if (fieldSummaryText) col.appendChild(el("p", { class: "job-card-meta", text: fieldSummaryText, style: pageTitle ? "margin-top: 6px;" : "" }));
+    return el("div", { class: "fit-card" }, [col]);
   }
 
   // v3.332.0 -- "we need to have resume tailor and cover letter... with
@@ -890,11 +1114,13 @@
        nothing anywhere confirmed which page/job the panel was scoped to
        before you clicked Fill. This is the page's own real <title>,
        never guessed at or parsed into title/company pieces -- most real
-       ATS platforms already format it usefully on their own. */
-    .page-context-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.04em; color: var(--muted); margin: 0 0 3px; }
-    .page-context-title { font-family: "AYN Outfit", sans-serif; font-size: 13.5px; font-weight: 700;
-      color: var(--ink); margin: 0 0 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+       ATS platforms already format it usefully on their own. v3.351.0 --
+       moved from its own line above the fit card into the card itself
+       (see buildFitCard/buildJobCardShell), so title, score, and field
+       count all read as one unit, not three separate stacked elements. */
+    .job-card-title { font-family: "AYN Outfit", sans-serif; font-weight: 700; font-size: 13.5px;
+      color: var(--ink); margin: 0 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .job-card-meta { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
 
     /* Floating re-open tab -- v3.340.0. Docked to the right edge, only
        ever shown once the panel has been minimized (never alongside it),
@@ -911,6 +1137,18 @@
       display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,0.18); flex-shrink: 0; }
     .tab-mark { width: 21px; height: 21px; border-radius: 6px; display: block; }
     .body { padding: 18px; overflow-y: auto; flex: 1; }
+
+    /* v3.352.0 -- a real busy indicator for a screen that genuinely has
+       nothing else to show yet (autofilling's own "reading this page"
+       transition), instead of one line of text alone in a tall, empty
+       panel that reads as broken rather than working. */
+    .loading-state { display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 14px; min-height: 260px; text-align: center; }
+    .spinner { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+      border: 3px solid var(--border); border-top-color: var(--ember);
+      animation: ayn-spin 0.8s linear infinite; }
+    @keyframes ayn-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
     .row { margin-bottom: 14px; }
     label.field-label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
     input { width: 100%; padding: 10px 12px; border-radius: 9px;
@@ -1291,21 +1529,15 @@
     // own real <title> -- never guessed at or parsed into title/company
     // pieces, most real ATS platforms already format it usefully -- so
     // this is honest context, not an invented summary of the page.
+    // v3.351.0 -- "everything organized," reported directly against a
+    // real competitor's own card. Title, field count, and (once it
+    // loads) the score all used to be three separate stacked pieces --
+    // two plain dot-lines plus a card in between them. Field extraction
+    // moved up so its count is known before either state renders, and
+    // both now live inside the ONE fit card (buildJobCardShell first,
+    // buildFitCard once the free check resolves) -- see both functions'
+    // own comments for why no logo was added here to match further.
     const pageTitle = (document.title || "").trim();
-    if (pageTitle) {
-      body.appendChild(el("p", { class: "page-context-label", text: "On this page" }));
-      body.appendChild(el("p", { class: "page-context-title", text: pageTitle, title: pageTitle }));
-    }
-
-    const fitSlot = el("div", {});
-    body.appendChild(fitSlot);
-    let latestFit = null;
-    const fitPromise = fetchFit(session);
-    fitPromise.then((m) => {
-      latestFit = m;
-      if (m) fitSlot.replaceWith(buildFitCard(m));
-      else fitSlot.remove();
-    });
 
     let localFields = [];
     try {
@@ -1317,15 +1549,18 @@
     const resumeField = fileFields.find((f) => !NOT_RESUME_FIELD.test(f.label));
     const coverField = fileFields.find((f) => IS_COVER_LETTER_FIELD.test(f.label));
     const fillableCount = localFields.length;
+    const fieldSummaryText = fillableCount
+      ? `${fillableCount} field${fillableCount === 1 ? "" : "s"} on this page AYN can read`
+      : "Couldn't find a form on this page yet";
 
-    body.appendChild(el("div", { class: "stat-line" }, [
-      el("span", { class: "stat-dot" }),
-      el("span", {
-        text: fillableCount
-          ? `${fillableCount} field${fillableCount === 1 ? "" : "s"} on this page AYN can read`
-          : "Couldn't find a form on this page yet",
-      }),
-    ]));
+    const fitSlot = buildJobCardShell(pageTitle, fieldSummaryText);
+    body.appendChild(fitSlot);
+    let latestFit = null;
+    const fitPromise = fetchFit(session);
+    fitPromise.then((m) => {
+      latestFit = m;
+      if (m) fitSlot.replaceWith(buildFitCard(m, pageTitle, fieldSummaryText));
+    });
 
     // v3.348.0 -- "let result screens jump sideways," a real navigation
     // gap: landing here after a tailor or a cover letter meant either
@@ -1424,6 +1659,11 @@
     }).catch(() => {});
 
     if (resumeField || coverField) {
+      // v3.351.0 -- "everything organized," the other half of the same
+      // report: this card floated with no label at all, the one section
+      // on the whole screen not named. A plain small eyebrow, same
+      // treatment the fit card's own "Real gaps AYN found" label uses.
+      body.appendChild(el("p", { class: "fit-gaps-label", text: "Also for this job", style: "margin: 0 0 6px;" }));
       const card = el("div", { class: "list-card" });
       if (resumeField) {
         const sub = el("span", { class: "list-row-sub", text: "AI-tailored to this job" });
@@ -1478,7 +1718,16 @@
   async function autofill(session, opts = {}) {
     clearPanel();
     panel.appendChild(buildHead("Autofilling…", session));
-    panel.appendChild(el("div", { class: "body" }, [el("p", { class: "muted", text: "Reading this page and matching it to your AYN profile…" })]));
+    // v3.352.0 -- "loading sign when the autofill happen not empty page,"
+    // reported directly against a real screenshot: this state can run a
+    // few real seconds (frame merging, the extract call itself), and one
+    // short line of text sitting at the top of an otherwise-blank panel
+    // read as broken, not busy. A real spinner, centered in the space
+    // this screen actually has, same as any other loading state should.
+    panel.appendChild(el("div", { class: "body loading-state" }, [
+      el("div", { class: "spinner" }),
+      el("p", { class: "muted", text: "Reading this page and matching it to your AYN profile…" }),
+    ]));
     // Fired off now, overlapping with the extraction/matching work below,
     // rather than adding its own separate wait later. v3.332.0 -- a caller
     // that already fetched this on the ready screen (see showReady) passes
@@ -1788,9 +2037,14 @@
     const wn3 = wizardNotice(wizardStep);
     if (wn3) panel.appendChild(wn3);
     const body = el("div", { class: "body" });
-    const fitSlot = el("div", {});
+    // v3.351.0 -- same merged card as the Ready screen, minus the field
+    // count (this screen already states that separately, right below,
+    // as "N fields filled" -- repeating it here would be the exact kind
+    // of redundant text this whole pass is trying to cut).
+    const filledPageTitle = (document.title || "").trim();
+    const fitSlot = buildJobCardShell(filledPageTitle, null);
     body.appendChild(fitSlot);
-    fitPromise.then((m) => { if (m) fitSlot.replaceWith(buildFitCard(m)); else fitSlot.remove(); });
+    fitPromise.then((m) => { if (m) fitSlot.replaceWith(buildFitCard(m, filledPageTitle, null)); });
     body.appendChild(el("p", { class: "ok", text: `${filledCount} field${filledCount === 1 ? "" : "s"} filled from your AYN profile.` }));
 
     if (legalFilled.length) {
@@ -2228,8 +2482,7 @@
           // even if someone happened to type something into that exact
           // field on the real page themselves.
           if (!t.fieldId || CONSENT_CHECKBOX_RE.test(t.label)) continue;
-          const el2 = fieldRegistry_().get(t.fieldId);
-          const val = el2 && typeof el2.value === "string" ? el2.value.trim() : "";
+          const val = readCurrentAnswerText(fieldRegistry_().get(t.fieldId));
           if (val) toSave.push({ label: t.label, answer: val });
         }
         for (const r of radioNotOnFileTracked) {

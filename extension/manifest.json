@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AYN Auto-Apply",
-  "version": "1.31.0",
+  "version": "1.35.0",
   "description": "Fills a real job application from your AYN profile, in your own browser. Submits it too, only if you've explicitly agreed -- otherwise you always review and submit yourself.",
   "icons": {
     "16": "icon16.png",

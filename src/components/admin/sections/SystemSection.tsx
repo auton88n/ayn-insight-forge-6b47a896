@@ -6,10 +6,11 @@ import { SectionHeader } from './ui';
 import {
   AccountsPane, SupportPane, ErrorsPane, LimitsPane,
   AiPane, EmailPane, ConsentPane, CookieConsentPane, SettingsPane, ActivityPane,
+  ExtDiagnosticsPane,
 } from './system/SystemPanes';
 import { ModerationPane, FlagsPane, CreditsPane, AdminsPane } from './system/ControlPanes';
 
-type Pane = 'accounts' | 'credits' | 'moderation' | 'flags' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'consent' | 'cookies' | 'settings' | 'admins' | 'activity';
+type Pane = 'accounts' | 'credits' | 'moderation' | 'flags' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'consent' | 'cookies' | 'settings' | 'admins' | 'activity' | 'extdiag';
 
 const PANES: { id: Pane; label: string }[] = [
   { id: 'accounts', label: 'Accounts' },
@@ -27,6 +28,9 @@ const PANES: { id: Pane; label: string }[] = [
   { id: 'cookies', label: 'Cookie consent' },
   { id: 'admins', label: 'Admins' },
   { id: 'activity', label: 'Activity' },
+  // v3.354.0 — the extension's own "Send diagnostics to AYN" button wrote
+  // to a real table with zero readers anywhere until now.
+  { id: 'extdiag', label: 'Extension reports' },
   { id: 'settings', label: 'Settings' },
 ];
 
@@ -69,6 +73,7 @@ export default function SystemSection() {
       {pane === 'cookies' && <CookieConsentPane />}
       {pane === 'admins' && <AdminsPane />}
       {pane === 'activity' && <ActivityPane />}
+      {pane === 'extdiag' && <ExtDiagnosticsPane />}
       {pane === 'settings' && <SettingsPane onGoToFlags={() => setPane('flags')} />}
     </div>
   );

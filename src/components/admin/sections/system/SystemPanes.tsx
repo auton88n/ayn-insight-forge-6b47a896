@@ -1,7 +1,7 @@
 // v3.22.0 — SYSTEM panes, written for AYN as it is now. Every pane reads a real
 // admin RPC. Nothing here is a placeholder.
 import { AccountDetailDialog } from './AccountDetail';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ import {
   useAdminEmailLog,
   useAdminInbox,
   useMarkInboxRead,
+  useAdminExtDiagnostics,
 } from '@/admin-app/hooks/useAdminQuery';
 import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when } from '../ui';
 
@@ -404,6 +405,108 @@ export function ActivityPane() {
             <Cell>{when(r.created_at)}</Cell>
           </Row>
         ))}
+      </Table>
+    </div>
+  );
+}
+
+/* ────────────────────── EXTENSION DIAGNOSTICS ────────────────────── */
+// v3.354.0 — the extension's own "Send diagnostics to AYN" button
+// (ext_diag_report, resume-hub) has written to ext_diagnostics since
+// v3.296.0; nothing has ever read it back until now. Reported directly:
+// a real person clicked it, saw "Sent ✓", then asked where it actually
+// goes. The payload here is deliberately narrow by design (see that
+// action's own comment) — field labels/kinds, structural widget
+// signatures, and per-field fill success/failure, never an actual value
+// typed into a field, never page HTML.
+export function ExtDiagnosticsPane() {
+  const query = useAdminExtDiagnostics();
+  const [openId, setOpenId] = useState<string | null>(null);
+  if (query.isLoading) return <LoadingBlock />;
+  if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
+
+  const rows: any[] = (query.data as any) || [];
+  const last24 = rows.filter(r => Date.now() - new Date(r.created_at).getTime() < 86400000).length;
+  const distinctPages = new Set(rows.map(r => r.page_hostname).filter(Boolean)).size;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <Stat label="Reports" value={rows.length} hint="Most recent 150" />
+        <Stat label="Last 24 hours" value={last24} accent />
+        <Stat label="Distinct sites" value={distinctPages} />
+      </div>
+      <Table head={['Reporter', 'Page', 'Filled', 'Not on file', 'Failed', 'When', '']}>
+        {rows.length === 0 && <tr><td colSpan={7}><EmptyRow>No diagnostic reports yet.</EmptyRow></td></tr>}
+        {rows.map(r => {
+          const rep = r.report || {};
+          const notOnFile: string[] = Array.isArray(rep.notOnFile) ? rep.notOnFile : [];
+          const failed: string[] = Array.isArray(rep.failed) ? rep.failed : [];
+          const skipped: string[] = Array.isArray(rep.skipped) ? rep.skipped : [];
+          const isOpen = openId === r.id;
+          return (
+            <Fragment key={r.id}>
+              <Row>
+                <Cell>{r.reporter_email || <span className="text-muted-foreground">Unknown</span>}</Cell>
+                <Cell>
+                  <span className="font-mono text-xs">{r.page_hostname || '—'}</span>
+                  {r.page_pathname && <span className="block text-[10px] text-muted-foreground font-mono truncate max-w-[220px]">{r.page_pathname}</span>}
+                </Cell>
+                <Cell mono>{rep.filledCount ?? '—'} / {rep.fieldCount ?? '—'}</Cell>
+                <Cell mono>{notOnFile.length}</Cell>
+                <Cell mono>
+                  {failed.length > 0
+                    ? <Badge variant="destructive" className="text-[10px]">{failed.length}</Badge>
+                    : 0}
+                </Cell>
+                <Cell>{when(r.created_at)}</Cell>
+                <Cell>
+                  <Button size="sm" variant="ghost" onClick={() => setOpenId(isOpen ? null : r.id)}>
+                    {isOpen ? 'Hide' : 'Details'}
+                  </Button>
+                </Cell>
+              </Row>
+              {isOpen && (
+                <tr key={`${r.id}-detail`} className="border-b border-border/40 bg-muted/20">
+                  <td colSpan={7} className="px-4 py-3">
+                    <div className="grid sm:grid-cols-2 gap-4 text-xs">
+                      {r.note && (
+                        <div className="sm:col-span-2">
+                          <div className="font-medium text-foreground mb-1">Note from reporter</div>
+                          <div className="text-muted-foreground">{r.note}</div>
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-medium text-foreground mb-1">Not on file ({notOnFile.length})</div>
+                        {notOnFile.length
+                          ? <ul className="text-muted-foreground list-disc pl-4 space-y-0.5">{notOnFile.map((l, i) => <li key={i}>{l}</li>)}</ul>
+                          : <span className="text-muted-foreground">None</span>}
+                      </div>
+                      <div>
+                        <div className="font-medium text-foreground mb-1">Failed to fill ({failed.length})</div>
+                        {failed.length
+                          ? <ul className="text-muted-foreground list-disc pl-4 space-y-0.5">{failed.map((l, i) => <li key={i}>{l}</li>)}</ul>
+                          : <span className="text-muted-foreground">None</span>}
+                      </div>
+                      {skipped.length > 0 && (
+                        <div>
+                          <div className="font-medium text-foreground mb-1">Skipped (slider/range) ({skipped.length})</div>
+                          <ul className="text-muted-foreground list-disc pl-4 space-y-0.5">{skipped.map((l, i) => <li key={i}>{l}</li>)}</ul>
+                        </div>
+                      )}
+                      {rep.platform && (
+                        <div>
+                          <div className="font-medium text-foreground mb-1">Platform</div>
+                          <span className="text-muted-foreground font-mono">{rep.platform}</span>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          );
+        })}
       </Table>
     </div>
   );

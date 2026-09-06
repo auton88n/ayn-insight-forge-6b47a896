@@ -257,6 +257,7 @@ export const adminControlKeys = {
   activityLog: ['admin', 'v2', 'activityLog'] as const,
   emailLog: ['admin', 'v2', 'emailLog'] as const,
   plans: ['admin', 'v2', 'plans'] as const,
+  extDiagnostics: ['admin', 'v2', 'extDiagnostics'] as const,
 };
 
 export function useAdminModeration() {
@@ -364,6 +365,16 @@ export function useAdminEmailLog() {
   return useQuery({
     queryKey: adminControlKeys.emailLog,
     queryFn: () => adminRpc<any>('get_admin_email_log', { p_limit: 150 }),
+    staleTime: FAST_STALE_TIME,
+  });
+}
+
+// v3.354.0 — the extension's own "Send diagnostics to AYN" button has
+// written to ext_diagnostics since v3.296.0; this is the first reader.
+export function useAdminExtDiagnostics() {
+  return useQuery({
+    queryKey: adminControlKeys.extDiagnostics,
+    queryFn: () => adminRpc<any>('get_admin_ext_diagnostics', { p_limit: 150 }),
     staleTime: FAST_STALE_TIME,
   });
 }
