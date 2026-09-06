@@ -36,6 +36,39 @@
 (() => {
   let fieldRegistry = new Map();
 
+  // v3.356.0 -- this file has no network access and no session of its
+  // own (see the header above: it's a pure extraction/fill library,
+  // deliberately), so it can't call the backend directly the way
+  // content.js's own error listener does. Every error here relays
+  // through background.js the identical one hop AYN_FRAME_REPORT
+  // already uses -- background.js forwards it to the top frame's
+  // content.js, the only context with a real signed-in session, which
+  // then runs it through the same dedup/rate-capped reportExtError()
+  // pipeline as its own errors. This runs in every frame this file is
+  // injected into (top frame included), so a bug here reaches the same
+  // place regardless of which frame it happened in. Filtered to this
+  // file's own origin the same way content.js filters its own listener
+  // -- never a third-party page's own bug.
+  const AYN_FA_ORIGIN = chrome.runtime.getURL("");
+  function aynFrameAgentLooksLikeOurs(filename, stack) {
+    if (typeof filename === "string" && filename.startsWith(AYN_FA_ORIGIN)) return true;
+    if (typeof stack === "string" && stack.includes(AYN_FA_ORIGIN)) return true;
+    return false;
+  }
+  window.addEventListener("error", (e) => {
+    if (!aynFrameAgentLooksLikeOurs(e.filename, e.error && e.error.stack)) return;
+    chrome.runtime
+      .sendMessage({ type: "AYN_FRAME_ERROR", source: "frame_agent", message: e.message, stack: e.error && e.error.stack })
+      .catch(() => {});
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const reason = e.reason;
+    const message = reason && reason.message ? reason.message : String(reason);
+    const stack = reason && reason.stack ? reason.stack : null;
+    if (stack && !aynFrameAgentLooksLikeOurs(null, stack)) return;
+    chrome.runtime.sendMessage({ type: "AYN_FRAME_ERROR", source: "frame_agent", message, stack }).catch(() => {});
+  });
+
   // v3.325.0 -- real platform detection, added deliberately narrow.
   // Hostname matching against a real, public domain carries zero risk of
   // being wrong -- a hostname either matches or it doesn't -- so this is
@@ -616,7 +649,25 @@
       // nothing in a profile happening to match "Create a password"
       // rather than being excluded on purpose, the one input type here
       // that wasn't.
-      if (["hidden", "submit", "button", "reset", "image", "password"].includes(type)) continue;
+      // v3.355.0 -- search added, for the identical reason. Real, live
+      // bug found on a real Reddit/Greenhouse application: the phone
+      // field's own country-code picker (intl-tel-input, a common
+      // library, not unique to this ATS) opens a "Search" box to filter
+      // its flag list -- <input type="search" role="combobox"
+      // aria-label="Search">, a real, visible, genuinely-labeled
+      // element, so neither the aria-hidden fix (v3.322.0/323.0) nor a
+      // missing-label problem was the actual cause here. Confirmed live,
+      // not guessed at: ran the real, current extractFields() against
+      // the exact real markup pulled from the live page and it still
+      // extracted this as its own field ("An unlabeled field on this
+      // page" in the report was a red herring -- it genuinely has a
+      // label, "Search", which is exactly the tell that this was never
+      // a real application question in the first place). A type="search"
+      // input is a filter/query box for narrowing some other list, by
+      // definition, on every site that uses one, not a fact about the
+      // candidate -- excluded at the type level, the same category
+      // judgment already made for hidden/submit/button/reset/image.
+      if (["hidden", "submit", "button", "reset", "image", "password", "search"].includes(type)) continue;
 
       if (type === "file") {
         // v3.293.0 -- a real, extremely common upload pattern, found by a
@@ -997,10 +1048,24 @@
     // with two different strategies, and the person's own after-fill
     // summary would list the same question twice. registeredEls is the
     // full set of elements any earlier pass already claimed.
+    // v3.355.0 -- real, live duplicate found on the same Reddit posting
+    // as the search-box exclusion above: excluding type="search" from
+    // the main loop only stopped THAT loop from registering it -- this
+    // separate loop scans every real role="combobox" element on the
+    // page independently, and intl-tel-input's own country-search box
+    // carries role="combobox" too (a real, standard ARIA pattern for a
+    // combobox-shaped search field, not a bug in that library), so it
+    // was never in registeredEls and got extracted here instead, this
+    // time mislabeled "Phone" via labelFor's own nearby-label fallback
+    // picking up the actual Phone field's real label by proximity. Same
+    // type-level judgment as the main loop: a real type="search" input
+    // is a filter/query box by definition, on every site that has one,
+    // never a fact about the candidate to fill or report on.
     const registeredEls = new Set(fieldRegistry.values());
     for (const trigger of queryDeep(root, '[role="combobox"]')) {
       if (!visible(trigger) || trigger.getAttribute("aria-disabled") === "true") continue;
       if (registeredEls.has(trigger)) continue;
+      if (trigger.tagName === "INPUT" && (trigger.getAttribute("type") || "").toLowerCase() === "search") continue;
       const fid = `ayn-f-${n++}`;
       fieldRegistry.set(fid, trigger);
       out.push({ id: fid, tag: trigger.tagName.toLowerCase(), type: "select", required: false, label: labelFor(trigger) || "An unlabeled field on this page" });

@@ -75,6 +75,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return false;
   }
 
+  // v3.356.0 -- frame_agent.js's own automatic error report, from
+  // whichever frame it fired in (this top frame included, so its own
+  // errors take the identical one-hop path as a sub-frame's). Pure
+  // relay to the top frame's content.js listener, same shape as
+  // AYN_FRAME_REPORT above -- content.js is the only context with a
+  // signed-in session, so it's the only place that can actually send
+  // this on to the backend. A tab with no content.js currently injected
+  // (nothing listening at frameId 0) just drops it, same as any other
+  // relay with no listener on the other end -- best effort, never a
+  // reason to hold a reference or retry.
+  if (msg.type === "AYN_FRAME_ERROR") {
+    chrome.tabs
+      .sendMessage(sender.tab.id, { type: "AYN_FRAME_ERROR", source: msg.source, message: msg.message, stack: msg.stack }, { frameId: 0 })
+      .catch(() => {});
+    return false;
+  }
+
   if (msg.type === "AYN_RELAY_TO_FRAME") {
     // From the top frame, down to one specific sub-frame. Returns that
     // frame's own real fill response back to the top frame's caller —

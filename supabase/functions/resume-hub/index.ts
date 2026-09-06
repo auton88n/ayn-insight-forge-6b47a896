@@ -2001,6 +2001,57 @@ RULES:
       return json({ ok: true });
     }
 
+    // v3.356.0 -- the manual "Send diagnostics" button above only ever
+    // tells AYN about a bug if the person who hit it notices something's
+    // wrong and chooses to report it. The real, repeated bug class in
+    // this extension's own history (queryDeep/ACTION_FLAG/QUALITY_MODEL/
+    // EMPTY_PARSED "is not defined" -- a reference across a module
+    // boundary a mechanical edit missed) has always been found only by
+    // live testing, sometimes after it already shipped. This is the
+    // automatic half: content.js/frame_agent.js install a real
+    // window.onerror/unhandledrejection listener and call this action
+    // themselves, no click needed. Own rate limit (not the manual
+    // button's 30/15m budget) so a real crash loop on a bad page can
+    // never starve or get starved by a legitimate manual report; the
+    // client itself also dedupes by fingerprint before ever getting
+    // this far, so this is a backstop, not the only guard. Reuses the
+    // same ext_diagnostics table and the same "never send a filled
+    // value" discipline -- a JS runtime error's message/stack names
+    // identifiers and property names, never a field's actual content,
+    // confirmed by reading every throw site in the extension before
+    // building this.
+    if (action === "ext_error_report") {
+      const adminErr = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminErr, "tailoring"); if (off) return off; }
+      { const blocked = await accountGate(adminErr, user.id, action); if (blocked) return blocked; }
+      { const limited = await rateLimitGate(adminErr, user.id, action, 20, 15); if (limited) return limited; }
+
+      const { pageHostname, pagePathname, source, message, stack, extVersion, fingerprint } = payload as {
+        pageHostname?: string; pagePathname?: string; source?: string;
+        message?: string; stack?: string; extVersion?: string; fingerprint?: string;
+      };
+      if (typeof message !== "string" || !message.trim()) return json({ error: "message is required" }, 400);
+
+      const report = {
+        kind: "js_error",
+        source: typeof source === "string" ? source.slice(0, 60) : "unknown",
+        message: message.slice(0, 500),
+        stack: typeof stack === "string" ? stack.slice(0, 2000) : null,
+        extVersion: typeof extVersion === "string" ? extVersion.slice(0, 20) : null,
+        fingerprint: typeof fingerprint === "string" ? fingerprint.slice(0, 64) : null,
+      };
+
+      const { error: errReportErr } = await adminErr.from("ext_diagnostics").insert({
+        user_id: user.id,
+        page_hostname: typeof pageHostname === "string" ? pageHostname.slice(0, 200) : null,
+        page_pathname: typeof pagePathname === "string" ? pagePathname.slice(0, 400) : null,
+        report,
+        note: `Auto-reported error: ${report.message}`.slice(0, 500),
+      });
+      if (errReportErr) return json({ error: "Could not save error report." }, 500);
+      return json({ ok: true });
+    }
+
     if (action === "auto_apply_fill") {
       const adminFill = createClient(supabaseUrl, serviceKey);
       { const off = await featureGate(adminFill, "tailoring"); if (off) return off; }

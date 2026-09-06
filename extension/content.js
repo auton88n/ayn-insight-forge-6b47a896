@@ -239,6 +239,58 @@
  * from this page, both states: a still-placeholder field correctly
  * reads empty (not saved as a fake answer), a genuinely chosen value
  * ("United Arab Emirates") now reads correctly and would be saved.
+ *
+ * v3.355.0 -- follow-up to the same "we need to have access to in the
+ * admin panel and laos diagnose what we are missing" request: built the
+ * admin panel access to ext_diagnostics (see the SQL/admin-side history
+ * for that half), then used its real, live data to chase down an
+ * "An unlabeled field on this page" report on a real Reddit/Greenhouse
+ * posting. Confirmed live (frame_agent.js's own visible()/aria-hidden
+ * fix from v3.322.0/323.0 already handles react-select's hidden
+ * validation-marker inputs correctly) that the real cause was something
+ * else entirely: intl-tel-input (a common phone-number-input library,
+ * not unique to this ATS) renders its own "Search" box for filtering the
+ * flag/country-code dropdown as <input type="search" role="combobox"
+ * aria-label="Search">, a real, visible, genuinely-labeled element --
+ * never a real application question, by construction, on any site that
+ * uses this pattern. Fixed in frame_agent.js at BOTH of the two
+ * independent field-scanning loops that could each register this same
+ * element as its own spurious field: the main input/textarea/select
+ * loop (type="search" added to the existing hidden/submit/button/reset/
+ * image/password exclusion list) and the separate [role="combobox"]
+ * loop that scans for custom dropdown triggers not already registered
+ * by the first loop (which, precisely because the first loop now skips
+ * this element, would otherwise pick it up fresh a second time). Both
+ * loops now agree it is never a real field. Verified live against the
+ * exact real markup captured from the live page, via a local harness
+ * running the real, current frame_agent.js and calling its own exposed
+ * window.__aynExtractFields() directly: the search-input element no
+ * longer appears in the output under any id, from either loop.
+ *
+ * v3.356.0 -- asked directly, after the fix above, how a NEW bug like it
+ * would ever be known about, since it was found only by live testing,
+ * not by any check that runs on its own. The honest answer: nothing did
+ * -- the manual "Send diagnostics" row only reports what a person
+ * notices and chooses to send. Built the automatic half: a real
+ * window.onerror/unhandledrejection listener here and in frame_agent.js
+ * (which has no network access of its own, so it relays through
+ * background.js the identical hop AYN_FRAME_REPORT already uses),
+ * calling a new backend action, ext_error_report, with its own separate
+ * rate limit so a real crash loop can never compete with the manual
+ * button's budget. Filtered to this extension's own chrome-extension://
+ * origin so a bug on the third-party page itself is never reported;
+ * deduped client side by a cheap fingerprint (24h cooldown per distinct
+ * bug, capped at 15 reports/day total) so the same bug firing in a loop
+ * reports once, not once per second. Reuses the ext_diagnostics table
+ * (report.kind: "js_error") and gets its own visual treatment in the
+ * admin panel's Extension reports pane -- a red "ERROR" row instead of
+ * blending in with a normal run's summary. Verified live end to end
+ * against the real deployed backend: a real throwaway account's direct
+ * call to ext_error_report landed the exact row expected, and the admin
+ * RPC (get_admin_ext_diagnostics) returned it correctly shaped for the
+ * pane. Deliberately scoped to content.js/frame_agent.js only, not
+ * background.js -- that file is small, stable, and has no history of
+ * this bug class, unlike the two files that actually do.
  */
 (() => {
   // v3.279.0 -- real bug, reported directly: "why it vanish and I can't
@@ -324,6 +376,134 @@
     if (!r.ok) throw new Error(data.error || `Request failed (${r.status}).`);
     return data;
   }
+
+  // ---------------------------------------------------------------
+  // Automatic error reporting -- v3.356.0
+  // ---------------------------------------------------------------
+  // The manual "Send diagnostics" row (below) only ever tells AYN about
+  // a bug if the person who hit it notices and chooses to report it.
+  // The real, repeated bug class in this extension's own history --
+  // queryDeep/ACTION_FLAG/QUALITY_MODEL/EMPTY_PARSED "is not defined,"
+  // a reference across a file/module boundary a mechanical edit missed,
+  // most recently the frame_agent.js dual-loop search-input miss -- has
+  // always been found only by live testing, sometimes after it already
+  // shipped. This installs a real window.onerror/unhandledrejection
+  // listener so a NEW one of these surfaces in the admin panel's own
+  // ext_diagnostics pane on its own, no user report needed.
+  //
+  // Deliberately narrow, matching this file's own diagnostics discipline
+  // (see the report object built for ext_diag_report above): a JS
+  // runtime error's message/stack names identifiers and file locations,
+  // never a field's actual filled value -- confirmed by reading every
+  // throw site in this file and frame_agent.js before building this,
+  // none of them interpolate page data into an error message. Filtered
+  // to errors that plausibly came from AYN's own bundled scripts (their
+  // real chrome-extension:// origin appears in the filename or stack),
+  // never a bug on the third-party page itself. Deduped client side by
+  // a cheap fingerprint (source + message + one stack frame) so the
+  // exact same bug firing in a loop reports once, not once per second,
+  // and capped at a fixed number of reports per day regardless of how
+  // many distinct bugs are firing -- a real crash storm degrades to
+  // silence, never to spamming the backend's own rate limit that the
+  // manual diagnostics button also shares an account with (this uses
+  // its own separate action/rate limit on the backend for exactly that
+  // reason). Best effort throughout: reporting a bug must never itself
+  // throw somewhere that matters, and only ever runs when a real
+  // session already exists (no anonymous path, same as every other
+  // ext_* action).
+  const ERR_DEDUP_KEY = "ayn_err_dedup"; // { [fingerprint]: lastSentAtMs }
+  const ERR_DAILY_KEY = "ayn_err_daily"; // { day: "YYYY-MM-DD", count }
+  const ERR_DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
+  const ERR_DAILY_CAP = 15;
+  const ERR_DEDUP_MAX_KEYS = 60;
+  const EXT_ORIGIN = chrome.runtime.getURL("");
+
+  function todayStr() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function hashFingerprint(s) {
+    // djb2 -- a short, cheap dedup key, not a security hash.
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  }
+
+  // Only ever true when the error/stack names AYN's own extension
+  // origin -- the one reliable signal a plain error/rejection event
+  // gives for telling "our bug" apart from "the page's own bug."
+  function looksLikeOurs(filename, stack) {
+    if (typeof filename === "string" && filename.startsWith(EXT_ORIGIN)) return true;
+    if (typeof stack === "string" && stack.includes(EXT_ORIGIN)) return true;
+    return false;
+  }
+
+  async function reportExtError(source, message, stack) {
+    try {
+      const msg = String(message || "").slice(0, 500);
+      if (!msg) return;
+      const fp = hashFingerprint(`${source}:${msg}:${(stack || "").split("\n")[1] || ""}`);
+
+      const store = await new Promise((resolve) => chrome.storage.local.get([ERR_DEDUP_KEY, ERR_DAILY_KEY], resolve));
+      const dedup = store[ERR_DEDUP_KEY] || {};
+      const today = todayStr();
+      const daily = store[ERR_DAILY_KEY] && store[ERR_DAILY_KEY].day === today ? store[ERR_DAILY_KEY] : { day: today, count: 0 };
+      if (daily.count >= ERR_DAILY_CAP) return;
+      const last = dedup[fp];
+      if (last && Date.now() - last < ERR_DEDUP_WINDOW_MS) return;
+
+      const session = await ensureSession();
+      if (!session) return;
+      await callHub(session, {
+        action: "ext_error_report",
+        pageHostname: location.hostname,
+        pagePathname: location.pathname,
+        source,
+        message: msg,
+        stack: typeof stack === "string" ? stack.slice(0, 2000) : null,
+        extVersion: chrome.runtime.getManifest().version,
+        fingerprint: fp,
+      });
+
+      dedup[fp] = Date.now();
+      const keys = Object.keys(dedup);
+      if (keys.length > ERR_DEDUP_MAX_KEYS) {
+        keys.sort((a, b) => dedup[a] - dedup[b]);
+        for (const k of keys.slice(0, keys.length - ERR_DEDUP_MAX_KEYS)) delete dedup[k];
+      }
+      await new Promise((resolve) =>
+        chrome.storage.local.set({ [ERR_DEDUP_KEY]: dedup, [ERR_DAILY_KEY]: { day: today, count: daily.count + 1 } }, resolve)
+      );
+    } catch {
+      // Reporting a bug must never itself throw somewhere that matters.
+    }
+  }
+
+  window.addEventListener("error", (e) => {
+    if (!looksLikeOurs(e.filename, e.error && e.error.stack)) return;
+    reportExtError("content", e.message, e.error && e.error.stack);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const reason = e.reason;
+    const message = reason && reason.message ? reason.message : String(reason);
+    const stack = reason && reason.stack ? reason.stack : null;
+    // A content script's own isolated JS world means a rejection with
+    // no stack at all is, in practice, one of ours (the page's own
+    // rejections live in a separate realm this listener never sees) --
+    // only filter out the case where a stack IS present and it clearly
+    // points somewhere else.
+    if (stack && !looksLikeOurs(null, stack)) return;
+    reportExtError("content", message, stack);
+  });
+  // Relayed up from frame_agent.js -- it runs in every frame (including
+  // this top one) and has no network access of its own, so it always
+  // hops through background.js the same way a sub-frame's field report
+  // already does (see AYN_FRAME_REPORT above and the matching relay in
+  // background.js), even for its own top-frame errors.
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (!msg || msg.type !== "AYN_FRAME_ERROR") return;
+    reportExtError(msg.source || "frame_agent", msg.message, msg.stack);
+  });
 
   // v3.321.0 -- the one real, missing piece between this file's already
   // mature fill engine and "one click, filled and submitted, once

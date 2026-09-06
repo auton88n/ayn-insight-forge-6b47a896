@@ -45,12 +45,12 @@ const Table = ({ head, children }: { head: string[]; children: React.ReactNode }
   </Card>
 );
 
-const Row = ({ children }: { children: React.ReactNode }) => (
-  <tr className="border-b border-border/40 last:border-0 hover:bg-muted/30">{children}</tr>
+const Row = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+  <tr className={`border-b border-border/40 last:border-0 hover:bg-muted/30 ${className || ''}`}>{children}</tr>
 );
 
-const Cell = ({ children, mono }: { children: React.ReactNode; mono?: boolean }) => (
-  <td className={`px-4 py-2.5 align-middle ${mono ? 'font-mono text-xs' : ''}`}>{children}</td>
+const Cell = ({ children, mono, colSpan }: { children: React.ReactNode; mono?: boolean; colSpan?: number }) => (
+  <td colSpan={colSpan} className={`px-4 py-2.5 align-middle ${mono ? 'font-mono text-xs' : ''}`}>{children}</td>
 );
 
 /* ────────────────────────────── ACCOUNTS ────────────────────────────── */
@@ -428,37 +428,66 @@ export function ExtDiagnosticsPane() {
   const rows: any[] = (query.data as any) || [];
   const last24 = rows.filter(r => Date.now() - new Date(r.created_at).getTime() < 86400000).length;
   const distinctPages = new Set(rows.map(r => r.page_hostname).filter(Boolean)).size;
+  // v3.356.0 -- content.js/frame_agent.js now report a real JS error on
+  // their own (window.onerror/unhandledrejection), no click needed, so
+  // a report can be one of two shapes: a normal run's summary (the
+  // original shape this pane was built for) or report.kind === "js_error"
+  // (a genuine crash caught live). The two need to read differently at
+  // a glance -- an error report has no filledCount/fieldCount at all,
+  // and rendering it through the same "Filled / Not on file / Failed"
+  // columns would make a real bug look like a bland, empty successful
+  // run, defeating the whole point of reporting it automatically.
+  const errorReports = rows.filter(r => r.report?.kind === 'js_error');
+  const errorsLast24 = errorReports.filter(r => Date.now() - new Date(r.created_at).getTime() < 86400000).length;
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Reports" value={rows.length} hint="Most recent 150" />
         <Stat label="Last 24 hours" value={last24} accent />
         <Stat label="Distinct sites" value={distinctPages} />
+        <Stat
+          label="Auto-reported errors"
+          value={errorReports.length}
+          hint={errorsLast24 > 0 ? `${errorsLast24} in the last 24h` : 'None in the last 24h'}
+          accent={errorsLast24 > 0}
+        />
       </div>
       <Table head={['Reporter', 'Page', 'Filled', 'Not on file', 'Failed', 'When', '']}>
         {rows.length === 0 && <tr><td colSpan={7}><EmptyRow>No diagnostic reports yet.</EmptyRow></td></tr>}
         {rows.map(r => {
           const rep = r.report || {};
+          const isError = rep.kind === 'js_error';
           const notOnFile: string[] = Array.isArray(rep.notOnFile) ? rep.notOnFile : [];
           const failed: string[] = Array.isArray(rep.failed) ? rep.failed : [];
           const skipped: string[] = Array.isArray(rep.skipped) ? rep.skipped : [];
           const isOpen = openId === r.id;
           return (
             <Fragment key={r.id}>
-              <Row>
+              <Row className={isError ? 'bg-destructive/5' : undefined}>
                 <Cell>{r.reporter_email || <span className="text-muted-foreground">Unknown</span>}</Cell>
                 <Cell>
                   <span className="font-mono text-xs">{r.page_hostname || '—'}</span>
                   {r.page_pathname && <span className="block text-[10px] text-muted-foreground font-mono truncate max-w-[220px]">{r.page_pathname}</span>}
                 </Cell>
-                <Cell mono>{rep.filledCount ?? '—'} / {rep.fieldCount ?? '—'}</Cell>
-                <Cell mono>{notOnFile.length}</Cell>
-                <Cell mono>
-                  {failed.length > 0
-                    ? <Badge variant="destructive" className="text-[10px]">{failed.length}</Badge>
-                    : 0}
-                </Cell>
+                {isError ? (
+                  <Cell colSpan={3}>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="destructive" className="text-[10px] shrink-0">ERROR</Badge>
+                      <span className="font-mono text-xs truncate max-w-[360px]" title={rep.message}>{rep.message}</span>
+                    </div>
+                  </Cell>
+                ) : (
+                  <>
+                    <Cell mono>{rep.filledCount ?? '—'} / {rep.fieldCount ?? '—'}</Cell>
+                    <Cell mono>{notOnFile.length}</Cell>
+                    <Cell mono>
+                      {failed.length > 0
+                        ? <Badge variant="destructive" className="text-[10px]">{failed.length}</Badge>
+                        : 0}
+                    </Cell>
+                  </>
+                )}
                 <Cell>{when(r.created_at)}</Cell>
                 <Cell>
                   <Button size="sm" variant="ghost" onClick={() => setOpenId(isOpen ? null : r.id)}>
@@ -466,7 +495,33 @@ export function ExtDiagnosticsPane() {
                   </Button>
                 </Cell>
               </Row>
-              {isOpen && (
+              {isOpen && isError && (
+                <tr key={`${r.id}-detail`} className="border-b border-border/40 bg-destructive/5">
+                  <td colSpan={7} className="px-4 py-3">
+                    <div className="grid sm:grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <div className="font-medium text-foreground mb-1">Source</div>
+                        <span className="text-muted-foreground font-mono">{rep.source || 'unknown'}</span>
+                      </div>
+                      <div>
+                        <div className="font-medium text-foreground mb-1">Extension version</div>
+                        <span className="text-muted-foreground font-mono">{rep.extVersion || '—'}</span>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <div className="font-medium text-foreground mb-1">Message</div>
+                        <div className="text-muted-foreground font-mono whitespace-pre-wrap">{rep.message}</div>
+                      </div>
+                      {rep.stack && (
+                        <div className="sm:col-span-2">
+                          <div className="font-medium text-foreground mb-1">Stack</div>
+                          <pre className="text-muted-foreground font-mono text-[11px] whitespace-pre-wrap overflow-x-auto">{rep.stack}</pre>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {isOpen && !isError && (
                 <tr key={`${r.id}-detail`} className="border-b border-border/40 bg-muted/20">
                   <td colSpan={7} className="px-4 py-3">
                     <div className="grid sm:grid-cols-2 gap-4 text-xs">
