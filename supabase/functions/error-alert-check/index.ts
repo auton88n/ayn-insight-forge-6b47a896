@@ -24,6 +24,23 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Found in a real security pass: this had no auth check at all, unlike
+    // its sibling internal bridges (ai-openai-bridge, form-intel-bridge),
+    // and was confirmed live-callable by anyone. The real impact isn't
+    // just "an attacker can trigger this" — every call resets
+    // error_alert_state.last_checked_at to now(), so repeated unauthenticated
+    // calls shrink the window the next real check covers, letting a genuine
+    // 3+ error burst never accumulate enough rows in one window to actually
+    // fire an alert. That's a silent way to suppress a real production
+    // incident notification, not just noise.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (authHeader.replace(/^Bearer\s+/i, "") !== serviceKey) {
+      return new Response(JSON.stringify({ error: "forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const admin = createClient(supabaseUrl, serviceKey);
 
     const { data: state, error: stateErr } = await admin

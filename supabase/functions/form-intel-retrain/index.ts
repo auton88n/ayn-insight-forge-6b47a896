@@ -46,6 +46,18 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Same fix as job-board-sync/ats-direct-sync/error-alert-check's
+    // identical gap: this calls classifyWidgets(), a real AI-gateway call,
+    // on a whole backlog batch — unauthenticated, anyone could trigger a
+    // real AI spend on demand instead of the deliberate every-few-days cadence.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (authHeader.replace(/^Bearer\s+/i, "") !== serviceKey) {
+      return new Response(JSON.stringify({ error: "forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const admin = createClient(supabaseUrl, serviceKey);
 
     const { data: rows, error: rowsErr } = await admin

@@ -788,6 +788,16 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Cron-triggered internal function, not a public endpoint — the cron
+    // job now sends the service-role key as its Bearer token.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (authHeader.replace(/^Bearer\s+/i, "") !== serviceKey) {
+      return new Response(JSON.stringify({ error: "forbidden" }), {
+        status: 403, headers: { ...corsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
+
     const admin = createClient(supabaseUrl, serviceKey);
 
     // Only the rows that could possibly be one of these four vendors —
