@@ -1,8 +1,8 @@
 # AYN Privacy Policy
 
-Version: 2.1
-Last updated: 3 September 2026
-Effective: 3 September 2026
+Version: 2.2
+Last updated: 7 September 2026
+Effective: 7 September 2026
 
 ---
 
@@ -81,6 +81,7 @@ Where we rely on consent, you may withdraw it at any time. Withdrawal does not a
 | OpenAI | Text embedding model used to represent profiles, reached through the gateway above | United States and globally |
 | Resend | Transactional and support email delivery | United States |
 | Google Analytics | Aggregate usage measurement | United States and globally |
+| PostHog | Anonymized, masked session recordings, so we can see what went wrong when something breaks | United States |
 
 Unlike a managed database provider, our database and application servers run on infrastructure we lease from Hostinger but administer ourselves. Hostinger provides the physical and network infrastructure; it does not have its own access to your data.
 
@@ -172,7 +173,7 @@ AYN is not directed to children. You must be at least 16, or the age of consent 
 
 ## 12. Cookies
 
-We use cookies strictly necessary for authentication, session management, and security, and Google Analytics cookies for aggregate usage measurement. We do not use advertising cookies or third-party tracking pixels. Disabling essential cookies will prevent sign-in.
+Signing in and remembering your cookie choice are handled by your browser's local storage, not a cookie; disabling cookies alone will not prevent sign-in. Analytics is opt-in and off by default: once accepted, Google Analytics sets a cookie for aggregate usage measurement, and PostHog records masked, anonymized sessions in your browser's local storage (not a cookie) so we can see what went wrong when something breaks — every recording masks what you type and every piece of text on the page. We do not use advertising cookies or third-party tracking pixels. See our Cookie Policy for the full detail.
 
 We honour Global Privacy Control signals where technically feasible.
 
@@ -181,6 +182,8 @@ We honour Global Privacy Control signals where technically feasible.
 We will post any change here with a new version number and date. For changes materially affecting your rights we will notify you in the Platform before they take effect and, where required, seek your consent again.
 
 **Version 2.0 (18 August 2026):** AYN narrowed its operating scope to the United States and Canada only, and stopped targeting users in the European Union, United Kingdom, or Middle East. This version also corrects prior descriptions of where account data is stored — it has always been on servers we operate ourselves, and this version accurately describes that infrastructure as US-based rather than referencing a third-party UK-based database provider.
+
+**Version 2.2 (7 September 2026):** Added PostHog to the service provider table: opt-in, masked session recordings that let us see what went wrong when something breaks, never what was typed or shown on screen. This version also corrects the Cookies section — sign-in has always used your browser's local storage, not a cookie, and this version states that plainly instead of grouping it with the actual analytics cookie Google Analytics sets.
 
 ## 14. Contact
 

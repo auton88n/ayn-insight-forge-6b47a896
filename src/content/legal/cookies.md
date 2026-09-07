@@ -1,7 +1,7 @@
 # AYN Cookie Policy
 
-Version: 1.1
-Last updated: 8 August 2026
+Version: 2.0
+Last updated: 7 September 2026
 
 This policy explains what we store on your device and why. It forms part of our Privacy Policy.
 
@@ -33,13 +33,16 @@ These, where they exist, are used only to run the service. They are not used to 
 
 ## Analytics
 
-| Purpose | Set by | Roughly how long |
-|---|---|---|
-| Aggregate usage measurement, such as which pages are used and where people stop | Google Analytics | Up to 24 months |
+| Purpose | Set by | Stores in | Roughly how long |
+|---|---|---|---|
+| Aggregate usage measurement, such as which pages are used and where people stop | Google Analytics | A cookie | Up to 24 months |
+| A recording of what happened on screen during a session, so we can see what actually went wrong when something breaks | PostHog | Your browser's local storage, not a cookie | Set by our PostHog plan's own retention period |
 
 We use this to understand which parts of AYN work and which do not. We do not use it to build advertising profiles, and we do not share the data for advertising.
 
-**Analytics does not load at all until you accept it.** If you reject, or if your browser sends a Global Privacy Control signal, the analytics script is never loaded and no analytics cookie is set.
+**Every session recording masks what you type and every piece of text on the page.** We can see where things were clicked, what rendered, and in what order, never a resume, a typed answer, a name, or anything else you write or that is shown on screen.
+
+**Analytics does not load at all until you accept it.** If you reject, or if your browser sends a Global Privacy Control signal, neither tool is ever loaded and no analytics cookie is set.
 
 ## The browser extension
 

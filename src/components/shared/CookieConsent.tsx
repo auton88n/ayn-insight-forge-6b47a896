@@ -51,9 +51,12 @@ export function CookieConsent() {
       <div className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 shadow-lg">
         <p className="text-sm font-medium text-foreground">Analytics cookies</p>
         <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
-          We would like to measure how the site is used, with Google Analytics. Nothing else on
-          AYN sets a cookie, and staying signed in does not depend on this choice. You can change
-          it later from the footer.
+          We would like to measure how the site is used, with Google Analytics, and to record
+          anonymized sessions with PostHog so we can see what actually went wrong when something
+          breaks. Every recording masks what you type and every piece of text on the page, so
+          this never captures a resume, an answer, or anything else you write. Google Analytics
+          is the only one of the two that sets an actual cookie, and staying signed in does not
+          depend on this choice. You can change it later from the footer.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button

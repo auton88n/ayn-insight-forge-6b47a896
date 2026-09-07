@@ -6,8 +6,29 @@ import { supabase } from '@/integrations/supabase/client';
 
 export const GA_MEASUREMENT_ID = 'G-6ZYH0N7G6M';
 
+// v3.359.0 — PostHog session replay, added for the same reason this app's
+// own history keeps citing: a bug report today is a screenshot and a guess
+// at what must have happened before it. This lets a real session be watched
+// instead of reconstructed. Inert by construction until the founder signs
+// up for PostHog Cloud himself and sets these two env vars in the deploy —
+// creating that account is not something to do on someone's behalf, so the
+// code has to ship first and wait for the real key.
+export const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY as string | undefined;
+export const POSTHOG_HOST = (import.meta.env.VITE_POSTHOG_HOST as string | undefined) || 'https://us.i.posthog.com';
+
 export const COOKIE_CONSENT_KEY = 'ayn-cookie-consent';
-export const COOKIE_CONSENT_VERSION = '1.0';
+// v3.359.0 — bumped 1.0 -> 2.0. Session recording is a genuinely different
+// category of collection than the plain aggregate-usage measurement this
+// document's own "Changes" section describes, and that section makes an
+// explicit promise: "If we ever add a category beyond the two above, we
+// will ask for consent again rather than quietly extending the old one."
+// readCookieConsent() already treats any version mismatch as no-decision-
+// yet (see below), so bumping this one constant is the actual mechanism
+// that honours that promise — every existing accepted-under-1.0 record is
+// invalidated and the banner (now naming both tools and the masking
+// safeguard) shows again, rather than silently starting recordings under
+// an old consent that never mentioned them.
+export const COOKIE_CONSENT_VERSION = '2.0';
 
 export type CookieChoice = 'accepted' | 'rejected';
 
@@ -65,7 +86,43 @@ export function clearCookieConsent() {
 
 let loaded = false;
 
-/** Loads gtag.js. Only ever called after an explicit accept. */
+// v3.359.0 — every text node and every input on the page is masked in the
+// recording by default (maskAllInputs + the wildcard maskTextSelector), not
+// just password/card-shaped fields. This is deliberately the strict end of
+// what PostHog allows: this product's own pages carry a resume's real name
+// and address, cover letter drafts, salary figures, and work-authorization
+// answers, and none of that belongs in a session replay just because the
+// *page structure* around it is worth watching for a real bug. What survives
+// unmasked is exactly what the debugging case actually needs — where things
+// were clicked, what rendered, in what order, at what size — never what was
+// actually typed or displayed. Loosening this to unmask a specific "safe"
+// field later is a real option, but the default has to start here, not the
+// other way around.
+function loadPostHog() {
+  if (!POSTHOG_KEY || typeof document === 'undefined') return;
+  import('posthog-js').then(({ default: posthog }) => {
+    posthog.init(POSTHOG_KEY!, {
+      api_host: POSTHOG_HOST,
+      person_profiles: 'identified_only',
+      // localStorage, not a cookie — matches how this app already handles
+      // a signed-in session and the cookie choice itself, and keeps the
+      // Cookie Policy's own "Google Analytics is the one thing that sets an
+      // actual cookie" line true rather than needing a second exception.
+      persistence: 'localStorage',
+      session_recording: {
+        maskAllInputs: true,
+        maskTextSelector: '*',
+      },
+    });
+    // Exposed the same way the classic snippet loader always has been, so
+    // it's reachable from devtools for debugging — and so this config can
+    // actually be verified against the real, initialized instance rather
+    // than a fresh, unconfigured one a separate import() would return.
+    (window as unknown as { posthog?: unknown }).posthog = posthog;
+  }).catch(() => { /* a failed load must never break the app it's watching */ });
+}
+
+/** Loads gtag.js and PostHog. Only ever called after an explicit accept. */
 export function loadAnalytics() {
   if (loaded || typeof document === 'undefined') return;
   loaded = true;
@@ -79,6 +136,8 @@ export function loadAnalytics() {
   const gtag = (...args: unknown[]) => { w.dataLayer!.push(args); };
   gtag('js', new Date());
   gtag('config', GA_MEASUREMENT_ID, { anonymize_ip: true });
+
+  loadPostHog();
 }
 
 /** Called once at startup. Loads analytics only when consent is already given. */
