@@ -258,6 +258,7 @@ export const adminControlKeys = {
   emailLog: ['admin', 'v2', 'emailLog'] as const,
   plans: ['admin', 'v2', 'plans'] as const,
   extDiagnostics: ['admin', 'v2', 'extDiagnostics'] as const,
+  postHogRecordings: ['admin', 'v2', 'postHogRecordings'] as const,
 };
 
 export function useAdminModeration() {
@@ -375,6 +376,25 @@ export function useAdminExtDiagnostics() {
   return useQuery({
     queryKey: adminControlKeys.extDiagnostics,
     queryFn: () => adminRpc<any>('get_admin_ext_diagnostics', { p_limit: 150 }),
+    staleTime: FAST_STALE_TIME,
+  });
+}
+
+// v3.360.0 — PostHog session replay, read into the admin panel instead of
+// needing a second login on posthog.com. This one isn't a Postgres RPC —
+// the data lives in PostHog's own database — so it calls the edge function
+// proxy directly rather than going through adminRpc(). Returns
+// {connected: false} rather than throwing when no key is configured yet,
+// so the pane can show a real "not connected" state instead of an error.
+export function useAdminPostHogRecordings() {
+  return useQuery({
+    queryKey: adminControlKeys.postHogRecordings,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('admin-posthog-recordings');
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data as { connected: boolean; recordings: any[] };
+    },
     staleTime: FAST_STALE_TIME,
   });
 }

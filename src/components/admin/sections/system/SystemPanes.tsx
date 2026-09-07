@@ -23,6 +23,7 @@ import {
   useAdminInbox,
   useMarkInboxRead,
   useAdminExtDiagnostics,
+  useAdminPostHogRecordings,
 } from '@/admin-app/hooks/useAdminQuery';
 import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when } from '../ui';
 
@@ -562,6 +563,82 @@ export function ExtDiagnosticsPane() {
             </Fragment>
           );
         })}
+      </Table>
+    </div>
+  );
+}
+
+/* ──────────────────────────── SESSION REPLAY ─────────────────────────── */
+// v3.360.0 — a read-only view of what PostHog recorded, so this doesn't
+// need a second login on posthog.com just to check whether anything is
+// being captured. Watching an actual recording still opens PostHog's own
+// player in a new tab — this pane only ever shows the same metadata list
+// PostHog's own dashboard shows, never the masked replay content itself.
+function formatDuration(seconds: number | null): string {
+  if (seconds == null) return '—';
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+export function SessionReplayPane() {
+  const query = useAdminPostHogRecordings();
+  if (query.isLoading) return <LoadingBlock />;
+  if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
+
+  const d = (query.data as any) || {};
+  const connected = !!d.connected;
+  const recordings: any[] = d.recordings || [];
+  const withErrors = recordings.filter(r => (r.consoleErrorCount || 0) > 0).length;
+
+  if (!connected) {
+    return (
+      <Card className="border border-border/60 bg-card">
+        <CardContent className="p-5 space-y-2">
+          <p className="text-base font-medium">PostHog is not connected yet</p>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Recordings only show here once a personal API key (scoped to Session recording · Read) is set as the
+            <code className="mx-1 px-1 py-0.5 rounded bg-muted text-xs">POSTHOG_PERSONAL_API_KEY</code>
+            secret. This is separate from the public project key that already powers recording itself, so recording
+            can be live in production without this pane working yet.
+          </p>
+          <a href="https://us.posthog.com/project/598173/replay" target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline inline-block pt-1">
+            Open PostHog directly instead →
+          </a>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <Stat label="Recordings" value={recordings.length} hint="Most recent 50" />
+        <Stat label="With console errors" value={withErrors} accent={withErrors > 0} />
+        <Stat label="Identified visitors" value={recordings.filter(r => r.personEmail).length} hint="Almost always 0 — sessions are anonymous by design" />
+      </div>
+
+      <Table head={['When', 'Page', 'Duration', 'Clicks', 'Errors', 'Who', '']}>
+        {recordings.length === 0 && <tr><td colSpan={7}><EmptyRow>No recordings yet — nobody has accepted the cookie banner and browsed since it went live.</EmptyRow></td></tr>}
+        {recordings.map(r => (
+          <Row key={r.id}>
+            <Cell>{when(r.startTime)}</Cell>
+            <Cell><span className="font-mono text-xs break-all">{r.startUrl || '—'}</span></Cell>
+            <Cell mono>{formatDuration(r.durationSeconds)}</Cell>
+            <Cell mono>{r.clickCount ?? '—'}</Cell>
+            <Cell>
+              {r.consoleErrorCount > 0
+                ? <Badge variant="destructive" className="text-[10px]">{r.consoleErrorCount}</Badge>
+                : 0}
+            </Cell>
+            <Cell>{r.personEmail || <span className="text-muted-foreground">Anonymous</span>}</Cell>
+            <Cell>
+              <a href={r.replayUrl} target="_blank" rel="noreferrer">
+                <Button size="sm" variant="outline">Watch</Button>
+              </a>
+            </Cell>
+          </Row>
+        ))}
       </Table>
     </div>
   );
