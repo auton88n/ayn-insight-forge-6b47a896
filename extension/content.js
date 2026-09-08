@@ -267,6 +267,27 @@
  * window.__aynExtractFields() directly: the search-input element no
  * longer appears in the output under any id, from either loop.
  *
+ * v3.358.0 -- looked at career-ops (an unrelated open-source job-search
+ * toolkit) for ideas AYN could benefit from. Adopted three, checked
+ * first against everything already built here so nothing overlaps: (1)
+ * a knock-out pre-scan, shown on the Ready screen before Fill is ever
+ * clicked -- match's response now carries knockoutRisks, computed
+ * server-side and deterministically (a real JD-stated requirement
+ * against a fact already on the candidate's own profile: years of
+ * experience, visa sponsorship, a degree requirement), never a guess
+ * and never a changed answer, just a heads-up so a person can decide
+ * whether a specific posting is worth their time before investing more
+ * of it. (2) a free, deterministic liveness/bot-challenge pre-filter in
+ * job-checker's own /check endpoint, checked before its paid AI call --
+ * see that file's own header for the full writeup. (3) a second,
+ * independent apply-link trust signal (a URL shortener, a malformed
+ * URL) alongside the existing JD-text scam check, wired into both
+ * job-board-sync and ats-direct-sync. A fourth idea from the same
+ * research -- a DNS-rebinding-safe SSRF guard -- turned out to already
+ * be built and correct (fetchCompanyContext's hostResolvesToBlockedIp,
+ * v3.160.0), so nothing was changed there; confirmed by reading it
+ * before assuming a gap existed, not by re-fixing something already fixed.
+ *
  * v3.356.0 -- asked directly, after the fix above, how a NEW bug like it
  * would ever be known about, since it was found only by live testing,
  * not by any check that runs on its own. The honest answer: nothing did
@@ -1071,6 +1092,36 @@
     return el("div", { class: "fit-card" }, [ring, right]);
   }
 
+  // v3.358.0 -- a knock-out pre-scan, shown on the Ready screen, before
+  // Fill is ever clicked. `match`'s own response now carries
+  // knockoutRisks (computed server-side, deterministically, in
+  // _shared/tailoring.ts's detectKnockoutRisks -- a real JD-stated
+  // requirement, e.g. "5+ years" or "cannot sponsor a visa," checked
+  // against a fact the candidate already has on file, e.g.
+  // derived.total_yoe or work_auth.needs_sponsorship_now). Purely
+  // informational: this never changes what AYN fills, and it never
+  // tells the person what to answer -- it names a real, stated
+  // requirement next to what's actually on their own profile, so they
+  // can decide for themselves whether this specific posting is worth
+  // the time before they invest more of it, the same "you decide, AYN
+  // never invents an answer to get you past a filter" rule this whole
+  // extension is built on.
+  function buildKnockoutCard(risks) {
+    if (!Array.isArray(risks) || !risks.length) return el("div", {});
+    const box = el("div", { class: "callout" });
+    box.appendChild(el("p", { class: "warn", text: "Before you spend time on this one:", style: "margin: 0 0 6px; font-weight: 600;" }));
+    const ul = el("ul", { style: "margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.7; color: var(--ink);" });
+    for (const r of risks) {
+      const li = el("li", {});
+      li.appendChild(el("span", { text: `${r.jdRequirement}. `, style: "color: var(--muted);" }));
+      li.appendChild(el("b", { text: r.yourProfile || "" }));
+      ul.appendChild(li);
+    }
+    box.appendChild(ul);
+    box.appendChild(el("p", { class: "job-card-meta", text: "Some employers screen these out automatically, before a person ever reviews the application. AYN never changes your real answer to get past a filter -- this is just a heads-up so you can decide.", style: "margin-top: 6px;" }));
+    return box;
+  }
+
   // The shell shown before the free fit check resolves (or if it never
   // does) -- same bordered card, same title/meta content, just no ring
   // or score section yet, so nothing jumps or resizes once the real one
@@ -1735,11 +1786,22 @@
 
     const fitSlot = buildJobCardShell(pageTitle, fieldSummaryText);
     body.appendChild(fitSlot);
+    // v3.358.0 -- a real, empty placeholder appended NOW, in document
+    // order right after the fit card, so the knockout card (once the
+    // same fit check resolves) lands in the right spot regardless of
+    // how much else this function appends to `body` in between --
+    // appending it later via body.appendChild would push it to the
+    // very end of the panel instead, after every button below.
+    const koSlot = el("div", {});
+    body.appendChild(koSlot);
     let latestFit = null;
     const fitPromise = fetchFit(session);
     fitPromise.then((m) => {
       latestFit = m;
-      if (m) fitSlot.replaceWith(buildFitCard(m, pageTitle, fieldSummaryText));
+      if (m) {
+        fitSlot.replaceWith(buildFitCard(m, pageTitle, fieldSummaryText));
+        koSlot.replaceWith(buildKnockoutCard(m.knockoutRisks));
+      }
     });
 
     // v3.348.0 -- "let result screens jump sideways," a real navigation

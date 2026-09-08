@@ -22,7 +22,7 @@ import { wrapEmail, ctaButton, heading, para, escapeHtml, sendBrandedEmail } fro
 // figure preservation, result cache, company context, AI telemetry.
 import {
   sha256 as sha256b, buildSections, computeGap, renderGapBlock, droppedFigures,
-  cacheGet, cacheSet, logAiCall, fetchCompanyContext,
+  cacheGet, cacheSet, logAiCall, fetchCompanyContext, detectKnockoutRisks,
   verifyWriteQuality, verifyProseQuality, violationsToRetryNote, resumeContentUnchanged, inventedFigures, stripInstructionLikeSpans,
   verifyKeywordAlignment, flattenResumeSkillsAndProse, resolveTailorTitle,
   applySemanticRecheck, cosineSimilarity, computeQuickScore,
@@ -785,6 +785,13 @@ Return the complete resume in the schema, plus suggestions: short strings naming
         for (const t of (canonical.derived.top_skills || [])) { const k = String(t).toLowerCase().trim(); if (k && !userSkillIndex.has(k)) userSkillIndex.set(k, String(t)); }
       }
 
+      // v3.358.0 — computed fresh on every call, cache hit or not: it's
+      // pure regex/arithmetic against data already loaded above, not an
+      // AI call, so there's no cost benefit to caching it, and computing
+      // it fresh means an OLDER cached response (saved before this field
+      // existed) still gets it attached rather than silently missing it.
+      const knockoutRisks = detectKnockoutRisks(jdText, canonical);
+
       const jdHash = (await sha256b(jdText)).slice(0, 24);
       const sectionHash = (await sha256b(bundle.text + canonText)).slice(0, 16);
       const cacheKey = `webmatch:${user.id}:${sectionHash}:${jdHash}`;
@@ -794,7 +801,7 @@ Return the complete resume in the schema, plus suggestions: short strings naming
           user_id: user.id, purpose: "job_score_web", cache_hit: true, duration_ms: Date.now() - matchStarted,
           source_map: identity?.sourceMap() || null, gap_matched: gap.matched.length, gap_missing: gap.missing.length,
         });
-        return json({ ...cached, cached: true });
+        return json({ ...cached, knockoutRisks, cached: true });
       }
 
       const r = await callAI({
@@ -841,7 +848,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`,
         gap_matched: gap.matched.length, gap_missing: gap.missing.length,
         meta: { jd_chars: jdText.length, section_chars: bundle.chars },
       });
-      return json(r.structured);
+      return json({ ...(r.structured as Record<string, unknown>), knockoutRisks });
     }
 
     // v3.72.0 — same rebuild as `match` above. This used to take the

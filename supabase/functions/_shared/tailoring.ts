@@ -544,6 +544,90 @@ export function computeGap(
   return { requirements, matched, missing, niceToHave, method: "deterministic" };
 }
 
+// v3.358.0 — a knock-out pre-scan, checked while looking at how career-ops
+// (an unrelated open-source job-search toolkit) halts its own auto-apply
+// flow before drafting an answer that's likely to trigger an ATS's own
+// automatic screening: minimum years of experience, "we cannot sponsor a
+// visa", and a hard (non-hedged) degree requirement. Ported in spirit, not
+// code — the source reads a live form's own questions client-side; this
+// reads the JD text server-side, the surface AYN already has grounded,
+// deterministic requirement extraction for (computeGap above). Same rule
+// as everywhere else in this file: code decides the fact (a number
+// extracted from the JD, a boolean the candidate already told AYN),
+// the caller only ever surfaces it — never asks a model to guess whether
+// a mismatch exists. Purely informational: this never blocks, never
+// changes what AYN fills or writes, and it never invents a different
+// answer for the candidate to give — only names a real, stated
+// requirement against a fact the candidate already has on file, so they
+// can decide for themselves whether a specific posting is worth their
+// time before they invest more of it.
+//
+// Deliberately conservative in every direction a false positive could
+// come from: a YoE mention with no comparable "years" fact on file is
+// skipped (not assumed zero), a degree requirement with an "or
+// equivalent experience" hedge anywhere in the JD is skipped entirely
+// (a hedged requirement isn't really a hard requirement), and a
+// candidate whose own education_level was never determined never gets
+// flagged for a degree gap that might not be real. Capped at 3 results —
+// this is a heads-up, not a report.
+export type KnockoutRisk = { type: string; jdRequirement: string; yourProfile: string };
+
+const KO_YOE_RE = /(?:minimum|at least|min\.?)\s+(?:of\s+)?(\d{1,2})\+?\s+years?|(\d{1,2})\+\s+years?\s*(?:'\s*)?(?:of\s+)?(?:experience|exp\.?)/i;
+const KO_SPONSORSHIP_RE = /\b(?:no|not|unable to|does not|will not|cannot|won'?t)\b[\s\S]{0,25}\b(?:sponsor|sponsorship)\b|\bmust be (?:currently )?authorized to work[\s\S]{0,40}\bwithout (?:the need for )?(?:visa )?sponsorship\b|\bwe (?:do not|don'?t) (?:offer|provide) (?:visa )?sponsorship\b|\bnot eligible for (?:visa |immigration )?sponsorship\b/i;
+const KO_DEGREE_RE = /\b(bachelor'?s|master'?s|ph\.?d\.?|doctorate)\s+degree\b[\s\S]{0,60}?(?<!not )(?<!isn't )required\b|\brequires? a\s+(bachelor'?s|master'?s|ph\.?d\.?|doctorate)\s+degree\b|\bmust have a\s+(bachelor'?s|master'?s|ph\.?d\.?|doctorate)\s+degree\b/i;
+const KO_DEGREE_HEDGE_RE = /or equivalent (?:experience|work experience)|or equivalent practical experience/i;
+const KO_EDUCATION_RANK: Record<string, number> = { "high school": 0, "associate's": 1, "bachelor's": 2, "master's": 3, "phd": 4 };
+
+function koDegreeRank(level: string): number {
+  const k = level.toLowerCase().trim().replace(/^ph\.?d\.?$/i, "phd");
+  return KO_EDUCATION_RANK[k] ?? -1;
+}
+
+export function detectKnockoutRisks(
+  jdText: string,
+  profile: { derived?: { total_yoe?: number; education_level?: string }; work_auth?: { needs_sponsorship_now?: boolean; needs_sponsorship_future?: boolean } } | null,
+): KnockoutRisk[] {
+  const risks: KnockoutRisk[] = [];
+  if (!profile || !jdText) return risks;
+
+  const yoeMatch = jdText.match(KO_YOE_RE);
+  if (yoeMatch) {
+    const required = Number(yoeMatch[1] || yoeMatch[2]);
+    const actual = profile.derived?.total_yoe;
+    if (required && typeof actual === "number" && actual < required) {
+      risks.push({
+        type: "years_of_experience",
+        jdRequirement: `Asks for ${required}+ years of experience`,
+        yourProfile: `Your profile shows about ${actual} year${actual === 1 ? "" : "s"}`,
+      });
+    }
+  }
+
+  if (KO_SPONSORSHIP_RE.test(jdText) && (profile.work_auth?.needs_sponsorship_now || profile.work_auth?.needs_sponsorship_future)) {
+    risks.push({
+      type: "visa_sponsorship",
+      jdRequirement: "States it cannot sponsor a visa",
+      yourProfile: "Your profile says you'll need sponsorship",
+    });
+  }
+
+  const degreeMatch = jdText.match(KO_DEGREE_RE);
+  if (degreeMatch && !KO_DEGREE_HEDGE_RE.test(jdText)) {
+    const requiredLevel = degreeMatch[1] || degreeMatch[2] || degreeMatch[3];
+    const requiredRank = koDegreeRank(requiredLevel);
+    const actualRank = koDegreeRank(profile.derived?.education_level || "");
+    if (requiredRank >= 0 && actualRank >= 0 && actualRank < requiredRank) {
+      risks.push({
+        type: "education",
+        jdRequirement: `States a ${requiredLevel} degree is required, with no "or equivalent experience" option`,
+        yourProfile: `Your profile shows ${profile.derived?.education_level}`,
+      });
+    }
+  }
+
+  return risks.slice(0, 3);
+}
+
 // v3.149.0 — asked directly for something more systematic than the browse
 // list's one flat "matched JD lines" ratio: three separate, named signals
 // -- title fit, skill overlap, years of experience -- still zero AI calls,

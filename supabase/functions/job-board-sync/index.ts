@@ -53,7 +53,7 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { classifyRegion } from "../_shared/geoScope.ts";
 import { isTrendingTechCategory } from "../_shared/trendingCategories.ts";
 import { stripHtml } from "../_shared/htmlText.ts";
-import { detectScamSignal } from "../_shared/scamSignals.ts";
+import { detectScamSignal, checkApplyUrlTrust } from "../_shared/scamSignals.ts";
 
 // v3.134.0 — /jobs/search (the plain search endpoint) truncates description
 // to a ~1000-char preview, confirmed live (999 chars, cut off mid-sentence).
@@ -332,6 +332,15 @@ async function syncRegion(
         // sticky's own DB trigger (migration 20260822030000) guarantees
         // that regardless of what this function writes.
         const scam = detectScamSignal(description, title);
+        // v3.358.0 — a second, independent signal checked at the same
+        // ingestion point: does the apply LINK itself look trustworthy,
+        // not just the JD text. See checkApplyUrlTrust's own header for
+        // why this is additive, not a duplicate of detectScamSignal.
+        // scam_suspected/scam_reason are a single boolean+reason pair on
+        // job_postings, so both checks OR into it here — content wins
+        // when both fire, since it's the more specific, more actionable
+        // reason for a person reading the admin panel.
+        const urlTrust = checkApplyUrlTrust(j.url!);
         return {
           source: "freehire",
           external_id: j.public_slug!,
@@ -342,8 +351,8 @@ async function syncRegion(
           location: j.location ? String(j.location).slice(0, 300) : null,
           apply_url: j.url!,
           posted_at: j.posted_at!,
-          scam_suspected: scam.suspected,
-          scam_reason: scam.reason,
+          scam_suspected: scam.suspected || urlTrust.suspected,
+          scam_reason: scam.reason ?? urlTrust.reason,
           // v3.166.0 — freehire's own structured enrichment, captured as-is,
           // never inferred for the rows it doesn't have. See this file's own
           // header note on real, live-measured coverage per field.
@@ -569,8 +578,11 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Cron-triggered internal function, not a public endpoint — the cron
-    // job now sends the service-role key as its Bearer token.
+    // This is a cron-triggered internal function, not a public endpoint —
+    // the cron job itself now sends the service-role key as its Bearer
+    // token (previously the anon key, which is public, so this check was
+    // previously a no-op). Anyone could otherwise trigger a sync on demand,
+    // outside the deliberate rotating-batch cadence this function relies on.
     const authHeader = req.headers.get("Authorization") ?? "";
     if (authHeader.replace(/^Bearer\s+/i, "") !== serviceKey) {
       return new Response(JSON.stringify({ error: "forbidden" }), {

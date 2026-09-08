@@ -4,6 +4,7 @@ import json
 import os
 import re
 import tempfile
+import unicodedata
 import urllib.request
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
@@ -207,6 +208,114 @@ def _captcha_present(page) -> bool:
     return False
 
 
+
+# v3.358.0 -- a free, deterministic pre-filter checked before the paid
+# _ai_judge() call above runs at all. Ported (not copied verbatim -- this
+# codebase has no DOM/applyControls list to read, only Crawl4AI's own
+# markdown text) from career-ops (an unrelated open-source job-search
+# toolkit)'s own liveness classifier. Two things it catches that a plain
+# "ask the AI" approach can't:
+#
+# 1. A REAL closure banner ("no longer accepting applications", "this
+#    job has expired", the equivalent in French/German) is completely
+#    unambiguous from the text alone -- there is nothing an AI call adds
+#    over a direct pattern match, and every one skipped is a real AI
+#    call this container never has to make, inside the same tight
+#    wall-clock budget job-board-sync's own verifyClosureBatch runs
+#    under (see docs/map/deployment.md's own note on that budget).
+# 2. A BOT/ANTI-SCRAPING CHALLENGE PAGE (Cloudflare "Just a moment...",
+#    an hCaptcha wall) is NOT closure evidence, but handing its own
+#    short, contentless text to _ai_judge risks the model reading "an
+#    empty page with no real job content" -- its own documented "closed"
+#    signal in PROMPT above -- and misjudging a genuinely OPEN posting as
+#    closed purely because the real page was never actually shown to it.
+#    Caught here and reported as inconclusive (is_open: None, which
+#    job-board-sync's own caller already treats as "uncertain, retry
+#    later" -- the identical branch an outright fetch failure takes, no
+#    change needed on that side) instead of ever reaching the model.
+#
+# Deliberately conservative in the other direction: this NEVER returns a
+# definite is_open=True from pattern-absence alone. A page with no
+# closure banner and no bot-challenge text still goes to _ai_judge,
+# since "nothing looked closed" is real, but weaker, evidence than a
+# banner that explicitly says so -- and _ai_judge is also this
+# function's only source of the scam_suspected/scam_reason signal for a
+# genuinely open posting, so skipping it entirely on the open path would
+# quietly drop that check too, not just save a call.
+def _normalize_liveness_text(text: str) -> str:
+    if not text:
+        return ""
+    t = (text
+         .replace("‘", "'").replace("’", "'").replace("ʼ", "'").replace("′", "'").replace("´", "'").replace("`", "'")
+         .replace("“", '"').replace("”", '"').replace("″", '"'))
+    t = unicodedata.normalize("NFD", t)
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", t)
+
+
+_LIVENESS_HARD_EXPIRED_PATTERNS = [re.compile(p, re.IGNORECASE) for p in [
+    r"job (is )?no longer available",
+    r"job.*no longer open",
+    # v3.358.0 -- the source pattern's single lookbehind alternated
+    # "application" (11 chars) with "form" (4 chars); Python's `re`
+    # requires every lookbehind to be fixed-width, unlike the JS engine
+    # this was ported from -- confirmed by a real compile failure, not
+    # assumed. Two separate fixed-width negative lookbehinds chained
+    # here express the identical "not preceded by either" condition.
+    r"\b(?:job|jobs|position|role|posting|opening|vacancy|requisition|req|listing)\b[\s\S]{0,60}?(?<!\bapplication\s)(?<!\bform\s)has been filled\b(?!\s+out)",
+    r"this job has expired",
+    r"job posting has expired",
+    r"no longer accepting applications",
+    r"this (position|role|job) (is )?no longer",
+    r"this job (listing )?is closed",
+    r"job (listing )?not found",
+    r"the page you are looking for doesn.t exist",
+    r"applications?\s+(?:(?:have|are|is)\s+)?closed",
+    r"diese stelle (ist )?(nicht mehr|bereits) besetzt",
+    r"offre (expiree|n'est plus disponible)",
+    r"(cette )?offre n'est plus (disponible|en ligne|active)",
+    r"(offre|poste|annonce) (deja )?pourvu(e)?",
+    r"offre (cloturee|desactivee|terminee)",
+    r"ce poste n'est plus (disponible|a pourvoir|ouvert)",
+    r"recrutement (termine|cloture)",
+    r"candidatures (closes|cloturees)",
+]]
+
+_LIVENESS_BOT_CHALLENGE_PATTERNS = [re.compile(p, re.IGNORECASE) for p in [
+    r"just a moment",
+    r"performing security verification",
+    r"checking your browser before",
+    r"verify you are (a |not a )?human",
+    r"enable javascript and cookies to continue",
+    r"attention required.*cloudflare",
+    r"\bray id\b",
+    r"\bcf-ray\b",
+    r"please complete the security check",
+]]
+
+
+def _first_liveness_match(patterns, text: str):
+    for p in patterns:
+        if p.search(text):
+            return p.pattern
+    return None
+
+
+def _classify_liveness_deterministic(page_text: str) -> Optional[dict]:
+    """Returns a definite result dict when the text is unambiguous, or
+    None to fall through to the real AI judge below."""
+    text = _normalize_liveness_text(page_text)
+
+    if _first_liveness_match(_LIVENESS_BOT_CHALLENGE_PATTERNS, text):
+        return {"is_open": None, "reason": "Automated check: an anti-bot/access-verification page was returned instead of the real posting."}
+
+    expired_pattern = _first_liveness_match(_LIVENESS_HARD_EXPIRED_PATTERNS, text)
+    if expired_pattern:
+        return {"is_open": False, "reason": "Automated check: a closure banner was detected on the page.", "scam_suspected": False, "scam_reason": ""}
+
+    return None
+
+
 @app.post('/check')
 async def check(req: CheckRequest, x_checker_secret: str = Header(default='')):
     if not CHECKER_SECRET or x_checker_secret != CHECKER_SECRET:
@@ -218,6 +327,9 @@ async def check(req: CheckRequest, x_checker_secret: str = Header(default='')):
         if not page_text.strip():
             status = getattr(crawl_result, 'status_code', 'unknown')
             return {'ok': False, 'error': f'could not load the page (status {status})'}
+        deterministic = _classify_liveness_deterministic(page_text)
+        if deterministic is not None:
+            return {'ok': True, 'result': deterministic}
         result = await asyncio.to_thread(_ai_judge, page_text)
         return {'ok': True, 'result': result}
     except Exception as e:

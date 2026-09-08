@@ -60,7 +60,7 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { isInTargetRegion } from "../_shared/geoScope.ts";
 import { isTrendingTechCategory, isTrendingTechTitle } from "../_shared/trendingCategories.ts";
 import { stripHtml } from "../_shared/htmlText.ts";
-import { detectScamSignal } from "../_shared/scamSignals.ts";
+import { detectScamSignal, checkApplyUrlTrust } from "../_shared/scamSignals.ts";
 
 const CRON_INTERVAL_MS = 2 * 60 * 60 * 1000; // matches this function's own cron registration
 // v3.166.0 — tuned down from an initial 150/120/150 (which hit the
@@ -789,8 +789,8 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Cron-triggered internal function, not a public endpoint — the cron
-    // job now sends the service-role key as its Bearer token.
+    // Same fix as job-board-sync's identical gap: cron-only, now actually
+    // enforced instead of accepting the public anon key as "auth".
     const authHeader = req.headers.get("Authorization") ?? "";
     if (authHeader.replace(/^Bearer\s+/i, "") !== serviceKey) {
       return new Response(JSON.stringify({ error: "forbidden" }), {
@@ -911,8 +911,12 @@ Deno.serve(async (req: Request) => {
     // candidate pool).
     for (const row of [...allRows, ...aiDevBoardRows]) {
       const { suspected, reason } = detectScamSignal(row.description, row.title);
-      row.scam_suspected = suspected;
-      row.scam_reason = reason;
+      // v3.358.0 — same second, independent link-structure signal
+      // job-board-sync now also checks, at the identical ingestion
+      // point. See checkApplyUrlTrust's own header in scamSignals.ts.
+      const urlTrust = checkApplyUrlTrust(row.apply_url);
+      row.scam_suspected = suspected || urlTrust.suspected;
+      row.scam_reason = reason ?? urlTrust.reason;
     }
 
     let aiDevBoardUpserted = 0;
