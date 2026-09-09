@@ -41,6 +41,7 @@ import {
   type FeatureKey, readFlags, featureGate, ACTION_FLAG,
   type AccountCapability, ACTION_CAPABILITY, RESTRICTION_MESSAGE,
   discoveryRestriction, discoveryRestrictedIds, accountGate, rateLimitGate,
+  logSecurityEvent,
 } from "./lib/gates.ts";
 // v3.131.0 — stage 3: the AI gateway call and its usage telemetry. See
 // lib/ai.ts's own header comment.
@@ -144,14 +145,21 @@ Deno.serve(async (req) => {
     // ============ DASHBOARD ACTIONS (Supabase JWT) ============
     const auth = req.headers.get("Authorization") ?? "";
     const jwt = auth.replace(/^Bearer\s+/i, "");
-    if (!jwt) return json({ error: "Missing Authorization" }, 401);
+    const reqIp = req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || null;
+    if (!jwt) {
+      await logSecurityEvent(createClient(supabaseUrl, serviceKey), null, "api_no_auth", "medium", { action }, reqIp);
+      return json({ error: "Missing Authorization" }, 401);
+    }
 
     const supa = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: `Bearer ${jwt}` } },
     });
     const { data: u } = await supa.auth.getUser();
     const user = u?.user;
-    if (!user) return json({ error: "Invalid session" }, 401);
+    if (!user) {
+      await logSecurityEvent(createClient(supabaseUrl, serviceKey), null, "api_invalid_session", "medium", { action }, reqIp);
+      return json({ error: "Invalid session" }, 401);
+    }
 
 
     // ---------------- parse_file ----------------
@@ -2353,7 +2361,13 @@ RULES:
     const isPlatformAdmin = async (): Promise<boolean> => {
       const { data } = await adminForNew.from("user_roles")
         .select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
-      return !!data;
+      const ok = !!data;
+      // Sept 2026 security review — a valid, signed-in but non-admin
+      // account calling an admin-gated action is a much stronger signal
+      // than a routine denial: it means someone already has a real
+      // session and is deliberately probing for admin-only capability.
+      if (!ok) await logSecurityEvent(adminForNew, userId, "admin_action_denied", "high", { action });
+      return ok;
     };
 
     if (action === "plans_list") {
@@ -2743,13 +2757,26 @@ RULES:
     async function isApprovedEmployer(): Promise<boolean> {
       const { data } = await adminForNew.from("employer_accounts")
         .select("status").eq("user_id", userId).maybeSingle();
-      return (data as { status?: string } | null)?.status === "approved";
+      const status = (data as { status?: string } | null)?.status ?? null;
+      const approved = status === "approved";
+      // Deliberately low severity: a not-yet-approved employer hitting a
+      // gated action is routine onboarding, not an attack signal.
+      if (!approved) await logSecurityEvent(adminForNew, userId, "employer_gate_denied", "low", { action, status });
+      return approved;
     }
 
     async function assertOrgMember(orgId: string): Promise<boolean> {
       const { data } = await adminForNew.from("org_members")
         .select("org_id").eq("org_id", orgId).eq("user_id", userId).maybeSingle();
-      if (!data) return false;
+      if (!data) {
+        // This is the real cross-tenant shape: a signed-in employer
+        // reaching for an org they are not a member of. This exact class
+        // of bug was a confirmed critical vulnerability once already in
+        // this app's history (org_members_insert_self) — worth a high
+        // severity, real-time alert on its own, not just aggregate counts.
+        await logSecurityEvent(adminForNew, userId, "org_member_denied", "high", { action, org_id: orgId });
+        return false;
+      }
       return await isApprovedEmployer();
     }
 

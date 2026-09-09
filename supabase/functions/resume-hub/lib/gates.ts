@@ -7,6 +7,31 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 import { json } from "./utils.ts";
 
 // ─────────────────────────────────────────────────────────────
+// Sept 2026 security review — security_logs had exactly one writer
+// (admin-auth-pin) in the whole app; resume-hub, which handles nearly
+// every real action, wrote nothing to it at all. A real-time trigger on
+// that table (notify_security_alert) already exists and already alerts on
+// high/critical rows, so the missing piece was never the alerting
+// mechanism, it was resume-hub never producing rows for it to see. This
+// is the one shared writer every new call site below uses — best effort,
+// same pattern admin-auth-pin's own log() already established, since a
+// logging failure must never break the actual request it's describing.
+export async function logSecurityEvent(
+  admin: SupabaseClient<any, any, any>,
+  userId: string | null,
+  action: string,
+  severity: "low" | "medium" | "high" | "critical",
+  details: Record<string, unknown> = {},
+  ipAddress: string | null = null,
+): Promise<void> {
+  try {
+    await admin.from("security_logs").insert({ user_id: userId, action, severity, details, ip_address: ipAddress });
+  } catch (e) {
+    console.error("security_logs insert failed", (e as Error).message);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // v3.24.0 MAINTENANCE SWITCHES
 // The admin panel writes system_config.feature_flags. Every action that
 // spends money or touches the marketplace asks here first, so turning a
@@ -144,6 +169,7 @@ export async function accountGate(
 
   if (susp) {
     const until = (susp as { until?: string }).until;
+    await logSecurityEvent(admin, userId, "suspended_account_attempt", "medium", { action });
     return json({
       code: "account_suspended",
       error: "account_suspended",
@@ -192,6 +218,7 @@ export async function rateLimitGate(
   if (error || !data || !data[0]) return null;
   const row = data[0] as { allowed: boolean; retry_after_seconds: number };
   if (row.allowed) return null;
+  await logSecurityEvent(admin, userId, "rate_limited", "medium", { endpoint, max_requests: maxRequests, window_minutes: windowMinutes });
   return json({
     code: "rate_limited",
     error: "rate_limited",
