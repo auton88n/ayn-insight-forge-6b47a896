@@ -41,7 +41,7 @@ import {
   type FeatureKey, readFlags, featureGate, ACTION_FLAG,
   type AccountCapability, ACTION_CAPABILITY, RESTRICTION_MESSAGE,
   discoveryRestriction, discoveryRestrictedIds, accountGate, rateLimitGate,
-  logSecurityEvent,
+  logSecurityEvent, shouldEscalate,
 } from "./lib/gates.ts";
 // v3.131.0 — stage 3: the AI gateway call and its usage telemetry. See
 // lib/ai.ts's own header comment.
@@ -2366,7 +2366,13 @@ RULES:
       // account calling an admin-gated action is a much stronger signal
       // than a routine denial: it means someone already has a real
       // session and is deliberately probing for admin-only capability.
-      if (!ok) await logSecurityEvent(adminForNew, userId, "admin_action_denied", "high", { action });
+      // Escalation throttled per (user, reason): the event is always
+      // logged, only the real-time email is capped to once per window, so
+      // repeated retries can't flood the founder's inbox.
+      if (!ok) {
+        const escalate = await shouldEscalate(adminForNew, userId, "admin_action_denied");
+        await logSecurityEvent(adminForNew, userId, "admin_action_denied", escalate ? "high" : "medium", { action });
+      }
       return ok;
     };
 
@@ -2774,7 +2780,11 @@ RULES:
         // of bug was a confirmed critical vulnerability once already in
         // this app's history (org_members_insert_self) — worth a high
         // severity, real-time alert on its own, not just aggregate counts.
-        await logSecurityEvent(adminForNew, userId, "org_member_denied", "high", { action, org_id: orgId });
+        // Escalation throttled per (user, reason), same as
+        // admin_action_denied — the record is never dropped, only the
+        // immediate email is capped to once per window.
+        const escalate = await shouldEscalate(adminForNew, userId, "org_member_denied");
+        await logSecurityEvent(adminForNew, userId, "org_member_denied", escalate ? "high" : "medium", { action, org_id: orgId });
         return false;
       }
       return await isApprovedEmployer();

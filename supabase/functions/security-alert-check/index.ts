@@ -86,6 +86,14 @@ Deno.serve(async (req) => {
       : false;
 
     let alerted = false;
+    // Sept 2026 security review, found by the post-push review: the state
+    // update below used to advance last_checked_at unconditionally, even
+    // when a real alert-worthy batch existed and the send itself failed
+    // (a transient Resend/network issue) -- that silently retired the
+    // exact window that needed a human's attention, with nothing left
+    // that would ever look at it again. sendAttemptFailed tracks the one
+    // case that must hold the window open for a retry on the next run.
+    let sendAttemptFailed = false;
     if (shouldAlert && !cooldownActive) {
       const notifyEmail = Deno.env.get("NOTIFICATION_EMAIL");
       if (notifyEmail) {
@@ -118,11 +126,18 @@ Deno.serve(async (req) => {
           metadata: { critical_count: critical.length, burst_count: bursts.length },
         });
         alerted = sendResult.ok;
+        sendAttemptFailed = !sendResult.ok;
       }
     }
 
+    // last_checked_at only advances when there was either nothing to
+    // alert on, an active cooldown correctly suppressed a duplicate, or
+    // the alert genuinely went out -- never past a batch this run tried
+    // and failed to actually deliver. Nothing to alert on / cooldown /
+    // no NOTIFICATION_EMAIL configured are all real terminal states with
+    // no useful retry, so those still advance normally.
     await admin.from("security_alert_state").update({
-      last_checked_at: now.toISOString(),
+      ...(sendAttemptFailed ? {} : { last_checked_at: now.toISOString() }),
       ...(alerted ? { last_alert_sent_at: now.toISOString(), last_alert_count: relevant.length } : {}),
     }).eq("id", "singleton");
 

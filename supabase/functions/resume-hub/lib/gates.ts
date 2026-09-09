@@ -196,6 +196,36 @@ export async function accountGate(
 
 
 // ─────────────────────────────────────────────────────────────
+// Sept 2026 security review, found by the post-push review: a 'high'/
+// 'critical' security_logs row fires a real, immediate email via
+// notify_security_alert with zero cooldown of its own. admin_action_denied
+// and org_member_denied are both reachable by an authenticated caller
+// simply retrying a refused action -- with nothing throttling the
+// escalation itself, that caller could flood the founder's inbox on every
+// single retry, the same alert-fatigue risk already fixed once in
+// admin-pin-alert, one layer removed. Reuses check_api_rate_limit (the
+// same sliding-window limiter rateLimitGate already trusts) as a per
+// (user, reason) throttle on the ESCALATION only, never on the record: the
+// event is always logged at the caller's own fallback severity, only the
+// trigger-firing severity is capped to once per window, so a sustained
+// flood still surfaces at the periodic security-alert-check burst layer
+// even though the immediate email is throttled here.
+export async function shouldEscalate(
+  admin: SupabaseClient<any, any, any>,
+  userId: string,
+  alertKey: string,
+  windowMinutes = 15,
+): Promise<boolean> {
+  const { data, error } = await admin.rpc("check_api_rate_limit", {
+    p_user_id: userId, p_endpoint: `_alert:${alertKey}`, p_max_requests: 1, p_window_minutes: windowMinutes,
+  });
+  // Fails open toward alerting, not toward silence -- a throttle-check
+  // failure must never be the reason a real incident goes unnoticed.
+  if (error || !data || !data[0]) return true;
+  return (data[0] as { allowed: boolean }).allowed;
+}
+
+// ─────────────────────────────────────────────────────────────
 // v3.131.0 RATE LIMITING — closes a real, previously-documented gap
 // (blueprint.md: "the tables existing is not evidence that throttling is
 // happening"). Wraps the already-existing, already-secure, service-role-only
