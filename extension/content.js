@@ -1695,16 +1695,31 @@
     liveObserver = new MutationObserver(() => {
       clearTimeout(debounce);
       debounce = setTimeout(() => {
-        const navigated = location.href !== startUrl;
-        const nowVisible = queryDeep(document, "input, textarea, select").filter((e) => visible(e) && !e.disabled);
-        const hasNew = nowVisible.some((e) => !knownEls.has(e));
-        if (!navigated && !hasNew) return;
-        liveObserver.disconnect();
-        const notice = el("div", { style: "padding: 10px 20px; background: var(--bg); border-top: 1px solid var(--border); font-size: 13.5px; color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 10px;" }, [
-          el("span", { text: navigated ? "This looks like a new step in the application." : "New fields appeared on this page." }),
-          el("button", { class: "btn btn-primary", text: navigated ? "Fill this step" : "Fill them too", style: "padding: 6px 14px; font-size: 13px; flex-shrink: 0;", onclick: () => autofill(session) }),
-        ]);
-        panel.insertBefore(notice, panel.firstChild.nextSibling);
+        // Defensive guard: queryDeep/visible are aliases onto frame_agent.js's
+        // exports, injected as a separate content script into the same
+        // isolated-world context. If that injection hasn't finished yet, was
+        // blocked by a cross-origin sub-frame policy, or a page under our
+        // control wipes window between injection and this callback firing,
+        // a bare call here throws uncaught inside a MutationObserver
+        // callback -- never let that surface as a console error on
+        // someone else's page, and never let it kill live field detection
+        // silently with no path to recover on the next mutation.
+        try {
+          if (typeof queryDeep !== "function" || typeof visible !== "function") return;
+          const navigated = location.href !== startUrl;
+          const nowVisible = queryDeep(document, "input, textarea, select").filter((e) => visible(e) && !e.disabled);
+          const hasNew = nowVisible.some((e) => !knownEls.has(e));
+          if (!navigated && !hasNew) return;
+          liveObserver.disconnect();
+          const notice = el("div", { style: "padding: 10px 20px; background: var(--bg); border-top: 1px solid var(--border); font-size: 13.5px; color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 10px;" }, [
+            el("span", { text: navigated ? "This looks like a new step in the application." : "New fields appeared on this page." }),
+            el("button", { class: "btn btn-primary", text: navigated ? "Fill this step" : "Fill them too", style: "padding: 6px 14px; font-size: 13px; flex-shrink: 0;", onclick: () => autofill(session) }),
+          ]);
+          panel.insertBefore(notice, panel.firstChild.nextSibling);
+        } catch (_e) {
+          // Swallow -- a broken live-field observer must never throw on a
+          // page we don't control.
+        }
       }, 800);
     });
     liveObserver.observe(document.body, { childList: true, subtree: true });

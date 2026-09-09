@@ -91,8 +91,18 @@ app.use(express.static(DIST, {
 // policy, v3.201.0) — no new backend surface, no new risk. Capped at
 // 45,000 rows, a safety margin under the sitemap protocol's real
 // 50,000-URL ceiling; today's real count is well under half that.
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY
-  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg2ODg5MDQyLCJleHAiOjIxMDIyNDkwNDJ9.AmUVtzKLnrXO_ubBNxSDCBDnI7jJyNkGfK9p7nrzkGI';
+// Sept 2026 security review: removed the hardcoded literal fallback (the
+// same anon key was also duplicated in src/config.ts, a stale-drift risk
+// on rotation, not a secrecy one -- this key is meant to be public, RLS
+// protects the data). Read lazily, inside the one route that uses it, so
+// a missing env var degrades just this crawler-only endpoint to its
+// existing empty-sitemap fail-safe below rather than crashing the whole
+// static-file server that serves the entire site.
+function requireSupabaseAnonKey() {
+  const key = process.env.VITE_SUPABASE_ANON_KEY;
+  if (!key) throw new Error('VITE_SUPABASE_ANON_KEY is not set in the server environment');
+  return key;
+}
 
 let jobsSitemapCache = { xml: null, at: 0 };
 // A crawler refetching more often than this is rare, and this only ever
@@ -112,6 +122,7 @@ app.get('/sitemap-jobs.xml', async (req, res) => {
     return;
   }
   try {
+    const SUPABASE_ANON_KEY = requireSupabaseAnonKey();
     // PostgREST caps rows per request at its own configured max (1000 on
     // this instance) regardless of the "limit" query param requested --
     // confirmed live testing this route: asking for 45,000 silently came
