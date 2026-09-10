@@ -186,7 +186,9 @@ function isKnownRoute(pathname) {
 }
 
 // React Router handles rendering; the status code is decided here.
-app.get('*', (req, res) => {
+// Express 5's path-to-regexp requires a named wildcard. This form includes
+// the root path as well as every SPA route, preserving Express 4's `*`.
+app.get('/{*path}', (req, res) => {
   const status = isKnownRoute(req.path) ? 200 : 404;
   res.status(status).sendFile(path.join(DIST, 'index.html'));
 });

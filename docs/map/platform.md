@@ -12,6 +12,8 @@ During the replacement test pass, file scanning was also corrected to fail close
 
 The dependency pass removed unused `maplibre-gl` (the sole critical advisory), upgraded the production router to React Router 7 and the static server to Express 5, and upgraded Vite/Vitest together to their compatible patched releases. The test setup now defines browser storage through `Object.defineProperty`, which remains valid in the newer jsdom runtime where `localStorage` is a read-only getter.
 
+The first production start on Express 5 caught its one server compatibility change: the old bare `app.get('*')` SPA fallback is invalid under its newer path parser and made the process restart. Replaced it with the named wildcard `/{*path}`, which includes `/` and all SPA paths. The change was verified from the server process itself before redeploying.
+
 # v3.264.0 "Get discovered" moved beside the location field
 
 Full writeup in CLAUDE.md's own v3.264.0 entry. Reported directly: "the button should be beside the location." v3.262.0 had it as a `.lp-note` sentence on its own line below the whole search row; moved into `.lp-browser-search` itself as a real `.lp-btn.lp-btn-ghost` button, a third flex item right after the City-or-remote field, height set to 50px to match the two inputs. The row's existing `flex-wrap` handles mobile for free. Verified `tsc`/`check-wiring`/dash-sweep clean; live confirmed correct desktop placement, the sign-up dialog still opens on click, and clean wrapping with zero overflow at mobile width.
