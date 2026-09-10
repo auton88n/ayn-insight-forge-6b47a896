@@ -10,6 +10,8 @@ The audit also removed an unreachable `useFileUpload` hook and its stale unit su
 
 During the replacement test pass, file scanning was also corrected to fail closed when a PDF or SVG cannot be read. Those formats can contain executable or active content, so treating an unreadable file as safe defeated the scan's purpose.
 
+The dependency pass removed unused `maplibre-gl` (the sole critical advisory), upgraded the production router to React Router 7 and the static server to Express 5, and upgraded Vite/Vitest together to their compatible patched releases. The test setup now defines browser storage through `Object.defineProperty`, which remains valid in the newer jsdom runtime where `localStorage` is a read-only getter.
+
 # v3.264.0 "Get discovered" moved beside the location field
 
 Full writeup in CLAUDE.md's own v3.264.0 entry. Reported directly: "the button should be beside the location." v3.262.0 had it as a `.lp-note` sentence on its own line below the whole search row; moved into `.lp-browser-search` itself as a real `.lp-btn.lp-btn-ghost` button, a third flex item right after the City-or-remote field, height set to 50px to match the two inputs. The row's existing `flex-wrap` handles mobile for free. Verified `tsc`/`check-wiring`/dash-sweep clean; live confirmed correct desktop placement, the sign-up dialog still opens on click, and clean wrapping with zero overflow at mobile width.
