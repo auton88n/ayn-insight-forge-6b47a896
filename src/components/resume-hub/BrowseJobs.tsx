@@ -565,40 +565,48 @@ export function JobDescriptionBody({ text }: { text: string }) {
 // which is honest about what the data actually is rather than pretending
 // to a precision it doesn't have. Search still works as a flat filter
 // across everything; grouping is only for browsing with no query typed.
-// v3.167.0 — asked directly for a better city/country filter. The old
-// grouping (by whatever the last comma-separated segment happened to be)
-// produced inconsistent, sometimes meaningless buckets since job-board-
-// sync's own location text varies wildly by source. AYN is scoped to US/
-// Canada only (a standing product policy, enforced at ingestion) — so a
-// real two-level Country > City structure is both more useful and just
-// two buckets to build, not an open-ended geocoding problem.
+// The catalogue now deliberately covers North America, Europe, the Middle
+// East, and Australia. Group only locations we can place with a real signal;
+// an unknown location stays visibly "Other locations" rather than being
+// falsely labelled as United States.
 const CA_PROVINCE_ABBR_SET = new Set(["ON", "QC", "BC", "AB", "MB", "SK", "NS", "NB", "NL", "PE", "NT", "YT", "NU"]);
+const US_STATE_ABBR_SET = new Set(["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC"]);
 const CA_CITY_HINTS = [
   "toronto", "montreal", "vancouver", "ottawa", "calgary", "edmonton", "winnipeg", "quebec city",
   "halifax", "victoria", "regina", "waterloo", "kitchener", "mississauga", "burnaby", "richmond",
   "surrey", "canada",
 ];
-function classifyCountry(loc: string): "Canada" | "United States" {
-  const l = loc.toLowerCase();
-  // An explicit "United States" beats a city-name guess -- found live: a
-  // multi-location string ("...Vancouver, Washington, United States...")
-  // matched the Vancouver hint below and got misfiled as Canada even
-  // though it names the US outright. City names alone are ambiguous
-  // (Vancouver, WA is real); an explicit country name isn't.
-  if (/\bunited states\b/.test(l)) return "United States";
-  if (/\bcanada\b/.test(l)) return "Canada";
-  for (const hint of CA_CITY_HINTS) if (l.includes(hint)) return "Canada";
-  const abbrevMatch = loc.match(/,\s*([A-Z]{2})\b/);
-  if (abbrevMatch && CA_PROVINCE_ABBR_SET.has(abbrevMatch[1])) return "Canada";
-  return "United States";
+const EUROPE_LOCATION_HINTS = ["united kingdom", "uk", "england", "scotland", "wales", "northern ireland", "germany", "france", "spain", "italy", "netherlands", "belgium", "switzerland", "ireland", "portugal", "poland", "sweden", "norway", "denmark", "austria", "finland", "romania", "greece", "hungary", "czech republic", "czechia", "london", "manchester", "berlin", "munich", "paris", "madrid", "barcelona", "rome", "milan", "amsterdam", "brussels", "zurich", "dublin", "lisbon", "warsaw", "stockholm", "oslo", "copenhagen", "vienna", "helsinki", "athens", "budapest", "prague"];
+const MIDDLE_EAST_LOCATION_HINTS = ["united arab emirates", "uae", "saudi arabia", "ksa", "israel", "qatar", "kuwait", "bahrain", "oman", "dubai", "abu dhabi", "riyadh", "jeddah", "tel aviv", "jerusalem", "haifa", "doha", "manama", "muscat"];
+const AUSTRALIA_LOCATION_HINTS = ["australia", "sydney", "melbourne", "brisbane", "perth", "adelaide", "canberra", "hobart", "darwin", "gold coast"];
+
+type LocationRegion = "North America" | "Europe" | "Middle East" | "Australia" | "Other locations";
+
+function hasLocationHint(location: string, hints: string[]) {
+  return hints.some((hint) => new RegExp(`\\b${hint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(location));
 }
-function groupByCountry(locs: string[]) {
-  const buckets: { country: "United States" | "Canada"; items: string[] }[] = [
-    { country: "United States", items: [] },
-    { country: "Canada", items: [] },
+
+function classifyLocationRegion(loc: string): LocationRegion {
+  const l = loc.toLowerCase();
+  if (/\b(united states|u\.s\.a?\.?|usa|canada)\b/.test(l)) return "North America";
+  if (hasLocationHint(l, CA_CITY_HINTS)) return "North America";
+  const abbrevMatch = loc.match(/,\s*([A-Z]{2})\b/);
+  if (abbrevMatch && (CA_PROVINCE_ABBR_SET.has(abbrevMatch[1]) || US_STATE_ABBR_SET.has(abbrevMatch[1]))) return "North America";
+  if (hasLocationHint(l, MIDDLE_EAST_LOCATION_HINTS)) return "Middle East";
+  if (hasLocationHint(l, AUSTRALIA_LOCATION_HINTS)) return "Australia";
+  if (hasLocationHint(l, EUROPE_LOCATION_HINTS)) return "Europe";
+  return "Other locations";
+}
+function groupByRegion(locs: string[]) {
+  const buckets: { region: LocationRegion; items: string[] }[] = [
+    { region: "North America", items: [] },
+    { region: "Europe", items: [] },
+    { region: "Middle East", items: [] },
+    { region: "Australia", items: [] },
+    { region: "Other locations", items: [] },
   ];
   for (const loc of locs) {
-    const bucket = buckets.find((b) => b.country === classifyCountry(loc))!;
+    const bucket = buckets.find((b) => b.region === classifyLocationRegion(loc))!;
     bucket.items.push(loc);
   }
   for (const b of buckets) b.items.sort((a, b2) => a.localeCompare(b2));
@@ -1597,8 +1605,8 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   // raw strings aren't one undifferentiated alphabetical wall.
   const visibleLocations = useMemo(() => {
     const f = locFilter.trim().toLowerCase();
-    if (f) return { flat: locations.filter((l) => l.toLowerCase().includes(f)).slice(0, 120), byCountry: null as ReturnType<typeof groupByCountry> | null };
-    return { flat: null as string[] | null, byCountry: groupByCountry(locations) };
+    if (f) return { flat: locations.filter((l) => l.toLowerCase().includes(f)).slice(0, 120), byRegion: null as ReturnType<typeof groupByRegion> | null };
+    return { flat: null as string[] | null, byRegion: groupByRegion(locations) };
   }, [locations, locFilter]);
 
   const clearFilters = () => {
@@ -2001,10 +2009,10 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                       {loc}
                     </button>
                   ))
-                  : visibleLocations.byCountry?.map((g) => (
-                    <div key={g.country}>
+                  : visibleLocations.byRegion?.map((g) => (
+                    <div key={g.region}>
                       <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {g.country} <span className="font-normal normal-case">· {g.items.length}</span>
+                        {g.region} <span className="font-normal normal-case">· {g.items.length}</span>
                       </p>
                       {g.items.slice(0, 14).map((loc) => (
                         <button
@@ -2498,7 +2506,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             <DialogTitle>Trending right now</DialogTitle>
           </DialogHeader>
           <p className="text-xs text-muted-foreground -mt-2">
-            Real posting volume from the last 3 days, across the US and Canada. Not a guess at demand, just a count of what's actually landing.
+            Real posting volume from the last 3 days, across every region AYN tracks. Not a guess at demand, just a count of what's actually landing.
           </p>
 
           {structuredCities.length > 0 && (
@@ -2507,10 +2515,10 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
               onValueChange={(v) => pickTrendingCity(v === "__national" ? null : v)}
             >
               <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="US & Canada" />
+                <SelectValue placeholder="All tracked locations" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__national">US &amp; Canada</SelectItem>
+                <SelectItem value="__national">All tracked locations</SelectItem>
                 {structuredCities.map((c) => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}

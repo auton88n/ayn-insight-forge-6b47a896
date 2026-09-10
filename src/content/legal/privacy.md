@@ -1,8 +1,8 @@
 # AYN Privacy Policy
 
-Version: 2.2
-Last updated: 7 September 2026
-Effective: 7 September 2026
+Version: 2.3
+Last updated: 10 September 2026
+Effective: 10 September 2026
 
 ---
 
@@ -10,7 +10,7 @@ Effective: 7 September 2026
 
 AYN helps job seekers apply for roles and helps approved employers find candidates who have chosen to be found. That means handling career information, so this policy is written to be read.
 
-- **AYN currently operates only in the United States and Canada.** We do not target, market to, or knowingly collect information from individuals located in the European Union, the United Kingdom, or elsewhere outside the US and Canada. If that changes, we will update this policy first.
+- **AYN sources and displays job listings across North America, Europe, the Middle East, and Australia.** Employer accounts are currently available in the United States and Canada. Where you use AYN from another region, this policy describes how we process your information.
 - We do not sell your personal information and we do not share it for cross-context behavioural advertising.
 - You are not visible to employers unless you switch discoverability on yourself.
 - Employers never see your name, email address, or telephone number until you accept their proposal.
@@ -107,7 +107,7 @@ AYN is operated from Canada by a Canadian company. **Your account data, profile,
 
 When we generate or evaluate text, the relevant content is processed in the United States by our AI gateway and the underlying model providers. Payment processing also takes place in the United States. Our own administration takes place in Canada.
 
-So a single request may involve the United States and Canada — both countries this policy already covers. Because AYN does not target users outside the US and Canada, we do not currently rely on the cross-border transfer mechanisms (such as the UK International Data Transfer Addendum or the EU Standard Contractual Clauses) that would apply if we did.
+So a single request may involve the United States and Canada. The catalogue's geographic coverage does not change where AYN stores or administers account data. If a transfer mechanism is required for a particular processing activity, we will put the applicable safeguards in place before carrying it out.
 
 ## 7. Retention
 
@@ -184,6 +184,8 @@ We will post any change here with a new version number and date. For changes mat
 **Version 2.0 (18 August 2026):** AYN narrowed its operating scope to the United States and Canada only, and stopped targeting users in the European Union, United Kingdom, or Middle East. This version also corrects prior descriptions of where account data is stored — it has always been on servers we operate ourselves, and this version accurately describes that infrastructure as US-based rather than referencing a third-party UK-based database provider.
 
 **Version 2.2 (7 September 2026):** Added PostHog to the service provider table: opt-in, masked session recordings that let us see what went wrong when something breaks, never what was typed or shown on screen. This version also corrects the Cookies section — sign-in has always used your browser's local storage, not a cookie, and this version states that plainly instead of grouping it with the actual analytics cookie Google Analytics sets.
+
+**Version 2.3 (10 September 2026):** Corrected our geographic-scope description to match the live job catalogue, which covers North America, Europe, the Middle East, and Australia. Employer accounts remain available in the United States and Canada.
 
 ## 14. Contact
 

@@ -1,7 +1,7 @@
 # AYN Security Overview
 
-Version: 1.1
-Last updated: 18 August 2026
+Version: 1.2
+Last updated: 10 September 2026
 
 This page describes how AYN protects data as at the date above. It is written to answer the questions a vendor security review normally asks, so you can assess us without sending a questionnaire. If you still need one completed, email support@ayn.careers.
 
@@ -21,7 +21,7 @@ AYN is a web application and a browser extension backed by a Postgres database w
 
 **Encryption at rest.** The database and file storage are encrypted at rest by our infrastructure provider.
 
-**Data residency.** As at the date above, account data, profiles, resumes, and assessment records are stored on servers we operate ourselves in the **United States**. Text generation, payment processing, and analytics also take place in the United States. AYN currently operates only in the United States and Canada. Full detail is on the Subprocessors page.
+**Data residency.** As at the date above, account data, profiles, resumes, and assessment records are stored on servers we operate ourselves in the **United States**. Text generation, payment processing, and analytics also take place in the United States. AYN's job catalogue covers North America, Europe, the Middle East, and Australia; employer accounts are currently available in the United States and Canada. Full detail is on the Subprocessors page.
 
 ## Access control
 

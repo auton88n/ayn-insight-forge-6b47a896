@@ -13,6 +13,7 @@ import LandingPage from '@/components/LandingPage';
 const EmployerHub = lazy(() => import('@/pages/EmployerHub'));
 import { useFeature } from '@/hooks/useFeatureFlags';
 import { PlatformMaintenanceScreen } from '@/components/shared/MaintenanceNotice';
+import { LegalConsentGate } from '@/components/auth/LegalConsentGate';
 
 
 
@@ -118,13 +119,13 @@ const AuthedShell = ({ user, session: _session }: { user: User; session: Session
   if (platform.loaded && !platform.enabled) return <PlatformMaintenanceScreen />;
   if (role === 'employer') {
     if (employerStatus !== 'approved') return <Navigate to="/employer/pending" replace />;
-    return (
+    return <LegalConsentGate userId={user.id}>
       <Suspense fallback={<DashboardLoader />}>
         <EmployerHub companyName={companyName} />
       </Suspense>
-    );
+    </LegalConsentGate>;
   }
-  return <LandingPage />;
+  return <LegalConsentGate userId={user.id}><LandingPage /></LegalConsentGate>;
 };
 
 

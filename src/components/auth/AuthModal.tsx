@@ -758,7 +758,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthM
                       </button>
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-tight">
-                      AYN currently operates only in the United States and Canada.
+                      Employer accounts are currently available in the United States and Canada.
                     </p>
                   </div>
                 </>
@@ -826,7 +826,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthM
                 >
                   Privacy Policy
                 </a>
-                {' '}(Terms {LEGAL.termsVersion} and Privacy {LEGAL.privacyVersion}, effective {LEGAL.effectiveDate}). We record the date, time and versions you accept.
+                {' '}(Terms {LEGAL.termsVersion}, effective {LEGAL.termsEffectiveDate}; Privacy {LEGAL.privacyVersion}, effective {LEGAL.privacyEffectiveDate}). We record the date, time and versions you accept.
                 </label>
               </div>
 

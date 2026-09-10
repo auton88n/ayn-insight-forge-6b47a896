@@ -723,7 +723,7 @@ const SECTIONS: HelpSection[] = [
       { q: 'How do I start?', a: 'Create a free account, add your resume, and either browse real postings or add one yourself by link or by pasting the text.' },
       { q: 'Do I need a card?', a: 'No, and the free plan does not expire.' },
       { q: 'Where do the postings come from?', a: 'Real company career pages, sourced automatically and refreshed every two hours. Never LinkedIn or Indeed. You can also add any posting yourself.' },
-      { q: 'Does it apply for me?', a: 'No. It writes the resume and the cover letter. You review them and submit the application yourself, on the company’s own site.' },
+      { q: 'Does it apply for me?', a: 'By default, no. The extension fills and stops for your review. It can submit only after you separately enable auto-submit, and only when every required field was filled.' },
     ],
   },
   {

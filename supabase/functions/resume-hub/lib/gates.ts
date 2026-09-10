@@ -135,6 +135,21 @@ export const RESTRICTION_MESSAGE: Record<AccountCapability, string> = {
   ai: "AI features are switched off for this account by an administrator.",
 };
 
+type LegalVersions = { terms_version: string; privacy_version: string };
+let legalVersionsCache: { at: number; versions: LegalVersions | null } | null = null;
+
+async function requiredLegalVersions(admin: SupabaseClient<any, any, any>): Promise<LegalVersions | null> {
+  if (legalVersionsCache && Date.now() - legalVersionsCache.at < 30_000) return legalVersionsCache.versions;
+  const { data, error } = await admin.from("system_config").select("value").eq("key", "legal_versions").maybeSingle();
+  const value = !error ? (data as { value?: unknown } | null)?.value : null;
+  const candidate = value && typeof value === "object" ? value as Partial<LegalVersions> : null;
+  const versions = candidate && typeof candidate.terms_version === "string" && typeof candidate.privacy_version === "string"
+    ? { terms_version: candidate.terms_version, privacy_version: candidate.privacy_version }
+    : null;
+  legalVersionsCache = { at: Date.now(), versions };
+  return versions;
+}
+
 /** True when this person cannot appear in the talent pool. */
 export async function discoveryRestriction(
   admin: SupabaseClient<any, any, any>,
@@ -161,10 +176,20 @@ export async function accountGate(
   userId: string,
   action: string,
 ): Promise<Response | null> {
-  const [{ data: susp }, { data: restrictions }] = await Promise.all([
+  // This is intentionally allowed through so the only action that records a
+  // new acceptance remains available to a person who is otherwise blocked.
+  if (action === "legal_consent_record") return null;
+
+  const [requiredVersions, { data: susp }, { data: restrictions }, { data: consents }] = await Promise.all([
+    requiredLegalVersions(admin),
     admin.from("account_suspensions")
       .select("reason, until, suspended_at").eq("user_id", userId).eq("active", true).maybeSingle(),
     admin.from("account_restrictions").select("capability, reason").eq("user_id", userId),
+    admin.from("terms_consent_log")
+      .select("terms_version, privacy_version, terms_accepted, privacy_accepted")
+      .eq("user_id", userId)
+      .order("accepted_at", { ascending: false })
+      .limit(1),
   ]);
 
   if (susp) {
@@ -179,6 +204,25 @@ export async function accountGate(
         ? `This account is suspended until ${new Date(until).toLocaleDateString("en-CA")}. Contact support if you think this is wrong.`
         : "This account is suspended. Contact support if you think this is wrong.",
     }, 403);
+  }
+
+  if (requiredVersions) {
+    const latest = (consents || [])[0] as {
+      terms_version?: string | null; privacy_version?: string | null;
+      terms_accepted?: boolean | null; privacy_accepted?: boolean | null;
+    } | undefined;
+    const current = latest?.terms_accepted === true && latest?.privacy_accepted === true
+      && latest.terms_version === requiredVersions.terms_version
+      && latest.privacy_version === requiredVersions.privacy_version;
+    if (!current) {
+      return json({
+        code: "legal_reaccept_required",
+        error: "legal_reaccept_required",
+        terms_version: requiredVersions.terms_version,
+        privacy_version: requiredVersions.privacy_version,
+        message: "Please review and accept the updated Privacy Policy before continuing.",
+      }, 451);
+    }
   }
 
   const needed = ACTION_CAPABILITY[action];

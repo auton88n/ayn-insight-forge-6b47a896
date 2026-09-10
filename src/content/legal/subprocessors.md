@@ -1,11 +1,11 @@
 # AYN Subprocessors
 
-Version: 2.0
-Last updated: 18 August 2026
+Version: 2.1
+Last updated: 10 September 2026
 
 AYN uses a small number of third parties to deliver the service. This page lists all of them. It is the authoritative list referenced by our Data Processing Agreement and our Privacy Policy.
 
-**AYN currently operates only in the United States and Canada.**
+AYN sources and displays job listings across North America, Europe, the Middle East, and Australia. Employer accounts are currently available in the United States and Canada.
 
 ---
 
@@ -45,6 +45,7 @@ Employers subject to our Data Processing Agreement may object on reasonable data
 
 | Date | Change |
 |---|---|
+| 10 September 2026 | Corrected the geographic-scope description to match the live four-region job catalogue. Employer accounts remain available in the United States and Canada. |
 | 18 August 2026 | Corrected the database/infrastructure entry from a third-party managed provider based in the United Kingdom to Hostinger, the infrastructure provider we run our own self-hosted database and application on in the United States. Added Resend, previously omitted. Narrowed stated operating scope to the United States and Canada. |
 | 1 August 2026 | Initial publication |
 

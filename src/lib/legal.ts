@@ -25,8 +25,8 @@ const privacy = docMeta('privacy');
 export const LEGAL = {
   termsVersion: terms?.version ?? null,
   privacyVersion: privacy?.version ?? null,
-  /** The effective date of the Terms, which is what the checkbox names. */
-  effectiveDate: terms?.effective ?? terms?.updated ?? null,
+  termsEffectiveDate: terms?.effective ?? terms?.updated ?? null,
+  privacyEffectiveDate: privacy?.effective ?? privacy?.updated ?? null,
 } as const;
 
 /**

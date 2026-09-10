@@ -1,11 +1,11 @@
 # AYN Data Processing Agreement
 
-Version: 2.0
-Effective: 18 August 2026
+Version: 2.1
+Effective: 10 September 2026
 
-This Agreement forms part of the AYN Terms of Service between AYN AI ("AYN") and the Employer named in the account ("Employer", "you"). AYN currently operates only in the United States and Canada, and this Agreement is written against US and Canadian data protection law. It applies to your processing of personal data of individuals located in the United States or Canada in connection with your use of the Platform.
+This Agreement forms part of the AYN Terms of Service between AYN AI ("AYN") and the Employer named in the account ("Employer", "you"). Employer accounts are currently available in the United States and Canada. This Agreement applies to AYN's processing of your Employer Data in connection with the Platform; it does not limit the regions from which AYN sources job listings or in which candidates may be located.
 
-**Version 2.0 change note.** AYN narrowed its operating scope to the United States and Canada only. Provisions in the prior version of this Agreement addressing the United Kingdom, the European Economic Area, and Switzerland — including the Standard Contractual Clauses and International Data Transfer Addendum previously incorporated — no longer apply and have been removed, since AYN does not process personal data of individuals located in those jurisdictions.
+**Version 2.1 change note.** The prior US/Canada-only scope statement was inaccurate once AYN's live catalogue expanded to North America, Europe, the Middle East, and Australia. This update corrects that statement without changing the respective controller and processor roles set out below.
 
 ---
 
@@ -100,7 +100,7 @@ This list describes AYN's measures as at the date of this Agreement. It is not a
 
 AYN stores Employer Data on servers we operate in the United States. Generation and evaluation of text, payment processing, and analytics also take place in the United States. AYN's own administration takes place in Canada.
 
-Because AYN does not process personal data of individuals located outside the United States and Canada, this Agreement does not incorporate the UK International Data Transfer Addendum or the EU Standard Contractual Clauses. If AYN expands its operating scope in the future, this Agreement will be updated first.
+Where a particular processing activity requires cross-border transfer terms, the parties will put the applicable safeguards in place before that transfer occurs.
 
 ## 9. Data subject requests
 

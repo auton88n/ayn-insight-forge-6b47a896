@@ -62,7 +62,7 @@ export const HEAD_TO_HEAD: Record<Audience, { themLabel: string; rows: { them: s
 export const AI_CONTRAST = [
   'Reads the actual job description, not a keyword list',
   'Writes from your real experience. Nothing invented, nothing generic',
-  'You submit every application yourself. It never auto-applies for you',
+  'No bulk applications. Auto-submit is off by default and requires your separate opt-in',
 ];
 
 // The seeker product is two things, not one: applying (a tailored resume for
@@ -152,7 +152,7 @@ export const TRUST: Record<Audience, { title: string; lead: string; chips: strin
     title: 'It shows its work',
     lead: 'You see the posting it read, the resume it used and what it inferred.',
     chips: [
-      'Never auto-applies',
+      'Auto-submit is opt-in',
       'Grounded in the posting',
       'Nothing invented',
       'Your details stay yours',
@@ -182,7 +182,7 @@ export const FAQS: Record<Audience, { q: string; a: string }[]> = {
     },
     {
       q: 'Does it apply for me?',
-      a: 'No. It writes the resume and the cover letter. You review them and submit the application yourself, on the company’s own site.',
+      a: 'By default, no. The extension fills and stops for your review. It can submit only after you separately enable auto-submit, and only when every required field was filled.',
     },
     {
       q: 'How do employers find me?',

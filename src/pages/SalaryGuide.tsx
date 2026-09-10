@@ -67,7 +67,7 @@ const SalaryGuide = () => {
   const jsonLd = snap ? {
     '@context': 'https://schema.org',
     '@type': 'Dataset',
-    name: 'AYN Real-Time US and Canada Hiring Report',
+    name: 'AYN Real-Time Global Hiring Report',
     description: 'Median salary and open-role counts by category, computed live from company-sourced job postings.',
     dateModified: snap.generated_at,
     creator: { '@type': 'Organization', name: 'AYN AI', url: 'https://ayn.careers' },
@@ -76,7 +76,7 @@ const SalaryGuide = () => {
   return (
     <>
       <SEO
-        title="US and Canada Hiring Report, Real Salary Data by Role"
+        title="Global Hiring Report, Real Salary Data by Role"
         description="Median salary and open-role counts by category, computed live from real, company-sourced job postings. Updated continuously, nothing estimated."
         canonical="/salary-guide"
         jsonLd={jsonLd}
@@ -104,7 +104,7 @@ const SalaryGuide = () => {
             What roles actually pay, right now
           </h1>
           <p className="mt-4 text-lg text-muted-foreground max-w-2xl">
-            Every number below comes straight from AYN's own live catalog of company-sourced job postings across the US and Canada. Nothing here is estimated or modeled. It is the median of what real employers are stating on their own listings today.
+            Every number below comes straight from AYN's own live catalog of company-sourced job postings across North America, Europe, the Middle East, and Australia. Nothing here is estimated or modeled. It is the median of what real employers are stating on their own listings today.
           </p>
 
           {error && (
