@@ -13,7 +13,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { createTestAccount, eraseTestAccount, callPostgrest, requireTestEnv } from "./setup";
 
-const EXPECTED_SAFE = new Set(["get_feature_flags", "has_role"]);
+const EXPECTED_SAFE = new Set(["get_feature_flags", "has_role", "job_market_snapshot"]);
 
 describe("SECURITY DEFINER grant sweep", () => {
   let userId: string;

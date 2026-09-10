@@ -410,20 +410,6 @@ export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthM
           void attachConsentIp('signup');
         }
 
-        // Send welcome email (async, don't block signup)
-        try {
-          await supabase.functions.invoke('send-email', {
-            body: {
-              to: email,
-              userId: data.user?.id,
-              emailType: 'welcome',
-              data: { userName: fullName || 'there', role: signupRole }
-            }
-          });
-        } catch (emailError) {
-          console.warn('[AuthModal] Welcome email failed:', emailError);
-        }
-
         toast({
           title: t('auth.registrationSuccess'),
           description: signupRole === 'employer'

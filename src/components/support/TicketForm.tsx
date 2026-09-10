@@ -36,81 +36,21 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
     setIsSubmitting(true);
 
     try {
-      // Get current user if logged in
-      const { data: { user } } = await supabase.auth.getUser();
-
-      // Generated here rather than read back from the insert: a guest's own
-      // new ticket isn't visible under any SELECT policy (there is no
-      // session tying an anonymous row to the person who made it), so
-      // .select() after insert fails RLS even though the insert itself is
-      // allowed. Supplying our own id sidesteps needing it read back at all.
-      const ticketId = crypto.randomUUID();
-
-      // A guest has no session, so nothing server-side can tell "this
-      // request is really from the person who opened this ticket" apart
-      // from a secret only that browser holds. Generated the same way as
-      // ticketId above and never read back from the server; required by
-      // the guest branch of every write against this ticket from here on.
-      const guestToken = user?.id ? undefined : crypto.randomUUID();
-
-      // Create ticket
-      const ticketData: Record<string, unknown> = {
-        id: ticketId,
-        subject: formData.subject,
-        category: formData.category as 'general' | 'billing' | 'technical' | 'feature_request' | 'bug_report',
-        priority: formData.priority as 'low' | 'medium' | 'high' | 'urgent',
-        status: 'open' as const,
-      };
-
-      if (user?.id) {
-        ticketData.user_id = user.id;
-        // Store email in guest_email for easier admin access (even for logged-in users)
-        ticketData.guest_email = user.email;
-        ticketData.guest_name = formData.name || user.email?.split('@')[0];
-      } else {
-        ticketData.guest_email = formData.email;
-        ticketData.guest_name = formData.name;
-        ticketData.guest_token = guestToken;
-      }
-
-      const { error: ticketError } = await supabase
-        .from('support_tickets')
-        .insert(ticketData as never);
-
-      if (ticketError) throw ticketError;
-
-      // Add initial message
-      const { error: messageError } = await supabase
-        .from('ticket_messages')
-        .insert({
-          ticket_id: ticketId,
-          sender_type: 'user',
-          sender_id: user?.id || null,
+      // A guest submission is public by design, but it must not be a public
+      // database write or email relay. support-submit validates and rate-limits
+      // the request server-side, derives a signed-in person's identity from
+      // their JWT, writes both rows atomically, then sends the notifications.
+      const { error } = await supabase.functions.invoke('support-submit', {
+        body: {
+          name: formData.name,
+          email: formData.email,
+          subject: formData.subject,
+          category: formData.category,
           message: formData.message,
-          guest_token: guestToken,
-        });
+        },
+      });
 
-      if (messageError) throw messageError;
-
-      // Send email notification to admin (non-blocking)
-      try {
-        await supabase.functions.invoke('send-ticket-notification', {
-          body: {
-            ticketId,
-            subject: formData.subject,
-            message: formData.message,
-            category: formData.category,
-            priority: formData.priority,
-            userName: formData.name || user?.email?.split('@')[0] || undefined,
-            userEmail: formData.email || user?.email || undefined,
-          },
-        });
-      } catch (emailError) {
-        if (import.meta.env.DEV) {
-          console.error('Failed to send notification email:', emailError);
-        }
-        // Don't fail the ticket creation if email fails
-      }
+      if (error) throw error;
 
       setIsSuccess(true);
       toast.success('Message sent.');

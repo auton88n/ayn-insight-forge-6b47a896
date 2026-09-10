@@ -205,27 +205,6 @@ export interface UseMessagesReturn {
   setMessagesFromHistory: (messages: Message[]) => void;
 }
 
-export interface UseFileUploadReturn {
-  selectedFile: File | null;
-  isUploading: boolean;
-  uploadProgress: number;
-  isDragOver: boolean;
-  fileInputRef: React.RefObject<HTMLInputElement>;
-  uploadFile: (file: File) => Promise<FileAttachment | null>;
-  handleFileSelect: (file: File | null) => void;
-  removeFile: () => void;
-  handleDragEnter: (e: React.DragEvent) => void;
-  handleDragLeave: (e: React.DragEvent) => void;
-  handleDragOver: (e: React.DragEvent) => void;
-  handleDrop: (e: React.DragEvent) => void;
-  // Pre-upload state
-  uploadedAttachment: FileAttachment | null;
-  clearUploadedAttachment: () => void;
-  // Retry functionality
-  uploadFailed: boolean;
-  retryUpload: () => Promise<void>;
-}
-
 export interface UseChatSessionReturn {
   currentSessionId: string;
   recentChats: ChatHistory[];

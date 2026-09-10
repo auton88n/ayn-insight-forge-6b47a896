@@ -810,6 +810,18 @@ const SYSTEM_EMAILS: { subject: string; who: string; when: string; says: string 
     when: 'The moment a job seeker finishes an assessment',
     says: 'Lets them know results are ready to review in AYN. No score or answers in the email itself, by design.',
   },
+  {
+    subject: 'Ticket #[reference] received: [subject]',
+    who: 'Anyone who submits a support request',
+    when: 'After a support request is safely recorded',
+    says: 'Confirms the ticket reference, subject, and category. Support requests are limited to three per email address every 24 hours.',
+  },
+  {
+    subject: '[MEDIUM] New support ticket #[reference]: [subject]',
+    who: 'The AYN support inbox',
+    when: 'After a support request is safely recorded',
+    says: 'Includes the sender, category, subject, and message so the team can respond from the Support pane.',
+  },
 ];
 
 function SystemEmailsReference() {
@@ -858,6 +870,8 @@ const EMAIL_TYPE_LABELS: Record<string, string> = {
   proposal_accepted: 'Proposal accepted (to employer)',
   proposal_declined: 'Proposal declined (to employer)',
   assessment_completed: 'Assessment completed (to employer)',
+  ticket_confirmation: 'Support ticket confirmation',
+  ticket_notification: 'New support ticket (to team)',
   admin_broadcast_all: 'Broadcast: everyone',
   admin_broadcast_seekers: 'Broadcast: job seekers',
   admin_broadcast_employers: 'Broadcast: employers',
@@ -1431,4 +1445,3 @@ export function SettingsPane({ onGoToFlags }: { onGoToFlags?: () => void }) {
     </div>
   );
 }
-

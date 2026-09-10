@@ -143,7 +143,15 @@ export async function scanForMaliciousContent(file: File): Promise<FileValidatio
       warnings: warnings.length > 0 ? warnings : undefined,
     };
   } catch {
-    return { isValid: true }; // Don't block on read errors
+    // PDFs and SVGs can carry active content. If their content cannot be
+    // inspected, accepting them would turn the security scan into fail-open.
+    if (file.type === 'application/pdf' || file.type === 'image/svg+xml') {
+      return {
+        isValid: false,
+        error: 'Unable to inspect this file for active content.',
+      };
+    }
+    return { isValid: true }; // Other text types have no executable payload.
   }
 }
 
