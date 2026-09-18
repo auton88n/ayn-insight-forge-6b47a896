@@ -57,12 +57,11 @@ export const HEAD_TO_HEAD: Record<Audience, { themLabel: string; rows: { them: s
   },
 };
 
-// The seeker-side contrast is against mass-apply/auto-apply bots (LazyApply,
-// Sonara and the like).
+// The seeker-side contrast is against high-volume, generic job-search tools.
 export const AI_CONTRAST = [
   'Reads the actual job description, not a keyword list',
   'Writes from your real experience. Nothing invented, nothing generic',
-  'No bulk applications. Auto-submit is off by default and requires your separate opt-in',
+  'One role at a time, with documents designed for that role',
 ];
 
 // The seeker product is two things, not one: applying (a tailored resume for
@@ -152,7 +151,7 @@ export const TRUST: Record<Audience, { title: string; lead: string; chips: strin
     title: 'It shows its work',
     lead: 'You see the posting it read, the resume it used and what it inferred.',
     chips: [
-      'Auto-submit is opt-in',
+      'One role at a time',
       'Grounded in the posting',
       'Nothing invented',
       'Your details stay yours',
@@ -179,10 +178,6 @@ export const FAQS: Record<Audience, { q: string; a: string }[]> = {
     {
       q: 'Where do the jobs come from?',
       a: 'Real company career pages, sourced automatically and refreshed every two hours, never LinkedIn or Indeed. You can also add any posting yourself, by link or by pasting the text.',
-    },
-    {
-      q: 'Does it apply for me?',
-      a: 'By default, no. The extension fills and stops for your review. It can submit only after you separately enable auto-submit, and only when every required field was filled.',
     },
     {
       q: 'How do employers find me?',

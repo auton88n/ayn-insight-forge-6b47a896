@@ -14,8 +14,7 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { ErrorBoundary, isStaleChunkError } from "@/components/shared/ErrorBoundary";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
 import { ScrollToTop } from "@/components/shared/ScrollToTop";
-// v3.34.0 — visitor tracking removed. It posted to an edge function that was
-// deleted in v3.21.0, so every page view was a failed request.
+import { VisitorTracker } from "@/components/shared/VisitorTracker";
 
 import { HelmetProvider } from 'react-helmet-async';
 
@@ -89,7 +88,6 @@ const SubscriptionCanceled = lazy(() => import("./pages/SubscriptionCanceled"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const DoNotSell = lazy(() => import("./pages/DoNotSell"));
-const Autofill = lazy(() => import("./pages/Autofill"));
 // v3.32.0 — every other legal document is the same renderer with a different slug.
 const LegalIndex = lazy(() => import("./pages/LegalIndex"));
 const LegalDoc = lazy(() => import("./components/legal/LegalPage"));
@@ -165,7 +163,6 @@ const AnimatedRoutes = () => {
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/do-not-sell" element={<Suspense fallback={<PageLoader />}><DoNotSell /></Suspense>} />
-      <Route path="/autofill" element={<Suspense fallback={<PageLoader />}><Autofill /></Suspense>} />
       <Route path="/legal" element={<Suspense fallback={<PageLoader />}><LegalIndex /></Suspense>} />
       <Route path="/cookies" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="cookies" /></Suspense>} />
       <Route path="/security" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="security" /></Suspense>} />
@@ -203,6 +200,7 @@ const App = () => {
                     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                       <ScrollToTop />
                       <PreloadRoutes />
+                      <VisitorTracker />
                       <ErrorBoundary>
                         <Suspense fallback={<PageLoader />}>
                           <AnimatedRoutes />

@@ -12,3 +12,5 @@ verify_jwt = false
 [functions.admin-auth-pin]
 verify_jwt = false
 
+[functions.visitor-track]
+verify_jwt = false

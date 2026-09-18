@@ -1,7 +1,7 @@
 // v3.22.0 — SYSTEM panes, written for AYN as it is now. Every pane reads a real
 // admin RPC. Nothing here is a placeholder.
 import { AccountDetailDialog } from './AccountDetail';
-import { Fragment, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,7 @@ import {
   useAdminEmailLog,
   useAdminInbox,
   useMarkInboxRead,
-  useAdminExtDiagnostics,
+  useAdminVisitorAnalytics,
   useAdminPostHogRecordings,
 } from '@/admin-app/hooks/useAdminQuery';
 import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when } from '../ui';
@@ -411,159 +411,50 @@ export function ActivityPane() {
   );
 }
 
-/* ────────────────────── EXTENSION DIAGNOSTICS ────────────────────── */
-// v3.354.0 — the extension's own "Send diagnostics to AYN" button
-// (ext_diag_report, resume-hub) has written to ext_diagnostics since
-// v3.296.0; nothing has ever read it back until now. Reported directly:
-// a real person clicked it, saw "Sent ✓", then asked where it actually
-// goes. The payload here is deliberately narrow by design (see that
-// action's own comment) — field labels/kinds, structural widget
-// signatures, and per-field fill success/failure, never an actual value
-// typed into a field, never page HTML.
-export function ExtDiagnosticsPane() {
-  const query = useAdminExtDiagnostics();
-  const [openId, setOpenId] = useState<string | null>(null);
+
+/* ──────────────────────── VISITOR ANALYTICS ─────────────────────────── */
+export function VisitorAnalyticsPane() {
+  const query = useAdminVisitorAnalytics();
   if (query.isLoading) return <LoadingBlock />;
   if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
 
-  const rows: any[] = (query.data as any) || [];
-  const last24 = rows.filter(r => Date.now() - new Date(r.created_at).getTime() < 86400000).length;
-  const distinctPages = new Set(rows.map(r => r.page_hostname).filter(Boolean)).size;
-  // v3.356.0 -- content.js/frame_agent.js now report a real JS error on
-  // their own (window.onerror/unhandledrejection), no click needed, so
-  // a report can be one of two shapes: a normal run's summary (the
-  // original shape this pane was built for) or report.kind === "js_error"
-  // (a genuine crash caught live). The two need to read differently at
-  // a glance -- an error report has no filledCount/fieldCount at all,
-  // and rendering it through the same "Filled / Not on file / Failed"
-  // columns would make a real bug look like a bland, empty successful
-  // run, defeating the whole point of reporting it automatically.
-  const errorReports = rows.filter(r => r.report?.kind === 'js_error');
-  const errorsLast24 = errorReports.filter(r => Date.now() - new Date(r.created_at).getTime() < 86400000).length;
+  const data = (query.data as any) || {};
+  const daily: Array<{ day: string; visitors: number; pageviews: number }> = data.daily || [];
+  const topPaths: Array<{ page_path: string; visitors: number; pageviews: number }> = data.topPaths || [];
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat label="Reports" value={rows.length} hint="Most recent 150" />
-        <Stat label="Last 24 hours" value={last24} accent />
-        <Stat label="Distinct sites" value={distinctPages} />
-        <Stat
-          label="Auto-reported errors"
-          value={errorReports.length}
-          hint={errorsLast24 > 0 ? `${errorsLast24} in the last 24h` : 'None in the last 24h'}
-          accent={errorsLast24 > 0}
-        />
+        <Stat label="Visitors, 24h" value={data.visitors24h ?? 0} accent />
+        <Stat label="Visitors, 7d" value={data.visitors7d ?? 0} />
+        <Stat label="Visitors, 30d" value={data.visitors30d ?? 0} />
+        <Stat label="Page views, 30d" value={data.pageviews30d ?? 0} />
       </div>
-      <Table head={['Reporter', 'Page', 'Filled', 'Not on file', 'Failed', 'When', '']}>
-        {rows.length === 0 && <tr><td colSpan={7}><EmptyRow>No diagnostic reports yet.</EmptyRow></td></tr>}
-        {rows.map(r => {
-          const rep = r.report || {};
-          const isError = rep.kind === 'js_error';
-          const notOnFile: string[] = Array.isArray(rep.notOnFile) ? rep.notOnFile : [];
-          const failed: string[] = Array.isArray(rep.failed) ? rep.failed : [];
-          const skipped: string[] = Array.isArray(rep.skipped) ? rep.skipped : [];
-          const isOpen = openId === r.id;
-          return (
-            <Fragment key={r.id}>
-              <Row className={isError ? 'bg-destructive/5' : undefined}>
-                <Cell>{r.reporter_email || <span className="text-muted-foreground">Unknown</span>}</Cell>
-                <Cell>
-                  <span className="font-mono text-xs">{r.page_hostname || '—'}</span>
-                  {r.page_pathname && <span className="block text-[10px] text-muted-foreground font-mono truncate max-w-[220px]">{r.page_pathname}</span>}
-                </Cell>
-                {isError ? (
-                  <Cell colSpan={3}>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="destructive" className="text-[10px] shrink-0">ERROR</Badge>
-                      <span className="font-mono text-xs truncate max-w-[360px]" title={rep.message}>{rep.message}</span>
-                    </div>
-                  </Cell>
-                ) : (
-                  <>
-                    <Cell mono>{rep.filledCount ?? '—'} / {rep.fieldCount ?? '—'}</Cell>
-                    <Cell mono>{notOnFile.length}</Cell>
-                    <Cell mono>
-                      {failed.length > 0
-                        ? <Badge variant="destructive" className="text-[10px]">{failed.length}</Badge>
-                        : 0}
-                    </Cell>
-                  </>
-                )}
-                <Cell>{when(r.created_at)}</Cell>
-                <Cell>
-                  <Button size="sm" variant="ghost" onClick={() => setOpenId(isOpen ? null : r.id)}>
-                    {isOpen ? 'Hide' : 'Details'}
-                  </Button>
-                </Cell>
-              </Row>
-              {isOpen && isError && (
-                <tr key={`${r.id}-detail`} className="border-b border-border/40 bg-destructive/5">
-                  <td colSpan={7} className="px-4 py-3">
-                    <div className="grid sm:grid-cols-2 gap-4 text-xs">
-                      <div>
-                        <div className="font-medium text-foreground mb-1">Source</div>
-                        <span className="text-muted-foreground font-mono">{rep.source || 'unknown'}</span>
-                      </div>
-                      <div>
-                        <div className="font-medium text-foreground mb-1">Extension version</div>
-                        <span className="text-muted-foreground font-mono">{rep.extVersion || '—'}</span>
-                      </div>
-                      <div className="sm:col-span-2">
-                        <div className="font-medium text-foreground mb-1">Message</div>
-                        <div className="text-muted-foreground font-mono whitespace-pre-wrap">{rep.message}</div>
-                      </div>
-                      {rep.stack && (
-                        <div className="sm:col-span-2">
-                          <div className="font-medium text-foreground mb-1">Stack</div>
-                          <pre className="text-muted-foreground font-mono text-[11px] whitespace-pre-wrap overflow-x-auto">{rep.stack}</pre>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )}
-              {isOpen && !isError && (
-                <tr key={`${r.id}-detail`} className="border-b border-border/40 bg-muted/20">
-                  <td colSpan={7} className="px-4 py-3">
-                    <div className="grid sm:grid-cols-2 gap-4 text-xs">
-                      {r.note && (
-                        <div className="sm:col-span-2">
-                          <div className="font-medium text-foreground mb-1">Note from reporter</div>
-                          <div className="text-muted-foreground">{r.note}</div>
-                        </div>
-                      )}
-                      <div>
-                        <div className="font-medium text-foreground mb-1">Not on file ({notOnFile.length})</div>
-                        {notOnFile.length
-                          ? <ul className="text-muted-foreground list-disc pl-4 space-y-0.5">{notOnFile.map((l, i) => <li key={i}>{l}</li>)}</ul>
-                          : <span className="text-muted-foreground">None</span>}
-                      </div>
-                      <div>
-                        <div className="font-medium text-foreground mb-1">Failed to fill ({failed.length})</div>
-                        {failed.length
-                          ? <ul className="text-muted-foreground list-disc pl-4 space-y-0.5">{failed.map((l, i) => <li key={i}>{l}</li>)}</ul>
-                          : <span className="text-muted-foreground">None</span>}
-                      </div>
-                      {skipped.length > 0 && (
-                        <div>
-                          <div className="font-medium text-foreground mb-1">Skipped (slider/range) ({skipped.length})</div>
-                          <ul className="text-muted-foreground list-disc pl-4 space-y-0.5">{skipped.map((l, i) => <li key={i}>{l}</li>)}</ul>
-                        </div>
-                      )}
-                      {rep.platform && (
-                        <div>
-                          <div className="font-medium text-foreground mb-1">Platform</div>
-                          <span className="text-muted-foreground font-mono">{rep.platform}</span>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </Fragment>
-          );
-        })}
-      </Table>
+      <Card className="border border-border/60 bg-card">
+        <CardContent className="p-5">
+          <p className="font-medium">What this measures</p>
+          <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+            Consented first-party page views only. This report contains aggregate routes and counts, never account IDs,
+            page text, application details, query strings, or individual visitor records.
+          </p>
+        </CardContent>
+      </Card>
+      <div className="grid xl:grid-cols-2 gap-5">
+        <div>
+          <h3 className="text-sm font-medium mb-2">Daily activity</h3>
+          <Table head={['Day', 'Visitors', 'Page views']}>
+            {daily.length === 0 && <tr><td colSpan={3}><EmptyRow>No consented visitor activity in the last 14 days.</EmptyRow></td></tr>}
+            {daily.map(row => <Row key={row.day}><Cell>{row.day}</Cell><Cell mono>{row.visitors}</Cell><Cell mono>{row.pageviews}</Cell></Row>)}
+          </Table>
+        </div>
+        <div>
+          <h3 className="text-sm font-medium mb-2">Top routes, 30 days</h3>
+          <Table head={['Route', 'Visitors', 'Page views']}>
+            {topPaths.length === 0 && <tr><td colSpan={3}><EmptyRow>No consented visitor activity in the last 30 days.</EmptyRow></td></tr>}
+            {topPaths.map(row => <Row key={row.page_path}><Cell><span className="font-mono text-xs break-all">{row.page_path}</span></Cell><Cell mono>{row.visitors}</Cell><Cell mono>{row.pageviews}</Cell></Row>)}
+          </Table>
+        </div>
+      </div>
     </div>
   );
 }

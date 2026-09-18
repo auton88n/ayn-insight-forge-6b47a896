@@ -103,8 +103,7 @@ const Index = () => {
 // v3.6.0 — an APPROVED employer lands in the hiring surface.
 // v3.8.0 — a job seeker lands in Resume Hub. The open ended dashboard chat is
 // gone in favor of grounded, per-job actions (score, tailor, cover letter).
-// v3.164.0 — the Chrome extension that later carried "Ask AYN" is retired too;
-// every seeker-facing capability now lives in Resume Hub itself.
+// Every seeker-facing capability lives in Resume Hub itself.
 // v3.228.0 — reported directly, the exact "sign in and I see a different
 // dashboard" complaint this whole redesign effort started from: a signed
 // in job seeker no longer gets hard-navigated to the separate /resume-hub

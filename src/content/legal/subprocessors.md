@@ -1,7 +1,7 @@
 # AYN Subprocessors
 
-Version: 2.1
-Last updated: 10 September 2026
+Version: 2.2
+Last updated: 19 September 2026
 
 AYN uses a small number of third parties to deliver the service. This page lists all of them. It is the authoritative list referenced by our Data Processing Agreement and our Privacy Policy.
 
@@ -20,6 +20,7 @@ AYN sources and displays job listings across North America, Europe, the Middle E
 | Stripe | Payment and subscription processing | Billing name, email, and payment details. AYN never receives full card numbers | United States and globally |
 | Resend | Transactional and support email delivery | Email address and message content for emails we send you | United States |
 | Google Analytics | Aggregate usage measurement | Pseudonymised usage events, only where analytics cookies have been accepted | United States and globally |
+| PostHog | Masked session replay for diagnosing product issues | Pseudonymised session events and masked recordings, only where analytics cookies have been accepted | United States and globally |
 
 ## What each one can actually see
 
@@ -35,6 +36,8 @@ AYN sources and displays job listings across North America, Europe, the Middle E
 
 **Google Analytics** only runs where a visitor has accepted analytics cookies. Reject, or a Global Privacy Control signal, means it does not load.
 
+**PostHog** only runs where a visitor has accepted analytics cookies. Its session recordings mask all page text and inputs before they leave the browser. Reject, or a Global Privacy Control signal, means it does not load.
+
 ## Change notification
 
 We give at least **fifteen days' notice** before adding or replacing a subprocessor, by updating this page with a new version number and date. Please check this page periodically.
@@ -45,6 +48,7 @@ Employers subject to our Data Processing Agreement may object on reasonable data
 
 | Date | Change |
 |---|---|
+| 19 September 2026 | Added PostHog, which is used only for consented masked session replay. |
 | 10 September 2026 | Corrected the geographic-scope description to match the live four-region job catalogue. Employer accounts remain available in the United States and Canada. |
 | 18 August 2026 | Corrected the database/infrastructure entry from a third-party managed provider based in the United Kingdom to Hostinger, the infrastructure provider we run our own self-hosted database and application on in the United States. Added Resend, previously omitted. Narrowed stated operating scope to the United States and Canada. |
 | 1 August 2026 | Initial publication |

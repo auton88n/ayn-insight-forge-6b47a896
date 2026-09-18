@@ -2,6 +2,12 @@
 
 AYN is self-hosted on a Hostinger VPS (Ubuntu, Docker Compose), not Lovable Cloud and not Supabase's own hosted platform. This file is the "how do I actually ship a change" reference — read it before touching the VPS directly. It's a companion to `blueprint.md` (what to touch for a given kind of change), not a replacement for it.
 
+## Visitor tracking and the retired Autofill system
+
+AYN Autofill was fully retired on 19 September 2026. A deploy that contains this retirement must apply `20260919110000_retire_autofill_add_visitor_tracking.sql`, copy the new `visitor-track/` function into the functions volume, and add it to `/root/auto_deploy.sh`'s explicit function list before the next full deploy. Remove `form-intel-bridge/` and `form-intel-retrain/` from that script and the functions volume; do not leave a callable retired endpoint behind. The Chrome-extension directory and its zip are intentionally absent from the repo.
+
+The replacement is only consented first-party page-view measurement. It is documented in `docs/map/analytics.md`; do not reintroduce a client-side direct INSERT policy on `visitor_analytics`.
+
 ## The box
 
 - **IP**: `2.25.109.213`

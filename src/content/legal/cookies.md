@@ -1,7 +1,7 @@
 # AYN Cookie Policy
 
-Version: 2.0
-Last updated: 7 September 2026
+Version: 3.0
+Last updated: 19 September 2026
 
 This policy explains what we store on your device and why. It forms part of our Privacy Policy.
 
@@ -35,6 +35,7 @@ These, where they exist, are used only to run the service. They are not used to 
 
 | Purpose | Set by | Stores in | Roughly how long |
 |---|---|---|---|
+| Count consenting visitors and understand which AYN routes are used | AYN | Browser local storage plus our database | Browser identifier persists until site data is cleared; event data is retained for aggregate reporting |
 | Aggregate usage measurement, such as which pages are used and where people stop | Google Analytics | A cookie | Up to 24 months |
 | A recording of what happened on screen during a session, so we can see what actually went wrong when something breaks | PostHog | Your browser's local storage, not a cookie | Set by our PostHog plan's own retention period |
 
@@ -42,15 +43,9 @@ We use this to understand which parts of AYN work and which do not. We do not us
 
 **Every session recording masks what you type and every piece of text on the page.** We can see where things were clicked, what rendered, and in what order, never a resume, a typed answer, a name, or anything else you write or that is shown on screen.
 
-**Analytics does not load at all until you accept it.** If you reject, or if your browser sends a Global Privacy Control signal, neither tool is ever loaded and no analytics cookie is set.
+**Analytics does not load at all until you accept it.** If you reject, or if your browser sends a Global Privacy Control signal, AYN does not create its visitor identifier or send first-party analytics events, and the third-party analytics tools are not loaded.
 
-## The browser extension
-
-The AYN extension does not set cookies on the sites you visit. It stores its authentication token in the browser's own extension storage, which is separate from website cookies and is not readable by any website.
-
-The token is scoped to resume features only and you can revoke it at any time from your AYN settings.
-
-The extension is read only. It does not write to, click, or submit anything on any page.
+The first-party event contains only a random browser identifier, the AYN route, the time, and the referrer origin. It does not contain your account ID, typed content, resume, application information, page text, or a URL query string. We use a short-lived keyed network hash only to rate-limit abuse; we do not store raw IP addresses in analytics events.
 
 ## Changing your mind
 

@@ -75,59 +75,12 @@ type Derived = {
   current_title?: string; current_company?: string;
   known_for?: string[];
 };
-// v3.265.0 — the auto-apply answer bank. Free-text, user-typed only, never
-// AI-generated: application_answer_match (backend) copies these verbatim
-// into a matching question on a real job application form. Keys are the
-// same slugs that matcher's KNOWN_QUESTIONS registry resolves against.
-type ScreeningAnswers = Record<string, string>;
-// v3.284.0 -- asked directly, "add all questions to the profile": expanded
-// from the original 6 to cover the rest of the common, near-universal ATS
-// screening questions found live across real applications this session
-// (Ashby/Greenhouse/Lever all ask some subset of these). Still the same
-// rule as every entry here since v3.265.0 -- autofill copies whatever is
-// typed here verbatim, it never guesses or invents one on its own.
-const SCREENING_QUESTIONS: Array<{ key: string; label: string; placeholder: string }> = [
-  { key: "non_compete", label: "Are you subject to a non-compete or restrictive covenant?", placeholder: "e.g. No" },
-  { key: "outside_employment", label: "Would you continue other work or self-employment if hired?", placeholder: "e.g. No, or describe it honestly if yes" },
-  { key: "related_to_employees", label: "Are you related to any employees at companies you apply to?", placeholder: "e.g. No" },
-  { key: "referral_source", label: "How did you usually hear about roles like this?", placeholder: "e.g. Online job search" },
-  { key: "referral_name", label: "Default referral name, if you have none to give", placeholder: "e.g. N/A" },
-  { key: "eighteen_or_older", label: "Are you at least 18 years old?", placeholder: "e.g. Yes" },
-  { key: "legal_drinking_age", label: "Are you of legal drinking age where required for the role?", placeholder: "e.g. Yes" },
-  { key: "background_check", label: "Willing to complete a background check if offered the role?", placeholder: "e.g. Yes" },
-  { key: "drug_test", label: "Willing to complete a drug test if offered the role?", placeholder: "e.g. Yes" },
-  { key: "notice_period", label: "What is your notice period at your current job?", placeholder: "e.g. 2 weeks, or Immediately available" },
-  { key: "preferred_name", label: "Preferred name, if different from your legal name", placeholder: "Leave blank if it's the same" },
-  { key: "hr_contact_consent", label: "OK for HR to contact you about other open roles at the same company?", placeholder: "e.g. Yes" },
-];
-
-// Voluntary EEO self-identification. Real US applications sometimes ask
-// these for equal-opportunity reporting; they are legally optional, never
-// affect a hiring decision, and always carry a real "prefer not to answer"
-// choice on the source form itself. Kept in the exact same
-// screening_answers bucket and the exact same verbatim-only autofill
-// mechanism as every other entry above, on purpose -- there is no AI
-// involved anywhere in resolving one of these on a real application, and
-// there never should be: a field here is either something the person
-// explicitly, deliberately typed for themselves, once, or it stays "not
-// on file" and is left for them to answer directly, exactly like a blank
-// screening answer already does. Rendered as its own labeled section
-// (see AutofillTab below), not folded anonymously into the grid above,
-// since this deserves the same real, separate framing a genuine EEO form
-// section gets, not just another checkbox next to "drug test."
-const EEO_QUESTIONS: Array<{ key: string; label: string; placeholder: string }> = [
-  { key: "eeo_gender", label: "Gender", placeholder: "e.g. Female, Male, Non-binary, or Prefer not to answer" },
-  { key: "eeo_race_ethnicity", label: "Race / ethnicity", placeholder: "e.g. Asian, Black or African American, Hispanic or Latino, White, or Prefer not to answer" },
-  { key: "eeo_disability", label: "Disability status", placeholder: "e.g. Yes, No, or Prefer not to answer" },
-  { key: "eeo_veteran", label: "Veteran status", placeholder: "e.g. Not a veteran, Veteran, or Prefer not to answer" },
-];
-
 type Career = {
   skills: Skill[]; experiences: Exp[]; education: Edu[]; certifications: Cert[];
-  work_auth: WorkAuth; preferences: Prefs; derived: Derived; screening_answers: ScreeningAnswers;
+  work_auth: WorkAuth; preferences: Prefs; derived: Derived;
 };
 
-const EMPTY: Career = { skills: [], experiences: [], education: [], certifications: [], work_auth: {}, preferences: {}, derived: {}, screening_answers: {} };
+const EMPTY: Career = { skills: [], experiences: [], education: [], certifications: [], work_auth: {}, preferences: {}, derived: {} };
 
 // v3.185.0 trimmed this to Canada/US only, back when job-board-sync was
 // deliberately scoped to those two countries alone (v3.163.0) -- every
@@ -312,7 +265,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
     try {
       const [{ data: canon }, { data: prof }, , { data: auth }] = await Promise.all([
         supabase.from("user_profile_canonical")
-          .select("skills, experiences, education, certifications, work_auth, preferences, derived, screening_answers")
+          .select("skills, experiences, education, certifications, work_auth, preferences, derived")
           .eq("user_id", userId).maybeSingle(),
         supabase.from("user_profile_data")
           .select("legal_first_name, legal_last_name, email, phone, address, links")
@@ -448,7 +401,6 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           work_auth: c.work_auth ?? {},
           preferences: c.preferences ?? {},
           derived: c.derived ?? {},
-          screening_answers: c.screening_answers ?? {},
           updated_at: new Date().toISOString(),
         } as unknown as never, { onConflict: "user_id" }),
         supabase.from("user_profile_data").upsert({
@@ -690,7 +642,6 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   const setDerived = (k: keyof Derived, v: unknown) => setCareer(p => ({ ...p, derived: { ...p.derived, [k]: v } }));
   const setWA = (k: keyof WorkAuth, v: unknown) => setCareer(p => ({ ...p, work_auth: { ...p.work_auth, [k]: v } }));
   const setPref = (k: keyof Prefs, v: unknown) => setCareer(p => ({ ...p, preferences: { ...p.preferences, [k]: v } }));
-  const setScreening = (k: string, v: string) => setCareer(p => ({ ...p, screening_answers: { ...p.screening_answers, [k]: v } }));
 
   const countries = career.work_auth.countries ?? [
     ...(career.work_auth.work_authorized_ca ? ["Canada"] : []),
@@ -1237,8 +1188,8 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
         {/* v3.338.0 -- reordered ahead of Education, and relabeled to name
             a license explicitly, not just a certificate: "for all resumes
             we have to have certification and license before education."
-            The generated document (resumeDocs.ts's buildResumeBlocks, and
-            the extension's own ported copy) has always rendered this
+            The generated document (resumeDocs.ts's buildResumeBlocks) has
+            always rendered this
             section before Education -- this form's own field order never
             matched that, so someone filling it out saw the opposite order
             from what their actual downloaded resume shows. Matched here. */}
@@ -1466,48 +1417,6 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           )}
           <Toggle label="I need sponsorship now" value={!!career.work_auth.needs_sponsorship_now} onChange={v => { setWA("needs_sponsorship_now", v); queueSave(); }} />
           <Toggle label="I will need sponsorship later" value={!!career.work_auth.needs_sponsorship_future} onChange={v => { setWA("needs_sponsorship_future", v); queueSave(); }} />
-        </div>
-        {/* v3.265.0 — the auto-apply answer bank. Real applications ask
-            questions no other field on this page answers (non-compete,
-            referral defaults). Kept in this same group, not a separate
-            section, since it's the same "what employers ask before
-            anything else" territory as sponsorship above. Autofill copies
-            these verbatim, never guesses one. */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {SCREENING_QUESTIONS.map(q => (
-            <PlainField
-              key={q.key}
-              label={q.label}
-              value={career.screening_answers[q.key] || ""}
-              onChange={v => setScreening(q.key, v)}
-              onBlur={queueSave}
-              placeholder={q.placeholder}
-            />
-          ))}
-        </div>
-
-        {/* Deliberately its own labeled section, not part of the grid
-            above -- a real EEO form section always gets a real, separate
-            explanation, never folded into an unrelated question list. */}
-        <div className="pt-2 mt-2 border-t" style={{ borderColor: "var(--rh-hair)" }}>
-          <p className="text-sm font-medium" style={{ color: "var(--rh-ink)" }}>Voluntary self-identification</p>
-          <p className="text-xs mb-3" style={{ color: "var(--rh-muted)" }}>
-            Some US applications ask these for equal-opportunity reporting. They are always optional and never affect a hiring decision.
-            Leave any of these blank and AYN leaves the real question on the application for you to answer yourself -- it never guesses one of these,
-            for you or on your behalf.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {EEO_QUESTIONS.map(q => (
-              <PlainField
-                key={q.key}
-                label={q.label}
-                value={career.screening_answers[q.key] || ""}
-                onChange={v => setScreening(q.key, v)}
-                onBlur={queueSave}
-                placeholder={q.placeholder}
-              />
-            ))}
-          </div>
         </div>
       </Group>
 

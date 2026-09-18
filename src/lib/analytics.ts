@@ -28,7 +28,8 @@ export const COOKIE_CONSENT_KEY = 'ayn-cookie-consent';
 // invalidated and the banner (now naming both tools and the masking
 // safeguard) shows again, rather than silently starting recordings under
 // an old consent that never mentioned them.
-export const COOKIE_CONSENT_VERSION = '2.0';
+export const COOKIE_CONSENT_VERSION = '3.0';
+const VISITOR_ID_KEY = 'ayn-visitor-id';
 
 export type CookieChoice = 'accepted' | 'rejected';
 
@@ -85,6 +86,64 @@ export function clearCookieConsent() {
 }
 
 let loaded = false;
+
+function validVisitorId(value: string | null): value is string {
+  return !!value && /^[a-z0-9-]{20,80}$/i.test(value);
+}
+
+/** A random browser identifier, never an account id, email address, or fingerprint. */
+export function getVisitorId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const existing = localStorage.getItem(VISITOR_ID_KEY);
+    if (validVisitorId(existing)) return existing;
+    const id = typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : (() => {
+        const bytes = crypto.getRandomValues(new Uint8Array(16));
+        return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+      })();
+    localStorage.setItem(VISITOR_ID_KEY, id);
+    return id;
+  } catch {
+    return null;
+  }
+}
+
+function cleanPath(path: string): string | null {
+  if (!path.startsWith('/') || path.length > 300 || /[?#]/.test(path)) return null;
+  return path;
+}
+
+function referrerOrigin(): string | null {
+  try {
+    if (!document.referrer) return null;
+    const origin = new URL(document.referrer).origin;
+    return origin === window.location.origin ? null : origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sends one consented, first-party page-view event. The server accepts only
+ * a random browser id, route, and referrer origin; it never receives the
+ * signed-in account id, form contents, query string, or page text.
+ */
+export async function trackPageView(path = window.location.pathname): Promise<void> {
+  if (typeof window === 'undefined' || globalPrivacyControlOn()) return;
+  if (readCookieConsent()?.choice !== 'accepted') return;
+  const visitorId = getVisitorId();
+  const pagePath = cleanPath(path);
+  if (!visitorId || !pagePath) return;
+  try {
+    await supabase.functions.invoke('visitor-track', {
+      body: { visitorId, pagePath, referrer: referrerOrigin() },
+    });
+  } catch {
+    // Measurement must never surface a network failure to the visitor.
+  }
+}
 
 // v3.359.0 — every text node and every input on the page is masked in the
 // recording by default (maskAllInputs + the wildcard maskTextSelector), not

@@ -1,11 +1,13 @@
 # AYN Data Processing Agreement
 
-Version: 2.1
-Effective: 10 September 2026
+Version: 2.2
+Effective: 19 September 2026
 
 This Agreement forms part of the AYN Terms of Service between AYN AI ("AYN") and the Employer named in the account ("Employer", "you"). Employer accounts are currently available in the United States and Canada. This Agreement applies to AYN's processing of your Employer Data in connection with the Platform; it does not limit the regions from which AYN sources job listings or in which candidates may be located.
 
 **Version 2.1 change note.** The prior US/Canada-only scope statement was inaccurate once AYN's live catalogue expanded to North America, Europe, the Middle East, and Australia. This update corrects that statement without changing the respective controller and processor roles set out below.
+
+**Version 2.2 change note.** Retired browser-extension credentials and application-form automation are removed from AYN's current technical measures.
 
 ---
 
@@ -81,7 +83,7 @@ AYN limits access to Employer Data to personnel who need it to deliver or suppor
 AYN maintains technical and organisational measures appropriate to the risk. As at the date of this Agreement those measures include:
 - Encryption in transit and at rest;
 - Row level database access controls restricting each account to its own records;
-- Scoped, revocable tokens for the browser extension rather than stored credentials;
+- Server-side isolation for privileged actions rather than browser-held service credentials;
 - Administrative access gated by a role check and a second factor;
 - Audit logging of privileged actions;
 - Service role isolation for assessment rubrics and results, which are not readable by any application role.

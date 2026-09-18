@@ -44,23 +44,17 @@ export type CanonicalProfile = {
     current_company?: string;
     known_for?: string[];
   };
-  // v3.265.0 — the auto-apply answer bank. User-typed, never AI-generated.
-  // Keys are free-form question-type slugs (e.g. "non_compete",
-  // "applied_before", "related_to_employees") added as the autofill matcher
-  // (application_answer_match) encounters new question shapes it can't map
-  // onto an existing structured field like work_auth/preferences.
-  screening_answers: Record<string, string>;
 };
 
 
 const EMPTY_CANONICAL: CanonicalProfile = {
   skills: [], experiences: [], education: [], certifications: [],
-  work_auth: {}, preferences: {}, derived: {}, screening_answers: {},
+  work_auth: {}, preferences: {}, derived: {},
 };
 
 export async function loadCanonical(admin: SupabaseClient<any, any, any>, userId: string): Promise<CanonicalProfile | null> {
   const { data } = await admin.from("user_profile_canonical")
-    .select("skills, experiences, education, certifications, work_auth, preferences, derived, screening_answers")
+    .select("skills, experiences, education, certifications, work_auth, preferences, derived")
     .eq("user_id", userId).maybeSingle();
   if (!data) return null;
   return {
@@ -71,7 +65,6 @@ export async function loadCanonical(admin: SupabaseClient<any, any, any>, userId
     work_auth: (data.work_auth as CanonicalProfile["work_auth"]) || {},
     preferences: (data.preferences as CanonicalProfile["preferences"]) || {},
     derived: (data.derived as CanonicalProfile["derived"]) || {},
-    screening_answers: (data.screening_answers as CanonicalProfile["screening_answers"]) || {},
   };
 }
 
@@ -239,4 +232,3 @@ RULES:
     derived: out.derived || {},
   };
 }
-

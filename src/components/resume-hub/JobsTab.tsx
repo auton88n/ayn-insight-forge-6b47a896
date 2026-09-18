@@ -31,7 +31,6 @@ import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Download, X, ArrowLeft, Search } from "lucide-react";
 import { resumeToText, buildResumeDocxBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import ResumeDiffViewer from "./ResumeDiffViewer";
-import AutoApplyPanel from "./AutoApplyPanel";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
@@ -46,7 +45,7 @@ interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile
 // handoff from Browse jobs having just happened.
 const LAST_OPEN_KEY = "ayn_jobs_last_open";
 
-interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string; application_status: string; application_status_changed_at: string; auto_apply_charged_at: string | null }
+interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string; application_status: string; application_status_changed_at: string }
 
 // v3.182.0 — "status silence is the #1 killer": research consistently found
 // candidates expect a reply within days and disengage after 1-2 weeks of
@@ -171,13 +170,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // of rows, already loaded in full.
   const [jobQuery, setJobQuery] = useState("");
   const [nudgeSnoozed, setNudgeSnoozed] = useState(false);
-  // v3.271.0 — set only when Browse jobs' own "Auto-apply" button is what
-  // brought us here; cleared the moment AutoApplyPanel actually consumes it,
-  // so re-opening the same job later (or any other job) never re-triggers it.
-  const [autoStartApplyJobId, setAutoStartApplyJobId] = useState<string | null>(null);
-
   const load = async () => {
-    const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at, application_status, application_status_changed_at, auto_apply_charged_at").eq("user_id", userId).order("created_at", { ascending: false });
+    const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at, application_status, application_status_changed_at").eq("user_id", userId).order("created_at", { ascending: false });
     const rows = (data as JobRow[]) ?? [];
     setJobs(rows);
     // v3.137.0 — Browse jobs adds a posting then hands off here, naming the
@@ -194,13 +188,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       const from = sessionStorage.getItem("ayn_focus_job_from");
       sessionStorage.removeItem("ayn_focus_job_from");
       setBackTarget(from === "browse" ? "browse" : "list");
-      // v3.271.0 — Browse jobs' own "Auto-apply" button rides the same
-      // handoff, naming which job should skip straight to reading the real
-      // application form instead of landing on a page where the person has
-      // to find and click the button themselves a second time.
-      const autoStart = sessionStorage.getItem("ayn_autostart_autoapply");
-      sessionStorage.removeItem("ayn_autostart_autoapply");
-      if (autoStart === focus) setAutoStartApplyJobId(focus);
       const hit = rows.find((r) => r.id === focus);
       if (hit) openJob(hit);
       return;
@@ -442,9 +429,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // hides the list entirely and uses the full width for a real two-column
   // split — description on the left, AYN's own actions and results on the
   // right — with a back control to return to the list. "Add job manually"
-  // moved into a dialog instead of an inline card. "Open job with AYN"
-  // (handoff to the extension) is gone; the exact same actions are already
-  // right here.
+  // moved into a dialog instead of an inline card. Scoring and document
+  // generation remain directly in this detail view.
   if (selected) {
     return (
       <div className="space-y-4">
@@ -606,22 +592,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                 </p>
               )}
             </Card>
-
-            {tailoring.enabled && (
-              <AutoApplyPanel
-                userId={userId}
-                jobId={selected.id}
-                jobTitle={selected.title}
-                company={selected.company}
-                sourceUrl={selected.source_url}
-                resumeContent={tailored?.content ?? primaryResume?.content ?? null}
-                coverLetterBody={cover?.body ?? null}
-                alreadyCharged={!!selected.auto_apply_charged_at}
-                onMarkApplied={() => updateStatus(selected.id, "applied")}
-                autoStart={autoStartApplyJobId === selected.id}
-                onAutoStartConsumed={() => setAutoStartApplyJobId(null)}
-              />
-            )}
 
             {matchData && (
               <Card className="p-5 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
@@ -924,8 +894,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
           slot -- real data, not invented, and the actual at-a-glance
           state this specific card needs -- and "View posting" (the
           external apply link) was dropped from the card entirely: it is
-          not lost, the exact same link with the exact same auto-apply
-          click behavior already lives one tap away on the detail view
+          not lost: the exact same link already lives one tap away on the detail view
           this card opens into. */}
       {/* v3.180.0 — reported directly, repeatedly, that this still didn't
           look like the reference: the actual gap was never the padding or

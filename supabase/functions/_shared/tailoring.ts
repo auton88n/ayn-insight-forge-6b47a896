@@ -545,7 +545,7 @@ export function computeGap(
 }
 
 // v3.358.0 — a knock-out pre-scan, checked while looking at how career-ops
-// (an unrelated open-source job-search toolkit) halts its own auto-apply
+// (an unrelated open-source job-search toolkit) halts its own application
 // flow before drafting an answer that's likely to trigger an ATS's own
 // automatic screening: minimum years of experience, "we cannot sponsor a
 // visa", and a hard (non-hedged) degree requirement. Ported in spirit, not

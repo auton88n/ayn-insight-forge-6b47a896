@@ -6,11 +6,11 @@ import { SectionHeader } from './ui';
 import {
   AccountsPane, SupportPane, ErrorsPane, LimitsPane,
   AiPane, EmailPane, ConsentPane, CookieConsentPane, SettingsPane, ActivityPane,
-  ExtDiagnosticsPane, SessionReplayPane,
+  VisitorAnalyticsPane, SessionReplayPane,
 } from './system/SystemPanes';
 import { ModerationPane, FlagsPane, CreditsPane, AdminsPane } from './system/ControlPanes';
 
-type Pane = 'accounts' | 'credits' | 'moderation' | 'flags' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'consent' | 'cookies' | 'settings' | 'admins' | 'activity' | 'extdiag' | 'replay';
+type Pane = 'accounts' | 'credits' | 'moderation' | 'flags' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'consent' | 'cookies' | 'settings' | 'admins' | 'activity' | 'visitors' | 'replay';
 
 const PANES: { id: Pane; label: string }[] = [
   { id: 'accounts', label: 'Accounts' },
@@ -28,9 +28,7 @@ const PANES: { id: Pane; label: string }[] = [
   { id: 'cookies', label: 'Cookie consent' },
   { id: 'admins', label: 'Admins' },
   { id: 'activity', label: 'Activity' },
-  // v3.354.0 — the extension's own "Send diagnostics to AYN" button wrote
-  // to a real table with zero readers anywhere until now.
-  { id: 'extdiag', label: 'Extension reports' },
+  { id: 'visitors', label: 'Visitor analytics' },
   // v3.360.0 — PostHog session replay, read into the admin panel instead
   // of needing a second login on posthog.com.
   { id: 'replay', label: 'Session replay' },
@@ -76,7 +74,7 @@ export default function SystemSection() {
       {pane === 'cookies' && <CookieConsentPane />}
       {pane === 'admins' && <AdminsPane />}
       {pane === 'activity' && <ActivityPane />}
-      {pane === 'extdiag' && <ExtDiagnosticsPane />}
+      {pane === 'visitors' && <VisitorAnalyticsPane />}
       {pane === 'replay' && <SessionReplayPane />}
       {pane === 'settings' && <SettingsPane onGoToFlags={() => setPane('flags')} />}
     </div>

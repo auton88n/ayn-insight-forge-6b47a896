@@ -42,7 +42,6 @@ function readHandoffTab(): HomeTabId {
 const SEEKER_FAQ = createFAQSchema([
   { question: 'What is AYN?', answer: 'AYN reads a real job posting in full and scores you against it. Then it writes a one page resume and a cover letter from your own history.' },
   { question: 'Where do the jobs come from?', answer: 'Real company career pages, sourced automatically and refreshed every two hours, never LinkedIn or Indeed.' },
-  { question: 'Does AYN apply for me?', answer: 'No. It only reads the page. It never types into a form and never submits anything for you.' },
   { question: 'Can employers see my name and email?', answer: 'Not until you accept their proposal. Before that they see your profile and your match evidence only.' },
   { question: 'Is AYN free to try?', answer: 'Yes, free to start and no credit card needed.' },
 ]);

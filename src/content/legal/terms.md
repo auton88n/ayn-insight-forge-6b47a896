@@ -1,8 +1,8 @@
 # AYN Terms of Service
 
-Version: 1.2
-Last updated: 3 September 2026
-Effective: 3 September 2026
+Version: 1.3
+Last updated: 19 September 2026
+Effective: 19 September 2026
 
 ---
 
@@ -10,7 +10,7 @@ Effective: 3 September 2026
 
 **"AYN", "we", "us"** means AYN AI, a business registered with the Registry of Joint Stock Companies of Nova Scotia, Canada.
 
-**"Platform"** means the AYN website, web application, browser extension, and all associated software and services.
+**"Platform"** means the AYN website, web application, and all associated software and services.
 
 **"Job Seeker"** means an individual using the Platform to find employment.
 
@@ -38,7 +38,7 @@ If you accept on behalf of an organisation, you warrant that you have authority 
 
 **The Platform is software.** AYN is not an employment agency, recruitment agency, staffing agency, talent agent, career counsellor, or personnel placement service. AYN is not a party to, and takes no role in, any hiring process, employment relationship, offer, negotiation, or contract between a Job Seeker and an Employer.
 
-For Job Seekers, the Platform reads a job posting the User is already viewing, assesses fit against information the User supplied, generates application documents from that information, and optionally makes the User's professional profile available to approved Employers.
+For Job Seekers, the Platform lets the User browse a job posting, add one by link or text, assess fit against information the User supplied, generate application documents from that information, and optionally make the User's professional profile available to approved Employers.
 
 For Employers, the Platform converts a described role into a structured specification, identifies Job Seekers who have expressly opted into discoverability, presents them with supporting evidence and stated gaps, and provides optional assessment and proposal features.
 
@@ -50,7 +50,7 @@ You acknowledge and agree that:
 
 **(b) We do not verify identity, credentials, or backgrounds.** AYN does not verify the identity, credentials, qualifications, employment history, criminal record, immigration status, or right to work of any Job Seeker. For Employers, AYN performs limited automated checks at signup, including confirming that the signup email address belongs to a business domain matching the stated company website, and that the stated company address is within a country AYN operates in. **These checks confirm consistency of the information provided. They are not identity verification, background checks, or confirmation that any individual, company, or role is genuine, solvent, or lawfully operating.** Users deal with one another at their own risk and are responsible for their own due diligence.
 
-**(c) You control what gets submitted.** The browser extension can fill a real job application's fields from your AYN profile and resume, and, only once you have separately turned that option on, submit the application on your behalf. That setting is checked fresh every time, is never assumed from an earlier session, and never fires if a required field could not be filled. Outside of that setting, the extension fills the page and leaves the review and the submission to you. Either way, any application submitted to any employer is submitted using your own account and your own choice, and you are responsible for reviewing it before it is sent.
+**(c) You control what gets submitted.** AYN does not access, fill, or submit third-party job application forms. You independently decide whether to use any Generated Output and whether to submit an application to an employer. You are responsible for reviewing anything you send to a third party.
 
 **(d) Automated output is probabilistic and may be wrong.** Match scores, Generated Output, assessment evaluations, inferred attributes, and candidate rankings are produced by machine learning systems. They may contain errors, omissions, or inaccurate characterisations. You must review all output before relying on or transmitting it. **You bear sole responsibility for anything you send to a third party.**
 
@@ -68,7 +68,7 @@ We may refuse, suspend, restrict, or terminate any account at our discretion, in
 
 **Accuracy.** You warrant that all information you provide is true and that you have the right to provide it. The Platform generates documents from what you supply. **You are solely responsible for the content and accuracy of anything you send to an employer.**
 
-**No fee for employment.** You are never charged, and AYN never accepts any fee, commission, or consideration from you, for finding or attempting to find you employment, for being discoverable, for receiving or accepting a proposal, for taking an assessment, or in connection with any hire. Discoverability, proposals, assessments, match scoring, and the browser extension are provided free on every plan, including the free plan.
+**No fee for employment.** You are never charged, and AYN never accepts any fee, commission, or consideration from you, for finding or attempting to find you employment, for being discoverable, for receiving or accepting a proposal, for taking an assessment, or in connection with any hire. Discoverability, proposals, assessments, and match scoring are provided free on every plan, including the free plan.
 
 Credits purchase a defined quantity of AI-generated writing within the Platform and nothing else. Credits are a prepaid service entitlement, are not currency, carry no cash value, are non-transferable, and expire at the end of the period in which they are granted.
 
@@ -183,7 +183,7 @@ You will not, and will not permit any person to:
 
 ## 14. Third-party sites and services
 
-The browser extension reads a page's own fields and address to judge whether it is a real job application, and fills it from your AYN profile when it is. Your use of any third-party job board, applicant tracking system, or careers site remains governed by that site's own terms, and compliance with them is your responsibility. AYN is not affiliated with, endorsed by, or responsible for any such site.
+Your use of any third-party job board, applicant tracking system, or careers site remains governed by that site's own terms, and compliance with them is your responsibility. AYN is not affiliated with, endorsed by, or responsible for any such site.
 
 ## 15. Service availability and changes
 

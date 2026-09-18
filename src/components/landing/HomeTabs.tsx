@@ -214,9 +214,8 @@ export const WhyAynTab = () => (
       {/* v3.216.0 -- Real AI, folded in here rather than its own thin page:
           the same "why choose AYN" positioning, one section down.
           v3.229.0 -- reported directly: this section still read like it was
-          describing the retired Chrome extension ("the posting you have
-          open," "the job in front of you" -- language for a tool that
-          watched a live browser tab). AYN has no such mechanism any more;
+          describing a posting outside AYN ("the posting you have open,"
+          "the job in front of you"). AYN has no such mechanism;
           a job is something you add to AYN (browse it, paste a link, or
           paste the text), not something "open" elsewhere. Reworded to
           describe the real, current flow. */}
@@ -224,8 +223,8 @@ export const WhyAynTab = () => (
         <p className="lp-eyebrow">The AI, and what it refuses to do</p>
         <h2 className="lp-display lp-h2">Real AI, aimed at <em>one job at a time.</em></h2>
         <p className="lp-lead" style={{ maxWidth: 680 }}>
-          Some tools use AI to auto-apply to hundreds of postings a day and hope volume gets you an interview.
-          Low quality, unread by anyone, and it is not even looking for the right job, just applying to all of them.
+          Some tools optimize for sending large volumes of applications and hope one gets an interview.
+          That approach is not focused on whether a role actually fits you.
           AYN's AI does the opposite: it reads the specific posting you added, writes your resume and
           cover letter from your real experience for that job, and stops there.
         </p>
@@ -723,7 +722,6 @@ const SECTIONS: HelpSection[] = [
       { q: 'How do I start?', a: 'Create a free account, add your resume, and either browse real postings or add one yourself by link or by pasting the text.' },
       { q: 'Do I need a card?', a: 'No, and the free plan does not expire.' },
       { q: 'Where do the postings come from?', a: 'Real company career pages, sourced automatically and refreshed every two hours. Never LinkedIn or Indeed. You can also add any posting yourself.' },
-      { q: 'Does it apply for me?', a: 'By default, no. The extension fills and stops for your review. It can submit only after you separately enable auto-submit, and only when every required field was filled.' },
     ],
   },
   {

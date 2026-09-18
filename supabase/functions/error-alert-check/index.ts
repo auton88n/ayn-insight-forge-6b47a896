@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     // Found in a real security pass: this had no auth check at all, unlike
-    // its sibling internal bridges (ai-openai-bridge, form-intel-bridge),
+    // its sibling internal bridge (ai-openai-bridge),
     // and was confirmed live-callable by anyone. The real impact isn't
     // just "an attacker can trigger this" — every call resets
     // error_alert_state.last_checked_at to now(), so repeated unauthenticated

@@ -1,7 +1,7 @@
 # AYN Security Overview
 
-Version: 1.2
-Last updated: 10 September 2026
+Version: 1.3
+Last updated: 19 September 2026
 
 This page describes how AYN protects data as at the date above. It is written to answer the questions a vendor security review normally asks, so you can assess us without sending a questionnaire. If you still need one completed, email support@ayn.careers.
 
@@ -13,7 +13,7 @@ We have written this honestly, including the things we do not yet have. A securi
 
 ## Architecture in one paragraph
 
-AYN is a web application and a browser extension backed by a Postgres database with row level security, serverless functions for all privileged operations, and a small set of third party services listed on our Subprocessors page. No privileged operation runs in the browser. The client holds no service credentials.
+AYN is a web application backed by a Postgres database with row level security, serverless functions for all privileged operations, and a small set of third party services listed on our Subprocessors page. No privileged operation runs in the browser. The client holds no service credentials.
 
 ## Data protection
 
@@ -37,7 +37,7 @@ AYN is a web application and a browser extension backed by a Postgres database w
 
 ## Authentication
 
-Passwords are stored only as hashes and are never transmitted to the browser extension. The extension authenticates using a scoped device token limited to resume features, revocable by the user at any time from settings. Sessions are managed by our authentication provider.
+Passwords are stored only as hashes. Sessions are managed by our authentication provider.
 
 ## Application security
 
@@ -47,7 +47,7 @@ Passwords are stored only as hashes and are never transmitted to the browser ext
 
 **Plan limits** are enforced server side, not in the interface.
 
-**Input handling.** Model output is escaped before rendering. The extension is read only and does not write to, click, or submit anything on any page it reads.
+**Input handling.** Model output is escaped before rendering. AYN does not access, fill, click, or submit third-party job application forms.
 
 **Dependency management.** We use managed platform services and keep dependencies current.
 

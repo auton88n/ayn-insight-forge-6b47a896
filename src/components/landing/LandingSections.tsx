@@ -141,7 +141,7 @@ const HERO: Record<Audience, {
     emphasis: 'Never a ghost listing.',
     lead: "Every posting is pulled straight from the company's own career page, refreshed continuously. Never scraped from LinkedIn or Indeed.",
     cta: 'Start free',
-    note: 'It fills and stops for your review by default. Auto-submit requires your separate opt-in.',
+    note: 'Fit scores and tailored documents, grounded in your real experience.',
   },
   employer: {
     // v3.210.0 -- honest, concierge framing instead of generic

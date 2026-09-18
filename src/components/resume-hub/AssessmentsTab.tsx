@@ -208,7 +208,7 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
   }, [active, busy, load, toast]);
 
   // Server enforced deadline. This countdown is only the visible half of it:
-  // the edge function rejects and auto submits any answer past the deadline.
+  // the edge function rejects any answer submitted after the deadline.
   useEffect(() => {
     if (!active) return;
     const tick = () => {

@@ -51,9 +51,9 @@ export function LegalConsentGate({ userId, children }: { userId: string; childre
       <Dialog open={needsReacceptance} onOpenChange={() => {}}>
         <DialogContent hideCloseButton className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>Privacy Policy updated</DialogTitle>
+            <DialogTitle>Terms and Privacy Policy updated</DialogTitle>
             <DialogDescription>
-              AYN now describes the regions where its live job catalogue operates. Please review and accept the current documents to continue.
+              Please review and accept the current documents to continue.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 text-sm text-muted-foreground">
