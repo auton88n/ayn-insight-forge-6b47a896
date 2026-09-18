@@ -1032,7 +1032,7 @@ button, a, input, textarea, select {
   -webkit-text-fill-color: rgba(255, 255, 255, 0.5) !important;
 }
 
-/* Override browser autofill styles for auth inputs */
+/* Keep browser-saved credential colors readable in auth inputs. */
 .auth-input-text:-webkit-autofill,
 .auth-input-text:-webkit-autofill:hover,
 .auth-input-text:-webkit-autofill:focus,

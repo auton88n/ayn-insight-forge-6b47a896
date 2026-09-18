@@ -36,7 +36,7 @@ CookieConsent / existing consent -> VisitorTracker -> src/lib/analytics.ts
 | Change | Update and verify |
 |---|---|
 | Event fields or consent behavior | `src/lib/analytics.ts`, `VisitorTracker.tsx`, `CookieConsent.tsx`, Cookies/Privacy legal content, `visitor-track`, SQL validation, and tests. Bump `COOKIE_CONSENT_VERSION` if collection changes materially. |
-| Database collection/reporting | `20260919110000_retire_autofill_add_visitor_tracking.sql`, service-role/RLS grants, `useAdminVisitorAnalytics`, and `VisitorAnalyticsPane`. |
+| Database collection/reporting | `20260919110000_retire_autofill_add_visitor_tracking.sql` and its PostgreSQL validation correction `20260919120000_fix_visitor_tracking_sql_validation.sql`, service-role/RLS grants, `useAdminVisitorAnalytics`, and `VisitorAnalyticsPane`. |
 | Edge deployment | `supabase/config.toml`, the VPS functions volume, and `/root/auto_deploy.sh`'s explicit function list. A new directory is not deployed by that script until its copy line is added. |
 
 ## Retirement boundary

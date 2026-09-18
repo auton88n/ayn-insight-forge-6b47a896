@@ -22,7 +22,7 @@ function Loader() {
 
 // v3.36.0 — the backend (admin-auth-pin) has always accepted 4 to 6 digit
 // PINs (/^\d{4,6}$/), but this screen only ever rendered 4 boxes and
-// auto-submitted the moment all 4 filled, so a longer PIN had no way to be
+// submitted the moment all 4 filled, so a longer PIN had no way to be
 // entered. MAX_PIN_DIGITS boxes are rendered; a shorter PIN still works by
 // pressing Enter or Unlock once 4+ digits are in, so nothing changes for
 // whoever is already on a 4-digit PIN.
