@@ -1,5 +1,9 @@
 # Deployment & VPS operations
 
+## Dependency security update — 21 September 2026
+
+The npm lockfile updates Vite 6.4.1 to 6.4.3, baseline-browser-mapping 2.10.36 to 2.11.25, browserslist 4.28.2 to 4.29.0, js-yaml 4.3.1 to 4.3.2, and three-stdlib's nested fflate 0.6.10 to 0.6.11. Browserslist's supporting data packages also update to satisfy its new requirements. These compatible updates address the five npm audit findings reported during the Admin cleanup deployment; no major-version upgrade or dependency override is required. The resolved lockfile reports zero known npm audit vulnerabilities. Deploy the lockfile through the official build process below so the VPS uses the patched versions too.
+
 AYN is self-hosted on a Hostinger VPS (Ubuntu, Docker Compose), not Lovable Cloud and not Supabase's own hosted platform. This file is the "how do I actually ship a change" reference — read it before touching the VPS directly. It's a companion to `blueprint.md` (what to touch for a given kind of change), not a replacement for it.
 
 ## Visitor tracking and the retired Autofill system
