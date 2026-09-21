@@ -1,3 +1,11 @@
+# v3.342.0 Admin metrics exclude erased accounts and test-only history
+
+Admin operational reports now describe only accounts that can still sign in. The source of the misleading 10,000-plus seeker and missing-consent figures was `get_admin_overview()` and related admin RPCs reading every `auth.users` row, including anonymized, banned erasure tombstones. The same gap let orphaned employer rows and retained deleted-account subscriptions/ledger entries appear as live marketplace and revenue activity.
+
+`get_admin_overview`, `get_admin_accounts`, `get_admin_employers`, `get_admin_money`, `get_admin_email_audience`, and `get_admin_candidates` now join or filter on `auth.users.banned_until IS NULL`. This is deliberately applied at each reporting boundary rather than relying on a client-side filter: the Overview cards, Accounts pane, employer approval queue, money panel, candidate pool, and broadcast audience all consume distinct security-definer RPCs. The Overview consent hint now says “live accounts” so the rendered explanation matches the database contract.
+
+A one-time, founder-authorized production cleanup separately removes confirmed synthetic-account tombstones, their authentication events, retained ledger/subscription/suspension records, test assessments and their protected rubrics/results, and two explicitly labelled orphaned demo employer rows. Founder-directed erasures of real historic accounts remain retained. The cleanup is recorded outside the migration because it uses the verified production-only test identity set; the migration changes only durable report behavior.
+
 # v3.341.0 Public product facts aligned with the live global catalogue
 
 The public catalogue has been sourcing roles across North America, Europe, the Middle East, and Australia since v3.309.0, but several UI surfaces still carried the earlier US/Canada-only wording. The Salary Guide's visible copy, title, and Dataset schema now describe the actual global catalogue. The signed-in Browse Jobs location menu also stopped assigning every non-Canadian location to "United States"; it groups positively recognizable locations into North America, Europe, Middle East, Australia, or an explicit "Other locations" bucket rather than mislabelling an unknown location.

@@ -44,13 +44,13 @@ export default function OverviewSection({ onGoto }: { onGoto: (id: string) => vo
         <Stat label="Credits used" value={d.credits_consumed_month ?? 0} hint="Seeker tailoring" />
       </div>
 
-      {/* v3.33.0 — this number should be zero. Accounts with no valid consent
-          record are accounts we cannot prove agreed to anything. */}
+      {/* This number should be zero. Only live accounts are counted: erased
+          accounts cannot use the product and must not distort the alert. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Stat
           label="No consent record"
           value={d.accounts_without_consent ?? 0}
-          hint={`of ${d.accounts_total ?? 0} accounts. Should be zero`}
+          hint={`of ${d.accounts_total ?? 0} live accounts. Should be zero`}
           accent={Number(d.accounts_without_consent || 0) > 0}
         />
       </div>
