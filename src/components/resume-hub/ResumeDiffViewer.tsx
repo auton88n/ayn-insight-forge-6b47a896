@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { diffWordsWithSpace } from "diff";
+import { diffLines, diffWordsWithSpace } from "diff";
 import { Button } from "@/components/ui/button";
 import { Check, X, Copy, CheckCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -8,25 +8,91 @@ interface Hunk {
   id: number;
   before: string;
   after: string;
-  status: "changed" | "unchanged";
+  // "changed": a line was edited (real content on both sides, word-diffed).
+  // "added"/"removed": a line exists on only one side, no counterpart at all.
+  status: "changed" | "unchanged" | "added" | "removed";
+}
+
+// Sept 2026 -- "the lines are not lining up," reported against a real
+// screenshot where a row's Original text and Improved text were visibly
+// unrelated content. This was never a layout bug: the old buildHunks split
+// both documents into flat line arrays and paired o[k] with i[k] by plain
+// array index. The instant a real edit inserts, deletes, or reorders a
+// single line anywhere above a point in the document (adding a new
+// "Languages:" line, moving EXPERIENCE, anything), every row after that
+// point pairs two lines that no longer correspond to the same content at
+// all -- the two sides just drift out of step for the rest of the diff.
+// Rebuilt on the diff package's own diffLines (a real LCS-based line
+// matcher, not positional zipping): unchanged lines stay one row each;
+// a remove immediately followed by an add (diffLines' own idiom for "this
+// line was edited") pairs up so the existing word-level highlight still
+// applies; anything left over is a genuine addition or removal with
+// nothing at all on the other side, rendered as its own row with the
+// opposite column intentionally blank rather than forced to align with
+// unrelated text.
+function linesOf(value: string): string[] {
+  const lines = value.split("\n");
+  if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  return lines;
 }
 
 function buildHunks(original: string, improved: string): Hunk[] {
-  // Split both into lines, pair them with simple LCS-ish line diff via word-diff per line.
-  const o = original.split(/\r?\n/);
-  const i = improved.split(/\r?\n/);
-  const max = Math.max(o.length, i.length);
+  // Normalize to a single trailing newline on both sides first -- diffLines
+  // compares raw tokens including the newline character, so an otherwise
+  // identical last line reports as a spurious remove+add whenever only one
+  // side happens to end in "\n" and the other doesn't.
+  const changes = diffLines(`${original.replace(/\n?$/, "")}\n`, `${improved.replace(/\n?$/, "")}\n`);
   const hunks: Hunk[] = [];
-  for (let k = 0; k < max; k++) {
-    const before = o[k] ?? "";
-    const after = i[k] ?? "";
-    hunks.push({
-      id: k,
-      before,
-      after,
-      status: before.trim() === after.trim() ? "unchanged" : "changed",
-    });
+  let id = 0;
+
+  for (let idx = 0; idx < changes.length; idx++) {
+    const change = changes[idx];
+
+    if (!change.added && !change.removed) {
+      for (const line of linesOf(change.value)) {
+        hunks.push({ id: id++, before: line, after: line, status: "unchanged" });
+      }
+      continue;
+    }
+
+    if (change.removed) {
+      const removedLines = linesOf(change.value);
+      const next = changes[idx + 1];
+      if (next?.added) {
+        // The classic "this line was edited" shape: diffLines reports it as
+        // a removed block immediately followed by an added block of the
+        // same region. Pair them line by line so renderInline's word-level
+        // highlight still applies; any leftover on the longer side (a
+        // genuine multi-line insert/delete sitting inside the same edit)
+        // becomes its own added/removed row instead of a false pairing.
+        const addedLines = linesOf(next.value);
+        const max = Math.max(removedLines.length, addedLines.length);
+        for (let k = 0; k < max; k++) {
+          const before = removedLines[k];
+          const after = addedLines[k];
+          if (before !== undefined && after !== undefined) {
+            hunks.push({ id: id++, before, after, status: "changed" });
+          } else if (before !== undefined) {
+            hunks.push({ id: id++, before, after: "", status: "removed" });
+          } else {
+            hunks.push({ id: id++, before: "", after, status: "added" });
+          }
+        }
+        idx++; // the paired "added" block was just consumed above
+        continue;
+      }
+      for (const line of removedLines) {
+        hunks.push({ id: id++, before: line, after: "", status: "removed" });
+      }
+      continue;
+    }
+
+    // A pure addition with no removed block right before it to pair against.
+    for (const line of linesOf(change.value)) {
+      hunks.push({ id: id++, before: "", after: line, status: "added" });
+    }
   }
+
   return hunks;
 }
 
@@ -65,14 +131,25 @@ interface Props {
 export function ResumeDiffViewer({ original, improved, onConfirm }: Props) {
   const { toast } = useToast();
   const hunks = useMemo(() => buildHunks(original, improved), [original, improved]);
-  const changedIds = useMemo(() => hunks.filter(h => h.status === "changed").map(h => h.id), [hunks]);
+  const changedIds = useMemo(() => hunks.filter(h => h.status !== "unchanged").map(h => h.id), [hunks]);
   const [accepted, setAccepted] = useState<Set<number>>(() => new Set(changedIds));
   const [copied, setCopied] = useState(false);
 
-  const finalText = useMemo(
-    () => hunks.map(h => (h.status === "unchanged" || accepted.has(h.id) ? h.after : h.before)).join("\n"),
-    [hunks, accepted]
-  );
+  const finalText = useMemo(() => {
+    // Unlike the old positional pairing, "added"/"removed" hunks have no
+    // real counterpart on one side at all -- a rejected addition or an
+    // accepted removal must contribute NO line to the final text, not an
+    // empty one, or the result would gain a stray blank line for every
+    // such decision.
+    const lines: string[] = [];
+    for (const h of hunks) {
+      if (h.status === "unchanged") { lines.push(h.after); continue; }
+      if (h.status === "added") { if (accepted.has(h.id)) lines.push(h.after); continue; }
+      if (h.status === "removed") { if (!accepted.has(h.id)) lines.push(h.before); continue; }
+      lines.push(accepted.has(h.id) ? h.after : h.before);
+    }
+    return lines.join("\n");
+  }, [hunks, accepted]);
 
   const acceptedCount = accepted.size;
   const totalChanges = changedIds.length;
@@ -150,32 +227,42 @@ export function ResumeDiffViewer({ original, improved, onConfirm }: Props) {
       {/* Diff rows */}
       <div className="rounded-xl overflow-hidden divide-y" style={{ border: "1px solid var(--rh-hair, var(--border))", borderColor: "var(--rh-hair, var(--border))" }}>
         {hunks.map(h => {
-          const isChanged = h.status === "changed";
+          // "changed"/"added"/"removed" all need the accept/reject toggle;
+          // only a genuinely unchanged line is purely informational.
+          const isActionable = h.status !== "unchanged";
           const isAccepted = accepted.has(h.id);
           return (
             <div
               key={h.id}
               className="grid md:grid-cols-[1fr_1fr_auto] gap-0 md:gap-3 items-stretch"
               style={{
-                background: isChanged
+                background: isActionable
                   ? isAccepted ? "var(--rh-trust-tint, transparent)" : "var(--rh-tint, transparent)"
                   : "var(--rh-surface, var(--background))",
                 borderColor: "var(--rh-hair, var(--border))",
               }}
             >
               <div className="px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap border-b md:border-b-0 md:border-r" style={{ borderColor: "var(--rh-hair, var(--border))" }}>
-                {isChanged ? renderInline(h.before, h.after, "before") : <span style={{ color: "var(--rh-muted, currentColor)" }}>{h.before || "\u00A0"}</span>}
+                {h.status === "changed" && renderInline(h.before, h.after, "before")}
+                {h.status === "removed" && renderInline(h.before, "", "before")}
+                {h.status === "added" && <span style={{ color: "var(--rh-muted, currentColor)" }}>{"\u00A0"}</span>}
+                {h.status === "unchanged" && <span style={{ color: "var(--rh-muted, currentColor)" }}>{h.before || "\u00A0"}</span>}
               </div>
               <div className="px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap">
-                {isChanged ? (
+                {h.status === "changed" && (
                   isAccepted
                     ? renderInline(h.before, h.after, "after")
                     : <span className="italic line-through" style={{ color: "var(--rh-muted, currentColor)" }}>{h.after || "\u00A0"}</span>
-                ) : (
-                  <span style={{ color: "var(--rh-muted, currentColor)" }}>{h.after || "\u00A0"}</span>
                 )}
+                {h.status === "added" && (
+                  isAccepted
+                    ? renderInline("", h.after, "after")
+                    : <span className="italic line-through" style={{ color: "var(--rh-muted, currentColor)" }}>{h.after || "\u00A0"}</span>
+                )}
+                {h.status === "removed" && <span style={{ color: "var(--rh-muted, currentColor)" }}>{"\u00A0"}</span>}
+                {h.status === "unchanged" && <span style={{ color: "var(--rh-muted, currentColor)" }}>{h.after || "\u00A0"}</span>}
               </div>
-              {isChanged && (
+              {isActionable && (
                 <div className="px-2 py-2 flex md:flex-col gap-1 items-center justify-center border-t md:border-t-0 md:border-l" style={{ borderColor: "var(--rh-hair, var(--border))" }}>
                   <button
                     type="button"
