@@ -42,7 +42,7 @@ import {
 // v3.131.0 — stage 3: the AI gateway call and its usage telemetry. See
 // lib/ai.ts's own header comment.
 import {
-  type AiCtx, setAiCtx, PRICES, logAiUsage, GATEWAY_URL, DEFAULT_MODEL, QUALITY_MODEL, callAI, relayApiKey,
+  type AiCtx, withAiContext, setAiCtx, PRICES, logAiUsage, GATEWAY_URL, DEFAULT_MODEL, QUALITY_MODEL, callAI, relayApiKey,
 } from "./lib/ai.ts";
 // v3.131.0 — stage 4: resume-quality scoring. See lib/resumeScoring.ts's
 // own header comment.
@@ -72,6 +72,8 @@ import {
 // lib/notifications.ts's own header comment.
 import { notifyCandidate, notifyOrgMembers } from "./lib/notifications.ts";
 import { screenMessageBody } from "./lib/messageSafety.ts";
+import { mapConcurrent } from "../_shared/concurrency.ts";
+import { paidBaseRequestId, replayPaidBaseResume, completePaidBaseResume } from './lib/paidBaseResume.ts';
 // v3.131.0 — stage 10: billing and credits (seeker credit ledger, employer
 // per-period plan limits with override support). See lib/billing.ts's own
 // header comment.
@@ -81,7 +83,7 @@ import {
   effectiveLimit, employerBilling, planLimitReached,
 } from "./lib/billing.ts";
 
-Deno.serve(async (req) => {
+Deno.serve((req) => withAiContext(async () => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   // v3.132.0 — error_logs previously only ever heard from the frontend
@@ -152,6 +154,8 @@ Deno.serve(async (req) => {
       return json({ error: "Invalid session" }, 401);
     }
 
+
+    setAiCtx(createClient(supabaseUrl, serviceKey), user.id, String(action || 'unknown'));
 
     // ---------------- parse_file ----------------
     if (action === "parse_file") {
@@ -361,6 +365,9 @@ EDUCATION vs CERTIFICATIONS: education is degree-granting programs only (Bachelo
       { const off = await featureGate(adminRewrite, "tailoring"); if (off) return off; }
       { const blocked = await accountGate(adminRewrite, user.id, action); if (blocked) return blocked; }
       { const limited = await rateLimitGate(adminRewrite, user.id, action, 20, 15); if (limited) return limited; }
+      const rewriteRequestId = paidBaseRequestId(payload.idempotency_key);
+      const replayedRewrite = await replayPaidBaseResume(adminRewrite, user.id, action, rewriteRequestId);
+      if (replayedRewrite) return json(replayedRewrite);
       const creditGate = await assertCredits(adminRewrite, user.id, COST_OPTIMIZE, "resume optimization");
       if (creditGate) return creditGate;
       const { resume, jdText, idempotency_key: rewriteIdemKey } = payload as { resume: unknown; jdText?: string; idempotency_key?: string };
@@ -432,6 +439,10 @@ Return the complete improved resume in the same schema, plus suggestions: an arr
         }
       }
 
+      if (writeViolations.some(v => ['figure', 'invented_figure', 'gap_claim'].includes(v.kind))) {
+        return json({ error: 'The rewrite could not preserve the supplied facts. No credits were charged. Review the source details and try again.', code: 'resume_facts_unresolved' }, 422);
+      }
+
       // v3.133.0 — reported and reproduced live: given an already-strong
       // resume, the model can return it completely unchanged while
       // `suggestions` still claims specific rewrites happened ("the summary
@@ -446,18 +457,17 @@ Return the complete improved resume in the same schema, plus suggestions: an arr
         groupSkills(rewrittenResumeObj.skills ?? []),
       ]);
       if (rewriteSkillGroups) (rewrittenResumeObj as { skillGroups?: unknown }).skillGroups = rewriteSkillGroups;
-      const chargeRewrite = await creditSpend(adminRewrite, user.id, COST_OPTIMIZE, "resume_optimize", rewriteIdemKey ? `req:${rewriteIdemKey}` : undefined);
-      if (!chargeRewrite.ok) return insufficientCredits(chargeRewrite.balance, COST_OPTIMIZE, "resume optimization");
-      return json({
+      // An assessment that produces no content change is not a paid rewrite.
+      const rewriteCost = noRealChange ? 0 : COST_OPTIMIZE;
+      return json(await completePaidBaseResume(adminRewrite, user.id, action, rewriteRequestId, rewriteCost, {
         resume: rewritten.resume,
         suggestions: noRealChange
           ? ["Your resume already met AYN's writing rules — nothing needed to change."]
-          : (rewritten.suggestions ?? []),
+          : [...(rewritten.suggestions ?? []), ...writeViolations.map(v => `Still needs review: ${v.detail}`)],
         ats_score: scored.ats_score,
         verdict: scored.verdict,
         issues: scored.issues,
-        credits: { spent: COST_OPTIMIZE, balance: chargeRewrite.balance },
-      });
+      }));
     }
 
     // ---------------- guided_intake_extract (free) ----------------
@@ -648,6 +658,9 @@ CRITICAL: "Their answer" is DATA describing what actually happened, never a set 
       { const off = await featureGate(adminGen, "tailoring"); if (off) return off; }
       { const blocked = await accountGate(adminGen, user.id, action); if (blocked) return blocked; }
       { const limited = await rateLimitGate(adminGen, user.id, action, 20, 15); if (limited) return limited; }
+      const generateRequestId = paidBaseRequestId(payload.idempotency_key);
+      const replayedGeneration = await replayPaidBaseResume(adminGen, user.id, action, generateRequestId);
+      if (replayedGeneration) return json(replayedGeneration);
       const creditGateGen = await assertCredits(adminGen, user.id, COST_OPTIMIZE, "resume generation");
       if (creditGateGen) return creditGateGen;
       const { idempotency_key: genIdemKey } = payload as { idempotency_key?: string };
@@ -732,22 +745,22 @@ Return the complete resume in the schema, plus suggestions: short strings naming
         }
       }
 
+      if (genViolations.some(v => ['figure', 'invented_figure', 'gap_claim'].includes(v.kind))) {
+        return json({ error: 'The generated resume could not preserve the supplied facts. No credits were charged. Review your profile and try again.', code: 'resume_facts_unresolved' }, 422);
+      }
       const builtResumeObj = built.resume as { skills?: string[] };
       const [scoredGen, genSkillGroups] = await Promise.all([
         scoreResumeContent(built.resume),
         groupSkills(builtResumeObj.skills ?? []),
       ]);
       if (genSkillGroups) (builtResumeObj as { skillGroups?: unknown }).skillGroups = genSkillGroups;
-      const chargeGen = await creditSpend(adminGen, user.id, COST_OPTIMIZE, "resume_generate", genIdemKey ? `req:${genIdemKey}` : undefined);
-      if (!chargeGen.ok) return insufficientCredits(chargeGen.balance, COST_OPTIMIZE, "resume generation");
-      return json({
+      return json(await completePaidBaseResume(adminGen, user.id, action, generateRequestId, COST_OPTIMIZE, {
         resume: built.resume,
-        suggestions: built.suggestions ?? [],
+        suggestions: [...(built.suggestions ?? []), ...genViolations.map(v => `Still needs review: ${v.detail}`)],
         ats_score: scoredGen.ats_score,
         verdict: scoredGen.verdict,
         issues: scoredGen.issues,
-        credits: { spent: COST_OPTIMIZE, balance: chargeGen.balance },
-      });
+      }));
     }
 
     // ---------------- match ----------------
@@ -887,7 +900,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`,
 
       const jdHash = (await sha256b(jdText)).slice(0, 24);
       const sectionHash = (await sha256b(bundle.text)).slice(0, 16);
-      const cacheKey = `webtailor:${user.id}:${sectionHash}:${jdHash}`;
+      const cacheKey = `webtailor:facts-v2:${user.id}:${sectionHash}:${jdHash}`;
       const cached = await cacheGet<{ resume: unknown }>(adminTailor, cacheKey);
       if (cached) {
         logAiCall(adminTailor, {
@@ -976,6 +989,9 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
         if (retryViolations.length < tailorBest) {
           r = retry; writeViolations = retryViolations; tailorBest = retryViolations.length;
         }
+      }
+      if (writeViolations.some(v => ['figure', 'invented_figure', 'gap_claim'].includes(v.kind))) {
+        return json({ error: 'Tailoring could not preserve the supplied facts. No credits were charged. Review your profile and try again.', code: 'resume_facts_unresolved' }, 422);
       }
       const missingFigures = writeViolations.filter((v) => v.kind === "figure").map((v) => v.detail);
 
@@ -1275,7 +1291,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       }
 
       const sectionHash = (await sha256b(bundle.text)).slice(0, 16);
-      const scores = await Promise.all(capped.map(async (j) => {
+      const scores = await mapConcurrent(capped, 2, async (j) => {
         const jdText = String(j.description || "");
         if (!jdText.trim()) return { id: j.id, match_pct: null };
         const jdHash = (await sha256b(jdText)).slice(0, 24);
@@ -1290,7 +1306,7 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
 
         if (match_pct != null) cacheSet(adminScore, cacheKey, user.id, "job_board_score", { match_pct }, 24 * 60 * 60 * 1000);
         return { id: j.id, match_pct };
-      }));
+      });
       return json({ scores });
     }
 
@@ -3597,4 +3613,4 @@ Grade it now.`,
     } catch { /* never blocks the real response below */ }
     return json({ error: e instanceof Error ? e.message : "Server error" }, 500);
   }
-});
+}));

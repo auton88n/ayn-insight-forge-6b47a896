@@ -1,5 +1,13 @@
 # Deployment & VPS operations
 
+## Pending September release
+
+Apply both `20260923090000_atomic_primary_resume_save.sql` and `20260925090000_atomic_paid_base_resume.sql` before deploying the frontend/backend batch. Include `resume-hub/lib/paidBaseResume.ts` in the deployed function directory. The second migration changes billing completion for base generation/optimization; verify in staging that a dropped response leaves a saved version and exactly one debit, and that a retry remains free of additional debit. Local SQL tests use a billing fixture, not the deployed credit function. Do not deploy this dependency partially.
+
+Full scope and release gates are tracked in `docs/release-readiness.md`. The frontend requires `20260923090000_atomic_primary_resume_save.sql` before deployment. Do not ship the frontend first. Current changes remain local; read-only VPS health, webhook-secret presence and schema metadata checks are not deployment verification. Request-scoped AI context also requires a Deno-runtime test before release.
+
+Local verification commands: `npx tsc --noEmit -p tsconfig.app.json`, `npm run test:unit`, `node scripts/check-wiring.mjs`, `npm run build`, and `npx playwright test -c playwright.local.config.ts`. The browser suite blocks external traffic and uses fixtures, so it cannot validate real signup, Stripe test-mode payments or production data isolation. Those require an isolated staging backend and configured payment test environment.
+
 ## Dependency security update — 21 September 2026
 
 The npm lockfile updates Vite 6.4.1 to 6.4.3, baseline-browser-mapping 2.10.36 to 2.11.25, browserslist 4.28.2 to 4.29.0, js-yaml 4.3.1 to 4.3.2, and three-stdlib's nested fflate 0.6.10 to 0.6.11. Browserslist's supporting data packages also update to satisfy its new requirements. These compatible updates address the five npm audit findings reported during the Admin cleanup deployment; no major-version upgrade or dependency override is required. The resolved lockfile reports zero known npm audit vulnerabilities. Deploy the lockfile through the official build process below so the VPS uses the patched versions too.

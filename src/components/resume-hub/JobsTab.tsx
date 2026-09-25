@@ -264,18 +264,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     try {
       const { resume, gapAnalysis } = await resumeHubApi.tailor(selected.jd_text, idemKey, selected.title);
       delete pendingIdemKeys.current[idemMapKey]; // succeeded — next click is a genuinely new charge
-      // v3.315.0 — asked directly for the job's own title to apply
-      // automatically, no click needed (unlike a missing skill: a title is
-      // a much softer, more commonly-blurred claim in real hiring practice
-      // than a specific technical skill, and this reuses the exact same
-      // real-title-only text the old manual "Use this job's title" button
-      // already wrote — no new inflation risk introduced, just no longer
-      // gated behind a click). Skipped for the same placeholder guard the
-      // old button already had: a manually-added job with no real title
-      // yet must never overwrite a real resume title with "Untitled role".
-      if (selected.title && selected.title !== "Untitled role" && resume.basics) {
-        resume.basics.title = selected.title;
-      }
+      // Preserve the headline resolved by the backend's seniority checks.
+      // The posting's title is a target, not proof of the applicant's title.
       // Regenerating replaces the stored copy for this job.
       await supabase.from("resume_versions").delete().eq("user_id", userId).eq("created_for_job_id", selected.id);
       const { error } = await supabase.from("resume_versions").insert({
@@ -460,17 +450,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                     href={selected.source_url}
                     target="_blank"
                     rel="noreferrer"
-                    onClick={() => {
-                      // v3.173.0 — the one status transition AYN can actually
-                      // observe: clicking through to the real posting is what
-                      // "applying" looks like from here. Everything past this
-                      // (interviewing, offer, rejected) happens in someone's
-                      // inbox or on a call, nowhere AYN has visibility, so
-                      // those stay a manual pill. Never overwrite a status
-                      // already moved past "saved" — a re-click on an
-                      // already-applied job shouldn't roll it backward.
-                      if (selected.application_status === "saved") updateStatus(selected.id, "applied");
-                    }}
                     className="inline-flex items-center text-xs mt-1"
                     style={{ color: "var(--rh-accent-2)" }}
                   >

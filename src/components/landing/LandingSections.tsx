@@ -371,8 +371,8 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={audience === 'job_seeker'}
-                  className={`lp-switch-btn ${audience === 'job_seeker' ? 'is-on' : ''}`}
+                  aria-selected={false}
+                  className="lp-switch-btn"
                   onClick={() => pickAudience('job_seeker')}
                 >
                   I am looking for a job

@@ -6,7 +6,10 @@ import { SectionHeading } from '@/components/shared/SectionHeading';
 import { Textarea } from '@/components/ui/textarea';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { resumeCheckPublic, type ResumeCheckPublicResult } from '@/lib/resumeHub';
-import { CheckCircle2, XCircle, Sparkles, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { reviewResumeText } from '@/lib/resumeTextReview';
+import { ResumeCheckContinue } from '@/components/resume-hub/ResumeCheckContinue';
+import '@/styles/resume-check.css';
 
 // v3.200.0 — the public resume-vs-job checker. No account needed to use
 // it: paste a resume and a job description, get the same literal keyword
@@ -23,6 +26,7 @@ const CheckResume = () => {
   const [result, setResult] = useState<ResumeCheckPublicResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
+  const findings = result ? reviewResumeText(resumeText) : [];
 
   useEffect(() => {
     document.body.classList.add('contact-surface');
@@ -54,11 +58,11 @@ const CheckResume = () => {
     <>
       <SEO
         title="Check Your Resume Against a Job, Free"
-        description="Paste your resume and a real job description. See exactly which requirements you match and which you're missing, free, no account needed."
+        description="Paste your resume and a job description for a free text-based review. See matching requirements and a few specific areas to review, with no account needed."
         canonical="/check-resume"
         jsonLd={jsonLd}
       />
-      <div className="lp lp-shell-with-sidebar contact-surface">
+      <div className="lp lp-shell-with-sidebar contact-surface resume-check-page">
         <SeekerSidebar />
         <main className="lp-sidebar-main">
         {/* v3.237.0 -- reported directly: every page needs to match in
@@ -75,9 +79,9 @@ const CheckResume = () => {
               with no label, never reached by the v3.236.0 eyebrow rebuild
               since this is its own standalone route, not a HomeTabs tab. */}
           <p className="lp-eyebrow">Check my resume</p>
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Does your resume match this job?</h1>
+          <h1 className="lp-display text-3xl md:text-4xl">Know what to improve before you apply.</h1>
           <p className="mt-3 text-lg text-muted-foreground">
-            Paste your resume and a real job description below. See exactly which requirements you match and which you're missing, free, no account needed.
+            Compare your resume with a job description. Get a free wording check and up to three practical improvement opportunities. No account needed.
           </p>
 
           <div className="mt-10 grid gap-6 sm:grid-cols-2">
@@ -86,7 +90,8 @@ const CheckResume = () => {
               <Textarea
                 id="resume-text"
                 value={resumeText}
-                onChange={(e) => setResumeText(e.target.value)}
+                onChange={(e) => { setResumeText(e.target.value); setResult(null); }}
+                disabled={loading}
                 placeholder="Paste your resume text here..."
                 className="min-h-[220px]"
                 maxLength={20000}
@@ -97,7 +102,8 @@ const CheckResume = () => {
               <Textarea
                 id="jd-text"
                 value={jdText}
-                onChange={(e) => setJdText(e.target.value)}
+                onChange={(e) => { setJdText(e.target.value); setResult(null); }}
+                disabled={loading}
                 placeholder="Paste the job posting text here..."
                 className="min-h-[220px]"
                 maxLength={20000}
@@ -123,20 +129,31 @@ const CheckResume = () => {
           )}
 
           {result && (
-            <div className="mt-10 space-y-8">
+            <div className="mt-10 space-y-8" aria-live="polite">
+              <section className="resume-check-review">
+                <h2 className="lp-display text-2xl">{findings.length ? 'Where your resume can be clearer' : 'No obvious writing flags in this check'}</h2>
+                <p className="mt-2">This is a limited text review, not an employer decision or a test of the original file’s layout.</p>
+                {findings.length > 0 ? <ol className="resume-check-findings">
+                  {findings.map(finding => <li key={finding.id}>
+                    <h3 className="font-semibold">{finding.title}</h3>
+                    {finding.excerpt && <blockquote>{finding.excerpt}</blockquote>}
+                    <p>{finding.explanation}</p>
+                  </li>)}
+                </ol> : <p className="mt-3">That does not establish that the resume is complete or suitable for this role. Review the job requirements below.</p>}
+              </section>
               {result.matchPct !== null && (
                 <div className="rounded-xl border p-5" style={{ background: 'var(--accent, #fdf3ee)' }}>
                   <div className="text-sm font-semibold text-muted-foreground">Literal keyword match</div>
                   <div className="text-4xl font-bold mt-1" style={{ color: '#e85d3a' }}>{result.matchPct}%</div>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Based on exact wording overlap only, the same check most real ATS keyword filters run.
+                    AYN’s text-based requirement check. Different wording may hide relevant experience; this is not your likelihood of being hired.
                   </p>
                 </div>
               )}
 
               {result.matched.length > 0 && (
                 <div>
-                  <SectionHeading>You match these</SectionHeading>
+                  <SectionHeading>Requirements with matching text</SectionHeading>
                   <ul className="mt-3 space-y-2">
                     {result.matched.map((m, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm">
@@ -150,7 +167,8 @@ const CheckResume = () => {
 
               {result.missing.length > 0 && (
                 <div>
-                  <SectionHeading>Missing, by exact wording</SectionHeading>
+                  <SectionHeading>Requirements to check more closely</SectionHeading>
+                  <p className="text-sm mt-2">Not found by this wording check does not mean you lack the skill. Rewriting cannot replace a qualification you do not have.</p>
                   <ul className="mt-3 space-y-2">
                     {result.missing.map((m, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm">
@@ -168,18 +186,7 @@ const CheckResume = () => {
                 </p>
               )}
 
-              <div className="rounded-xl border p-6" style={{ background: 'var(--accent, #fdf3ee)' }}>
-                <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#e85d3a' }}>
-                  <Sparkles className="w-4 h-4" />
-                  This is the literal match only
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  A real ATS or recruiter often credits you for something worded differently. "Led a team of 3" satisfies "team leadership experience" even though the words don't match. AYN's AI-powered check catches that too, and can tailor your resume for this exact job. Free to try once you sign up.
-                </p>
-                <button type="button" className="lp-btn lp-btn-primary mt-4" onClick={() => setAuthOpen(true)}>
-                  See the deeper match, free
-                </button>
-              </div>
+              <ResumeCheckContinue resumeText={resumeText} jdText={jdText} onSignIn={() => setAuthOpen(true)} />
             </div>
           )}
         </div>
@@ -187,7 +194,7 @@ const CheckResume = () => {
         <LandingFooter />
         </main>
       </div>
-      <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} initialRole="job_seeker" initialTab="signup" />
     </>
   );
 };

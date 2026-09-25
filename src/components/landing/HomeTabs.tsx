@@ -455,7 +455,7 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
           <Badge className="ayn-ember-badge">Pricing for job seekers</Badge>
           <h2 className="lp-display lp-h2" style={{ marginTop: 14 }}>Less time formatting. More time applying.</h2>
           <p className="lp-lead" style={{ maxWidth: 620 }}>
-            A tailored resume costs 2 credits. A cover letter costs 1. Everything else is free.
+            A tailored resume costs 2 credits. A cover letter costs 1. Building or optimizing your base resume costs 15 credits. Browsing and match scoring are free.
           </p>
         </div>
 

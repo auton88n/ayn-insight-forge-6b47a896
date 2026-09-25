@@ -1052,7 +1052,7 @@ export const WRITE_BANNED_PHRASES = [
   "vital for", "vital to",
 ];
 
-export interface WriteViolation { kind: "figure" | "banned_phrase" | "pronoun" | "dash" | "generic_summary" | "gap_claim" | "keyword_gap"; detail: string }
+export interface WriteViolation { kind: "figure" | "invented_figure" | "banned_phrase" | "pronoun" | "dash" | "generic_summary" | "gap_claim" | "keyword_gap"; detail: string }
 
 // v3.159.0 — found live: tailor's own rule 5 ("echo 2-3 key phrases from the
 // job description") and rule 7 ("stay silent where no related experience
@@ -1129,6 +1129,7 @@ export function verifyWriteQuality(inputText: string, outputResume: unknown, mis
   const violations: WriteViolation[] = [];
   const outputStr = JSON.stringify(outputResume ?? "");
   for (const f of droppedFigures(inputText, outputStr)) violations.push({ kind: "figure", detail: f });
+  for (const f of inventedFigures(inputText, outputStr)) violations.push({ kind: "invented_figure", detail: f });
 
   const prose = extractProse(outputResume);
   const lowerProse = prose.toLowerCase();
@@ -1294,6 +1295,7 @@ export function verifyProseQuality(text: string, checkPronouns = true, missingRe
 /** One retry note covering every violation found, so a single retry call
  * can fix all of them at once rather than one round trip per rule. */
 export function violationsToRetryNote(violations: WriteViolation[]): string {
+  const invented = violations.filter(v => v.kind === 'invented_figure').map(v => v.detail);
   const figures = violations.filter((v) => v.kind === "figure").map((v) => v.detail);
   const phrases = Array.from(new Set(violations.filter((v) => v.kind === "banned_phrase").map((v) => v.detail)));
   const hasPronoun = violations.some((v) => v.kind === "pronoun");
@@ -1302,6 +1304,7 @@ export function violationsToRetryNote(violations: WriteViolation[]): string {
   const gapClaims = Array.from(new Set(violations.filter((v) => v.kind === "gap_claim").map((v) => v.detail)));
   const keywordGaps = Array.from(new Set(violations.filter((v) => v.kind === "keyword_gap").map((v) => v.detail)));
   const notes: string[] = [];
+  if (invented.length) notes.push(`- Added unsupported figures: ${invented.join(', ')}. Remove them; use only figures in the supplied candidate evidence.`);
   if (figures.length) notes.push(`- Dropped or altered these figures: ${figures.slice(0, 30).join(", ")}. Include every one of them, unchanged, in the bullet it belongs to.`);
   if (phrases.length) notes.push(`- Used a banned phrase: "${phrases.join('", "')}". Rewrite that line without it.`);
   if (hasPronoun) notes.push(`- Used a first-person pronoun ("I", "me", "my", or "we"). Rewrite in implied third person.`);

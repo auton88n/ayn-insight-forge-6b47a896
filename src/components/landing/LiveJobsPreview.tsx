@@ -51,9 +51,7 @@ export const LiveJobsPreview = memo(() => {
       .limit(PREVIEW_SIZE)
       .then(({ data }) => {
         if (!cancelled && data) setJobs(data as PreviewJob[]);
-      })
-      // An empty list is honest if this fails -- never a fabricated row.
-      .catch(() => {});
+      }, () => {}); // A failed request leaves the preview empty.
     return () => { cancelled = true; };
   }, []);
 

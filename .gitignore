@@ -39,3 +39,7 @@ ayn-backend/**/__pycache__/
 *.pyc
 *.bak
 dist
+
+# Local browser-test artifacts (can include screenshots and traces)
+test-results/
+playwright-report/

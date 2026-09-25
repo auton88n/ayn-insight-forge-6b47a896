@@ -40,8 +40,11 @@ import GapProbeDialog from "@/components/resume-hub/GapProbeDialog";
 import { classifyProbableIssue, type ProbeTarget } from "@/lib/gapProbe";
 import { resumeHubApi, type ResumeContent, type TalentPoolStatus, type GuidedIntakeExtraction, type GapProbeResult } from "@/lib/resumeHub";
 import { reindexTalentPool, setPoolOptInCache } from "@/lib/talentPoolSync";
-import { buildResumeDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
+import { buildResumeDocxBlob, downloadBlob, fileBase, resumeToText } from "@/lib/resumeDocs";
+import ResumeDiffViewer from './ResumeDiffViewer';
 import { computeReadiness } from "@/lib/profileGaps";
+import { createPendingResumeOperation } from "@/lib/pendingResumeOperation";
+import type { Json } from "@/integrations/supabase/types";
 
 /** v3.5.1 — bump whenever the consent wording changes. */
 const DISCOVERY_CONSENT_VERSION = "v3.5.1-full-profile";
@@ -199,6 +202,9 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   const [optimizeChanges, setOptimizeChanges] = useState<string[] | null>(null);
   const [intakeOpen, setIntakeOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [resumeHistory, setResumeHistory] = useState<ResumeRow[]>([]);
+  const [restoringResume, setRestoringResume] = useState<string | null>(null);
+  const restoreRequestIds = useRef<Record<string, string>>({});
   const [accountEmail, setAccountEmail] = useState("");
   const [openSkill, setOpenSkill] = useState<number | null>(null);
   const [levelPromptDone, setLevelPromptDone] = useState(
@@ -246,10 +252,12 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   // persisted) ever reached the server, silently reverting them. ───────────
   type ResumeRow = { id: string; title: string; content: unknown; created_at: string; is_primary: boolean; ats_score: number | null; ats_issues: string[] | null };
   const loadResumes = useCallback(async () => {
-    const { data: resumeRows } = await supabase.from("resumes").select("id, title, content, created_at, is_primary, ats_score, ats_issues")
+    const { data: resumeRows, error } = await supabase.from("resumes").select("id, title, content, created_at, is_primary, ats_score, ats_issues")
       .eq("user_id", userId).order("created_at", { ascending: false });
+    if (error) throw error;
     const rows = ((resumeRows ?? []) as ResumeRow[]);
     const active = rows.find(r => r.is_primary) ?? rows[0] ?? null;
+    setResumeHistory(rows.filter(row => row.id !== active?.id));
     if (active) {
       setPrimaryResume({ id: active.id, title: active.title, created_at: active.created_at, ats_score: active.ats_score, ats_issues: active.ats_issues });
       setResumeContent((active.content as ResumeContent) ?? null);
@@ -383,8 +391,24 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // v3.160.0 — see optimizeResume's own comment for why these persist a
   // retry's idempotency key rather than generating a fresh one every call.
-  const optimizeIdemKey = useRef<string | null>(null);
-  const generateIdemKey = useRef<string | null>(null);
+  const optimizeOperation = useMemo(() => createPendingResumeOperation<Awaited<ReturnType<typeof resumeHubApi.rewrite>>>(`ayn-paid-base:${userId}:rewrite`), [userId]);
+  const generateOperation = useMemo(() => createPendingResumeOperation<Awaited<ReturnType<typeof resumeHubApi.generateResume>>>(`ayn-paid-base:${userId}:resume_generate`), [userId]);
+
+  const saveGeneratedResume = async (
+    result: Awaited<ReturnType<typeof resumeHubApi.generateResume>>, id: string, optimized = false,
+  ) => {
+    // Never let a response started for one account be saved into a newly
+    // signed-in account. The RPC independently derives ownership from JWT.
+    const { data, error: authError } = await supabase.auth.getUser();
+    if (authError || data.user?.id !== userId) throw new Error("Your session changed. Sign back in before saving this resume.");
+    const name = result.resume.basics?.name;
+    const title = name ? `${name} Resume${optimized ? " (Optimized)" : ""}` : optimized ? "Optimized Resume" : "Your Resume";
+    const { error } = await supabase.rpc("save_primary_resume", {
+      p_id: id, p_title: title, p_content: result.resume as unknown as Json,
+      p_ats_score: result.ats_score, p_ats_issues: result.issues ?? [],
+    });
+    if (error) throw new Error("Could not confirm the saved version. Retry this action to recover the same result. Completed paid base resumes are saved on the server before credits are charged.");
+  };
 
   const persist = useCallback(async () => {
     const { career: c, personal: p, personalTouched: t, fallback: fb } = stateRef.current;
@@ -432,19 +456,15 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
-  // ── Resume upload: becomes THE active resume. A replacement resume
-  // deletes the one it replaces outright — there is no history to keep,
-  // just the one resume that's actually current. (Tailored, job-specific
-  // documents in resume_versions are unaffected: that table stores its own
-  // independent copy of the content, not a reference to this row.) ──
+  // Upload uses the same atomic primary switch and retains prior rows.
   const handleResumeParsed = async ({ resume }: { resume: ResumeContent; plainText: string }) => {
     setUploading(true);
     try {
-      await supabase.from("resumes").delete().eq("user_id", userId);
       const autoTitle = resume.basics?.name ? `${resume.basics.name} Resume` : "Uploaded Resume";
-      const { data: inserted, error } = await supabase.from("resumes").insert({
-        user_id: userId, title: autoTitle, content: resume as never, is_primary: true,
-      }).select("id").single();
+      const { data: insertedId, error } = await supabase.rpc("save_primary_resume", {
+        p_id: crypto.randomUUID(), p_title: autoTitle, p_content: resume as unknown as Json,
+        p_ats_score: null, p_ats_issues: [],
+      });
       if (error) throw error;
       setResumeContent(resume);
       setCareer(prev => mapResumeToCareer(resume, prev));
@@ -459,8 +479,8 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       toast({ title: "Resume saved", description: "AYN filled in what it could read. Check your skills and achievements below." });
       // Free, silent — so a score is already sitting there next time this
       // person opens the tab, no extra click needed for a fresh upload.
-      if (inserted?.id) {
-        resumeHubApi.diagnose(resume, inserted.id)
+      if (insertedId) {
+        resumeHubApi.diagnose(resume, insertedId)
           .then(d => setPrimaryResume(p => p ? { ...p, ats_score: d.ats_score, ats_issues: d.issues } : p))
           .catch(() => { /* best effort — the manual "Check my resume" button still works */ });
       }
@@ -521,9 +541,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
     }
   };
 
-  // ── Optimize (15 credits): rewrite, then automatically replace the resume
-  // in AYN with the improved version — same delete-then-insert as an upload,
-  // no old copy kept around. ──
+  // Optimize creates a new base version with an atomic primary switch.
   const optimizeResume = async () => {
     if (!resumeContent || !primaryResume) return;
     setOptimizing(true);
@@ -532,17 +550,21 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
     // timeout) can leave the server-side charge already applied with the
     // client never seeing the success response. Reusing the same key across
     // a retry lets the server recognize that and skip charging twice.
-    if (!optimizeIdemKey.current) optimizeIdemKey.current = crypto.randomUUID();
     try {
-      const r = await resumeHubApi.rewrite(resumeContent, undefined, optimizeIdemKey.current);
-      optimizeIdemKey.current = null; // succeeded — next click is a genuinely new charge
-      await supabase.from("resumes").delete().eq("user_id", userId);
-      const title = r.resume.basics?.name ? `${r.resume.basics.name} Resume (Optimized)` : "Optimized Resume";
-      const { error } = await supabase.from("resumes").insert({
-        user_id: userId, title, content: r.resume as never, is_primary: true,
-        ats_score: r.ats_score, ats_issues: r.issues ?? null,
-      });
-      if (error) throw error;
+      const r = await optimizeOperation.run(
+        id => resumeHubApi.rewrite(resumeContent, undefined, id),
+        async (result, id) => {
+          if (result.credits.spent !== 0) await saveGeneratedResume(result, id, true);
+        },
+      );
+      if (r.credits.spent === 0) {
+        // The unchanged-result response must not replace the original or
+        // cascade-delete its job-specific versions merely to show advice.
+        setOptimizeChanges(r.suggestions);
+        onCreditsChanged?.();
+        toast({ title: "No rewrite needed", description: "Your resume is unchanged. No credits were charged." });
+        return;
+      }
       setResumeContent(r.resume);
       setCareer(prev => mapResumeToCareer(r.resume, prev));
       setOptimizeChanges(r.suggestions);
@@ -551,7 +573,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       onCreditsChanged?.();
       toast({
         title: "Resume optimized",
-        description: `Your new resume replaced the old one. ${r.credits.balance} credits left.`,
+        description: `Your new resume is active. The previous version is retained. ${r.credits.balance} credits left.`,
       });
     } catch (e) {
       toast({ title: "Optimize failed", description: (e as Error).message, variant: "destructive" });
@@ -595,21 +617,14 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   };
 
   // ── Generate my resume (15 credits): same paid tier and same document
-  // pipeline as Optimize, just built from the profile instead of a rewrite
-  // of an upload. Same delete-then-insert as upload/optimize. ──────────────
+  // pipeline as Optimize, built from the profile with a safe primary switch.
   const generateResume = async () => {
     setGenerating(true);
-    if (!generateIdemKey.current) generateIdemKey.current = crypto.randomUUID();
     try {
-      const r = await resumeHubApi.generateResume(generateIdemKey.current);
-      generateIdemKey.current = null; // succeeded — next click is a genuinely new charge
-      await supabase.from("resumes").delete().eq("user_id", userId);
-      const title = r.resume.basics?.name ? `${r.resume.basics.name} Resume` : "Your Resume";
-      const { error } = await supabase.from("resumes").insert({
-        user_id: userId, title, content: r.resume as never, is_primary: true,
-        ats_score: r.ats_score, ats_issues: r.issues ?? null,
-      });
-      if (error) throw error;
+      const r = await generateOperation.run(
+        id => resumeHubApi.generateResume(id),
+        (result, id) => saveGeneratedResume(result, id),
+      );
       setResumeContent(r.resume);
       setCareer(prev => mapResumeToCareer(r.resume, prev));
       setOptimizeChanges(r.suggestions);
@@ -637,6 +652,29 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
     } catch (e) {
       toast({ title: "Download failed", description: (e as Error).message, variant: "destructive" });
     }
+  };
+
+  const restoreResume = async (row: ResumeRow) => {
+    if (restoringResume || !confirm('Make a copy of this earlier resume your active version? Your current version will be retained. This restores the document only; your profile facts stay unchanged. Review both before optimizing or tailoring.')) return;
+    setRestoringResume(row.id);
+    try {
+      const { data } = await supabase.auth.getUser();
+      if (data.user?.id !== userId) throw new Error('Your session changed. Sign in again.');
+      const key = `${userId}:${row.id}`;
+      restoreRequestIds.current[key] ??= crypto.randomUUID();
+      const { error } = await supabase.rpc('save_primary_resume', {
+        p_id: restoreRequestIds.current[key], p_title: row.title,
+        p_content: row.content as Json, p_ats_score: row.ats_score, p_ats_issues: row.ats_issues ?? [],
+      });
+      if (error) throw error;
+      await loadResumes();
+      delete restoreRequestIds.current[key];
+      setOptimizeChanges(null);
+      reindexTalentPool('resume_restore');
+      toast({ title: 'Earlier resume restored', description: 'A new active copy was saved. Your profile facts are unchanged; review them before optimizing or tailoring.' });
+    } catch (e) {
+      toast({ title: 'Could not restore resume', description: (e as Error).message, variant: 'destructive' });
+    } finally { setRestoringResume(null); }
   };
 
   const setDerived = (k: keyof Derived, v: unknown) => setCareer(p => ({ ...p, derived: { ...p.derived, [k]: v } }));
@@ -833,6 +871,35 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
             correct what it got wrong.
           </p>
         )}
+
+        {primaryResume?.title === 'Resume from your free check' && <p role="status" className="mt-4 text-sm border-l-2 border-primary pl-3">
+          Your checked resume is saved. Download it to review the extraction, then check your profile fields below. Saving this document did not replace your existing profile facts; AYN uses both when writing. When they agree, use Optimize here or open Saved jobs and select “Job from resume check” to tailor it.
+        </p>}
+
+        {resumeHistory.length > 0 && <details className="mt-4 border-t pt-4">
+          <summary className="cursor-pointer text-sm font-medium">Previous versions ({resumeHistory.length})</summary>
+          <p className="text-xs text-muted-foreground mt-2">Download an earlier document or restore a copy. Restoring does not use credits or change your profile facts.</p>
+          <ul className="mt-3 space-y-3">
+            {resumeHistory.map(row => <li key={row.id} className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="min-w-0"><p className="text-sm break-words">{row.title}</p><p className="text-xs text-muted-foreground">{new Date(row.created_at).toLocaleString()}</p></div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => downloadResume(row.content as ResumeContent, row.title)}>Download</Button>
+                <Button variant="outline" size="sm" disabled={!!restoringResume || optimizing || generating || uploading} onClick={() => restoreResume(row)}>{restoringResume === row.id ? 'Restoring…' : 'Restore'}</Button>
+              </div>
+            </li>)}
+          </ul>
+        </details>}
+
+        {resumeContent && <details className="mt-4 border-t pt-4">
+          <summary className="cursor-pointer text-sm font-medium">Read your current resume</summary>
+          <p className="text-xs text-muted-foreground mt-2">Text preview. Download the Word document to check pagination and final layout.</p>
+          <pre className="mt-3 whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-h-[32rem] overflow-y-auto p-4 bg-background border rounded-md">{resumeToText(resumeContent)}</pre>
+        </details>}
+        {resumeContent && resumeHistory.length > 0 && <details className="mt-4 border-t pt-4">
+          <summary className="cursor-pointer text-sm font-medium">Compare with your previous version</summary>
+          <p className="text-xs text-muted-foreground mt-2 mb-3">Compared with {resumeHistory[0].title}, saved {new Date(resumeHistory[0].created_at).toLocaleString()}. This review does not change your saved document.</p>
+          <ResumeDiffViewer key={`${primaryResume?.id}:${resumeHistory[0].id}`} original={resumeToText(resumeHistory[0].content as ResumeContent)} improved={resumeToText(resumeContent)} />
+        </details>}
 
         {!replaceOpen && (
           <div className="mt-3 flex items-center justify-between gap-3 flex-wrap rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-3">

@@ -1,5 +1,51 @@
 # Resume Hub map (web app + resume-hub backend)
 
+## September 2026 improvement batch (local, not deployed)
+
+### Durable base-resume completion, 25 September
+
+Migration `20260925090000_atomic_paid_base_resume.sql` adds service-role-only `complete_paid_base_resume`. For rewrite/generation it saves a retained resume version, debits existing credits, switches the active version, and records an exact response in one transaction. A failure in any write rolls everything back. Zero-change optimization records a zero-cost response without creating a version. It takes the existing per-user primary-save lock; replay does not reactivate an older document or charge again.
+
+After account/feature/rate checks, those two actions look up the same account/action/request ID before the upfront credit gate or any AI work. Exact response replay uses the existing `ai_result_cache` for 30 days; saved documents remain in `resumes` independently of cache expiry. Existing `erase_account_core` deletes both tables, and account export includes the saved resumes. No new collection table, endpoint, CORS change or admin billing reason was introduced. Existing admin credit reports still see `resume_optimize` and `resume_generate` ledger entries.
+
+Profile keeps only account/action-scoped request UUIDs in localStorage, before calling the paid endpoint, and removes them on confirmed success. Received resume content stays in memory; a remount can reuse the UUID to obtain the backend's stored result. Browser-storage failures prevent a new paid call rather than pretending durable retry is available. Backend-persisted documents are visible on Profile reload even after a lost response. This applies to base generation/optimization only: tailoring and cover-letter durable completion remain outstanding. Failed jobs can still incur repeated provider work before the first successful completion, although the transaction prevents duplicate charges for one request ID.
+
+The SQL fixture `tests/sql/paid-base-resume.sql` passed in isolated PostgreSQL with synthetic billing: rollback after attempted debit, unchanged-output zero cost, exact replay, late replay without primary reactivation, collision across users and service-only execution. Unit tests cover UUID-only remount recovery and replay before an insufficient-balance gate. Production/Deno and real billing-function staging verification are still required.
+
+### Release hardening, 24 September
+
+`mapConcurrent` now limits board scoring to two jobs at a time and each embedding batch to four calls: at most eight embedding calls concurrently per board-scoring request, versus the former nested fan-out. This is not a fleet-wide limit; multiple user requests still run independently. Results preserve order; started workers settle before an error propagates.
+
+AI usage context uses `AsyncLocalStorage` initialized around each request, then receives the verified user and action before `parse_file` or other early writing branches execute. Interleaved-request tests prove attribution isolation in Node; compatibility must also be verified in the deployed Deno runtime before release.
+
+Writing verification now checks added figures as well as dropped figures. Rewrite, generation and tailoring return 422 `resume_facts_unresolved` before charging when numeric preservation or gap-claim checks remain unresolved after retries. Remaining rewrite/generation wording observations are disclosed in suggestions. Tailor cache keys use a new `facts-v2` namespace so old unverified results do not bypass the new gate. This does not yet verify every employer name, date relationship, qualification or semantic factual change; full factual enforcement remains on the workboard.
+
+Profile now exposes a text preview and comparison against the most recent retained version using the existing diff viewer. It explicitly distinguishes text preview from final document pagination and does not claim that toggling comparison highlights changes the saved document.
+
+### Public check continuation and version recovery
+
+The public checker remains pasted-text-only. `resumeTextReview` adds at most three deterministic wording/contact observations, with actual excerpts where applicable. This is not file-layout analysis, an AI detector, a full resume audit, or an employer's ATS score. Editing either input clears the previous results. Existing requirement matching is unchanged.
+
+`ResumeCheckContinue` requires authentication and explicit save consent. It calls the existing `parse_file` action with text/plain, saves an owner-scoped manual job, then uses `save_primary_resume`. No paid optimizer/tailor action runs automatically. Partial failures retain the received extraction and IDs only in mounted memory for retry. Raw resume/JD text is never placed in browser storage. Both choices open Profile first: canonical profile facts are not overwritten by saving a document and must be reviewed alongside the extracted resume before paid writing. Tailoring keeps the existing `ayn_focus_job` navigation hint for Saved jobs. This is a guided review, not automatic profile synchronization. Account erasure/export already covers both existing tables.
+
+Profile lists previous resume versions with download and restore-copy controls. Restore uses the same atomic RPC, keeps other versions, costs no credits, and leaves profile facts unchanged. Failed resume-list reads now surface an error rather than pretending no resume exists. Restore save IDs survive a failed post-save refresh to avoid duplicate copies on retry. The UI cannot recover versions deleted before this change.
+
+Component tests cover sign-in, consent, profile-first navigation, account changes, failed-job saves and same-result retry. Visual browser verification and deployed migration verification remain release requirements.
+
+### Atomic primary saving (requires migration before frontend deployment)
+
+`20260923090000_atomic_primary_resume_save.sql` adds `save_primary_resume`. It is SECURITY INVOKER, executable only by authenticated users, derives ownership from `auth.uid()`, and retains RLS. A per-user advisory lock serializes this RPC's saves. A new inactive `resumes` row is inserted and the primary flag switched in the same transaction. Existing base resumes and job-specific documents are not deleted. Replaying a save ID returns the existing row without reactivating an old version. Direct table writes remain possible under existing RLS; this is not a schema-wide single-primary guarantee.
+
+Profile upload uses this RPC directly. Generation/optimization now complete through the service-only paid transaction above; their subsequent client save is an idempotent confirmation of the same document ID. Received content stays in mounted-view memory, and only the request UUID is persisted in account-scoped localStorage for recovery after reload. Existing account export/erasure already includes all owned `resumes` rows, including inactive versions; no new table or telemetry is introduced. RPC types were added manually to the client schema; regenerate from the migrated database before release.
+
+Verification: `pendingResumeOperation.test.ts` covers failed-save reuse, generation-key reuse, concurrent-click deduplication and separate-account state. `tests/sql/atomic-primary-resume.sql` is a disposable-database-only fixture covering the real migration's transaction rollback, idempotent replay, RLS ownership and anonymous grant boundary. It must never be run on production.
+
+- Opening a saved job's original URL no longer marks it Applied. Application status remains user-confirmed through the existing status controls; older Applied records are not changed automatically.
+- JobsTab preserves the backend-resolved tailored headline instead of replacing it with the posting title. Backend title resolution is still the authority; this is not a complete factual-validation redesign.
+- The rewrite handler skips credit spending when `resumeContentUnchanged` is true and returns `credits.spent: 0`. The existing upfront balance requirement remains: this is not a free optimization endpoint. Other paid rewrites retain the existing idempotent debit.
+- Public pricing now discloses the existing 15-credit generation/optimization cost alongside tailoring and cover-letter costs.
+- Prior base versions are now retained by atomic saving as described above. A version-history/restore interface, durable paid-result recovery, expanded public evaluation, signup handoff and visual redesign remain pending. Public checking remains text-only.
+
 > Current state, 19 September 2026: Resume Hub is the web-only job-search workspace. AYN Autofill, its browser extension, form intelligence, answer bank, and submission flow are retired. Saved jobs, matching, tailored resumes, and cover letters remain here.
 
 ## Surface

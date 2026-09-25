@@ -35,11 +35,7 @@ export const TrustBento = memo(() => {
       .or('scam_suspected.is.null,scam_suspected.eq.false')
       .then(({ count: c }) => {
         if (!cancelled && typeof c === 'number') setCount(displayCount(c));
-      })
-      // Never block the page on this -- "1,000+" (the initial state) is
-      // already a real, true-as-of-today figure, so a failed fetch just
-      // means the tile stays at that honest default, silently.
-      .catch(() => {});
+      }, () => {});
     return () => { cancelled = true; };
   }, []);
 

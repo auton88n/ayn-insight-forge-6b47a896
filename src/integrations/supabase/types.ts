@@ -14,6 +14,18 @@ export type Database = {
   }
   public: {
     Tables: {
+      job_postings_seen: {
+        Row: { user_id: string; job_posting_id: string; seen_at: string }
+        Insert: { user_id: string; job_posting_id: string; seen_at?: string }
+        Update: { user_id?: string; job_posting_id?: string; seen_at?: string }
+        Relationships: []
+      }
+      inbox_messages: {
+        Row: { id: string; reveal_request_id: string; sender_role: string; sender_user_id: string | null; kind: string; body: string | null; call_url: string | null; call_scheduled_at: string | null; status: string; block_reason: string | null; read_at: string | null; created_at: string }
+        Insert: { id?: string; reveal_request_id: string; sender_role: string; sender_user_id?: string | null; kind?: string; body?: string | null; call_url?: string | null; call_scheduled_at?: string | null; status?: string; block_reason?: string | null; read_at?: string | null; created_at?: string }
+        Update: { id?: string; reveal_request_id?: string; sender_role?: string; sender_user_id?: string | null; kind?: string; body?: string | null; call_url?: string | null; call_scheduled_at?: string | null; status?: string; block_reason?: string | null; read_at?: string | null; created_at?: string }
+        Relationships: []
+      }
       access_grants: {
         Row: {
           auth_method: string | null
@@ -2074,6 +2086,10 @@ export type Database = {
       }
       job_postings: {
         Row: {
+          category: string | null
+          employment_type: string | null
+          seniority: string | null
+          city: string | null
           apply_url: string
           company: string
           company_logo_url: string | null
@@ -2088,6 +2104,10 @@ export type Database = {
           title: string
         }
         Insert: {
+          category?: string | null
+          employment_type?: string | null
+          seniority?: string | null
+          city?: string | null
           apply_url: string
           company: string
           company_logo_url?: string | null
@@ -2102,6 +2122,10 @@ export type Database = {
           title: string
         }
         Update: {
+          category?: string | null
+          employment_type?: string | null
+          seniority?: string | null
+          city?: string | null
           apply_url?: string
           company?: string
           company_logo_url?: string | null
@@ -2119,6 +2143,8 @@ export type Database = {
       }
       jobs: {
         Row: {
+          application_status: string
+          application_status_changed_at: string
           captured_at: string
           company: string | null
           created_at: string
@@ -2139,6 +2165,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          application_status?: string
+          application_status_changed_at?: string
           captured_at?: string
           company?: string | null
           created_at?: string
@@ -2159,6 +2187,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          application_status?: string
+          application_status_changed_at?: string
           captured_at?: string
           company?: string | null
           created_at?: string
@@ -2724,6 +2754,8 @@ export type Database = {
       }
       resume_versions: {
         Row: {
+          match_pct: number | null
+          still_missing: Json
           content: Json
           created_at: string
           created_for_job_id: string | null
@@ -2733,6 +2765,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          match_pct?: number | null
+          still_missing?: Json
           content: Json
           created_at?: string
           created_for_job_id?: string | null
@@ -2742,6 +2776,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          match_pct?: number | null
+          still_missing?: Json
           content?: Json
           created_at?: string
           created_for_job_id?: string | null
@@ -4089,6 +4125,17 @@ export type Database = {
       }
     }
     Functions: {
+      complete_paid_base_resume: {
+        Args: { p_user_id: string; p_id: string; p_action: string; p_result: Json; p_cost: number }
+        Returns: Json
+      }
+      company_hiring_status: { Args: { p_company_slug: string }; Returns: string }
+      company_hiring_status_batch: { Args: { p_company_slugs: string[] }; Returns: { company_slug: string; status: string }[] }
+      job_market_snapshot: { Args: Record<PropertyKey, never>; Returns: Json }
+      save_primary_resume: {
+        Args: { p_id: string; p_title: string; p_content: Json; p_ats_score: number | null; p_ats_issues: Json }
+        Returns: string
+      }
       admin_adjust_credits: {
         Args: { p_amount: number; p_reason: string; p_user_id: string }
         Returns: Json

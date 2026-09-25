@@ -2,6 +2,7 @@
 // call, its usage/cost telemetry, and the shared aiCtx context every AI
 // action sets before calling it. Pure code movement, zero logic changes.
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 // ─────────────────────────────────────────────────────────────
 // v3.24.0 AI USAGE LOGGING
@@ -9,9 +10,14 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 // pane reads real numbers. Best effort: logging never fails a request.
 // ─────────────────────────────────────────────────────────────
 export type AiCtx = { admin: SupabaseClient<any, any, any> | null; userId: string | null; feature: string };
-let aiCtx: AiCtx = { admin: null, userId: null, feature: "unknown" };
+const aiContext = new AsyncLocalStorage<AiCtx>();
+export function withAiContext<T>(run: () => T): T {
+  return aiContext.run({ admin: null, userId: null, feature: "unknown" }, run);
+}
 export function setAiCtx(admin: SupabaseClient<any, any, any> | null, userId: string | null, feature: string) {
-  aiCtx = { admin, userId, feature };
+  const context = aiContext.getStore();
+  if (!context) throw new Error('AI context must be initialized at the request boundary');
+  Object.assign(context, { admin, userId, feature });
 }
 
 // Rough USD per 1M tokens, in, out. Only used to give the admin a signal.
@@ -26,7 +32,7 @@ export function logAiUsage(opts: {
   model: string; inputTokens: number; outputTokens: number; ms: number;
   wasFallback: boolean; fallbackReason?: string;
 }) {
-  const { admin, userId, feature } = aiCtx;
+  const { admin, userId, feature } = aiContext.getStore() ?? { admin: null, userId: null, feature: 'unknown' };
   if (!admin || !userId) return;
   const [pin, pout] = PRICES[opts.model] || [0.30, 2.50];
   const cost = (opts.inputTokens / 1_000_000) * pin + (opts.outputTokens / 1_000_000) * pout;

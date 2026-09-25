@@ -7,7 +7,8 @@ import { AuthModal } from './auth/AuthModal';
 import { LandingSections } from '@/components/landing/LandingSections';
 import type { Audience } from '@/lib/landingAudience';
 import { TAB_META, MORE_TAB_META, ACCOUNT_TAB_META, HOME_TAB_HANDOFF_KEY, type HomeTabId } from '@/components/landing/HomeTabs';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 // v3.219.0 -- /pricing, /contact, /about and /help still exist as real
 // routes (old links and bookmarks keep working), but now redirect here
@@ -29,7 +30,8 @@ function readHandoffTab(): HomeTabId {
       return v as HomeTabId;
     }
   } catch { /* ignore */ }
-  return 'search';
+  const hashTab = window.location.hash.slice(1) as HomeTabId;
+  return ALL_TAB_IDS.has(hashTab) ? hashTab : 'search';
 }
 
 // v3.210.0 -- "/" and "/employers" are now two real, separately-identified
@@ -76,7 +78,22 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
   // sign-in gate's "already have an account" link) open straight to the
   // Sign In tab instead of always defaulting to Sign Up.
   const [authTab, setAuthTab] = useState<'signin' | 'signup'>('signup');
-  const [activeTab, setActiveTab] = useState<HomeTabId>(readHandoffTab);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [entryTab] = useState<HomeTabId>(readHandoffTab);
+  const handoffApplied = useRef(false);
+  const hashTab = location.hash.slice(1) as HomeTabId;
+  const activeTab = ALL_TAB_IDS.has(hashTab) ? hashTab : entryTab;
+  const setActiveTab = (tab: HomeTabId) => {
+    if (tab !== activeTab) navigate({ pathname: location.pathname, search: location.search, hash: tab });
+  };
+  // Convert the existing one-shot handoff into a bookmarkable route state.
+  // Later selections use router navigation so Back and refresh work too.
+  useEffect(() => {
+    if (handoffApplied.current) return;
+    handoffApplied.current = true;
+    navigate({ hash: entryTab }, { replace: true });
+  }, [entryTab, navigate]);
   const { direction } = useLanguage();
 
   // The landing page owns a warm paper canvas, independent of app theme.
