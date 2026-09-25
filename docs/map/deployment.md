@@ -1,6 +1,10 @@
 # Deployment & VPS operations
 
-## Pending September release
+## September release status
+
+The implemented batch shipped on 25 September 2026 as `f1abd5bb`, after both migrations below were applied transactionally. Production checkout and deployed-revision marker match. Live checker HTML/new bundle and a synthetic public API request passed; edge container healthy. Backup: `/root/ayn-release-backup.5BOuUe`, containing `app-before.tgz` (old `dist`, `resume-hub`, `_shared`, `resend-inbound-webhook`) and `schema-before.sql`. Prior revision: `1d40e5eb`. Restore archive entries to their respective frontend/functions roots, not a common directory. Additive SQL functions need not be dropped for code rollback. No production account was charged by smoke checks.
+
+CI browser tests initially failed because no `.env` is present on GitHub; `playwright.local.config.ts` now injects a synthetic key and `.invalid` backend URL while all external requests remain blocked/mocked. This is test configuration, not production configuration. Full signup/payment staging verification and the unchecked workboard scope remain outstanding. The following paragraphs record original release prerequisites, now applied for this batch.
 
 Apply both `20260923090000_atomic_primary_resume_save.sql` and `20260925090000_atomic_paid_base_resume.sql` before deploying the frontend/backend batch. Include `resume-hub/lib/paidBaseResume.ts` in the deployed function directory. The second migration changes billing completion for base generation/optimization; verify in staging that a dropped response leaves a saved version and exactly one debit, and that a retry remains free of additional debit. Local SQL tests use a billing fixture, not the deployed credit function. Do not deploy this dependency partially.
 

@@ -1,6 +1,6 @@
 # AYN release workboard
 
-Status: in progress, not deployed. This is the full approved scope, not a claim of completion.
+Status: implemented batch deployed on 25 September 2026 at revision `f1abd5bb`. The full approved scope remains in progress; unchecked items are not completed.
 
 ## Customer workflow
 - [x] Atomic primary-resume save with retained versions; isolated PostgreSQL tests.
@@ -36,3 +36,7 @@ Latest local verification: 36 unit tests, full frontend typecheck, wiring check,
 25 September: base-resume durable completion added locally. Expanded SQL fixture verifies transaction rollback, same-result retry, late replay and cross-user identifier collisions. 38 unit tests, full frontend typecheck, wiring check and production build pass. No migration has been applied to production.
 
 The founder subsequently requested deployment of the implemented batch. This is a limited release, not completion of the unchecked scope above. Payment/signup staging journeys remain unverified; this batch does not change Stripe checkout or webhook billing code. Dependency audit: zero reported vulnerabilities at the release check.
+
+Production verification: both resume migrations applied transactionally before the official deployment; frontend and backend revision confirmed. Public checker page and new bundle respond successfully. Live synthetic checker request returned Python/PostgreSQL matched, Kubernetes missing, 67% alignment. Edge container is healthy. Private rollback artifacts are recorded in the deployment map. Earlier “local/not applied” paragraphs above describe pre-deployment checkpoints.
+
+Remote CI for `f1abd5bb` failed at browser smoke tests: the CI development server lacked the mandatory frontend configuration key. The local Playwright server now supplies synthetic credentials and an `.invalid` endpoint; external requests remain intercepted. CI rerun verification is pending. Real authenticated signup/payment journeys are still unverified.
