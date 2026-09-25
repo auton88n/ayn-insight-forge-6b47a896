@@ -43,3 +43,6 @@ dist
 # Local browser-test artifacts (can include screenshots and traces)
 test-results/
 playwright-report/
+
+# Strix pentest run output (local scan artifacts, not app source)
+strix_runs/
