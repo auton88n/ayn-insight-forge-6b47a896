@@ -28,7 +28,7 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Session } from '@supabase/supabase-js';
 import { AynLoader } from '@/components/shared/AynLoader';
-import type { TabProps } from './HomeTabs';
+import type { TabProps } from './homeTabMeta';
 import '@/styles/resume-hub.css';
 
 const SettingsPanel = lazy(() => import('@/components/shared/SettingsPanel'));

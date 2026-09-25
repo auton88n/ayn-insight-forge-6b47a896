@@ -6,7 +6,7 @@ import { EmployerSidebar } from '@/components/landing/EmployerSidebar';
 import { AuthModal } from './auth/AuthModal';
 import { LandingSections } from '@/components/landing/LandingSections';
 import type { Audience } from '@/lib/landingAudience';
-import { TAB_META, MORE_TAB_META, ACCOUNT_TAB_META, HOME_TAB_HANDOFF_KEY, type HomeTabId } from '@/components/landing/HomeTabs';
+import { TAB_META, MORE_TAB_META, ACCOUNT_TAB_META, HOME_TAB_HANDOFF_KEY, type HomeTabId } from '@/components/landing/homeTabMeta';
 import { useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -92,7 +92,7 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
   useEffect(() => {
     if (handoffApplied.current) return;
     handoffApplied.current = true;
-    navigate({ hash: entryTab }, { replace: true });
+    navigate({ pathname: location.pathname, search: location.search, hash: entryTab }, { replace: true });
   }, [entryTab, navigate]);
   const { direction } = useLanguage();
 

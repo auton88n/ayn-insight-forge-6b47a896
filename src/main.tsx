@@ -23,6 +23,7 @@ import '@fontsource/dm-sans/latin-500.css';
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
+import './styles/workspace.css'
 import { initAnalyticsFromConsent } from '@/lib/analytics';
 import { reportClientError } from '@/lib/errorReporting';
 

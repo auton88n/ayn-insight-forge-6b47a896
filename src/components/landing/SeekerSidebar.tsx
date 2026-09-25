@@ -1,372 +1,108 @@
-/**
- * SeekerSidebar -- the collapsible left nav for the seeker home page.
- *
- * v3.215.0 -- direct instruction, with a reference screenshot: the site
- * needs a slider-collapsible sidebar, home is the job search, the other
- * pages are the explanations, reached from the sidebar -- the same
- * STRUCTURAL pattern Resume Hub's own icon rail already uses once someone
- * signs in.
- *
- * v3.216.0 -- "when you make a page open dont take me to new page keep
- * within the same page all sections should open within it." The seven
- * explanation items (Features through FAQ) are no longer routes at all;
- * they're plain buttons that flip local tab state on Home, the identical
- * mechanism Resume Hub's own tabs use (never a URL change). Job search,
- * Check my resume, Salary guide, Pricing and Contact stay real routes --
- * each is a substantial, independently useful, SEO-real page in its own
- * right, not an explanation of the product.
- *
- * v3.223.0 -- "Browse jobs" (-> /jobs) is gone as its own nav item.
- * Reported directly: "why we have job search and browser delete the
- * browser only the job search is the browser not having two" -- Job
- * search (this button, right below) already renders the exact same
- * JobsBrowser component /jobs does, just embedded on Home instead of
- * wrapped in its own route, so the two entries read as two different
- * tools when they're the same one. /jobs itself is untouched -- it's
- * still a real, separately reachable, SEO-crawlable route (JobPosting
- * schema, the sitemap, category/location hub pages, CheckResume and
- * SalaryGuide's own cross-links into it all still work), it's just not
- * repeated a second time in this list next to its own duplicate.
- */
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import {
-  Search, FileCheck2, Tag, Sparkles, Route, Scale, Radar,
-  CheckCircle2, HelpCircle, Mail, Info, LifeBuoy, LogIn,
-  LogOut, User, Menu, X, Briefcase, Inbox, ClipboardCheck, Settings as SettingsIcon, Target, Gavel,
-  ChevronDown, Building2, GraduationCap,
-} from 'lucide-react';
+import { Search, FileCheck2, FileText, Briefcase, Target, Inbox, ClipboardCheck, GraduationCap, Settings, Menu, PanelLeftClose, PanelLeftOpen, LogOut, LogIn, ChevronDown, Building2, LifeBuoy, Tag, type LucideIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/AuthModal';
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { toast } from 'sonner';
 import aynWordmark from '@/assets/ayn-logo.png';
-import { TAB_META, MORE_TAB_META, ACCOUNT_TAB_META, HOME_TAB_HANDOFF_KEY, type HomeTabId } from './HomeTabs';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { TAB_META, type HomeTabId } from './homeTabMeta';
+import type { User } from '@supabase/supabase-js';
 
-// v3.216.0 -- the full wordmark reads broken/clipped at collapsed rail
-// width; the icon-only mark (already used by AdminApp/AynLoader/
-// ErrorBoundary) is the correct asset once there's no room for text.
-const AYN_ICON = '/ayn-mark.svg';
-
-const TAB_ICONS: Record<Exclude<HomeTabId, 'search'>, typeof Search> = {
-  features: Sparkles,
-  'how-it-works': Route,
-  'why-ayn': Scale,
-  'get-discovered': Radar,
-  proof: CheckCircle2,
-  faq: HelpCircle,
-  pricing: Tag,
-  contact: Mail,
-  about: Info,
-  help: LifeBuoy,
-  profile: User,
-  'matched-jobs': Target,
-  'saved-jobs': Briefcase,
-  proposals: Inbox,
-  assessments: ClipboardCheck,
-  'skills-to-learn': GraduationCap,
-  'account-settings': SettingsIcon,
-};
-
-const TOOL_LINKS = [
-  { to: '/check-resume', label: 'Check my resume', icon: FileCheck2 },
-  { to: '/salary-guide', label: 'Salary guide', icon: Tag },
+type Props = { activeTab?: HomeTabId; onSelectTab?: (tab: HomeTabId) => void };
+const WORKSPACE: { id: HomeTabId; label: string; icon: LucideIcon }[] = [
+  { id: 'profile', label: 'Resume & profile', icon: FileText },
+  { id: 'matched-jobs', label: 'Job matches', icon: Target },
+  { id: 'saved-jobs', label: 'Saved jobs', icon: Briefcase },
+];
+const OPPORTUNITIES: typeof WORKSPACE = [
+  { id: 'proposals', label: 'Proposals', icon: Inbox },
+  { id: 'assessments', label: 'Assessments', icon: ClipboardCheck },
+  { id: 'skills-to-learn', label: 'Skills to learn', icon: GraduationCap },
 ];
 
-const COLLAPSE_KEY = 'ayn_sidebar_collapsed';
-
-// v3.220.0 -- both now optional: /jobs, /salary-guide and /check-resume
-// stay real, separate, SEO-crawlable routes (JobPosting schema, the
-// sitemap and the category/location hub pages all need a real URL) but
-// still render this exact sidebar, not the old Header/Footer chrome, so
-// it's never gone just because you're on a page that isn't Home. On one
-// of those routes there's no local tab state to flip -- clicking a tab
-// button there hands off to Home the same way an old /pricing link does.
-type Props = {
-  activeTab?: HomeTabId;
-  onSelectTab?: (tab: HomeTabId) => void;
-};
-
-export const SeekerSidebar = ({ activeTab, onSelectTab }: Props) => {
+export function SeekerSidebar({ activeTab, onSelectTab }: Props) {
   const location = useLocation();
   const navigate = useNavigate();
-  const onHome = location.pathname === '/';
   const [collapsed, setCollapsed] = useState(() => {
-    try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
+    try { return localStorage.getItem('ayn_sidebar_collapsed') === '1'; } catch { return false; }
   });
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
-  // null = the visitor hasn't touched this toggle yet, so it follows the
-  // default (expanded signed out, collapsed signed in unless the active
-  // tab already lives in this group); a real click always wins after that.
-  const [learnManuallyOpen, setLearnManuallyOpen] = useState<boolean | null>(null);
-
+  const [authTab, setAuthTab] = useState<'signin' | 'signup'>('signup');
+  const [moreOpen, setMoreOpen] = useState(false);
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user ?? null));
-    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
     return () => subscription.unsubscribe();
   }, []);
-
-  const toggleCollapsed = useCallback(() => {
-    setCollapsed((c) => {
-      const next = !c;
-      try { localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0'); } catch { /* ignore */ }
-      return next;
-    });
-    // v3.242.0 -- the brand button above renders inside the mobile drawer
-    // too (same shared `nav`), where the rail never actually collapses
-    // (the mobile media query never applies `.is-collapsed` to it) -- a
-    // tap there closes the drawer instead, the one thing tapping the logo
-    // usefully does in that context, rather than silently flipping a
-    // desktop-only state that only surfaces later if the window is resized.
-    setMobileOpen(false);
-  }, []);
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-  };
-
-  const activeInLearnGroup = onHome && TAB_META.some((t) => t.id === activeTab);
-  const learnOpen = learnManuallyOpen ?? (!user || activeInLearnGroup);
-
+  useEffect(() => { setMobileOpen(false); }, [location.pathname, location.hash]);
   const selectTab = (tab: HomeTabId) => {
-    if (onHome && onSelectTab) {
-      onSelectTab(tab);
-    } else {
-      try { sessionStorage.setItem(HOME_TAB_HANDOFF_KEY, tab); } catch { /* ignore */ }
-      navigate('/');
-    }
+    if (location.pathname === '/' && onSelectTab) onSelectTab(tab);
+    else navigate('/#' + tab);
     setMobileOpen(false);
   };
-
-  const nav = (
-    <>
-      <div className="lp-sidebar-top">
-        {/* v3.242.0 -- reported directly against two cropped screenshots
-            (the AYN mark, and the separate panel-collapse icon next to
-            it): make the AYN icon itself the thing that opens and closes
-            the rail. The logo no longer navigates home on desktop -- "Job
-            search", the very first nav item below, already does that
-            (selectTab('search'), the same handler this link used to
-            call), so nothing is lost by retiring the second path to the
-            same place. The standalone collapse/expand button is gone;
-            this is now the only control for it. */}
-        <button
-          type="button"
-          className="lp-sidebar-brand"
-          onClick={toggleCollapsed}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed
-            ? <img src={AYN_ICON} alt="" style={{ height: 26, width: 26 }} />
-            : <img src={aynWordmark} alt="AYN" style={{ height: 24, width: 'auto' }} />}
-        </button>
-        <button type="button" className="lp-sidebar-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close menu">
-          <X size={18} />
-        </button>
-      </div>
-
-      <nav className="lp-sidebar-nav" aria-label="AYN">
-        <div className="lp-sidebar-group">
-          {/* v3.237.0 -- reported directly, against a screenshot of this
-              exact active-highlight pill: real routes this same tool also
-              answers to (/jobs and its /jobs/:id, /jobs/category/:x,
-              /jobs/location/:x variants -- the identical JobsBrowser
-              component this button's own Home tab embeds, per v3.223.0's
-              own history) left the whole sidebar with nothing highlighted
-              at all, since neither this check nor TOOL_LINKS' own
-              exact-pathname check ever matched them. */}
-          <button
-            type="button"
-            className={`lp-sidebar-link ${(onHome && activeTab === 'search') || location.pathname.startsWith('/jobs') ? 'is-active' : ''}`}
-            onClick={() => selectTab('search')}
-            title={collapsed ? 'Job search' : undefined}
-          >
-            <Search size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-            <span className="lp-sidebar-link-label">Job search</span>
-          </button>
-          {TOOL_LINKS.map((item) => {
-            const Icon = item.icon;
-            const active = location.pathname === item.to;
-            return (
-              <Link
-                key={item.to} to={item.to}
-                className={`lp-sidebar-link ${active ? 'is-active' : ''}`}
-                onClick={() => setMobileOpen(false)}
-                title={collapsed ? item.label : undefined}
-              >
-                <Icon size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-                <span className="lp-sidebar-link-label">{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-
-        {/* v3.228.0 -- Profile/Saved jobs/Proposals/Assessments/Settings,
-            the pages that used to only exist behind the separate
-            /resume-hub shell. Always visible here, signed in or not --
-            what's gated is the content each tab shows once open. */}
-        <div className="lp-sidebar-group">
-          <span className="lp-sidebar-group-label">Your account</span>
-          {ACCOUNT_TAB_META.map((item) => {
-            const Icon = TAB_ICONS[item.id as Exclude<HomeTabId, 'search'>];
-            const active = onHome && activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={`lp-sidebar-link ${active ? 'is-active' : ''}`}
-                onClick={() => selectTab(item.id)}
-                title={collapsed ? item.label : undefined}
-              >
-                <Icon size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-                <span className="lp-sidebar-link-label">{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="lp-sidebar-group">
-          {collapsed ? (
-            <span className="lp-sidebar-group-label">Learn about AYN</span>
-          ) : (
-            <button
-              type="button"
-              className="lp-sidebar-group-toggle"
-              onClick={() => setLearnManuallyOpen(!learnOpen)}
-              aria-expanded={learnOpen}
-            >
-              <span className="lp-sidebar-group-label">Learn about AYN</span>
-              <ChevronDown size={13} strokeWidth={2.2} className={`lp-sidebar-group-chevron ${learnOpen ? 'is-open' : ''}`} />
-            </button>
-          )}
-          {(collapsed || learnOpen) && TAB_META.map((item) => {
-            const Icon = TAB_ICONS[item.id as Exclude<HomeTabId, 'search'>];
-            const active = onHome && activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={`lp-sidebar-link ${active ? 'is-active' : ''}`}
-                onClick={() => selectTab(item.id)}
-                title={collapsed ? item.label : undefined}
-              >
-                <Icon size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-                <span className="lp-sidebar-link-label">{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="lp-sidebar-group">
-          <span className="lp-sidebar-group-label">Company</span>
-          {MORE_TAB_META.map((item) => {
-            const Icon = TAB_ICONS[item.id as Exclude<HomeTabId, 'search'>];
-            const active = onHome && activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={`lp-sidebar-link ${active ? 'is-active' : ''}`}
-                onClick={() => selectTab(item.id)}
-                title={collapsed ? item.label : undefined}
-              >
-                <Icon size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-                <span className="lp-sidebar-link-label">{item.label}</span>
-              </button>
-            );
-          })}
-          {/* v3.248.0 -- reported directly: "we need to add the employer
-              portal." It already existed, fully built (EmployerHub.tsx,
-              the whole intake/search/proposal/assessment flow) -- a
-              repo-wide grep for any link to /employers turned up zero
-              results anywhere in src/, confirmed live too: a brand new
-              signed-out visitor lands on the seeker's own Browse Jobs
-              view with no hero, no toggle, and no door at all to the
-              other audience, since v3.213.0/v3.218.0 removed the hero
-              (and its own toggle/door) from the seeker route entirely and
-              nothing replaced it once the sidebar became the primary
-              nav. A real route with zero way to reach it from anywhere
-              in the live app. Added here, in Company, deliberately at the
-              same quiet weight as every other link in this group -- the
-              site still commits to the seeker identity as its default
-              (v3.210.0's own standing design), this is a real door, not
-              equal billing with it. */}
-          <Link
-            to="/employers"
-            className={`lp-sidebar-link ${location.pathname === '/employers' ? 'is-active' : ''}`}
-            onClick={() => setMobileOpen(false)}
-            title={collapsed ? 'For employers' : undefined}
-          >
-            <Building2 size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-            <span className="lp-sidebar-link-label">For employers</span>
-          </Link>
-          <Link
-            to="/legal"
-            className={`lp-sidebar-link ${location.pathname === '/legal' ? 'is-active' : ''}`}
-            onClick={() => setMobileOpen(false)}
-            title={collapsed ? 'Legal' : undefined}
-          >
-            <Gavel size={17} strokeWidth={1.9} className="lp-sidebar-link-icon" />
-            <span className="lp-sidebar-link-label">Legal</span>
-          </Link>
-        </div>
-      </nav>
-
-      <div className="lp-sidebar-bottom">
-        {user ? (
-          <div className="lp-sidebar-user">
-            <span className="lp-sidebar-user-avatar" title={user.email} aria-label={user.email} style={{ fontSize: 12, fontWeight: 700 }}>
-              {(user.email || '?')[0].toUpperCase()}
-            </span>
-            <button type="button" onClick={handleSignOut} className="lp-sidebar-signout" title="Sign out" aria-label="Sign out" style={{ marginLeft: 'auto' }}>
-              <LogOut size={15} />
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="lp-btn lp-btn-primary lp-sidebar-cta"
-            onClick={() => setAuthOpen(true)}
-            title={collapsed ? 'Sign in or start free' : undefined}
-          >
-            {/* v3.242.0 -- reported directly: "better icon for sign in."
-                This button had no icon at all, so collapsing the rail left
-                a solid, completely blank pill with nothing telling anyone
-                what it does -- confirmed live, the exact shape in the
-                report's own screenshot. */}
-            <LogIn size={16} className="lp-sidebar-link-icon" />
-            <span className="lp-sidebar-link-label">Start free</span>
-          </button>
-        )}
-      </div>
-    </>
+  const isActive = (id: HomeTabId) => location.pathname === '/' && activeTab === id;
+  const showAuth = (tab: 'signin' | 'signup') => { setMobileOpen(false); setAuthTab(tab); setAuthOpen(true); };
+  const toggle = () => setCollapsed(previous => {
+    try { localStorage.setItem('ayn_sidebar_collapsed', previous ? '0' : '1'); } catch { /* optional preference */ }
+    return !previous;
+  });
+  const tabButton = ({ id, label, icon: Icon }: typeof WORKSPACE[number]) => (
+    <button key={id} type="button" className={'lp-sidebar-link ' + (isActive(id) ? 'is-active' : '')} aria-current={isActive(id) ? 'page' : undefined} onClick={() => selectTab(id)} title={label}>
+      <Icon size={18} className="lp-sidebar-link-icon" /><span className="lp-sidebar-link-label">{label}</span>
+    </button>
   );
-
-  return (
-    <>
-      {/* Slim mobile bar: hamburger opens the sidebar as a drawer. */}
-      <div className="lp-sidebar-mobile-bar">
-        <button type="button" onClick={() => setMobileOpen(true)} aria-label="Open menu" className="lp-sidebar-mobile-trigger">
-          <Menu size={20} />
+  const learnActive = TAB_META.some(item => isActive(item.id)) || ['about', 'contact', 'faq'].some(id => isActive(id as HomeTabId));
+  const navigation = (mobile = false) => <>
+    <div className="lp-sidebar-top">
+      <Link to="/#search" aria-label="AYN home" className="lp-sidebar-brand">
+        <img src={collapsed && !mobile ? '/ayn-mark.svg' : aynWordmark} alt="AYN" width={collapsed && !mobile ? 28 : 80} height={28} />
+      </Link>
+      {!mobile && <button type="button" className="ayn-rail-toggle" onClick={toggle} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>{collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}</button>}
+    </div>
+    <nav className="lp-sidebar-nav" aria-label={mobile ? 'Mobile navigation' : 'Main navigation'}>
+      <div className="lp-sidebar-group">
+        <button type="button" className={'lp-sidebar-link ' + ((isActive('search') || location.pathname.startsWith('/jobs')) ? 'is-active' : '')} onClick={() => selectTab('search')} title="Job search" aria-current={isActive('search') || location.pathname.startsWith('/jobs') ? 'page' : undefined}>
+          <Search size={18} className="lp-sidebar-link-icon" /><span className="lp-sidebar-link-label">Job search</span>
         </button>
-        <Link to="/" aria-label="AYN home" onClick={() => selectTab('search')}>
-          <img src={aynWordmark} alt="AYN" style={{ height: 24, width: 'auto' }} />
-        </Link>
-        <span style={{ width: 20 }} />
+        <Link to="/check-resume" className={'lp-sidebar-link ' + (location.pathname === '/check-resume' ? 'is-active' : '')} title="Check my resume" aria-current={location.pathname === '/check-resume' ? 'page' : undefined}><FileCheck2 size={18} className="lp-sidebar-link-icon" /><span className="lp-sidebar-link-label">Check my resume</span></Link>
       </div>
-
-      <aside className={`lp-sidebar ${collapsed ? 'is-collapsed' : ''}`}>{nav}</aside>
-
-      <div
-        className={`lp-sidebar-scrim ${mobileOpen ? 'is-open' : ''}`}
-        onClick={() => setMobileOpen(false)}
-        aria-hidden="true"
-      />
-      <aside className={`lp-sidebar lp-sidebar-mobile ${mobileOpen ? 'is-open' : ''}`}>{nav}</aside>
-
-      <AuthModal open={authOpen} onOpenChange={setAuthOpen} initialRole="job_seeker" />
-    </>
-  );
-};
+      <div className="lp-sidebar-group"><span className="lp-sidebar-group-label">Your workspace</span>{WORKSPACE.map(tabButton)}</div>
+      <div className="lp-sidebar-group"><span className="lp-sidebar-group-label">Opportunities</span>{OPPORTUNITIES.map(tabButton)}</div>
+      <div className="lp-sidebar-group">
+        {tabButton({ id: 'pricing', label: 'Plans & credits', icon: Tag })}
+        {tabButton({ id: 'help', label: 'Help', icon: LifeBuoy })}
+        {tabButton({ id: 'account-settings', label: 'Settings', icon: Settings })}
+        <button type="button" className="lp-sidebar-link" aria-expanded={moreOpen || learnActive} onClick={() => { if (collapsed && !mobile) toggle(); setMoreOpen(value => !value); }} title="About AYN">
+          <ChevronDown size={18} className="lp-sidebar-link-icon" /><span className="lp-sidebar-link-label">About AYN</span>
+        </button>
+        {(moreOpen || learnActive) && (!collapsed || mobile) && <div className="ayn-secondary-nav">
+          {TAB_META.map(item => <button key={item.id} type="button" aria-current={isActive(item.id) ? 'page' : undefined} onClick={() => selectTab(item.id)}>{item.label}</button>)}
+          <button type="button" onClick={() => selectTab('about')}>About us</button>
+          <button type="button" onClick={() => selectTab('contact')}>Contact</button>
+          <Link to="/salary-guide">Salary guide</Link><Link to="/legal">Legal & privacy</Link>
+        </div>}
+        <Link to="/employers" className="lp-sidebar-link" title="For employers"><Building2 size={18} className="lp-sidebar-link-icon" /><span className="lp-sidebar-link-label">For employers</span></Link>
+      </div>
+    </nav>
+    <div className="lp-sidebar-bottom">
+      {user ? <div className="ayn-account-row"><span className="lp-sidebar-user-avatar">{(user.email || 'A')[0].toUpperCase()}</span><span className="lp-sidebar-link-label ayn-account-email">{user.email}</span><button type="button" className="ayn-rail-toggle" aria-label="Sign out" onClick={async () => { const { error } = await supabase.auth.signOut(); if (error) toast.error('Could not sign out. Please try again.'); }}><LogOut size={17} /></button></div> : <>
+        <button type="button" className="lp-btn lp-btn-primary lp-sidebar-cta" onClick={() => showAuth('signup')} title="Start free"><LogIn size={17} /><span className="lp-sidebar-link-label">Start free</span></button>
+        {(!collapsed || mobile) && <button type="button" className="ayn-sign-in" onClick={() => showAuth('signin')}>Already a member? Sign in</button>}
+      </>}
+    </div>
+  </>;
+  return <>
+    <div className="lp-sidebar-mobile-bar">
+      <Link to="/#search" aria-label="AYN home"><img src={aynWordmark} alt="AYN" width={72} height={25} /></Link>
+      <div className="ayn-mobile-actions"><button type="button" onClick={() => selectTab('profile')}><FileText size={17} /> Resume</button>
+        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetTrigger asChild><button type="button" aria-label="Open menu"><Menu size={20} /></button></SheetTrigger>
+          <SheetContent side="left" className="lp ayn-mobile-navigation" aria-describedby={undefined}><SheetTitle className="sr-only">AYN navigation</SheetTitle>{navigation(true)}</SheetContent>
+        </Sheet>
+      </div>
+    </div>
+    <aside className={'lp-sidebar ayn-navigation ' + (collapsed ? 'is-collapsed' : '')}>{navigation()}</aside>
+    <AuthModal open={authOpen} onOpenChange={setAuthOpen} initialRole="job_seeker" initialTab={authTab} />
+  </>;
+}

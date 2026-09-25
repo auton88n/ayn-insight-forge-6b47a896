@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { resumeHubApi } from '@/lib/resumeHub';
 import { createPendingResumeOperation } from '@/lib/pendingResumeOperation';
-import { HOME_TAB_HANDOFF_KEY } from '@/components/landing/HomeTabs';
+import { HOME_TAB_HANDOFF_KEY } from '@/components/landing/homeTabMeta';
 import type { Json } from '@/integrations/supabase/types';
 
 export function ResumeCheckContinue({ resumeText, jdText, onSignIn }: {

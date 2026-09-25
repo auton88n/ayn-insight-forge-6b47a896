@@ -1,429 +1,147 @@
-/**
- * JobsBrowser -- the real, live job search and browse experience: search,
- * filter, a real result list, a real detail pane, apply on the company's
- * own site. Extracted from PublicJobs.tsx so the exact same tested,
- * production logic (the anon-safe job_postings read, the category/location
- * filters, load-more pagination) can be embedded directly on the home page
- * as its primary content, not just linked to from a marketing hero.
- *
- * v3.213.0 -- "make home the browser page." Direct instruction: the
- * homepage's first, primary content should BE this browser, not a pitch
- * about it. This component carries no page chrome of its own (no Header,
- * Footer, or SEO -- those stay owned by whichever page renders it) so it
- * can sit inside LandingSections.tsx exactly as easily as it sits inside
- * the standalone /jobs route. Restyled onto the site's own .lp design
- * tokens (same ember/paper/ink hues already defined under .lp{} in
- * index.css, never new colors) instead of the plainer shadcn defaults the
- * standalone page used, since this is now the front door, not a
- * secondary utility page.
- */
-import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
 import type { JobPosting } from '@/lib/resumeHub';
-import {
-  companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike,
-  JobDescriptionBody, EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeCategory,
-} from '@/components/resume-hub/BrowseJobs';
-import { Search, ExternalLink, ShieldCheck, Loader2, Sparkles, MapPin, Briefcase, ArrowLeft, Radar } from 'lucide-react';
+import { companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike, JobDescriptionBody, EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeCategory } from '@/components/resume-hub/BrowseJobs';
+import { Search, ExternalLink, Loader2, MapPin, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
 
-const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
 const PAGE_SIZE = 25;
-const COLS = 'id, source, company, company_slug, company_logo_url, title, description, location, apply_url, posted_at, '
-  + 'employment_type, seniority, salary_min, salary_max, salary_currency, category, work_mode, city, skills';
-
-export const BROWSE_CATEGORIES = [
-  'software_engineering', 'sales', 'marketing', 'design', 'data_analytics',
-  'product', 'operations', 'finance', 'customer_success', 'devops',
-];
-export const BROWSE_CITIES = [
-  'New York City', 'San Francisco', 'Austin', 'Toronto', 'Boston',
-  'Chicago', 'Los Angeles', 'Seattle',
-];
-
-export function slugifyCity(city: string): string {
-  return city.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-}
-export function unslugifyCity(slug: string): string {
-  return slug.replace(/-+/g, ' ').trim().split(' ')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-}
-
+export const PUBLIC_JOB_SUMMARY_COLUMNS = 'id,source,company,company_slug,company_logo_url,title,location,apply_url,posted_at,employment_type,seniority,salary_min,salary_max,salary_currency,category,work_mode,city';
+type JobSummary = Omit<JobPosting, 'description'>;
+export const BROWSE_CATEGORIES = ['software_engineering', 'sales', 'marketing', 'design', 'data_analytics', 'product', 'operations', 'finance', 'customer_success', 'devops'];
+export const BROWSE_CITIES = ['New York City', 'San Francisco', 'Austin', 'Toronto', 'Boston', 'Chicago', 'Los Angeles', 'Seattle'];
+export function slugifyCity(city: string): string { return city.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+export function unslugifyCity(slug: string): string { return slug.replace(/-+/g, ' ').trim().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); }
 type Props = {
-  routeId?: string;
-  categorySlug?: string;
-  locationSlug?: string;
-  initialQuery?: string;
-  initialWhere?: string;
-  /** Suppress the internal "Browse real jobs" heading -- used when the
-   *  page embedding this already has its own headline right above it. */
-  showHeading?: boolean;
-  /** v3.218.0 -- render the heading as a real <h1>, for the one caller
-   *  (the seeker home page, hero removed) where this heading IS the
-   *  page's own primary heading, not a section title sitting under one. */
-  asH1?: boolean;
-  onJobsLoaded?: (args: { total: number; loading: boolean }) => void;
-  /** v3.244.0 -- fired only when a job becomes the genuine, explicit
-   *  focus (a direct routeId on mount, or a real click), never for the
-   *  auto-picked "show something in the preview pane" default on a bare
-   *  list. PublicJobs.tsx uses this instead of its own second, duplicate
-   *  fetch-by-routeId to know when it's safe to emit JobPosting schema --
-   *  it works entirely off local state, so the tab title and meta tags
-   *  stay correct as you click through jobs even though the URL itself
-   *  deliberately never moves (see the note on openJob below for why). */
-  onSelectedChange?: (job: JobPosting | null) => void;
-  /** v3.261.0 -- "Get discovered" in the detail pane's action row. Turning
-   *  discoverability on is a real, signed-in action (talent_pool_set, a
-   *  real resume, the consent dialog) with no meaningful signed-out
-   *  version, unlike "See how well I match" which goes to a genuinely
-   *  public tool -- so this button's only job is to open sign-in first,
-   *  never to attempt the toggle itself. Each caller wires its own real
-   *  "open sign-in" behavior (the shared AuthModal on the embedded home
-   *  page, a local one on the standalone /jobs route), so this stays a
-   *  plain callback rather than JobsBrowser owning a modal of its own. */
-  onStartFree?: () => void;
+  routeId?: string; categorySlug?: string; locationSlug?: string; initialQuery?: string; initialWhere?: string;
+  showHeading?: boolean; asH1?: boolean; onJobsLoaded?: (args: { total: number; loading: boolean }) => void;
+  onSelectedChange?: (job: JobPosting | null) => void; onStartFree?: () => void;
 };
 
-export const JobsBrowser = ({
-  routeId, categorySlug, locationSlug, initialQuery = '', initialWhere = '',
-  showHeading = true, asH1 = false, onJobsLoaded, onSelectedChange, onStartFree,
-}: Props) => {
+export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery = '', initialWhere = '', showHeading = true, asH1 = false, onJobsLoaded, onSelectedChange, onStartFree }: Props) {
   const navigate = useNavigate();
-  const cityFilter = locationSlug ? unslugifyCity(locationSlug) : null;
-  const categoryLabel = categorySlug ? humanizeCategory(categorySlug) : null;
-
-  const [query, setQuery] = useState(initialQuery);
-  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
-  const [whereText, setWhereText] = useState(initialWhere);
-  const [debouncedWhere, setDebouncedWhere] = useState(initialWhere);
-  const [jobs, setJobs] = useState<JobPosting[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [selected, setSelected] = useState<JobPosting | null>(null);
+  const [params, setParams] = useSearchParams();
+  const query = params.get('q') ?? initialQuery;
+  const where = params.get('where') ?? initialWhere;
+  const [draftQuery, setDraftQuery] = useState(query);
+  const [draftWhere, setDraftWhere] = useState(where);
+  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
   const [logoFailed, setLogoFailed] = useState<Set<string>>(new Set());
-
-  // v3.245.0 -- reported directly: "the logos feel very bad quality."
-  // `company_logo_url` is freehire's own stored value (Google's favicon
-  // service), not something this app builds. v3.247.0 -- reported again,
-  // right after that fix shipped: "you removed all logos?" The 48px floor
-  // was picked from one bad data point -- checking Google's *newer*
-  // favicon API for "Ilderton Conversion" returned a genuine 16x16, wrongly
-  // taken as proof the real, actually-stored s2/favicons URL was capped
-  // the same way. It wasn't. Re-tested the real URL directly with curl
-  // (a real browser UA, no CORS) since this session's own Browser pane
-  // could not be used for this check at all -- a plain `fetch()` to
-  // google.com from inside it fails outright with "Failed to fetch" in
-  // both cors and no-cors mode, the identical "blocked by policy" shape
-  // already seen this session when navigating straight to an external
-  // URL, meaning this tool's own sandbox has no route to an arbitrary
-  // external host, images included -- not a signal about what a real
-  // visitor's own unrestricted browser experiences. curl, run from a
-  // normal, unsandboxed network path, is the representative check here:
-  // across 25 real companies from this exact catalog, most came back a
-  // genuinely sharp 128x128, a real and common middle tier sits at 32x32
-  // (Washington state agencies, several others -- normal, not blurry),
-  // and only the smallest, least web-savvy employers (a community
-  // college, a small regional auto dealer) came back a true 16x16. 48px
-  // was rejecting the entire legitimate 32px tier along with the real
-  // 16px offenders -- explaining "all logos gone" precisely. The floor
-  // now sits at 24px: below a real 32x32 icon, above a real 16x16 one,
-  // so only the genuinely tiny case (confirmed via curl to exist, not
-  // eliminated outright) still falls back to the colored-initial avatar.
-  const MIN_LOGO_PX = 24;
-  const handleLogoLoad = (key: string) => (e: SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget;
-    if (img.naturalWidth > 0 && img.naturalWidth < MIN_LOGO_PX) {
-      setLogoFailed((prev) => new Set(prev).add(key));
-    }
+  const pane = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const city = locationSlug ? unslugifyCity(locationSlug) : null;
+  const category = categorySlug ? humanizeCategory(categorySlug) : null;
+  const explicitId = routeId || params.get('job');
+  useEffect(() => { setDraftQuery(query); setDraftWhere(where); }, [query, where]);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 1023px)');
+    const update = () => setNarrow(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  const listings = useInfiniteQuery({
+    queryKey: ['public-job-summaries', query, where, categorySlug, city],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam, signal }) => {
+      let request = supabase.from('job_postings').select(PUBLIC_JOB_SUMMARY_COLUMNS, { count: 'exact' })
+        .or('scam_suspected.is.null,scam_suspected.eq.false').order('posted_at', { ascending: false }).order('id', { ascending: true });
+      if (categorySlug) request = request.eq('category', categorySlug);
+      if (city) request = request.ilike('city', city);
+      const term = safeLike(query), place = safeLike(where);
+      if (term) request = request.or('title.ilike.%' + term + '%,company.ilike.%' + term + '%,location.ilike.%' + term + '%');
+      if (place) request = request.ilike('location', '%' + place + '%');
+      const { data, error, count } = await request.range(pageParam, pageParam + PAGE_SIZE - 1).abortSignal(signal);
+      if (error) throw error;
+      return { rows: (data ?? []) as unknown as JobSummary[], total: count ?? 0, offset: pageParam };
+    },
+    getNextPageParam: page => page.rows.length && page.offset + page.rows.length < page.total ? page.offset + page.rows.length : undefined,
+    staleTime: 60_000,
+  });
+  const jobs = listings.data?.pages.flatMap(page => page.rows) ?? [];
+  const selectedId = explicitId || (!narrow ? jobs[0]?.id : undefined);
+  const detail = useQuery({
+    queryKey: ['public-job-detail', selectedId],
+    enabled: !!selectedId,
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase.from('job_postings').select(PUBLIC_JOB_SUMMARY_COLUMNS + ',description,skills')
+        .eq('id', selectedId!).or('scam_suspected.is.null,scam_suspected.eq.false').abortSignal(signal).maybeSingle();
+      if (error) throw error;
+      return data as unknown as JobPosting | null;
+    },
+    staleTime: 60_000,
+  });
+  const selected = detail.data;
+  const total = listings.data?.pages[0]?.total ?? 0;
+  useEffect(() => { onJobsLoaded?.({ total, loading: listings.isPending }); }, [total, listings.isPending, onJobsLoaded]);
+  useEffect(() => { onSelectedChange?.(explicitId && selected?.id === explicitId ? selected : null); }, [explicitId, selected, onSelectedChange]);
+  useEffect(() => { pane.current?.scrollTo(0, 0); if (narrow && explicitId && selected) headingRef.current?.focus({ preventScroll: true }); }, [selected?.id, narrow, explicitId]);
+  const updateSearch = () => {
+    const next = new URLSearchParams(params);
+    if (draftQuery.trim()) next.set('q', draftQuery.trim()); else next.delete('q');
+    if (draftWhere.trim()) next.set('where', draftWhere.trim()); else next.delete('where');
+    next.delete('job');
+    if (routeId) navigate('/jobs?' + next.toString());
+    else setParams(next);
   };
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query), 300);
-    return () => clearTimeout(t);
-  }, [query]);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedWhere(whereText), 300);
-    return () => clearTimeout(t);
-  }, [whereText]);
-
-  const buildQuery = useCallback((withCount: boolean) => {
-    let q = supabase
-      .from('job_postings')
-      .select(COLS, withCount ? { count: 'exact' } : undefined)
-      .order('posted_at', { ascending: false })
-      .or('scam_suspected.is.null,scam_suspected.eq.false');
-    if (categorySlug) q = q.eq('category', categorySlug);
-    if (cityFilter) q = q.ilike('city', cityFilter);
-    const term = safeLike(debouncedQuery);
-    if (term) q = q.or(`title.ilike.%${term}%,company.ilike.%${term}%,location.ilike.%${term}%`);
-    const whereTerm = safeLike(debouncedWhere);
-    if (whereTerm) q = q.ilike('location', `%${whereTerm}%`);
-    return q;
-  }, [debouncedQuery, debouncedWhere, categorySlug, cityFilter]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    buildQuery(true).range(0, PAGE_SIZE - 1).then(({ data, error, count }) => {
-      if (cancelled) return;
-      setLoading(false);
-      if (error) return;
-      const rows = (data as unknown as JobPosting[]) ?? [];
-      setJobs(rows);
-      setTotal(count ?? rows.length);
-      onJobsLoaded?.({ total: count ?? rows.length, loading: false });
-      if (!routeId) {
-        setSelected((prev) => (prev && rows.some((r) => r.id === prev.id) ? prev : rows[0] ?? null));
-      }
-    });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buildQuery]);
-
-  useEffect(() => {
-    if (!routeId) return;
-    let cancelled = false;
-    supabase.from('job_postings').select(COLS).eq('id', routeId).maybeSingle().then(({ data }) => {
-      if (cancelled || !data) return;
-      const job = data as unknown as JobPosting;
-      setSelected(job);
-      onSelectedChange?.(job);
-    });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeId]);
-
-  const loadMore = async () => {
-    setLoadingMore(true);
-    const { data } = await buildQuery(false).range(jobs.length, jobs.length + PAGE_SIZE - 1);
-    setLoadingMore(false);
-    setJobs((prev) => [...prev, ...((data as unknown as JobPosting[]) ?? [])]);
+  const openJob = (job: JobSummary) => {
+    const next = new URLSearchParams(params); next.set('job', job.id);
+    if (routeId) navigate('/jobs?' + next.toString());
+    else setParams(next, { preventScrollReset: true });
   };
-
-  // v3.244.0 -- reported directly: "job search i feel it have two pages
-  // also dose not behave like indeed." Traced live: every job click, from
-  // Home's embedded view AND from the standalone /jobs page itself, called
-  // navigate(`/jobs/${id}`) -- a real react-router route transition, not
-  // an in-place update. /jobs, /jobs/:id, /jobs/category/:x and
-  // /jobs/location/:x are four separate <Route> entries in App.tsx, each
-  // rendering this component fresh, so react-router remounts the whole
-  // thing on every single transition between them, discarding the typed
-  // search, filters, and loaded list every time. Real Indeed never does
-  // this: selecting a result updates the detail pane without ever
-  // treating it as leaving the results page.
-  //
-  // Fixed by never touching the URL on a plain selection at all: local
-  // state alone drives both the detail pane and, via onSelectedChange,
-  // the tab title and meta tags -- so browsing stays on one continuous,
-  // correctly-titled page with the address bar simply not moving.
-  // Verified with real, trusted clicks (a synthetic .value + dispatchEvent
-  // simulation of typing turned out to be unreliable for this check --
-  // it doesn't reliably register as a real React state change, so an
-  // earlier pass through this fix chased a false lead that traced the
-  // wrong cause before this was caught and re-verified properly). A
-  // genuine hard navigation -- a shared link, a bookmark, browser back/
-  // forward -- still lands on a fresh, correctly-rendered /jobs/:id
-  // exactly as before, since that path never goes through openJob.
-  const openJob = (job: JobPosting) => {
-    setSelected(job);
-    onSelectedChange?.(job);
+  const backToResults = () => {
+    const id = selectedId;
+    const next = new URLSearchParams(params); next.delete('job');
+    if (routeId) navigate('/jobs?' + next.toString());
+    else setParams(next, { preventScrollReset: true });
+    requestAnimationFrame(() => document.getElementById('job-result-' + id)?.focus());
   };
-
-  const heading = categoryLabel ? `${categoryLabel} jobs` : cityFilter ? `Jobs in ${cityFilter}` : 'Browse real jobs';
-  const sub = categoryLabel
-    ? `Real ${categoryLabel.toLowerCase()} roles, sourced directly from company career pages. Never LinkedIn or Indeed.`
-    : cityFilter
-      ? `Real jobs based in ${cityFilter}, sourced directly from company career pages. Never LinkedIn or Indeed.`
-      : 'Sourced directly from company career pages, never LinkedIn or Indeed. No account needed to search and read the full posting.';
-
-  return (
-    <div className="lp-browser">
-      {(categoryLabel || cityFilter) && (
-        <button type="button" onClick={() => navigate('/jobs')} className="lp-browser-back">
-          <ArrowLeft className="w-3.5 h-3.5" /> All jobs
-        </button>
-      )}
-
-      {showHeading && (
-        asH1 ? (
-          <>
-            {/* v3.239.0 -- reported directly against a live screenshot:
-                "missing highlitghts." This was the one heading on the
-                whole site with no eyebrow label above it at all, not
-                even the bare decorative bar Salary guide/Check my resume
-                had -- fixed alongside those two same-report gaps. */}
-            <p className="lp-eyebrow">Job search</p>
-            <h1 className="lp-display lp-h2" style={{ marginBottom: 10 }}>{heading}</h1>
-            <p className="lp-lead" style={{ marginBottom: 6 }}>{sub}</p>
-          </>
-        ) : (
-          <>
-            <p className="lp-eyebrow">Job search</p>
-            <h2 className="lp-display lp-h2" style={{ marginBottom: 10 }}>{heading}</h2>
-            <p className="lp-lead" style={{ marginBottom: 6 }}>{sub}</p>
-          </>
-        )
-      )}
-      <p className="lp-browser-trust">
-        <ShieldCheck className="w-4 h-4 shrink-0" />
-        Every listing is sourced straight from the company that posted it, and pruned within 3 days of going stale.
-      </p>
-
-      <div className="lp-browser-search">
-        <div className="lp-browser-field">
-          <Search className="lp-browser-field-icon" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Job title, keyword, or company" />
-        </div>
-        {!cityFilter && (
-          <div className="lp-browser-field lp-browser-field-where">
-            <MapPin className="lp-browser-field-icon" />
-            <Input value={whereText} onChange={(e) => setWhereText(e.target.value)} placeholder="City or remote" />
-          </div>
-        )}
-        {/* v3.262.0 -- moved out of the detail pane's per-job action row,
-            since being discoverable has nothing to do with any one
-            posting. v3.264.0 -- reported directly: "the button should be
-            beside the location." Moved into this same search row, right
-            after the City or remote field, instead of its own line below
-            the whole row. */}
-        {onStartFree && (
-          <button
-            type="button"
-            className="lp-btn lp-btn-ghost"
-            style={{ height: 50, flexShrink: 0 }}
-            onClick={onStartFree}
-          >
-            <Radar className="w-4 h-4" /> Get discovered
-          </button>
-        )}
+  const failedLogo = (id: string) => setLogoFailed(previous => new Set(previous).add(id));
+  const onLogoLoad = (id: string) => (event: SyntheticEvent<HTMLImageElement>) => { if (event.currentTarget.naturalWidth < 24) failedLogo(id); };
+  const logo = (job: JobSummary, large = false) => {
+    const full = { ...job, description: '' };
+    const url = resolveLogoUrl(full);
+    return url && !logoFailed.has(job.id)
+      ? <img src={url} alt="" loading="lazy" decoding="async" width={large ? 44 : 32} height={large ? 44 : 32} className={large ? 'lp-browser-detail-logo' : 'lp-browser-logo'} onError={() => failedLogo(job.id)} onLoad={onLogoLoad(job.id)} />
+      : <span className={large ? 'lp-browser-detail-avatar' : 'lp-browser-avatar'}>{companyAvatar(job.company).initial}</span>;
+  };
+  const Heading = asH1 ? 'h1' : 'h2';
+  return <div className={'lp-browser ayn-job-browser ' + (narrow && explicitId ? 'is-reading-job' : '')}>
+    <header className="ayn-search-header">
+      {(category || city) && <button className="lp-browser-back" onClick={() => navigate('/jobs')}><ArrowLeft size={15} /> All jobs</button>}
+      {showHeading && <><Heading className="lp-display lp-h2">{category ? category + ' jobs' : city ? 'Jobs in ' + city : 'Browse real jobs'}</Heading><p className="lp-lead">Find a role worth your next application.</p></>}
+      <p className="ayn-source-note">From company career pages. Open a posting to read the requirements before you apply.</p>
+    </header>
+    <form className="ayn-search-toolbar" onSubmit={event => { event.preventDefault(); updateSearch(); }}>
+      <label className="ayn-search-input"><span>Role or company</span><div><Search size={18} /><input value={draftQuery} onChange={event => setDraftQuery(event.target.value)} placeholder="Job title, skill or company" /></div></label>
+      {!city && <label className="ayn-search-input"><span>Location</span><div><MapPin size={18} /><input value={draftWhere} onChange={event => setDraftWhere(event.target.value)} placeholder="City, country or remote" /></div></label>}
+      <button type="submit" className="lp-btn lp-btn-primary">Search jobs <ArrowRight size={16} /></button>
+    </form>
+    <div className="ayn-results-toolbar">
+      <p role="status">{listings.isPending ? 'Finding jobs…' : listings.isError ? 'Search unavailable' : total > 999 ? '1,000+ roles to explore' : total + (total === 1 ? ' role found' : ' roles found')}</p>
+      <div><select aria-label="Job category" value={categorySlug || ''} onChange={event => navigate(event.target.value ? '/jobs/category/' + event.target.value : '/jobs')}><option value="">All categories</option>{BROWSE_CATEGORIES.map(value => <option key={value} value={value}>{humanizeCategory(value)}</option>)}</select><LinkLike onClick={() => navigate('/salary-guide')}>Salary guide</LinkLike></div>
+    </div>
+    <div className="lp-browser-grid">
+      <div className="lp-browser-list" aria-label="Job results" aria-busy={listings.isFetching}>
+        {listings.isPending ? Array.from({ length: 5 }, (_, index) => <div key={index} className="ayn-job-skeleton" aria-hidden="true" />) : listings.isError ? <div className="ayn-inline-state" role="alert"><h3>Jobs could not load</h3><p>Your search is still here. Please try again.</p><button className="lp-btn lp-btn-ghost" onClick={() => listings.refetch()}><RefreshCw size={16} /> Retry search</button></div> : jobs.length === 0 ? <div className="ayn-inline-state"><h3>No matching roles right now</h3><p>Try a broader title or another location.</p></div> : jobs.map(job => <button id={'job-result-' + job.id} key={job.id} type="button" onClick={() => openJob(job)} aria-pressed={selectedId === job.id} className={'lp-browser-card ' + (selectedId === job.id ? 'is-active' : '')}>
+          <div className="lp-browser-card-row">{logo(job)}<div className="lp-browser-card-text"><div className="lp-browser-card-company">{job.company}</div><div className="lp-browser-card-title">{job.title}</div><div className="lp-browser-card-meta">{job.location || 'Location not listed'}</div><div className="ayn-job-meta-bottom"><span>{job.employment_type ? EMPLOYMENT_TYPE_LABELS[job.employment_type] || job.employment_type : 'View posting'}</span><span>{postedAge(job.posted_at)}</span></div></div></div>
+        </button>)}
+        {listings.hasNextPage && <button className="lp-btn lp-btn-ghost ayn-load-more" onClick={() => listings.fetchNextPage()} disabled={listings.isFetchingNextPage}>{listings.isFetchingNextPage ? <Loader2 size={16} className="animate-spin" /> : null} Load more jobs</button>}
+        {listings.isFetchNextPageError && <p role="alert">More jobs could not load. Use “Load more jobs” to retry.</p>}
       </div>
-
-      {!categoryLabel && !cityFilter && (
-        <div className="lp-browser-chips-row">
-          <span className="lp-browser-chips-label">Browse:</span>
-          {BROWSE_CATEGORIES.map((c) => (
-            <button key={c} type="button" onClick={() => navigate(`/jobs/category/${c}`)} className="lp-browser-chip-link">
-              {humanizeCategory(c)}
-            </button>
-          ))}
-          {BROWSE_CITIES.map((c) => (
-            <button key={c} type="button" onClick={() => navigate(`/jobs/location/${slugifyCity(c)}`)} className="lp-browser-chip-link">
-              {c}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="lp-browser-grid">
-        <div className="lp-browser-list">
-          {loading && jobs.length === 0 ? (
-            Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-2xl" />)
-          ) : jobs.length === 0 ? (
-            <p className="lp-browser-empty">No jobs match that search right now.</p>
-          ) : (
-            jobs.map((job) => {
-              const avatar = companyAvatar(job.company);
-              const logoUrl = resolveLogoUrl(job);
-              const active = selected?.id === job.id;
-              return (
-                <button
-                  key={job.id}
-                  onClick={() => openJob(job)}
-                  className={`lp-browser-card ${active ? 'is-active' : ''}`}
-                >
-                  <div className="lp-browser-card-row">
-                    {logoUrl && !logoFailed.has(job.id) ? (
-                      <img
-                        src={logoUrl} alt="" className="lp-browser-logo"
-                        onError={() => setLogoFailed((prev) => new Set(prev).add(job.id))}
-                        onLoad={handleLogoLoad(job.id)}
-                      />
-                    ) : (
-                      <div className={`lp-browser-avatar ${avatar.className}`}>{avatar.initial}</div>
-                    )}
-                    <div className="lp-browser-card-text">
-                      <div className="lp-browser-card-title">{job.title}</div>
-                      <div className="lp-browser-card-company">{job.company}</div>
-                      <div className="lp-browser-card-meta">
-                        {job.location && <span className="truncate">{job.location}</span>}
-                        <span className="shrink-0">· {postedAge(job.posted_at)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })
-          )}
-
-          {jobs.length > 0 && jobs.length < total && (
-            <Button variant="outline" className="w-full" onClick={loadMore} disabled={loadingMore}>
-              {loadingMore ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Load more jobs
-            </Button>
-          )}
-        </div>
-
-        <div className="lp-browser-detail">
-          {selected ? (
-            <div className="lp-browser-detail-card">
-              <div className="lp-browser-detail-head">
-                {resolveLogoUrl(selected) && !logoFailed.has(`d-${selected.id}`) ? (
-                  <img
-                    src={resolveLogoUrl(selected)!} alt="" className="lp-browser-detail-logo"
-                    onError={() => setLogoFailed((prev) => new Set(prev).add(`d-${selected.id}`))}
-                    onLoad={handleLogoLoad(`d-${selected.id}`)}
-                  />
-                ) : (
-                  <div className={`lp-browser-detail-avatar ${companyAvatar(selected.company).className}`}>
-                    {companyAvatar(selected.company).initial}
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <h3 className="lp-display" style={{ fontSize: 22, margin: 0 }}>{selected.title}</h3>
-                  <p className="lp-browser-detail-company">{selected.company}</p>
-                </div>
-              </div>
-
-              <div className="lp-browser-pill-row">
-                {selected.location && <span className="lp-browser-pill"><MapPin className="w-3 h-3" /> {selected.location}</span>}
-                {selected.employment_type && (
-                  <span className="lp-browser-pill">
-                    <Briefcase className="w-3 h-3" /> {EMPLOYMENT_TYPE_LABELS[selected.employment_type] || selected.employment_type}
-                  </span>
-                )}
-                {selected.seniority && <span className="lp-browser-pill">{SENIORITY_LABELS[selected.seniority] || selected.seniority}</span>}
-                {resolveSalary(selected) && (
-                  <span className="lp-browser-pill lp-browser-pill-gold">{resolveSalary(selected)!.text}</span>
-                )}
-              </div>
-
-              <p className="lp-browser-posted">
-                Posted {postedDate(selected.posted_at)} · sourced directly, no ghost jobs
-              </p>
-
-              <div className="lp-browser-actions">
-                <a href={selected.apply_url} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-primary">
-                  Apply on the company's site <ExternalLink className="w-4 h-4" />
-                </a>
-                <button type="button" className="lp-btn lp-btn-ghost" onClick={() => navigate('/check-resume')}>
-                  <Sparkles className="w-4 h-4" /> See how well I match, free
-                </button>
-              </div>
-
-              <div className="lp-browser-jd">
-                <JobDescriptionBody text={selected.description} />
-              </div>
-            </div>
-          ) : (
-            <div className="lp-browser-detail-empty">Select a job from the list to read the full posting.</div>
-          )}
-        </div>
+      <div className="lp-browser-detail" ref={pane} aria-label="Selected job">
+        {narrow && explicitId && <button type="button" className="ayn-back-results" onClick={backToResults}><ArrowLeft size={18} /> Back to results</button>}
+        {selectedId && detail.isPending ? <div className="ayn-inline-state" role="status"><Loader2 size={20} className="animate-spin" /><p>Loading the full posting…</p></div> : detail.isError ? <div className="ayn-inline-state" role="alert"><h3>This posting could not load</h3><button className="lp-btn lp-btn-ghost" onClick={() => detail.refetch()}>Try again</button></div> : selected ? <article className="lp-browser-detail-card">
+          <div className="lp-browser-detail-head">{logo(selected, true)}<div><p className="lp-browser-detail-company">{selected.company}</p><p className="ayn-source-note">Posted {postedDate(selected.posted_at)}</p></div></div>
+          <h2 ref={headingRef} tabIndex={-1} className="ayn-job-title">{selected.title}</h2>
+          <div className="lp-browser-pill-row">{selected.location && <span><MapPin size={15} />{selected.location}</span>}{selected.employment_type && <span>{EMPLOYMENT_TYPE_LABELS[selected.employment_type] || selected.employment_type}</span>}{selected.seniority && <span>{SENIORITY_LABELS[selected.seniority] || selected.seniority}</span>}{resolveSalary(selected) && <span>{resolveSalary(selected)!.text}</span>}</div>
+          <div className="lp-browser-actions"><a href={/^https?:\/\//i.test(selected.apply_url) ? selected.apply_url : undefined} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-primary">Open application <ExternalLink size={16} /></a><button className="lp-btn lp-btn-ghost" onClick={() => { try { sessionStorage.setItem('ayn_check_jd', selected.description); } catch { /* checker remains usable */ } navigate('/check-resume'); }}>Check my fit</button></div>
+          <p className="ayn-source-note">The application opens on the employer’s site. AYN does not submit it for you.</p>
+          <div className="lp-browser-jd"><h3>About this role</h3><JobDescriptionBody text={selected.description} /></div>
+          {onStartFree && <div className="ayn-job-next"><h3>Make this application yours.</h3><p>Use your AYN profile to prepare a resume and cover letter for this role.</p><button className="lp-btn lp-btn-ghost" onClick={onStartFree}>Open my workspace <ArrowRight size={16} /></button></div>}
+        </article> : <div className="lp-browser-detail-empty">{selectedId ? 'This posting is no longer available. Choose another role from the results.' : 'Choose a role to read its requirements and prepare your application.'}</div>}
       </div>
     </div>
-  );
-};
+  </div>;
+}
+function LinkLike({ children, onClick }: { children: React.ReactNode; onClick: () => void }) { return <button type="button" className="ayn-text-link" onClick={onClick}>{children}</button>; }

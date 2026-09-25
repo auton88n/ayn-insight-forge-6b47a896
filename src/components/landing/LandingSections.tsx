@@ -6,7 +6,7 @@
  * employer copy and an employer never scrolls into seeker copy.
  * Every mockup on this page is a rendition of a screen that exists.
  */
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { readAudience, writeAudience, type Audience } from '@/lib/landingAudience';
 import {
@@ -19,7 +19,9 @@ import { HeadToHead } from './HeadToHead';
 import { JobsBrowser } from './JobsBrowser';
 import { LandingFooter } from './LandingFooter';
 import { PAIN, HEAD_TO_HEAD, TRUST, FAQS } from './landingContent';
-import { HOME_TAB_CONTENT, type HomeTabId } from './HomeTabs';
+import type { HomeTabId } from './homeTabMeta';
+import { AynLoader } from '@/components/shared/AynLoader';
+const HomeTabPanel = lazy(() => import('./HomeTabPanel'));
 import { priceLabel } from '@/lib/billing';
 
 // v3.210.0 -- the structural rework: AYN is no longer one page trying to be
@@ -293,7 +295,6 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
   // The employer route never passes activeTab, so this is always 'search'
   // there and this whole branch is a no-op for it.
   const showTabContent = seeker && activeTab !== 'search';
-  const TabContent = showTabContent ? HOME_TAB_CONTENT[activeTab as Exclude<HomeTabId, 'search'>] : null;
 
   // v3.213.0 -- rendered in a different position per audience (employer
   // keeps its original spot right after the hero; seeker's own copy of
@@ -335,12 +336,15 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
           times Home's own 72px max. Removed here; .lp-section's own top
           padding is already the real spacing every tab needs, the same
           amount Home itself uses for its own first block. */}
-      {showTabContent && TabContent && (
+      {showTabContent && (
         <div className="lp-audience" key={`tab-${activeTab}`}>
-          <TabContent
+          <Suspense fallback={<AynLoader />}>
+          <HomeTabPanel
+            tab={activeTab as Exclude<HomeTabId, 'search'>}
             onSelectTab={(id) => onSelectTab?.(id)}
             onStartFree={(role, tab) => onStartFree?.(role, tab)}
           />
+          </Suspense>
         </div>
       )}
 

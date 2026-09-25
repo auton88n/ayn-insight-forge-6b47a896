@@ -16,7 +16,8 @@
  *
  * AUTOSAVE on blur with a small saved indicator. No giant Save button.
  */
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,7 @@ import { classifyProbableIssue, type ProbeTarget } from "@/lib/gapProbe";
 import { resumeHubApi, type ResumeContent, type TalentPoolStatus, type GuidedIntakeExtraction, type GapProbeResult } from "@/lib/resumeHub";
 import { reindexTalentPool, setPoolOptInCache } from "@/lib/talentPoolSync";
 import { buildResumeDocxBlob, downloadBlob, fileBase, resumeToText } from "@/lib/resumeDocs";
-import ResumeDiffViewer from './ResumeDiffViewer';
+const ResumeDiffViewer = lazy(() => import('./ResumeDiffViewer'));
 import { computeReadiness } from "@/lib/profileGaps";
 import { createPendingResumeOperation } from "@/lib/pendingResumeOperation";
 import type { Json } from "@/integrations/supabase/types";
@@ -187,6 +188,9 @@ function mapResumeToCareer(resume: ResumeContent, prev: Career): Career {
 export default function ProfileTab({ userId, onCreditsChanged }: { userId: string; onCreditsChanged?: () => void }) {
   const { toast } = useToast();
   const [career, setCareer] = useState<Career>(EMPTY);
+  const [viewParams, setViewParams] = useSearchParams();
+  const profileView = ['facts', 'preferences'].includes(viewParams.get('profileView') || '') ? viewParams.get('profileView')! : 'resume';
+  const [compareOpen, setCompareOpen] = useState(false);
   const [personal, setPersonal] = useState<Personal>(EMPTY_PERSONAL);
   const [personalTouched, setPersonalTouched] = useState<Partial<Record<PersonalKey, boolean>>>({});
   const [loading, setLoading] = useState(true);
@@ -737,7 +741,14 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 ayn-profile-workspace">
+      <header className="ayn-workspace-heading">
+        <div><h1>Resume & profile</h1><p>Your experience, ready for the next opportunity.</p></div>
+      </header>
+      <nav className="ayn-workspace-tabs" aria-label="Profile views">
+        {([['resume', 'My resume'], ['facts', 'Profile facts'], ['preferences', 'Preferences & discovery']] as const).map(([view, label]) => <button type="button" key={view} aria-current={profileView === view ? 'page' : undefined} onClick={() => { const next = new URLSearchParams(viewParams); next.set('profileView', view); setViewParams(next, { preventScrollReset: true }); }}>{label}</button>)}
+      </nav>
+      <p className="ayn-workspace-description">{profileView === 'resume' ? 'Review your document, improve the writing, or return to an earlier version.' : profileView === 'facts' ? 'Keep these facts accurate. AYN uses them to match roles and prepare your documents. Changes save when you leave a field.' : 'Choose the work you want and whether employers can discover your profile.'}</p>
       {/* ── Matching readiness, and the autosave indicator ───────────────── */}
       <div className="flex items-start justify-between gap-4 rounded-xl px-4 py-3" style={{ background: "var(--rh-raised)", border: "1px solid var(--rh-hair)" }}>
         <div className="flex items-start gap-2 min-w-0">
@@ -761,6 +772,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           now uses (Browse Jobs' own "sourced directly" line, work-mode
           chips), so this reads as one consistent color language instead
           of two different greens depending on which page you're on. ──── */}
+      <div hidden={profileView !== 'preferences'}>
       <Card
         className="p-4 sm:p-6 flex items-center justify-between gap-4 flex-wrap rounded-xl"
         style={poolOptedIn
@@ -796,6 +808,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
         <div className="flex items-center gap-2 shrink-0">
           {poolSaving && <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--rh-faint)" }} />}
           <Switch
+            aria-label="Let employers find me"
             checked={poolOptedIn}
             disabled={poolSaving || poolRestricted}
             onCheckedChange={(next) => (next ? setPoolConfirmOpen(true) : togglePool(false))}
@@ -803,6 +816,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           />
         </div>
       </Card>
+      </div>
 
       <AlertDialog open={poolConfirmOpen} onOpenChange={setPoolConfirmOpen}>
         <AlertDialogContent>
@@ -835,7 +849,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       )}
 
       {/* ── 1. Your resume ───────────────────────────────────────────────── */}
-      <Group id="resume" title="Your resume" line="Everything AYN writes starts from this.">
+      <Group hidden={profileView !== 'resume'} id="resume" title="Your resume" line="Your active document. Earlier versions stay available below.">
         {primaryResume ? (
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 min-w-0">
@@ -890,15 +904,15 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           </ul>
         </details>}
 
-        {resumeContent && <details className="mt-4 border-t pt-4">
+        {resumeContent && <details open className="mt-4 border-t pt-4 ayn-document-preview">
           <summary className="cursor-pointer text-sm font-medium">Read your current resume</summary>
           <p className="text-xs text-muted-foreground mt-2">Text preview. Download the Word document to check pagination and final layout.</p>
           <pre className="mt-3 whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-h-[32rem] overflow-y-auto p-4 bg-background border rounded-md">{resumeToText(resumeContent)}</pre>
         </details>}
-        {resumeContent && resumeHistory.length > 0 && <details className="mt-4 border-t pt-4">
+        {resumeContent && resumeHistory.length > 0 && <details className="mt-4 border-t pt-4" onToggle={event => setCompareOpen(event.currentTarget.open)}>
           <summary className="cursor-pointer text-sm font-medium">Compare with your previous version</summary>
           <p className="text-xs text-muted-foreground mt-2 mb-3">Compared with {resumeHistory[0].title}, saved {new Date(resumeHistory[0].created_at).toLocaleString()}. This review does not change your saved document.</p>
-          <ResumeDiffViewer key={`${primaryResume?.id}:${resumeHistory[0].id}`} original={resumeToText(resumeHistory[0].content as ResumeContent)} improved={resumeToText(resumeContent)} />
+          {compareOpen && <Suspense fallback={<p role="status">Loading comparison…</p>}><ResumeDiffViewer key={`${primaryResume?.id}:${resumeHistory[0].id}`} original={resumeToText(resumeHistory[0].content as ResumeContent)} improved={resumeToText(resumeContent)} /></Suspense>}
         </details>}
 
         {!replaceOpen && (
@@ -1033,7 +1047,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       </Group>
 
       {/* ── 2. About you ─────────────────────────────────────────────────── */}
-      <Group id="about" title="About you" line="Used in your tailored resumes and cover letters.">
+      <Group hidden={profileView !== 'facts'} id="about" title="About you" line="Used in your tailored resumes and cover letters.">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <SourcedField label="First name" f={field("first_name")} onChange={v => setPersonalField("first_name", v)} onBlur={queueSave} onRevert={v => { setPersonalField("first_name", v); queueSave(); }} />
           <SourcedField label="Last name" f={field("last_name")} onChange={v => setPersonalField("last_name", v)} onBlur={queueSave} onRevert={v => { setPersonalField("last_name", v); queueSave(); }} />
@@ -1049,7 +1063,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       </Group>
 
       {/* ── 3. Your experience ───────────────────────────────────────────── */}
-      <Group id="experience" title="Your experience" line="This is what AYN scores against a job and tailors from.">
+      <Group hidden={profileView !== 'facts'} id="experience" title="Your experience" line="This is what AYN scores against a job and tailors from.">
         {/* Skills */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -1373,7 +1387,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       </Group>
 
       {/* ── 4. What you are looking for ──────────────────────────────────── */}
-      <Group id="looking" title="What you are looking for" line="Employers searching for candidates match on this first.">
+      <Group hidden={profileView !== 'preferences'} id="looking" title="What you are looking for" line="Employers searching for candidates match on this first.">
         <ChipList
           label="Desired titles"
           values={career.preferences.desired_titles || []}
@@ -1433,7 +1447,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       </Group>
 
       {/* ── 5. Work eligibility ──────────────────────────────────────────── */}
-      <Group id="eligibility" title="Work eligibility" line="Employers filter on this before anything else.">
+      <Group hidden={profileView !== 'preferences'} id="eligibility" title="Work eligibility" line="Employers filter on this before anything else.">
         <div>
           <Label className="text-xs" style={{ color: "var(--rh-muted)" }}>Countries you can work in</Label>
           <p className="text-[11px]" style={{ color: "var(--rh-faint)" }}>Legal eligibility, separate from the cities you'd actually want to work in above.</p>
@@ -1515,23 +1529,22 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
 // accent mark ahead of the eyebrow text (.lp-eyebrow::before); this is
 // the same signature scaled down for a dense, repeated form section
 // rather than a full page heading.
-function Group({ id, title, line, children }: { id: string; title: string; line: string; children: React.ReactNode }) {
+function Group({ id, title, line, children, hidden = false }: { id: string; title: string; line: string; children: React.ReactNode; hidden?: boolean }) {
   const key = `ayn_profile_group_${id}`;
-  const [open, setOpen] = useState(() => sessionStorage.getItem(key) !== "closed");
-  const toggle = () => setOpen(o => { sessionStorage.setItem(key, o ? "closed" : "open"); return !o; });
+  const [open, setOpen] = useState(() => { try { return sessionStorage.getItem(key) !== 'closed'; } catch { return true; } });
+  const toggle = () => setOpen(o => { try { sessionStorage.setItem(key, o ? 'closed' : 'open'); } catch { /* optional view preference */ } return !o; });
   return (
-    <Card className="p-4 sm:p-6 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
-      <button type="button" onClick={toggle} className="w-full flex items-start justify-between gap-3 text-left">
+    <Card hidden={hidden} className="p-4 sm:p-6 rounded-xl ayn-profile-group" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+      <button type="button" onClick={toggle} aria-expanded={open} aria-controls={`profile-group-${id}`} className="w-full flex items-start justify-between gap-3 text-left">
         <div>
           <h3 className="rh-display flex items-center gap-2" style={{ fontSize: 16.5 }}>
-            <span aria-hidden="true" style={{ width: 14, height: 2, borderRadius: 2, background: "var(--rh-accent)", flexShrink: 0 }} />
             {title}
           </h3>
           <p className="text-xs mt-1" style={{ color: "var(--rh-muted)" }}>{line}</p>
         </div>
         <ChevronDown className={`w-4 h-4 mt-1 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} style={{ color: "var(--rh-faint)" }} />
       </button>
-      {open && <div className="space-y-4 mt-4">{children}</div>}
+      {open && <div id={`profile-group-${id}`} className="space-y-4 mt-4">{children}</div>}
     </Card>
   );
 }

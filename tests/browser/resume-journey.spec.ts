@@ -1,5 +1,18 @@
 import { test, expect } from '@playwright/test';
 
+test('public search does not eagerly load account settings or marketing tabs', async ({ page }) => {
+  const scripts: string[] = [];
+  page.on('request', request => {
+    if (request.resourceType() === 'script') scripts.push(request.url());
+  });
+  await page.route('https://ayn-test.invalid/**', route => route.abort());
+  await page.goto('/#search');
+  await expect(page.getByRole('heading', { name: 'Browse real jobs', exact: true })).toBeVisible();
+  // Covers the former three-second idle preload, not only first paint.
+  await page.waitForTimeout(3500);
+  expect(scripts.filter(url => /\/(HomeTabs|HomeTabPanel|AccountTabs|Settings|SettingsPanel)\.tsx/.test(url))).toEqual([]);
+});
+
 test.beforeEach(async ({ page }) => {
   // Never send a browser test to production. Only the public-check fixture
   // is fulfilled; all other non-local requests are blocked.
@@ -35,7 +48,7 @@ test('home tabs survive refresh and browser Back', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Everything AYN actually does for you' })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Everything AYN actually does for you' })).toBeVisible();
-  await page.getByRole('button', { name: 'Pricing', exact: true }).click();
+  await page.getByRole('button', { name: 'Plans & credits', exact: true }).click();
   await expect(page).toHaveURL(/#pricing$/);
   await page.goBack();
   await expect(page).toHaveURL(/#features$/);

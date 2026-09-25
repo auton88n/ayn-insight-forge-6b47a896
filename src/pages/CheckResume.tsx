@@ -21,7 +21,10 @@ import '@/styles/resume-check.css';
 // already uses, not a new cost surface.
 const CheckResume = () => {
   const [resumeText, setResumeText] = useState('');
-  const [jdText, setJdText] = useState('');
+  const [jdText, setJdText] = useState(() => {
+    try { const text = sessionStorage.getItem('ayn_check_jd') || ''; sessionStorage.removeItem('ayn_check_jd'); return text; }
+    catch { return ''; }
+  });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ResumeCheckPublicResult | null>(null);
   const [error, setError] = useState<string | null>(null);
