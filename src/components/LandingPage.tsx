@@ -22,16 +22,30 @@ import { useLocation, useNavigate } from 'react-router-dom';
 const ALL_TAB_IDS = new Set<HomeTabId>([
   'search', ...TAB_META.map((t) => t.id), ...MORE_TAB_META.map((t) => t.id), ...ACCOUNT_TAB_META.map((t) => t.id),
 ]);
-function readHandoffTab(): HomeTabId {
+// Sept 2026 -- reported directly: "urls should be constantly [stable]."
+// Traced it live: loading a bare "/" (or a real deep link like
+// "/?job=<id>") silently rewrote the address bar to end in "#search"
+// within about a second of load, every single time -- the browser's own
+// URL, changing itself with no user action. readHandoffTab() previously
+// returned one plain HomeTabId, with no way to tell "a real cross-page
+// handoff was consumed from sessionStorage, this hash genuinely needs
+// converting into a bookmarkable one" apart from "there was nothing to
+// convert, this is just the ordinary empty-hash default." The effect
+// below could not tell those two cases apart either, so it force-wrote a
+// hash on every single first mount, real deep link or not. Now returns
+// which case it was, so only a genuine handoff gets converted into a
+// real, visible hash -- a plain, hash-less visit (or one already
+// carrying real search params like ?job=) is left exactly as it arrived.
+function readHandoffTab(): { tab: HomeTabId; fromHandoff: boolean } {
   try {
     const v = sessionStorage.getItem(HOME_TAB_HANDOFF_KEY);
     if (v && ALL_TAB_IDS.has(v as HomeTabId)) {
       sessionStorage.removeItem(HOME_TAB_HANDOFF_KEY);
-      return v as HomeTabId;
+      return { tab: v as HomeTabId, fromHandoff: true };
     }
   } catch { /* ignore */ }
   const hashTab = window.location.hash.slice(1) as HomeTabId;
-  return ALL_TAB_IDS.has(hashTab) ? hashTab : 'search';
+  return { tab: ALL_TAB_IDS.has(hashTab) ? hashTab : 'search', fromHandoff: false };
 }
 
 // v3.210.0 -- "/" and "/employers" are now two real, separately-identified
@@ -80,20 +94,23 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
   const [authTab, setAuthTab] = useState<'signin' | 'signup'>('signup');
   const location = useLocation();
   const navigate = useNavigate();
-  const [entryTab] = useState<HomeTabId>(readHandoffTab);
+  const [{ tab: entryTab, fromHandoff }] = useState(readHandoffTab);
   const handoffApplied = useRef(false);
   const hashTab = location.hash.slice(1) as HomeTabId;
   const activeTab = ALL_TAB_IDS.has(hashTab) ? hashTab : entryTab;
   const setActiveTab = (tab: HomeTabId) => {
     if (tab !== activeTab) navigate({ pathname: location.pathname, search: location.search, hash: tab });
   };
-  // Convert the existing one-shot handoff into a bookmarkable route state.
+  // Convert a real cross-page handoff into a bookmarkable route state.
   // Later selections use router navigation so Back and refresh work too.
+  // fromHandoff-gated: a plain hash-less visit (or a real deep link like
+  // ?job=<id>, which already carries its own meaningful search string)
+  // is left exactly as it arrived -- there is nothing here to "convert."
   useEffect(() => {
-    if (handoffApplied.current) return;
+    if (handoffApplied.current || !fromHandoff) return;
     handoffApplied.current = true;
     navigate({ pathname: location.pathname, search: location.search, hash: entryTab }, { replace: true });
-  }, [entryTab, navigate]);
+  }, [entryTab, fromHandoff, navigate]);
   const { direction } = useLanguage();
 
   // The landing page owns a warm paper canvas, independent of app theme.
