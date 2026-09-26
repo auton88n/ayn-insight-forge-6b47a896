@@ -191,32 +191,47 @@ function isKnownRoute(pathname) {
 // the root path as well as every SPA route, preserving Express 4's `*`.
 //
 // Sept 2026 -- reported directly: "the app pages being slow and refrash...
-// dont feel the app is stable." Traced through docker logs, not guessed:
-// production itself measured fast and stable (20-30ms from the VPS, 2ms
-// hitting this container directly, zero degradation across repeated
-// requests) -- the real, dominant cause was two of my own deploys landing
-// back to back while the report was live-tested, each one briefly
-// restarting this exact container. Alongside that, a real, if narrow, bug
-// this same investigation turned up in docker logs across several past
-// deploys: `Error: ENOENT: no such file or directory, stat
-// '.../dist/index.html'`, repeated. app.listen() below fired the instant
-// node started, before ever checking dist/index.html actually existed on
-// disk yet -- a request landing in that gap got an uncaught ENOENT out of
-// sendFile() instead of a page. Fixed by refusing to accept connections
-// at all until the file is confirmed present, so this specific failure
-// window can't exist any more, deploy timing aside.
+// dont feel the app is stable." Traced through docker logs, not guessed.
+// First fix (below the surface here, superseded by this one): delay
+// app.listen() until dist/index.html exists, closing the startup half of
+// the race. Deployed, then a REAL live 503 on the very next deploy proved
+// that fix was still only half the story -- it protects a container's own
+// startup, but does nothing for the container that's ALREADY running and
+// ALREADY serving traffic the moment auto_deploy.sh's build step reaches
+// dist/ (Vite's own emptyOutDir wipes the directory before writing the
+// fresh build back), since the OLD process has long since called
+// app.listen() and has no reason to ever re-check the file again on its
+// own. sendFile() reads straight off disk on every single request, so
+// that live container hit a real, repeatable ENOENT the instant a request
+// landed in that window -- confirmed directly in docker logs, seconds
+// after "deploy complete," on the very next deploy after the first fix
+// shipped.
+//
+// The actual fix: index.html is 7-8KB of static markup that never changes
+// for the life of a running process (a real content change always ships
+// with a restart, since auto_deploy.sh calls docker restart on every
+// deploy) -- there was never a good reason to touch the filesystem for it
+// on every request at all. Read once, held in memory, served from RAM.
+// A container can now no longer be affected by a build wiping the very
+// file out from under it after start, because it never looks at that file
+// again after the one read below.
+let indexHtml = null;
+
 app.get('/{*path}', (req, res) => {
   const status = isKnownRoute(req.path) ? 200 : 404;
-  res.status(status).sendFile(INDEX_HTML, (err) => {
-    if (err && !res.headersSent) {
-      console.error(`sendFile failed for ${req.path}:`, err.message);
-      res.status(503).send('Service temporarily unavailable, please retry.');
-    }
-  });
+  if (indexHtml === null) {
+    // Only reachable if startWhenBuilt gave up after its own retries and
+    // started the server anyway (a genuinely broken build) -- a real,
+    // rare failure, not the transient race this whole fix targets.
+    res.status(503).send('Service temporarily unavailable, please retry.');
+    return;
+  }
+  res.status(status).type('html').send(indexHtml);
 });
 
 function startWhenBuilt(attemptsLeft = 30) {
   if (fs.existsSync(INDEX_HTML)) {
+    indexHtml = fs.readFileSync(INDEX_HTML, 'utf8');
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
     return;
   }
