@@ -108,7 +108,7 @@ export const HowItWorksTab = () => (
         </div>
         <div className="lp-art lp-art-plain"><TailoredDocsMockup /></div>
       </div>
-      <div className="lp-flow lp-reveal">
+      <div className="lp-flow lp-reveal ayn-directory-grid">
         {SEEKER_STEPS.map((s, i) => {
           const Icon = s.icon;
           return (
