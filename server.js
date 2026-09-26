@@ -1,5 +1,6 @@
 import express from 'express';
 import compression from 'compression';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -9,6 +10,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DIST = path.join(__dirname, 'dist');
+const INDEX_HTML = path.join(DIST, 'index.html');
 
 // v3.133.0 — real security headers. script-src and style-src both drop
 // 'unsafe-inline': the two theme-init scripts that used to sit inline in
@@ -187,9 +189,43 @@ function isKnownRoute(pathname) {
 // React Router handles rendering; the status code is decided here.
 // Express 5's path-to-regexp requires a named wildcard. This form includes
 // the root path as well as every SPA route, preserving Express 4's `*`.
+//
+// Sept 2026 -- reported directly: "the app pages being slow and refrash...
+// dont feel the app is stable." Traced through docker logs, not guessed:
+// production itself measured fast and stable (20-30ms from the VPS, 2ms
+// hitting this container directly, zero degradation across repeated
+// requests) -- the real, dominant cause was two of my own deploys landing
+// back to back while the report was live-tested, each one briefly
+// restarting this exact container. Alongside that, a real, if narrow, bug
+// this same investigation turned up in docker logs across several past
+// deploys: `Error: ENOENT: no such file or directory, stat
+// '.../dist/index.html'`, repeated. app.listen() below fired the instant
+// node started, before ever checking dist/index.html actually existed on
+// disk yet -- a request landing in that gap got an uncaught ENOENT out of
+// sendFile() instead of a page. Fixed by refusing to accept connections
+// at all until the file is confirmed present, so this specific failure
+// window can't exist any more, deploy timing aside.
 app.get('/{*path}', (req, res) => {
   const status = isKnownRoute(req.path) ? 200 : 404;
-  res.status(status).sendFile(path.join(DIST, 'index.html'));
+  res.status(status).sendFile(INDEX_HTML, (err) => {
+    if (err && !res.headersSent) {
+      console.error(`sendFile failed for ${req.path}:`, err.message);
+      res.status(503).send('Service temporarily unavailable, please retry.');
+    }
+  });
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+function startWhenBuilt(attemptsLeft = 30) {
+  if (fs.existsSync(INDEX_HTML)) {
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    return;
+  }
+  if (attemptsLeft <= 0) {
+    console.error(`dist/index.html never appeared, starting anyway: ${INDEX_HTML}`);
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    return;
+  }
+  setTimeout(() => startWhenBuilt(attemptsLeft - 1), 200);
+}
+
+startWhenBuilt();
