@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { JobPosting } from '@/lib/resumeHub';
@@ -21,7 +21,25 @@ type Props = {
 
 export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery = '', initialWhere = '', showHeading = true, asH1 = false, onJobsLoaded, onSelectedChange, onStartFree }: Props) {
   const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const [params] = useSearchParams();
+  // Sept 2026 -- same fix as ProfileTab.tsx, same day, same root cause:
+  // "when i click to buttons or pages it takes me to a diffrent page."
+  // setParams() (react-router's setSearchParams) does not carry the
+  // current #hash forward on its own, and when this component is
+  // embedded on Home (no routeId), that hash is literally what decides
+  // which tab is showing at all. This masked itself here specifically
+  // because Home's own default tab happens to be "search" -- the exact
+  // tab this component renders under -- so losing the hash and falling
+  // back to the app's own hash-less default landed back on the same
+  // content by coincidence, not because it was actually preserved. Still
+  // fixed properly rather than left relying on that coincidence, since a
+  // returning visitor's own stored/handed-off entry tab is not always
+  // "search," and the leftover hash-less URL was never correct regardless
+  // of whether the wrong tab happened to show.
+  const setEmbeddedParams = (next: URLSearchParams, opts?: { preventScrollReset?: boolean }) => {
+    navigate({ pathname: location.pathname, search: next.toString(), hash: location.hash }, opts);
+  };
   const query = params.get('q') ?? initialQuery;
   const where = params.get('where') ?? initialWhere;
   const [draftQuery, setDraftQuery] = useState(query);
@@ -82,18 +100,18 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
     if (draftWhere.trim()) next.set('where', draftWhere.trim()); else next.delete('where');
     next.delete('job');
     if (routeId) navigate('/jobs?' + next.toString());
-    else setParams(next);
+    else setEmbeddedParams(next);
   };
   const openJob = (job: JobSummary) => {
     const next = new URLSearchParams(params); next.set('job', job.id);
     if (routeId) navigate('/jobs?' + next.toString());
-    else setParams(next, { preventScrollReset: true });
+    else setEmbeddedParams(next, { preventScrollReset: true });
   };
   const backToResults = () => {
     const id = selectedId;
     const next = new URLSearchParams(params); next.delete('job');
     if (routeId) navigate('/jobs?' + next.toString());
-    else setParams(next, { preventScrollReset: true });
+    else setEmbeddedParams(next, { preventScrollReset: true });
     requestAnimationFrame(() => document.getElementById('job-result-' + id)?.focus());
   };
   const failedLogo = (id: string) => setLogoFailed(previous => new Set(previous).add(id));

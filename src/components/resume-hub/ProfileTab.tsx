@@ -17,7 +17,7 @@
  * AUTOSAVE on blur with a small saved indicator. No giant Save button.
  */
 import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -188,8 +188,27 @@ function mapResumeToCareer(resume: ResumeContent, prev: Career): Career {
 export default function ProfileTab({ userId, onCreditsChanged }: { userId: string; onCreditsChanged?: () => void }) {
   const { toast } = useToast();
   const [career, setCareer] = useState<Career>(EMPTY);
-  const [viewParams, setViewParams] = useSearchParams();
+  const [viewParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const profileView = ['facts', 'preferences'].includes(viewParams.get('profileView') || '') ? viewParams.get('profileView')! : 'resume';
+  // Sept 2026 -- reported directly: "when i click to buttons or pages it
+  // takes me to a diffrent page." Traced live: clicking a Profile sub-tab
+  // (My resume / Profile facts / Preferences) silently dropped the page's
+  // own #profile hash -- react-router's setSearchParams(), unlike
+  // useNavigate() called with an explicit location object, does not carry
+  // the current hash forward on its own. Since this whole app's tab
+  // system (LandingPage.tsx's activeTab) reads location.hash to decide
+  // which page is even showing, losing that hash didn't just lose the
+  // sub-tab, it kicked the person all the way back to Job search, the
+  // app's own hash-less default -- exactly the reported symptom. Fixed by
+  // navigating with an explicit hash carried over, the same pattern
+  // LandingPage.tsx's own tab switching already uses correctly.
+  const setProfileView = (view: string) => {
+    const next = new URLSearchParams(viewParams);
+    next.set('profileView', view);
+    navigate({ pathname: location.pathname, search: next.toString(), hash: location.hash }, { preventScrollReset: true });
+  };
   const [compareOpen, setCompareOpen] = useState(false);
   const [personal, setPersonal] = useState<Personal>(EMPTY_PERSONAL);
   const [personalTouched, setPersonalTouched] = useState<Partial<Record<PersonalKey, boolean>>>({});
@@ -751,7 +770,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
         <div><h1>Resume & profile</h1><p>Your experience, ready for the next opportunity.</p></div>
       </header>
       <nav className="ayn-workspace-tabs" aria-label="Profile views">
-        {([['resume', 'My resume'], ['facts', 'Profile facts'], ['preferences', 'Preferences & discovery']] as const).map(([view, label]) => <button type="button" key={view} aria-current={profileView === view ? 'page' : undefined} onClick={() => { const next = new URLSearchParams(viewParams); next.set('profileView', view); setViewParams(next, { preventScrollReset: true }); }}>{label}</button>)}
+        {([['resume', 'My resume'], ['facts', 'Profile facts'], ['preferences', 'Preferences & discovery']] as const).map(([view, label]) => <button type="button" key={view} aria-current={profileView === view ? 'page' : undefined} onClick={() => setProfileView(view)}>{label}</button>)}
       </nav>
       <p className="ayn-workspace-description">{profileView === 'resume' ? 'Review your document, improve the writing, or return to an earlier version.' : profileView === 'facts' ? 'Keep these facts accurate. AYN uses them to match roles and prepare your documents. Changes save when you leave a field.' : 'Choose the work you want and whether employers can discover your profile.'}</p>
       {/* ── Matching readiness, and the autosave indicator ───────────────── */}
