@@ -41,7 +41,7 @@ import GapProbeDialog from "@/components/resume-hub/GapProbeDialog";
 import { classifyProbableIssue, type ProbeTarget } from "@/lib/gapProbe";
 import { resumeHubApi, type ResumeContent, type TalentPoolStatus, type GuidedIntakeExtraction, type GapProbeResult } from "@/lib/resumeHub";
 import { reindexTalentPool, setPoolOptInCache } from "@/lib/talentPoolSync";
-import { buildResumeDocxBlob, downloadBlob, fileBase, resumeToText } from "@/lib/resumeDocs";
+import { downloadBlob, fileBase, resumeToText } from "@/lib/resumeText";
 const ResumeDiffViewer = lazy(() => import('./ResumeDiffViewer'));
 import { computeReadiness } from "@/lib/profileGaps";
 import { createPendingResumeOperation } from "@/lib/pendingResumeOperation";
@@ -649,8 +649,13 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   // v3.143.0 — asked directly to drop PDF for anything AYN itself writes,
   // since it's the harder format for an ATS or an AI reader to parse
   // reliably. Word only, from here on.
+  //
+  // Sept 2026 — buildResumeDocxBlob (and the jsPDF/docx libraries behind
+  // it) is now a dynamic import, not a static one, so opening Profile
+  // never pays that ~230KB cost until someone actually clicks Download.
   const downloadResume = async (content: ResumeContent, name: string) => {
     try {
+      const { buildResumeDocxBlob } = await import("@/lib/resumeDocs");
       const base = fileBase(name || "Resume");
       downloadBlob(await buildResumeDocxBlob(content), `${base}.docx`);
     } catch (e) {

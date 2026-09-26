@@ -29,7 +29,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Download, X, ArrowLeft, Search } from "lucide-react";
-import { resumeToText, buildResumeDocxBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
+import { resumeToText, downloadBlob, fileBase } from "@/lib/resumeText";
 import ResumeDiffViewer from "./ResumeDiffViewer";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
@@ -356,8 +356,13 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // to parse reliably, and there's nothing lost by dropping it here since
   // AYN's own renderer is producing this file either way, not preserving
   // an original upload's formatting. Word only, from here on.
+  //
+  // Sept 2026 — both builders (and the jsPDF/docx libraries behind them)
+  // are now a dynamic import, not a static one, so opening Saved Jobs
+  // never pays that ~230KB cost until someone actually clicks Download.
   const downloadDoc = async (content: ResumeContent, base: string) => {
     try {
+      const { buildResumeDocxBlob } = await import("@/lib/resumeDocs");
       downloadBlob(await buildResumeDocxBlob(content), `${base}.docx`);
     } catch (e) {
       toast({ title: "Download failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
@@ -366,6 +371,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
 
   const downloadText = async (text: string, base: string) => {
     try {
+      const { buildTextDocxBlob } = await import("@/lib/resumeDocs");
       downloadBlob(await buildTextDocxBlob(text), `${base}.docx`);
     } catch (e) {
       toast({ title: "Download failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });

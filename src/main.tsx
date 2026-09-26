@@ -4,21 +4,32 @@
 // every family was imported with every subset (latin, latin-ext, cyrillic,
 // greek, vietnamese) and two families were not used anywhere. Latin subsets
 // only, and only the weights in use.
+//
+// Sept 2026 -- deep investigation into "why is the app slow, why does it
+// take time for pages to show up." Checked live usage of every family
+// still imported here, not assumed from the comment above (which was
+// accurate once, not re-verified since): Inter Tight had zero references
+// anywhere in the app; Space Grotesk and DM Sans were each used in exactly
+// one place, a font-family string inside Header.tsx -- itself confirmed to
+// have zero importers anywhere in src/, a fully orphaned component from an
+// earlier redesign pass, never rendered. All three were still being
+// downloaded, unconditionally, on every single page view, before first
+// paint, for a total of six separate font-weight files (~98KB) serving a
+// component that never runs. Removed. Syne and Inter both survive --
+// Syne backs real admin-panel headings (.admin-surface h1/h2/h3) and Inter
+// backs real, live SVG mockup text (AppMockups.tsx, rendered on the actual
+// landing page for every visitor) -- confirmed both by grepping their real
+// call sites, not by the same kind of stale assumption that let the first
+// three sit here unused this whole time.
 import '@fontsource/syne/latin-500.css';
 import '@fontsource/syne/latin-600.css';
 import '@fontsource/syne/latin-700.css';
-import '@fontsource/inter-tight/latin-600.css';
-import '@fontsource/inter-tight/latin-700.css';
 import '@fontsource/inter/latin-400.css';
 import '@fontsource/inter/latin-500.css';
 import '@fontsource/inter/latin-600.css';
 import '@fontsource/inter/latin-700.css';
 import '@fontsource/jetbrains-mono/latin-400.css';
 import '@fontsource/jetbrains-mono/latin-500.css';
-import '@fontsource/space-grotesk/latin-600.css';
-import '@fontsource/space-grotesk/latin-700.css';
-import '@fontsource/dm-sans/latin-400.css';
-import '@fontsource/dm-sans/latin-500.css';
 
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'

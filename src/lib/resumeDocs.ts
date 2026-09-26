@@ -24,48 +24,35 @@
  * against and landing on two pages more often than the PDF ever would.
  * Fixed by giving the DOCX section the identical 0.75in margins the PDF
  * already uses, so the same picked size fits the same real width in both.
+ *
+ * Sept 2026 — split, not just trimmed, during a deep investigation into
+ * app-wide load time. This file's own jsPDF+docx imports made it a 742KB
+ * (230KB gzipped) chunk on its own, the single biggest chunk in the whole
+ * build — and it was a static, top-level import in both ProfileTab.tsx
+ * and JobsTab.tsx, meaning every signed-in visitor paid that cost just to
+ * open their Profile or Saved Jobs tab, whether or not they ever clicked
+ * Download. resumeToText/fileBase/downloadBlob (needed immediately, for
+ * the diff viewer, with no heavy dependency of their own) moved to the
+ * new src/lib/resumeText.ts; both real callers now import THIS file's own
+ * exports (buildResumeDocxBlob/buildTextDocxBlob) with a dynamic import()
+ * at the actual download click, not at the top of the file, so this
+ * chunk only ever loads for someone who actually clicks Download.
+ *
+ * Also removed here, not just moved: buildResumePdfBlob and
+ * buildTextPdfBlob, confirmed to have zero callers anywhere in the app
+ * (repo-wide grep) since v3.143.0's own direct decision to drop PDF for
+ * every document AYN itself writes, DOCX only from that point on — see
+ * that version's comment on buildResumeDocxBlob below, which explains
+ * why. jsPDF itself stays a real dependency of this file regardless: it's
+ * still used, live, purely as a text-measuring ruler inside
+ * buildResumeDocxBlob/pickFontSize, to pick the one font size that will
+ * actually fit the page before handing that size to docx for real output.
  */
 import { jsPDF } from "jspdf";
 import { Document, Packer, Paragraph, TextRun, TabStopType, AlignmentType } from "docx";
 import type { ResumeContent } from "@/lib/resumeHub";
 
-/** Flatten a structured resume into plain text — used by the diff viewer, not the downloads below. */
-export function resumeToText(c: ResumeContent): string {
-  const b = c.basics ?? {};
-  const lines: string[] = [];
-  if (b.name) lines.push(b.name);
-  const linkUrls = (b.links ?? []).map(l => l.url).filter(Boolean);
-  const contact = [b.title, b.email, b.phone, b.location, ...linkUrls].filter(Boolean).join(" | ");
-  if (contact) lines.push(contact);
-  if (b.summary) lines.push("", "SUMMARY", b.summary);
-
-  if ((c.skillGroups ?? []).length) {
-    lines.push("", "SKILLS");
-    (c.skillGroups ?? []).forEach(g => lines.push(`${g.category}: ${g.skills.join(", ")}`));
-  } else if ((c.skills ?? []).length) {
-    lines.push("", "SKILLS", (c.skills ?? []).join(", "));
-  }
-
-  if ((c.work ?? []).length) {
-    lines.push("", "EXPERIENCE");
-    (c.work ?? []).forEach(w => {
-      const when = [w.start, w.end || "Present"].filter(Boolean).join(" to ");
-      lines.push([w.title, w.company].filter(Boolean).join(", ") + (when ? ` (${when})` : ""));
-      (w.bullets ?? []).filter(Boolean).forEach(x => lines.push(`• ${x}`));
-      lines.push("");
-    });
-  }
-  if ((c.certifications ?? []).length) lines.push("CERTIFICATIONS & LICENSES", (c.certifications ?? []).join(", "), "");
-  if ((c.education ?? []).length) {
-    lines.push("EDUCATION");
-    (c.education ?? []).forEach(e =>
-      lines.push([e.degree, e.field, e.school].filter(Boolean).join(", "))
-    );
-  }
-  return lines.join("\n").trim();
-}
-
-// ── Structured layout, shared by the PDF and DOCX builders ─────────────────
+// ── Structured layout ───────────────────────────────────────────────────
 //
 // A resume is a short, fixed list of block types (name, contact line,
 // summary, section header, a job/school title, a bullet, a plain line), each
@@ -187,7 +174,12 @@ function isExecutiveResume(c: ResumeContent): boolean {
   return EXEC_TITLE_RE.test(c.basics?.title || "");
 }
 
-/** Lays out every block at the given size. draw=false only measures (no page-break safety net, so the returned height reflects true overflow). */
+/** Lays out every block at the given size, purely as a measuring ruler for
+ * pickFontSize below — jsPDF itself never produces an actual downloadable
+ * PDF in this file any more (buildResumePdfBlob was deleted, confirmed zero
+ * callers anywhere), only DOCX does. draw=false only measures (no page-break
+ * safety net, so the returned height reflects true overflow); draw=true is
+ * still used by pickFontSize's own internal search, never to output a file. */
 function layoutPdf(doc: jsPDF, blocks: DocBlock[], baseSize: number, draw: boolean): number {
   let y = MARGIN;
   for (let block of blocks) {
@@ -242,12 +234,11 @@ function layoutPdf(doc: jsPDF, blocks: DocBlock[], baseSize: number, draw: boole
 }
 
 // v3.143.0 — safetyMargin gives the picked size headroom below the exact
-// measured cap. The PDF path leaves it at 1 (its own measurement is
-// authoritative for itself, nothing to hedge against); the DOCX path below
-// passes a tighter margin, since Word renders the same size a little wider
-// than jsPDF's Helvetica-as-a-ruler estimate assumes, and DOCX no longer
-// has a PDF fallback sitting next to it once PDF is dropped for AYN's own
-// written documents — this is now the only copy the person downloads.
+// measured cap. The DOCX path passes a tighter margin, since Word renders
+// the same size a little wider than jsPDF's Helvetica-as-a-ruler estimate
+// assumes, and DOCX no longer has a PDF fallback sitting next to it once
+// PDF is dropped for AYN's own written documents — this is now the only
+// copy the person downloads.
 function pickFontSize(doc: jsPDF, blocks: DocBlock[], allowTwoPages: boolean, safetyMargin = 1): number {
   const sizes = allowTwoPages ? EXEC_CANDIDATE_SIZES : CANDIDATE_SIZES;
   const cap = (allowTwoPages ? CONTENT_H * 2 : CONTENT_H) * safetyMargin;
@@ -257,38 +248,28 @@ function pickFontSize(doc: jsPDF, blocks: DocBlock[], allowTwoPages: boolean, sa
   return sizes[sizes.length - 1];
 }
 
-export function buildResumePdfBlob(c: ResumeContent): Blob {
-  const doc = new jsPDF({ unit: "pt", format: "letter" });
-  const blocks = buildResumeBlocks(c);
-  const size = pickFontSize(doc, blocks, isExecutiveResume(c));
-  layoutPdf(doc, blocks, size, true);
-  return doc.output("blob");
-}
-
 // v3.137.0 — twips (1pt = 20 twips) is the unit both the page margin and
 // the tab-stop position below need, converted from the exact same
-// point-based constants the PDF builder uses.
+// point-based constants the (deleted) PDF builder used to draw in.
 const TWIPS_PER_PT = 20;
 
 // v3.143.0 — Calibri was the docx library's own convenient default, never
 // a deliberate choice — asked directly for whatever's easiest for an ATS
 // or an AI reader to parse. Arial is the standard answer (it's a
 // metric-compatible clone of Helvetica, built for exactly this kind of
-// cross-renderer parity), and it's also what the PDF builder already
-// draws in, so both formats now genuinely match instead of two different
-// typefaces that happen to look similar.
+// cross-renderer parity), and it's also what the PDF measuring-ruler above
+// still draws in, so the picked size genuinely matches instead of two
+// different typefaces that happen to look similar.
 const DOCX_FONT = "Arial";
 
 export async function buildResumeDocxBlob(c: ResumeContent): Promise<Blob> {
   const blocks = buildResumeBlocks(c);
   // jsPDF is used here purely as a text-measuring ruler so the DOCX picks
-  // the same size the PDF settled on — now a closer estimate than before
-  // since both sides draw in Helvetica/Arial, real metric equivalents of
-  // each other, not just "close enough". Word still does its own
-  // pagination, so this can't be a hard guarantee the way the PDF builder
-  // is — the safety margin below is the hedge against that gap, which
-  // matters more now that DOCX is the only format AYN's own written
-  // documents download as.
+  // a real, considered size — Word still does its own pagination, so this
+  // can't be a hard guarantee the way a real PDF layout would be; the
+  // safety margin above is the hedge against that gap, which matters more
+  // now that DOCX is the only format AYN's own written documents download
+  // as.
   const size = pickFontSize(new jsPDF({ unit: "pt", format: "letter" }), blocks, isExecutiveResume(c), 0.93);
   const rightTabPos = Math.round(CONTENT_W * TWIPS_PER_PT);
 
@@ -349,25 +330,10 @@ export async function buildResumeDocxBlob(c: ResumeContent): Promise<Blob> {
 // ── Plain text documents (cover letters) ───────────────────────────────────
 //
 // A cover letter is prose, not a structured resume, so it has no blocks to
-// style. Same page setup and fonts as the resume builders, one fixed size.
+// style. Same page setup and font as the resume builder above, one fixed
+// size — no jsPDF measuring pass needed here, since there's no shrink-to-
+// fit ladder for plain prose the way there is for a resume's own sections.
 const TEXT_SIZE = 11;
-
-export function buildTextPdfBlob(text: string): Blob {
-  const doc = new jsPDF({ unit: "pt", format: "letter" });
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(TEXT_SIZE);
-  const lineH = TEXT_SIZE * 1.45;
-  let y = MARGIN;
-  for (const para of String(text ?? "").split(/\n/)) {
-    const wrapped: string[] = para.trim() ? doc.splitTextToSize(para, CONTENT_W) : [""];
-    for (const line of wrapped) {
-      if (y > PAGE_H - MARGIN) { doc.addPage(); y = MARGIN; }
-      doc.text(line, MARGIN, y);
-      y += lineH;
-    }
-  }
-  return doc.output("blob");
-}
 
 export async function buildTextDocxBlob(text: string): Promise<Blob> {
   const paragraphs = String(text ?? "").split(/\n/).map(line =>
@@ -378,20 +344,4 @@ export async function buildTextDocxBlob(text: string): Promise<Blob> {
   );
   const doc = new Document({ sections: [{ children: paragraphs }] });
   return Packer.toBlob(doc);
-}
-
-
-
-export function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-/** Safe file base like "Ghazi_Aldhyaei_Acme_Resume". */
-export function fileBase(...parts: (string | undefined | null)[]) {
-  return parts.filter(Boolean).join("_").replace(/[^A-Za-z0-9_-]+/g, "_").replace(/_+/g, "_").slice(0, 80);
 }
