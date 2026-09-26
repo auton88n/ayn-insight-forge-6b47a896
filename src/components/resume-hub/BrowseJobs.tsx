@@ -2187,7 +2187,13 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
 
       {/* Split view: list on the left, the full posting on the right */}
       {viewMode === "list" && (
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-4 items-start">
+      /* Sept 2026 -- "the card for JD here is small not like job search."
+         Job search's own list/detail split gives the detail pane a real
+         .9fr/1.6fr ratio (roughly two thirds of the row), matching that
+         exactly here instead of the near-even 1fr/1.15fr split this page
+         had -- the actual gap the report was about, not a sizing detail
+         inside the pane itself. */
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(270px,.9fr)_minmax(0,1.6fr)] gap-4 items-start">
         <div className="space-y-3">
           {loading ? (
             <Card className="divide-y divide-border/60 border-border/60 overflow-hidden p-0 rounded-xl shadow-none hover:shadow-none">
