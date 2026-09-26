@@ -1733,18 +1733,25 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           </p>
         )}
 
+        {/* Sept 2026 -- reported directly, comparing this detail header
+            against Job search's own: "two is better." Job search's own
+            equivalent line (.lp-browser-pill-row) is plain inline text,
+            no boxed background, no uppercase label -- this used to be a
+            grid of separately-boxed "SALARY"/"WORK MODE" mini-cards, the
+            single biggest visual difference between the two. Flattened to
+            match: one plain inline row, values only (a job's own salary
+            string or "Remote" already reads as what it is without a label
+            over it), keeping the same gold/trust color cues the list row
+            right next to this pane already uses for salary and work mode. */}
         {highlightCells.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {highlightCells.map((c) => (
-              <div key={c.key} className="rounded-lg px-3 py-2" style={{ background: "var(--rh-raised)", border: "1px solid var(--rh-hair)" }}>
-                <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--rh-faint)" }}>{c.label}</div>
-                <div
-                  className="text-[14px] font-bold truncate"
-                  style={{ color: c.tone === "gold" ? "var(--rh-gold)" : c.tone === "trust" ? "var(--rh-trust)" : "var(--rh-ink)" }}
-                >
+          <div className="flex items-center gap-2 flex-wrap text-[13px] font-semibold">
+            {highlightCells.map((c, i) => (
+              <span key={c.key} className="inline-flex items-center gap-2">
+                {i > 0 && <span aria-hidden="true" style={{ color: "var(--rh-hair)" }}>·</span>}
+                <span style={{ color: c.tone === "gold" ? "var(--rh-gold)" : c.tone === "trust" ? "var(--rh-trust)" : "var(--rh-muted)" }}>
                   {c.value}
-                </div>
-              </div>
+                </span>
+              </span>
             ))}
           </div>
         )}
