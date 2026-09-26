@@ -365,9 +365,24 @@ button, a, input, textarea, select {
     @apply border-border;
   }
 
+  /* Sept 2026 -- deep research pass on AI-generated vs professional design,
+     run directly against this codebase. Every source checked names Inter
+     as THE single most-cited AI-slop typeface -- "the median of a model's
+     training data," the literal default that ships when nobody decided
+     otherwise. AYN's own real, user-facing surfaces (.lp, .resume-hub-theme)
+     deliberately moved off it years ago onto Outfit/Figtree specifically to
+     avoid this (see this file's own history around the "Charcoal & Ember"
+     redesign) -- but this bare, unscoped body rule, the app's own literal
+     fallback for anything NOT wrapped in one of those scopes (a portal that
+     forgot to carry the scope class, a future component nobody remembered
+     to wrap), was still the textbook default. Figtree is already loaded
+     (index.html) and is already .lp's own real body-text face -- using it
+     here too means anything that ever falls through to this bare default
+     lands on the brand's own body font, not the generic one, instead of
+     needing every future surface to remember to rescue itself from it. */
   body {
     @apply bg-background text-foreground font-sans;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     min-height: 100vh;
     letter-spacing: -0.01em;
     font-feature-settings: 'kern' 1, 'liga' 1;
