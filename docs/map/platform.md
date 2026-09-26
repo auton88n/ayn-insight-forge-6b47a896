@@ -1,3 +1,7 @@
+# Supporting-page workspace design — 26 September 2026
+
+`HomeTabs.tsx` uses topic navigation plus searchable answers for Help, native disclosures for FAQ, and a responsive four/two/one-column pricing comparison. Selecting a Help topic clears its local search without altering the Home route hash. All support links still call the shared tab navigation. `AccountTabs.tsx` signed-out gates name the requested workspace section and align with sibling page headings while retaining separate signup/signin actions. Features use a divided directory instead of independent floating tiles. Shared styling lives in `src/styles/workspace.css`; brand assets, backend actions and checkout logic are unchanged. `tests/browser/supporting-pages.spec.ts` exercises these public states at 390px and 1440px with external traffic blocked.
+
 # v3.342.0 Admin metrics exclude erased accounts and test-only history
 
 Admin operational reports now describe only accounts that can still sign in. The source of the misleading 10,000-plus seeker and missing-consent figures was `get_admin_overview()` and related admin RPCs reading every `auth.users` row, including anonymized, banned erasure tombstones. The same gap let orphaned employer rows and retained deleted-account subscriptions/ledger entries appear as live marketplace and revenue activity.

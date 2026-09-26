@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-26T00:00:00Z",
+  "title": "AYN workspace",
+  "extensions": {
+    "shadows": [{ "name": "workspace", "value": "none", "purpose": "Flat document and support surfaces." }],
+    "motion": [{ "name": "control-state", "value": "150ms ease", "purpose": "Hover and disclosure state changes; honor reduced motion." }],
+    "breakpoints": [{ "name": "help-stack", "value": "700px" }, { "name": "pricing-single", "value": "480px" }]
+  },
+  "components": []
+}

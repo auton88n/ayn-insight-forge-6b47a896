@@ -26,10 +26,10 @@
 .lp .lp-btn-ghost { background: #fff; border: 1px solid #d9d1c9; color: #332b25; }
 .lp .lp-btn-ghost:hover { background: #f5f2ed; transform: none; box-shadow: none; }
 .lp .lp-btn:disabled { opacity: .6; cursor: not-allowed; }
-.lp .lp-panel, .lp .lp-tile, .lp .lp-legal-row { border-radius: 12px; background: #fff; box-shadow: none; }
-.lp .lp-tile:hover, .lp .lp-legal-row:hover { transform: none; box-shadow: none; }
-.lp .lp-tile { padding: 24px; }
-.lp .lp-tile h3 { font-size: 20px; }
+.lp .lp-panel, .lp .lp-tile, .lp .lp-flow-step, .lp .lp-legal-row { border-radius: 12px; background: #fff; box-shadow: none; }
+.lp .lp-tile:hover, .lp .lp-flow-step:hover, .lp .lp-legal-row:hover { transform: none; box-shadow: none; }
+.lp .lp-tile, .lp .lp-flow-step { padding: 24px; }
+.lp .lp-tile h3, .lp .lp-flow-step h3 { font-size: 20px; }
 .lp .lp-tile-icon { background: transparent; border: 0; border-radius: 0; width: 24px; height: 24px; color: #a43f21; }
 .lp .lp-closing { border-radius: 12px; box-shadow: none; }
 .lp .lp-footer-bottom { padding-block: 20px; font-size: 12px; }
@@ -82,19 +82,18 @@
 .lp .ayn-plan { display: flex; flex-direction: column; min-width: 0; padding: 24px 20px; }
 .lp .ayn-plan-featured { border-color: #b64927; background: #fffaf6; }
 .lp .ayn-plan-credits { color: #913817; font-weight: 600; font-size: 14px; margin: 12px 0 0; }
-/* A plain divided list -- a border-top rule between rows, no card box --
-   instead of the older bordered-tile-card grid. Started on Features'
-   own tile grid (still reads .ayn-feature-directory as an alias so the
-   one existing call site keeps working); How it works' 4-step grid is
-   the same pattern (a row of equal items, an icon, a heading, a short
-   description) on a different underlying component (.lp-flow-step, not
-   .lp-tile), so it gets the identical rules rather than a second,
-   differently-named copy of the same idea. */
-.lp .ayn-directory-grid, .lp .ayn-feature-directory { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; }
+/* Sept 2026 -- reported directly against a live screenshot of Features'
+   own grid: "needs to be in white cards not like this." The prior divided-
+   list treatment here (a border-top rule between rows, no card box) is
+   reverted -- both grids this pattern covers (Features' .lp-tile grid, How
+   it works' .lp-flow-step grid) now use the same flattened-but-real white
+   card every .lp-panel/.lp-legal-row already gets (line 29 above), not a
+   borderless divider row. grid-column:auto is kept -- it's still what
+   forces an even 2-column layout regardless of any individual tile's own
+   declared span class. */
+.lp .ayn-directory-grid, .lp .ayn-feature-directory { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 32px; }
 .lp .ayn-directory-grid .lp-tile, .lp .ayn-feature-directory .lp-tile,
-.lp .ayn-directory-grid .lp-flow-step { grid-column: auto; background: transparent; border: 0; border-top: 1px solid #d9d1c9; border-radius: 0; padding: 24px 0; gap: 8px; }
-.lp .ayn-directory-grid .lp-tile-icon, .lp .ayn-feature-directory .lp-tile-icon,
-.lp .ayn-directory-grid .lp-flow-step .lp-tile-icon { margin-bottom: 12px; }
+.lp .ayn-directory-grid .lp-flow-step { grid-column: auto; }
 .lp .ayn-account-entry { min-height: 320px; }
 .lp .lp-gate { min-height: 0; display: block; }
 .contact-surface .lp-panel { padding: 24px; }
