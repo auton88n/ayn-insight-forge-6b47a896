@@ -1689,7 +1689,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             </div>
           )}
           <div className="min-w-0">
-            <h2 className="rh-display text-[19px] leading-snug">{selected.title}</h2>
+            <h2 className="rh-display text-[24px] leading-snug">{selected.title}</h2>
             <p className="text-sm flex items-center gap-1.5 mt-0.5" style={{ color: "var(--rh-muted)" }}>
               <Building2 className="w-3.5 h-3.5 shrink-0" />{selected.company}
             </p>
@@ -1749,6 +1749,51 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           </div>
         )}
 
+        <div className="flex items-center gap-2 flex-wrap pt-1">
+          <Button onClick={() => handleAdd(selected)} disabled={addingId === selected.id} style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }} className="hover:opacity-90">
+            {addingId === selected.id
+              ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              : <Plus className="w-4 h-4 mr-2" />}
+            Score and tailor
+          </Button>
+          {/* v3.148.0 — reported directly against a live screenshot: this
+              rendered half-fixed — a plain white/black-bordered button at
+              rest that flipped to a solid black fill on hover, since it's
+              a Button with asChild wrapping a real <a> tag, and the
+              resume-hub.css ember retint below only ever targeted actual
+              <button> elements (button.border-foreground), never an
+              anchor carrying the same class. Rather than widen that CSS
+              to catch every possible tag, this one's asked to be solid
+              black outright — a secondary "leave AYN" action reads fine
+              as a plain dark button next to the ember "Score and tailor"
+              primary action, not fighting it for the same accent color. */}
+          <Button asChild style={{ background: "#1c1712", borderColor: "#1c1712", color: "#fff" }} className="hover:opacity-90">
+            <a href={selected.apply_url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="w-4 h-4 mr-2" />Apply on company site
+            </a>
+          </Button>
+        </div>
+      </div>
+
+      {/* Sept 2026 -- "the job search is better than the job match in
+          terms of showing full card JD," compared directly against a
+          live screenshot of each. Job search's own detail pane reaches
+          the actual job description almost immediately (title, a pill
+          row, two buttons, one note, then the JD); this pane made you
+          scroll past a score pill, two trust lines, a four-cell
+          highlight grid, a skills list, a quote box and an activity note
+          first -- real, valuable information, just enough of it stacked
+          ahead of the JD that the description itself barely fit on
+          screen. Nothing here was deleted: skills, the company's own
+          words, and its hiring activity all still show, just after the
+          job description instead of pushing it down, matching Job
+          search's own "the description is the main content" ordering. */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: "var(--rh-faint)" }}>Job description</h3>
+          <JobDescriptionBody text={selected.description ?? ""} />
+        </div>
+
         {selected.skills && selected.skills.length > 0 && (
           <div>
             <div className="text-[10px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--rh-faint)" }}>Skills for this role</div>
@@ -1779,36 +1824,6 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             {" · newest posted "}{postedAge(companyActivity.mostRecent)}
           </p>
         )}
-
-        <div className="flex items-center gap-2 flex-wrap pt-1">
-          <Button onClick={() => handleAdd(selected)} disabled={addingId === selected.id} style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }} className="hover:opacity-90">
-            {addingId === selected.id
-              ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              : <Plus className="w-4 h-4 mr-2" />}
-            Score and tailor
-          </Button>
-          {/* v3.148.0 — reported directly against a live screenshot: this
-              rendered half-fixed — a plain white/black-bordered button at
-              rest that flipped to a solid black fill on hover, since it's
-              a Button with asChild wrapping a real <a> tag, and the
-              resume-hub.css ember retint below only ever targeted actual
-              <button> elements (button.border-foreground), never an
-              anchor carrying the same class. Rather than widen that CSS
-              to catch every possible tag, this one's asked to be solid
-              black outright — a secondary "leave AYN" action reads fine
-              as a plain dark button next to the ember "Score and tailor"
-              primary action, not fighting it for the same accent color. */}
-          <Button asChild style={{ background: "#1c1712", borderColor: "#1c1712", color: "#fff" }} className="hover:opacity-90">
-            <a href={selected.apply_url} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="w-4 h-4 mr-2" />Apply on company site
-            </a>
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-5">
-        <h3 className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: "var(--rh-faint)" }}>Job description</h3>
-        <JobDescriptionBody text={selected.description ?? ""} />
       </div>
     </div>
   );
