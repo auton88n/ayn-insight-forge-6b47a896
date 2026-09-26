@@ -123,9 +123,20 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
     </div>
     <div className="lp-browser-grid">
       <div className="lp-browser-list" aria-label="Job results" aria-busy={listings.isFetching}>
-        {listings.isPending ? Array.from({ length: 5 }, (_, index) => <div key={index} className="ayn-job-skeleton" aria-hidden="true" />) : listings.isError ? <div className="ayn-inline-state" role="alert"><h3>Jobs could not load</h3><p>Your search is still here. Please try again.</p><button className="lp-btn lp-btn-ghost" onClick={() => listings.refetch()}><RefreshCw size={16} /> Retry search</button></div> : jobs.length === 0 ? <div className="ayn-inline-state"><h3>No matching roles right now</h3><p>Try a broader title or another location.</p></div> : jobs.map(job => <button id={'job-result-' + job.id} key={job.id} type="button" onClick={() => openJob(job)} aria-pressed={selectedId === job.id} className={'lp-browser-card ' + (selectedId === job.id ? 'is-active' : '')}>
-          <div className="lp-browser-card-row">{logo(job)}<div className="lp-browser-card-text"><div className="lp-browser-card-company">{job.company}</div><div className="lp-browser-card-title">{job.title}</div><div className="lp-browser-card-meta">{job.location || 'Location not listed'}</div><div className="ayn-job-meta-bottom"><span>{job.employment_type ? EMPLOYMENT_TYPE_LABELS[job.employment_type] || job.employment_type : 'View posting'}</span><span>{postedAge(job.posted_at)}</span></div></div></div>
-        </button>)}
+        {listings.isPending ? Array.from({ length: 5 }, (_, index) => <div key={index} className="ayn-job-skeleton" aria-hidden="true" />) : listings.isError ? <div className="ayn-inline-state" role="alert"><h3>Jobs could not load</h3><p>Your search is still here. Please try again.</p><button className="lp-btn lp-btn-ghost" onClick={() => listings.refetch()}><RefreshCw size={16} /> Retry search</button></div> : jobs.length === 0 ? <div className="ayn-inline-state"><h3>No matching roles right now</h3><p>Try a broader title or another location.</p></div> : jobs.map(job => {
+          // Sept 2026 -- "i dont see the salaries and more info," compared
+          // directly against Job matches' own card, which already shows
+          // salary and a work-mode pill. The data was already fetched
+          // (PUBLIC_JOB_SUMMARY_COLUMNS includes salary_min/max/currency
+          // and work_mode) and resolveSalary was already imported here,
+          // just never called on this card -- only in the detail pane.
+          const salary = resolveSalary({ ...job, description: '' });
+          return (
+        <button id={'job-result-' + job.id} key={job.id} type="button" onClick={() => openJob(job)} aria-pressed={selectedId === job.id} className={'lp-browser-card ' + (selectedId === job.id ? 'is-active' : '')}>
+          <div className="lp-browser-card-row">{logo(job)}<div className="lp-browser-card-text"><div className="lp-browser-card-company">{job.company}</div><div className="lp-browser-card-title">{job.title}</div><div className="lp-browser-card-meta">{job.location || 'Location not listed'}{job.work_mode && ' · ' + job.work_mode.charAt(0).toUpperCase() + job.work_mode.slice(1)}</div><div className="ayn-job-meta-bottom"><span>{job.employment_type ? EMPLOYMENT_TYPE_LABELS[job.employment_type] || job.employment_type : 'View posting'}</span>{salary && <span className="ayn-job-salary" title={salary.fromListingText ? "Read directly from this posting's own text." : undefined}>{salary.text}</span>}<span className="ayn-job-posted">{postedAge(job.posted_at)}</span></div></div></div>
+        </button>
+          );
+        })}
         {listings.hasNextPage && <button className="lp-btn lp-btn-ghost ayn-load-more" onClick={() => listings.fetchNextPage()} disabled={listings.isFetchingNextPage}>{listings.isFetchingNextPage ? <Loader2 size={16} className="animate-spin" /> : null} Load more jobs</button>}
         {listings.isFetchNextPageError && <p role="alert">More jobs could not load. Use “Load more jobs” to retry.</p>}
       </div>

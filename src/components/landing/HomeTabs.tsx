@@ -514,33 +514,40 @@ export const AboutTab = () => (
         <h2 className="lp-display lp-h2">Hiring runs on volume. We think it should run on evidence.</h2>
         <p className="lp-lead">AYN is built by a team in Canada.</p>
       </div>
-      <div className="lp-reveal" style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 }}>
-        <p className="lp-note" style={{ fontSize: 15 }}>
-          AI made it effortless to apply everywhere, so everyone did. Hiring drowned in noise, and a hiring
-          manager who used to read forty applications started opening six hundred and reading none of them
-          properly. Somewhere in that pile was the one person who could actually do the job. Nobody had time
-          to find them.
-        </p>
-        <p className="lp-pullquote">
-          We built AYN because that person should not have to out-send a machine to be seen.
-        </p>
-        <div>
-          <h3 className="lp-display" style={{ fontSize: 17, marginBottom: 8 }}>Mission and vision</h3>
+      {/* Sept 2026 -- "in about us add a nice card i dont like to see the
+          text on the web cream page." This prose sat directly on the
+          page's own warm-paper background with nothing behind it; wrapped
+          in .lp-panel, the same real white card ContactTab right below
+          this one already uses, instead of inventing a second card style. */}
+      <div className="lp-panel lp-reveal" style={{ marginTop: 24, maxWidth: 720 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <p className="lp-note" style={{ fontSize: 15 }}>
-            Replace volume with evidence. Build a hiring market where being seen depends on what you have
-            done, not on how many places you applied.
+            AI made it effortless to apply everywhere, so everyone did. Hiring drowned in noise, and a hiring
+            manager who used to read forty applications started opening six hundred and reading none of them
+            properly. Somewhere in that pile was the one person who could actually do the job. Nobody had time
+            to find them.
+          </p>
+          <p className="lp-pullquote">
+            We built AYN because that person should not have to out-send a machine to be seen.
+          </p>
+          <div>
+            <h3 className="lp-display" style={{ fontSize: 17, marginBottom: 8 }}>Mission and vision</h3>
+            <p className="lp-note" style={{ fontSize: 15 }}>
+              Replace volume with evidence. Build a hiring market where being seen depends on what you have
+              done, not on how many places you applied.
+            </p>
+          </div>
+          <p className="lp-note" style={{ fontSize: 15 }}>
+            For job seekers, AYN reads a job posting, shows how you line up against it, and writes a resume
+            and cover letter from your real experience for that specific role. For employers, describe a role
+            once and AYN finds the people worth talking to, with the evidence behind each match and what they
+            are missing, instead of six hundred resumes and a guess.
+          </p>
+          <p className="lp-note" style={{ fontSize: 15 }}>
+            Switch discoverability on and employers see your background, not your name, email, or phone, until
+            you accept an offer.
           </p>
         </div>
-        <p className="lp-note" style={{ fontSize: 15 }}>
-          For job seekers, AYN reads a job posting, shows how you line up against it, and writes a resume
-          and cover letter from your real experience for that specific role. For employers, describe a role
-          once and AYN finds the people worth talking to, with the evidence behind each match and what they
-          are missing, instead of six hundred resumes and a guess.
-        </p>
-        <p className="lp-note" style={{ fontSize: 15 }}>
-          Switch discoverability on and employers see your background, not your name, email, or phone, until
-          you accept an offer.
-        </p>
       </div>
     </div>
   </section>

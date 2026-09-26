@@ -68,13 +68,12 @@ function useAccountAuth() {
 function SignInPrompt({ label, onStartFree }: { label: string; onStartFree: TabProps['onStartFree'] }) {
   return (
     <section className="lp-section lp-gate">
-      <div className="lp-shell" style={{ maxWidth: 640, textAlign: 'center' }}>
-        <p className="lp-eyebrow" style={{ justifyContent: 'center' }}>{label}</p>
-        <h2 className="lp-display lp-h2">Sign in to see this</h2>
-        <p className="lp-lead" style={{ marginInline: 'auto' }}>
+      <div className="lp-shell ayn-account-entry">
+        <h2 className="lp-display lp-h2">{label}</h2>
+        <p className="lp-lead">
           {label} is part of your own account. Sign in, or start free in a few seconds, to open it.
         </p>
-        <div className="lp-cta-row" style={{ flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 26 }}>
+        <div className="lp-cta-row" style={{ flexWrap: 'wrap', gap: 20, marginTop: 26 }}>
           <button type="button" className="lp-btn lp-btn-primary lp-btn-lg" onClick={() => onStartFree('job_seeker', 'signup')}>
             Start free
           </button>
@@ -115,14 +114,26 @@ function SignInPrompt({ label, onStartFree }: { label: string; onStartFree: TabP
 // here, inside the site's own real `.lp-section`/`.lp-shell` pair instead
 // of a bespoke wrapper, so this now matches every sibling tab's spacing
 // exactly rather than approximating it.
-function RhScope({ children }: { children: ReactNode }) {
+// Sept 2026 -- "job match is still diffrent," compared directly against
+// Job search at the same window width: even with the same list/detail
+// grid ratio, Job search's own detail pane measured a real, consistent
+// ~85px wider than Job matches' at an identical 1600px window. Not the
+// ratio, the outer cap: Job search sits in the site's default 1360px
+// .lp-shell, this wrapper has capped every account tab at 1180px since
+// v3.272.0, a width borrowed from EmployerHub.tsx's own unrelated
+// layout. Widened for Job matches only, the one tab that's genuinely a
+// list+detail job browser like Job search -- Profile, Saved jobs,
+// Proposals, Assessments and Settings keep the original 1180px, since
+// none of them were reported and none share this page's own reason to
+// want the extra room.
+function RhScope({ children, maxWidth = 1180 }: { children: ReactNode; maxWidth?: number }) {
   useEffect(() => {
     document.body.classList.add('resume-hub-theme');
     return () => document.body.classList.remove('resume-hub-theme');
   }, []);
   return (
     <section className="lp-section resume-hub-theme">
-      <div className="lp-shell" style={{ maxWidth: 1180 }}>{children}</div>
+      <div className="lp-shell" style={{ maxWidth }}>{children}</div>
     </section>
   );
 }
@@ -176,7 +187,7 @@ export const MatchedJobsAccountTab = ({ onSelectTab, onStartFree }: TabProps) =>
   if (userId === undefined) return <TabFallback />;
   if (!userId) return <SignInPrompt label="Job matches" onStartFree={onStartFree} />;
   return (
-    <RhScope>
+    <RhScope maxWidth={1360}>
       <Suspense fallback={<TabFallback />}>
         <BrowseJobs
           userId={userId}

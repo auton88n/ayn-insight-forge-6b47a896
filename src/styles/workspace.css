@@ -104,10 +104,19 @@
    divided list instead of an individually bordered/shadowed card per
    row -- but keeps its own real, extra badges (score, New, Seen, salary,
    bookmark) untouched, only the row's own outer shape changes. */
-.resume-hub-theme.resume-hub-theme .ayn-match-row { border: none; border-bottom: 1px solid var(--rh-hair); border-radius: 0; box-shadow: none; }
+/* Sept 2026 -- "make all the cards color in the pages white not cream
+   color." The active row used to tint a real peach (var(--rh-tint)),
+   and since the first job is selected by default, that tint was the
+   very first thing painted on the page -- reading as "the cards are
+   cream," not just the one active one. Selection is now a left accent
+   bar instead of a background tint, so every row, active or not, stays
+   the same white surface. A transparent 3px border is always reserved
+   (not just added on .is-active) so gaining the real ember color on
+   selection never shifts the row's own content sideways. */
+.resume-hub-theme.resume-hub-theme .ayn-match-row { border: none; border-left: 3px solid transparent; border-bottom: 1px solid var(--rh-hair); border-radius: 0; box-shadow: none; }
 .resume-hub-theme.resume-hub-theme .ayn-match-row:last-child { border-bottom: none; }
 .resume-hub-theme.resume-hub-theme .ayn-match-row:hover { background: var(--rh-raised); }
-.resume-hub-theme.resume-hub-theme .ayn-match-row.is-active { background: var(--rh-tint); }
+.resume-hub-theme.resume-hub-theme .ayn-match-row.is-active { background: #fff; border-left-color: var(--rh-accent); }
 @media (max-width: 1200px) { .lp .ayn-plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) {
   .ayn-help-layout { grid-template-columns: minmax(0, 1fr); gap: 28px; }
@@ -136,15 +145,24 @@
 .ayn-text-link { text-decoration: underline; text-underline-offset: 4px; color: #675e57; }
 .lp .ayn-job-browser .lp-browser-grid { grid-template-columns: minmax(270px, .9fr) minmax(0, 1.6fr); gap: 24px; }
 .lp .ayn-job-browser .lp-browser-list { gap: 0; border: 1px solid #e7e1da; border-radius: 12px; overflow: hidden; background: #fff; }
-.lp .ayn-job-browser .lp-browser-card { border: none; border-bottom: 1px solid #e7e1da; border-radius: 0; padding: 18px 16px; background: #fff; box-shadow: none; transform: none; }
+/* Sept 2026 -- "make all the cards color in the pages white not cream
+   color," same fix as the Job matches row right above: the active card
+   tinted a real peach (#fbeade), and with the first job selected by
+   default that's the very first color painted on the page. Selection
+   is now a left accent bar (a permanently reserved, normally
+   transparent 3px border, so gaining the real ember color never shifts
+   the card's own content) instead of a background tint. */
+.lp .ayn-job-browser .lp-browser-card { border: none; border-left: 3px solid transparent; border-bottom: 1px solid #e7e1da; border-radius: 0; padding: 18px 16px 18px 13px; background: #fff; box-shadow: none; transform: none; }
 .lp .ayn-job-browser .lp-browser-card:last-child { border-bottom: none; }
 .lp .ayn-job-browser .lp-browser-card:hover { background: #faf8f3; transform: none; }
-.lp .ayn-job-browser .lp-browser-card.is-active { background: #fbeade; box-shadow: none; }
+.lp .ayn-job-browser .lp-browser-card.is-active { background: #fff; box-shadow: none; border-left-color: hsl(var(--lp-ember)); }
 .lp .ayn-job-browser .lp-browser-card:focus-visible { outline-offset: -3px; }
 .lp .ayn-job-browser .lp-browser-card-title { font-size: 15px; line-height: 1.4; white-space: normal; margin-block: 4px; }
 .lp .ayn-job-browser .lp-browser-card-company { font-size: 12px; color: #71655b; }
 .lp .ayn-job-browser .lp-browser-card-meta { display: block; font-size: 12px; color: #71655b; }
-.ayn-job-meta-bottom { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; color: #71655b; margin-top: 10px; }
+.ayn-job-meta-bottom { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: #71655b; margin-top: 10px; }
+.ayn-job-posted { margin-left: auto; }
+.ayn-job-salary { font-weight: 700; color: #b8862f; }
 .lp .ayn-job-browser .lp-browser-logo, .lp .ayn-job-browser .lp-browser-avatar { width: 32px; height: 32px; border-radius: 7px; border: 0; background: #eee9e2; color: #675e57; }
 .lp .ayn-job-browser .lp-browser-detail-logo, .lp .ayn-job-browser .lp-browser-detail-avatar { width: 44px; height: 44px; border-radius: 9px; background: #f0ebe4; color: #675e57; border: 0; }
 .lp .ayn-job-browser .lp-browser-detail { position: sticky; top: 20px; max-height: calc(100dvh - 40px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #c9bfb4 transparent; }
