@@ -1668,9 +1668,24 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       ].filter((c): c is { key: string; label: string; value: string; tone?: "gold" | "trust" } => !!c)
     : [];
 
+  {/* Sept 2026 -- "why still small card not like the other one full and
+      scroll in... i want you to copy exactly how the cards in job search
+      and mimic the cards layout and the movements." This used to be a
+      fixed-height header (border-b) plus a SEPARATE inner flex-1
+      overflow-y-auto div for the job description alone -- two scroll
+      regions stacked inside one outer Card, itself pinned to a hard
+      h-[calc(100vh-8rem)]. Job search's own equivalent (.lp-browser-detail)
+      is one plain flowing block -- header, pills, buttons, description,
+      all together -- inside a single sticky/max-height/overflow-y:auto
+      wrapper, so the whole card scrolls (and pins) as one piece, the same
+      "movement" a real Indeed-style detail pane has. Restructured to
+      match exactly: no more inner split, one continuous block: the
+      sticky/max-height/scroll treatment now lives on the outer Card
+      itself (below, at this component's return), matching Job search's
+      own top:20px / max-height:calc(100vh-40px) numbers precisely rather
+      than the old, unrelated 16px/8rem values. */}
   const detail = selected && (
-    <div className="flex flex-col h-full">
-      <div className="p-5 border-b space-y-3" style={{ borderColor: "var(--rh-hair)" }}>
+    <div className="p-5 space-y-3">
         <div className="flex items-start gap-3">
           {resolveLogoUrl(selected) && !logoFailed.has(selected.id) ? (
             <img
@@ -1780,7 +1795,6 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             </a>
           </Button>
         </div>
-      </div>
 
       {/* Sept 2026 -- "the job search is better than the job match in
           terms of showing full card JD," compared directly against a
@@ -1794,8 +1808,13 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           screen. Nothing here was deleted: skills, the company's own
           words, and its hiring activity all still show, just after the
           job description instead of pushing it down, matching Job
-          search's own "the description is the main content" ordering. */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          search's own "the description is the main content" ordering.
+          Sept 2026 -- no longer its own separate scroll region either
+          (see this block's own opening comment): a plain divider before
+          the description, matching Job search's .lp-browser-jd border-top,
+          not a second flex-1/overflow-y-auto area competing with the
+          outer Card's own scroll. */}
+      <div className="pt-4 mt-1 border-t space-y-4" style={{ borderColor: "var(--rh-hair)" }}>
         <div>
           <h3 className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: "var(--rh-faint)" }}>Job description</h3>
           <JobDescriptionBody text={selected.description ?? ""} />
@@ -2413,8 +2432,21 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           )}
         </div>
 
-        {/* Desktop detail pane */}
-        <Card className="hidden lg:block border-border/60 overflow-hidden sticky top-4 h-[calc(100vh-8rem)] p-0 rounded-xl shadow-none hover:shadow-none">
+        {/* Desktop detail pane -- Sept 2026, "copy exactly how the cards
+            in job search and mimic the cards layout and the movements."
+            top-5/max-h-[calc(100vh-40px)]/overflow-y-auto are Job search's
+            own .lp-browser-detail numbers (position:sticky, top:20px,
+            max-height:calc(100vh-40px)), not this page's old, unrelated
+            top-4/h-[calc(100vh-8rem)]/overflow-hidden -- a hard height
+            plus overflow-hidden always left a card exactly one fixed size
+            regardless of content, with the visible white box ending well
+            short of the viewport whenever a job's own detail content
+            didn't fill it; max-height plus overflow-y-auto instead lets a
+            short posting's card be its own natural (shorter) height with
+            no wasted blank space reserved beneath it, and a long one
+            scroll as one continuous piece up to the same cap Job search
+            itself uses, exactly the "movement" being asked to match. */}
+        <Card className="hidden lg:block border-border/60 overflow-y-auto sticky top-5 max-h-[calc(100vh-40px)] p-0 rounded-xl shadow-none hover:shadow-none">
           {selected
             ? detail
             : <p className="p-10 text-sm text-muted-foreground text-center">Pick a job to read the full posting.</p>}
