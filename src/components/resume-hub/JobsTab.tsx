@@ -507,7 +507,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
             permanently dismissible, since the silence itself doesn't end
             just because someone closed the card once. */}
         {selected.application_status === "applied" && !nudgeSnoozed && daysSince(selected.application_status_changed_at) >= SILENCE_NUDGE_DAYS && (
-          <Card className="p-4 rounded-xl flex items-start justify-between gap-3" style={{ background: "var(--rh-tint)", borderColor: "#e85d3a33" }}>
+          <Card className="p-4 rounded-xl flex items-start justify-between gap-3 shadow-none hover:shadow-none" style={{ background: "var(--rh-tint)", borderColor: "#e85d3a33" }}>
             <p className="text-sm leading-relaxed" style={{ color: "var(--rh-ink)" }}>
               It's been <span className="font-semibold">{daysSince(selected.application_status_changed_at)} days</span> since you applied to{" "}
               <span className="font-semibold">{selected.company}</span> for {selected.title} — still no word? Most replies land faster than
@@ -840,14 +840,14 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       )}
 
       {jobs.length === 0 && (
-        <Card className="p-10 text-center rounded-xl" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
+        <Card className="p-10 text-center rounded-xl shadow-none hover:shadow-none" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
           <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
           No saved jobs yet. Browse jobs to get started.
         </Card>
       )}
 
       {visibleJobs.length === 0 && jobs.length > 0 && (
-        <Card className="p-8 text-center rounded-xl" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
+        <Card className="p-8 text-center rounded-xl shadow-none hover:shadow-none" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
           {q ? `Nothing matches "${jobQuery.trim()}".` : "Nothing in this stage yet."}
         </Card>
       )}

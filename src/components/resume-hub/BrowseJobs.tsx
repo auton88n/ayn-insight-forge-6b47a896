@@ -2175,7 +2175,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-4 items-start">
         <div className="space-y-3">
           {loading ? (
-            <Card className="divide-y divide-border/60 border-border/60 overflow-hidden p-0 rounded-xl shadow-sm">
+            <Card className="divide-y divide-border/60 border-border/60 overflow-hidden p-0 rounded-xl shadow-none hover:shadow-none">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3 p-4">
                   <Skeleton className="w-10 h-10 rounded-lg shrink-0" />
@@ -2187,21 +2187,26 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
               ))}
             </Card>
           ) : jobs.length === 0 ? (
-            <Card className="p-10 text-center rounded-xl shadow-sm">
+            <Card className="p-10 text-center rounded-xl shadow-none hover:shadow-none">
               <p className="text-sm text-muted-foreground">
                 {hasFilters ? "No jobs match your search. Try clearing a filter." : "No fresh postings right now, check back soon."}
               </p>
             </Card>
           ) : (
             <>
-              {/* v3.171.0 — was one bordered Card with hairline-divided
-                  rows, the flat "safe" list-row pattern the earlier
-                  research flagged. Each posting is now its own card with
-                  the shared rh-lift hover treatment (translateY + a real
-                  ember-tinted shadow on hover), matching the approved
-                  Ember Discovery mockup — motion this page had almost none
-                  of before. */}
-              <div className="space-y-3">
+              {/* Sept 2026 -- "we still see the old design," pointed
+                  directly at Job matches next to the already-flattened
+                  Job search. Each posting used to be its own individually
+                  bordered, rounded, shadowed card (v3.171.0's own real
+                  ember-lift treatment) -- the exact bordered-tile look the
+                  25 September workspace direction moved away from
+                  everywhere else. One shared bordered container now holds
+                  every row, each row separated by a plain hairline
+                  divider instead of its own box; every badge, pill and
+                  action inside a row (score, New, Seen, salary, bookmark,
+                  the direct apply link) is untouched, only the row's own
+                  outer shape changed. */}
+              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--rh-hair)" }}>
                 {jobs.map((j) => {
                   const isHot = Date.now() - new Date(j.posted_at).getTime() < HOT_WINDOW_MS;
                   const avatar = companyAvatar(j.company);
@@ -2220,12 +2225,8 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                     // of a child.
                     <div
                       key={j.id}
-                      className="rh-lift w-full flex items-start gap-2 p-4 rounded-xl relative"
-                      style={{
-                        background: "var(--rh-surface)",
-                        border: active ? "1.5px solid var(--rh-accent)" : "1px solid var(--rh-hair)",
-                        boxShadow: active ? "var(--rh-shadow-lift)" : "var(--rh-shadow-card)",
-                      }}
+                      className={"ayn-match-row w-full flex items-start gap-2 p-4 relative" + (active ? " is-active" : "")}
+                      style={{ background: active ? undefined : "var(--rh-surface)" }}
                     >
                       <button type="button" onClick={() => openJob(j)} className="flex items-start gap-3 flex-1 min-w-0 text-left">
                         {showLogo ? (
@@ -2385,7 +2386,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         </div>
 
         {/* Desktop detail pane */}
-        <Card className="hidden lg:block border-border/60 overflow-hidden sticky top-4 h-[calc(100vh-8rem)] p-0 rounded-xl shadow-sm">
+        <Card className="hidden lg:block border-border/60 overflow-hidden sticky top-4 h-[calc(100vh-8rem)] p-0 rounded-xl shadow-none hover:shadow-none">
           {selected
             ? detail
             : <p className="p-10 text-sm text-muted-foreground text-center">Pick a job to read the full posting.</p>}

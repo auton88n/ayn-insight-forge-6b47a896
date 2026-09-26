@@ -774,7 +774,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           of two different greens depending on which page you're on. ──── */}
       <div hidden={profileView !== 'preferences'}>
       <Card
-        className="p-4 sm:p-6 flex items-center justify-between gap-4 flex-wrap rounded-xl"
+        className="p-4 sm:p-6 flex items-center justify-between gap-4 flex-wrap rounded-xl shadow-none hover:shadow-none"
         style={poolOptedIn
           ? { border: "1.5px solid var(--rh-trust)", background: "var(--rh-trust-tint)" }
           : { border: "1px solid var(--rh-hair)", background: "var(--rh-raised)" }}
