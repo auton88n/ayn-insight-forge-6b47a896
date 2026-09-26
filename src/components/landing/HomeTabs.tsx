@@ -53,7 +53,7 @@ export const FeaturesTab = ({ onStartFree }: TabProps) => (
           <h2 className="lp-display lp-h2">Everything AYN actually does for you</h2>
           <p className="lp-lead">One posting in, one real application out. Nothing here is a preview, it is what you get.</p>
         </div>
-        <div className="lp-bento lp-reveal">
+        <div className="lp-bento lp-reveal ayn-feature-directory">
           {SEEKER_TILES.map((tile) => {
             const Icon = tile.icon;
             return (
@@ -388,8 +388,7 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
           switched from centered to left-aligned to match. */}
       <div className="lp-shell">
         <div className="lp-reveal" style={{ marginBottom: 34 }}>
-          <Badge className="ayn-ember-badge">Pricing for job seekers</Badge>
-          <h2 className="lp-display lp-h2" style={{ marginTop: 14 }}>Less time formatting. More time applying.</h2>
+          <h2 className="lp-display lp-h2">Plans & credits</h2>
           <p className="lp-lead" style={{ maxWidth: 620 }}>
             A tailored resume costs 2 credits. A cover letter costs 1. Building or optimizing your base resume costs 15 credits. Browsing and match scoring are free.
           </p>
@@ -407,18 +406,14 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
           </div>
         )}
 
-        <div className="lp-reveal" style={{ display: 'grid', gap: 20, gridTemplateColumns: 'repeat(auto-fit, minmax(248px, 1fr))' }}>
+        <div className="lp-reveal ayn-plan-grid">
           {PLANS.map((p) => {
             const current = billing?.plan?.key === p.key;
             const featured = p.key === 'seeker_starter';
             return (
               <div
                 key={p.key}
-                className="lp-tile"
-                style={featured ? {
-                  borderColor: 'hsl(var(--lp-ember))',
-                  background: 'linear-gradient(160deg, hsl(var(--lp-ember) / 0.05) 0%, hsl(var(--lp-card)) 55%)',
-                } : undefined}
+                className={`lp-tile ayn-plan${featured ? ' ayn-plan-featured' : ''}`}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <h3 style={{ margin: 0 }}>{p.name}</h3>
@@ -429,7 +424,7 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
                   ) : null}
                 </div>
                 <p className="lp-display" style={{ fontSize: 32, margin: '14px 0 0', lineHeight: 1 }}>{priceLabel(p.cents, p.interval)}</p>
-                <p style={{ color: 'hsl(var(--lp-ember))', fontWeight: 600, fontSize: 14, margin: '8px 0 0' }}>{p.credits} credits</p>
+                <p className="ayn-plan-credits">{p.credits} credits</p>
                 <p style={{ flex: 1, margin: '12px 0 0' }}>{p.line}</p>
                 <button
                   type="button"
@@ -553,15 +548,16 @@ export const AboutTab = () => (
 
 export const HelpTab = ({ onSelectTab }: TabProps) => {
   const [query, setQuery] = useState('');
+  const [topic, setTopic] = useState('Getting started');
   const hasQuery = query.trim().length > 0;
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return SECTIONS;
+    if (!q) return SECTIONS.filter(section => section.title === topic);
     return SECTIONS
       .map((s) => ({ ...s, entries: s.entries.filter((e) => (e.q + ' ' + e.a).toLowerCase().includes(q)) }))
       .filter((s) => s.entries.length > 0);
-  }, [query]);
+  }, [query, topic]);
 
   return (
     <section className="lp-section">
@@ -587,17 +583,31 @@ export const HelpTab = ({ onSelectTab }: TabProps) => {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search for an answer"
             aria-label="Search for an answer"
-            className="pl-11 h-12 rounded-full"
+            className="pl-11 h-12 rounded-lg"
           />
         </div>
 
-        <div className="lp-reveal" style={{ display: 'flex', flexDirection: 'column', gap: 32, maxWidth: 720 }}>
+        <div className="ayn-help-layout">
+        <nav className="ayn-help-topics" aria-label="Help topics">
+          {SECTIONS.map(section => (
+            <button
+              key={section.title}
+              type="button"
+              aria-pressed={!hasQuery && topic === section.title}
+              onClick={() => { setQuery(''); setTopic(section.title); }}
+            >
+              {section.title}<ArrowRight size={14} aria-hidden="true" />
+            </button>
+          ))}
+        </nav>
+        <div className="ayn-help-answers">
+          {hasQuery && <p className="lp-note" role="status">{results.reduce((count, section) => count + section.entries.length, 0)} answers found</p>}
           {results.map((section) => (
             <div key={section.title}>
-              <SectionHeading className="mb-3">{section.title}</SectionHeading>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <h3 className="ayn-topic-heading">{section.title}</h3>
+              <div className="ayn-question-list">
                 {section.entries.map((e) => (
-                  <details key={e.q} open={hasQuery || undefined} className="group rounded-2xl border border-border bg-card p-5">
+                  <details key={`${section.title}-${e.q}-${hasQuery}`} open={hasQuery || undefined} className="group">
                     <summary className="flex items-center justify-between gap-4 cursor-pointer list-none font-semibold marker:content-none">
                       {e.q}
                       <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
@@ -619,10 +629,11 @@ export const HelpTab = ({ onSelectTab }: TabProps) => {
             </p>
           )}
         </div>
+        </div>
 
         <div className="lp-reveal" style={{ marginTop: 40 }}>
-          <SectionHeading className="mb-3">Still stuck</SectionHeading>
-          <div className="rounded-2xl border border-border bg-card p-6">
+          <div className="ayn-support-footer">
+            <h3 className="ayn-topic-heading">Still need help?</h3>
             <p className="lp-note" style={{ margin: 0 }}>
               A real person reads every message. Include what you were doing and what happened, and a
               screenshot if you have one.
