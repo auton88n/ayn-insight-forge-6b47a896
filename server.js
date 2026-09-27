@@ -21,10 +21,24 @@ const INDEX_HTML = path.join(DIST, 'index.html');
 // note for how to re-check after a template change.
 // v3.159.0 — self-hosted deployments point this app at a different
 // Supabase backend (a different origin entirely), so the CSP's own allow
-// list has to follow. SUPABASE_ORIGIN now reads from the same env var the
-// build itself uses (VITE_SUPABASE_URL), falling back to Cloud's URL so an
-// unconfigured deploy (still the normal case) behaves exactly as before.
-const SUPABASE_ORIGIN = process.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co';
+// list has to follow. SUPABASE_ORIGIN reads from the same env var the
+// build itself uses (VITE_SUPABASE_URL).
+//
+// v3.339.0 (correction) — the fallback here used to be the old Lovable
+// Cloud project's URL, reasoned at the time as "an unconfigured deploy is
+// still the normal case." That's backwards now: self-hosted (ayn.careers)
+// is the real, current, only production deployment, and the old Cloud
+// project is meant to be reached from exactly one place in this whole
+// app — resume-hub's own server-to-server AI relay (lib/ai.ts,
+// AI_RELAY_URL) — never from here. A fallback pointing at Cloud meant
+// that if this env var were ever unset on a container rebuild, the CSP
+// would silently start allowing the BROWSER to talk to the old cloud
+// project, and this file's own job_postings fetch below would silently
+// hit the wrong database, both violating "only AI touches Cloud, local
+// Supabase for everything else." The fallback now matches src/config.ts's
+// own default instead: the real self-hosted domain, so an unconfigured
+// deploy fails toward the correct backend, not the wrong one.
+const SUPABASE_ORIGIN = process.env.VITE_SUPABASE_URL || 'https://ayn.careers';
 const SUPABASE_WS_ORIGIN = 'wss://' + SUPABASE_ORIGIN.replace(/^https?:\/\//, '');
 const CSP = [
   "default-src 'self'",
