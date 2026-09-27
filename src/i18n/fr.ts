@@ -66,7 +66,6 @@ export const fr: Record<string, string> = {
   'cta.secondary': 'Explorer les fonctionnalités',
 
   // Footer
-  'footer.copyright': `© ${currentYear} AYN Intelligence. Tous droits réservés.`,
   
   // Mode names
   'modes.general': 'Général',
