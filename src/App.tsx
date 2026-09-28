@@ -15,6 +15,17 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
 import { ScrollToTop } from "@/components/shared/ScrollToTop";
 import { VisitorTracker } from "@/components/shared/VisitorTracker";
+// Eager, not lazy — this component's whole job is stashing a tab name in
+// sessionStorage and immediately <Navigate>-ing to "/". Loading it as its
+// own code-split chunk meant every visit to /pricing, /contact, /help,
+// /about, /support and /resume-hub paid for TWO separate chunk fetches and
+// TWO Suspense-fallback flashes back to back (this chunk, then Index's own)
+// for something that reads as one click to the person doing it. It also
+// doubled the odds of landing on a stale chunk right after a deploy, since
+// there were two separate lazy imports in the chain instead of one. It has
+// no heavy imports of its own (homeTabMeta.ts is a few dozen lines of
+// types), so bundling it eagerly costs nothing real.
+import { HomeTabRedirect } from "@/components/landing/HomeTabRedirect";
 
 import { HelmetProvider } from 'react-helmet-async';
 
@@ -44,7 +55,6 @@ const SalaryGuidePage = lazy(() => import("./pages/SalaryGuide"));
 // const AutomationApply = lazy(() => import("./pages/services/AutomationApply"));
 // const Ticketing = lazy(() => import("./pages/services/Ticketing"));
 // const TicketingApply = lazy(() => import("./pages/services/TicketingApply"));
-const HomeTabRedirect = lazy(() => import("./components/landing/HomeTabRedirect").then(m => ({ default: m.HomeTabRedirect })));
 const Billing = lazy(() => import("./pages/Billing"));
 const SubscriptionSuccess = lazy(() => import("./pages/SubscriptionSuccess"));
 const SubscriptionCanceled = lazy(() => import("./pages/SubscriptionCanceled"));
@@ -90,14 +100,14 @@ const AnimatedRoutes = () => {
       <Route path="/dashboard/*" element={<Navigate to="/" replace />} />
       {/* Fast routes - no animation wrapper */}
       <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
-      <Route path="/pricing" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="pricing" /></Suspense>} />
+      <Route path="/pricing" element={<HomeTabRedirect tab="pricing" />} />
 
       <Route path="/billing" element={<Suspense fallback={<PageLoader />}><Billing /></Suspense>} />
       <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>} />
 
 
 
-      <Route path="/contact" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="contact" /></Suspense>} />
+      <Route path="/contact" element={<HomeTabRedirect tab="contact" />} />
       <Route path="/check-resume" element={<Suspense fallback={<PageLoader />}><CheckResumePage /></Suspense>} />
       <Route path="/jobs" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
       <Route path="/jobs/category/:category" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
@@ -113,13 +123,13 @@ const AnimatedRoutes = () => {
           jobs, Proposals, Assessments and Settings are now real tabs inside
           the same sidebar every other page uses (AccountTabs.tsx). Old
           links/bookmarks still work, they just land on the unified page now. */}
-      <Route path="/resume-hub" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="saved-jobs" /></Suspense>} />
-      <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="saved-jobs" /></Suspense>} />
+      <Route path="/resume-hub" element={<HomeTabRedirect tab="saved-jobs" />} />
+      <Route path="/resume-hub/*" element={<HomeTabRedirect tab="saved-jobs" />} />
       <Route path="/employer/pending" element={<Suspense fallback={<PageLoader />}><EmployerPending /></Suspense>} />
       <Route path="/employers" element={<Suspense fallback={<PageLoader />}><Employers /></Suspense>} />
-      <Route path="/help" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="help" /></Suspense>} />
-      <Route path="/support" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="help" /></Suspense>} />
-      <Route path="/about" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="about" /></Suspense>} />
+      <Route path="/help" element={<HomeTabRedirect tab="help" />} />
+      <Route path="/support" element={<HomeTabRedirect tab="help" />} />
+      <Route path="/about" element={<HomeTabRedirect tab="about" />} />
       <Route path="/approval-result" element={<ApprovalResult />} />
       <Route path="/subscription-success" element={<SubscriptionSuccess />} />
       <Route path="/subscription-canceled" element={<SubscriptionCanceled />} />

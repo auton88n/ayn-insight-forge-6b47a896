@@ -35,12 +35,27 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  public async componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    
-    // Non-blocking error report to Supabase
-    this.reportError(error, errorInfo).catch(() => {});
-    
+
+    // Reported directly: "sometimes the whole tab starts to reload." This
+    // auto-reload is real and mostly correct (confirmed live against
+    // production's own error_logs — genuine "Failed to fetch dynamically
+    // imported module" failures after a deploy, the exact case this exists
+    // to recover from) — but it used to fire-and-forget the report, then
+    // immediately call window.location.reload() in the same synchronous
+    // tick. A page reload aborts any in-flight network request, so the one
+    // class of error most worth having a record of was the one class that
+    // almost never actually landed in error_logs — every real occurrence
+    // of THIS specific bug was probably invisible even to us. Now the
+    // report gets a real, bounded window to complete before the page goes
+    // away, capped so a slow/dead network can't meaningfully delay a
+    // legitimate stale-chunk recovery either.
+    await Promise.race([
+      this.reportError(error, errorInfo).catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, 2500)),
+    ]);
+
     // Auto-reload on dynamic import failures (stale chunk errors) — a
     // deploy replaced the JS chunk files with new content-hashed names
     // while this tab still has the old index.html's manifest, so a lazy

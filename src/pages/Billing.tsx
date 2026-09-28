@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, ArrowLeft, ExternalLink, Download } from "lucide-react";
+import { AynLoaderScreen } from "@/components/shared/AynLoader";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -154,11 +155,12 @@ export default function Billing() {
 
 
   if (loading) {
-    return (
-      <div className="resume-hub-theme min-h-screen grid place-items-center bg-background">
-        <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--rh-accent)" }} />
-      </div>
-    );
+    // Reported directly: the loading mark isn't consistent across the app.
+    // This full-page gate is the first thing anyone landing on /billing
+    // sees — the route-level Suspense fallback right before it already
+    // shows the real branded AYN mark (AynLoaderScreen), so a bare grey
+    // spinner here read as two different apps handing off mid-navigation.
+    return <AynLoaderScreen />;
   }
 
   // v3.179.0 — reported directly: "the page of billing is not branded."
