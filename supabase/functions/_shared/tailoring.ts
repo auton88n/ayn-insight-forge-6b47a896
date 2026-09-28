@@ -1164,10 +1164,12 @@ export function flattenResumeSkillsAndProse(resume: unknown): string {
       add(group?.category);
       if (Array.isArray(group?.skills)) add(...group.skills);
     }
-  } else if (Array.isArray(r.skills)) add(...r.skills);
+  }
+  // Export also prints flat skills missing from stale presentation groups.
+  if (Array.isArray(r.skills)) add(...r.skills);
   const work = Array.isArray(r.work) ? (r.work as Array<Record<string, unknown>>) : [];
   for (const w of work) {
-    add(w?.title, w?.company, w?.start, w?.end || "Present");
+    add(w?.title, w?.company, w?.location, w?.start, w?.end || "Present");
     const bullets = Array.isArray(w?.bullets) ? (w.bullets as unknown[]) : [];
     for (const b of bullets) if (typeof b === "string") parts.push(b);
   }
@@ -1175,7 +1177,7 @@ export function flattenResumeSkillsAndProse(resume: unknown): string {
   if (Array.isArray(r.education)) for (const e of r.education) {
     add(e?.degree, e?.field, e?.school, e?.start, e?.end);
   }
-  // Projects are not rendered by the current document builder.
+  if (Array.isArray(r.projects)) for (const p of r.projects) add(p?.name, p?.url, p?.description);
   return parts.join(" \n ");
 }
 

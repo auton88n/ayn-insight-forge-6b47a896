@@ -29,7 +29,8 @@ const CheckResume = () => {
   const [result, setResult] = useState<ResumeCheckPublicResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
-  const findings = result ? reviewResumeText(resumeText) : [];
+  // At most three observations across alignment and writing, not three of each.
+  const findings = result ? reviewResumeText(resumeText).slice(0, Math.max(0, 3 - result.missing.length)) : [];
 
   useEffect(() => {
     document.body.classList.add('contact-surface');
@@ -134,7 +135,7 @@ const CheckResume = () => {
           {result && (
             <div className="mt-10 space-y-8" aria-live="polite">
               <section className="resume-check-review">
-                <h2 className="lp-display text-2xl">{findings.length ? 'Where your resume can be clearer' : 'No obvious writing flags in this check'}</h2>
+                <h2 className="lp-display text-2xl">Your free resume review</h2>
                 <p className="mt-2">This is a limited text review, not an employer decision or a test of the original file’s layout.</p>
                 {findings.length > 0 ? <ol className="resume-check-findings">
                   {findings.map(finding => <li key={finding.id}>
@@ -142,7 +143,7 @@ const CheckResume = () => {
                     {finding.excerpt && <blockquote>{finding.excerpt}</blockquote>}
                     <p>{finding.explanation}</p>
                   </li>)}
-                </ol> : <p className="mt-3">That does not establish that the resume is complete or suitable for this role. Review the job requirements below.</p>}
+                </ol> : null}
               </section>
               {result.matchPct !== null && (
                 <div className="rounded-xl border p-5" style={{ background: 'var(--accent, #fdf3ee)' }}>
@@ -151,6 +152,7 @@ const CheckResume = () => {
                   <p className="text-sm text-muted-foreground mt-1">
                     AYN’s text-based requirement check. Different wording may hide relevant experience; this is not your likelihood of being hired.
                   </p>
+                  <p className="text-sm mt-2">{result.matchedCount} of {result.requirementCount} extracted requirements have matching text. The percentage uses the full check; this free preview shows up to three improvement opportunities.</p>
                 </div>
               )}
 
@@ -183,7 +185,7 @@ const CheckResume = () => {
                 </div>
               )}
 
-              {result.matched.length === 0 && result.missing.length === 0 && (
+              {result.requirementCount === 0 && (
                 <p className="text-sm text-muted-foreground">
                   Couldn't find clearly listed requirements in that job description. Try pasting a posting with a bulleted "Requirements" or "Qualifications" section for a real read.
                 </p>

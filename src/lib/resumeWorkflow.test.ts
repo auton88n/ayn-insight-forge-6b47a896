@@ -22,6 +22,7 @@ async function runRewrite(unchanged: boolean, insufficient = false, violations: 
     featureGate: async () => null, accountGate: async () => null, rateLimitGate: async () => null,
     assertCredits: async () => insufficient ? { status: 402 } : null,
     COST_OPTIMIZE: 15, DEFAULT_MODEL: 'test-model', RESUME_SCHEMA: {},
+    RESUME_WRITING_STANDARD: 'Use only supplied evidence.',
     paidBaseRequestId: (value: string) => value,
     replayPaidBaseResume: async () => replayed,
     completePaidBaseResume: async (_admin: unknown, userId: string, _action: string, id: string, cost: number, value: object) => {
@@ -30,6 +31,7 @@ async function runRewrite(unchanged: boolean, insufficient = false, violations: 
     },
     callAI: async () => ({ structured: { resume: { basics: { name: 'Test Applicant' }, skills: [] }, suggestions: ['Improved wording'] } }),
     verifyWriteQuality: () => violations, violationsToRetryNote: () => '',
+    humanWritingViolations: (items: typeof violations) => items.filter(v => v.kind !== 'dash'),
     resumeContentUnchanged: () => unchanged,
     scoreResumeContent: async () => ({ ats_score: 85, verdict: 'Strong', issues: [] }),
     groupSkills: async () => null,

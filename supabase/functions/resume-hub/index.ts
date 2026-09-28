@@ -31,7 +31,10 @@ import {
 // so a stray em/en dash can no longer force a retry or block a result.
 // Every other check (figures, pronouns, tense, banned phrases, gaps) is
 // completely untouched by this.
-import { humanWritingViolations } from "../_shared/writingPolicy.ts";
+import { humanWritingViolations, RESUME_WRITING_STANDARD, COVER_LETTER_WRITING_STANDARD } from "../_shared/writingPolicy.ts";
+import { publicResumeReview } from "../_shared/publicResumeReview.ts";
+import { evaluateResumeDocument, RESUME_EVALUATION_VERSION } from "../_shared/resumeEvaluation.ts";
+import { prepareJobDocument, completeJobDocument } from './lib/paidJobDocument.ts';
 // v3.131.0 — stage 1 of the monolith reorganization: pure, self-contained
 // utilities with no dependency on a live request's closure state. See
 // lib/utils.ts's own header comment for the full rationale and scope.
@@ -124,22 +127,13 @@ Deno.serve((req) => withAiContext(async () => {
     if (PUBLIC_ACTIONS.has(action)) {
       if (action === "resume_check_public") {
         const { resumeText, jdText } = payload as { resumeText?: string; jdText?: string };
-        if (!resumeText || !jdText) {
+        if (typeof resumeText !== 'string' || typeof jdText !== 'string' || !resumeText.trim() || !jdText.trim()) {
           return json({ error: "resumeText and jdText are both required" }, 400);
         }
         if (resumeText.length > 20_000 || jdText.length > 20_000) {
           return json({ error: "That's longer than a real resume or job description ever needs to be. Please paste the real text, not a whole page." }, 413);
         }
-        const bundle = buildSections(null, null, resumeText);
-        const gap = computeGap(jdText, bundle);
-        return json({
-          matched: gap.matched.map((r) => r.text),
-          missing: gap.missing.map((r) => r.text),
-          niceToHave: gap.niceToHave.map((r) => r.text),
-          matchPct: gap.matched.length + gap.missing.length > 0
-            ? Math.round((gap.matched.length / (gap.matched.length + gap.missing.length)) * 100)
-            : null,
-        });
+        return json(publicResumeReview(resumeText, jdText));
       }
     }
 
@@ -385,22 +379,7 @@ EDUCATION vs CERTIFICATIONS: education is degree-granting programs only (Bachelo
       // needs some variation; the score is computed afterward by a separate,
       // low-temperature, single-purpose call (scoreResumeContent) so the
       // two stochastic jobs never contaminate each other's number.
-      const rewriteSystem = `You rewrite a resume to be stronger and more ATS-friendly, without inventing anything, and it must read like a real person wrote it. RULES:
-1. NEVER invent or imply experience, employers, titles, dates, or numbers that are not already in the resume.
-2. Rewrite every bullet on the Accomplished-[X]-measured-by-[Y]-by-doing-[Z] shape wherever the underlying fact supports it: lead with a strong, specific action verb, state the real result already implied by the content, then how it was done — do not fabricate a metric that is not there. One bullet, one idea, one line where possible — this has to fit on one page.
-3. Keep every company name, job title, and date exactly as given; write dates consistently as "Month YYYY". This includes basics.name: copy it through exactly as given, never invent or alter it, and never replace it with a placeholder even if it arrives empty.
-4. Tighten vague or generic lines into specific ones using only what is already true.
-5. WRITE LIKE A PERSON, NOT A TEMPLATE. Ban these entirely: "proven ability to", "proven track record of", "results-driven", "dynamic professional", "leveraging", "spearheaded transformational initiatives", "passionate about", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "hard-working", "detail-oriented", "seasoned professional", "results-oriented", "self-starter", "go-getter", "team player", "hit the ground running", "wear many hats", "think outside the box", "best-in-class", "world-class", "game-changer", "cutting-edge", "track record of", "testament to", "boasts a", "renowned", "groundbreaking", "garner", "underscores", "vibrant", any summary sentence that could be copy-pasted onto a stranger's resume unchanged. Prefer plain, direct, specific sentences over dense corporate phrasing. Vary sentence length and structure like a human writer would, not a repeating pattern.
-5b. No first-person pronouns anywhere ("I", "me", "my", "we") — every line is implied first person. The current role (no end date, or end date is "Present") is written entirely in present tense ("Leads", "Manages"); every past role is written entirely in past tense ("Led", "Managed").
-5c. If the resume has more than about 5 roles or reaches back more than 10 to 15 years, keep full bullets only on the most recent, most relevant roles and compress the rest into a single line each (title, company, dates, no bullets) so the page-one budget goes to what's actually relevant, not to completeness for its own sake.
-6. skills must be ATOMIC: one skill name per array entry (e.g. "React", "Stakeholder management"), never a category label with a colon and a comma-separated list crammed into one entry. Group related skills by ORDER in the array, not by writing a label into the string.
-7. If a job description is provided, weave in its keywords only where the person's real experience already supports them.
-8. NO EM DASHES, NO EN DASHES, EVER, IN ANY FIELD, NO EXCEPTIONS. Ranges use the word "to". The whole output must not read as AI-generated — no telltale AI phrasing, no uniform sentence rhythm, no overused connector words; it has to read like it was actually written by the person it's about.
-9. The summary's first sentence must open by naming the candidate's own current or most recent job title (their real title, never an invented one, and never the job description's title unless it already matches). A recruiter's fast scan and an ATS both check for a title match before anything else, so it cannot be buried in the second sentence. The whole summary is 1 to 2 sentences, no more — it is a hook, not a paragraph.
-9b. If a bullet uses an internal-only company term, a project codename, or phrasing specific to one employer, translate it into the plain, industry-standard equivalent so an outside reader recognizes it immediately — rephrase only, never invent a detail about what the internal thing was.
-10. basics.title (the resume's own header line, separate from any job's title in the work array) must be the candidate's own current or most recent job title, taken from their most recent role in the resume. If basics.title arrives empty, fill it from their most recent work entry's title, never from the job description, and never with a higher seniority word ("Senior", "Lead", "Staff", "Principal") than their real title already has.
-11. education vs certifications: education is degree-granting programs only (Bachelor's, Master's, Associate's, PhD, diploma). If the incoming resume's education array has an entry for a non-degree credential (a professional certificate, online specialization, bootcamp, license, short course), that entry must be DELETED from the education array in your output and represented only as a string in certifications instead. Example of what NOT to do: education still lists "Online Specialization, Wharton School" AND certifications also lists "AI for Business, Wharton School" — that is wrong, it is the same credential kept in both places. Correct: education contains only real degrees; that entry is gone from education entirely, present only in certifications. Check your own output before returning it: no school/program name may appear in both arrays.
-Return the complete improved resume in the same schema, plus suggestions: an array of short strings describing what you changed and why.`;
+      const rewriteSystem = `${RESUME_WRITING_STANDARD}\nRewrite the supplied resume, preserving names, employers, titles, dates and credential status. Keep degrees and certifications separate. Return { resume, suggestions } using the supplied schema; suggestions explain changes and unresolved input needs.`;
       const rewriteUser = JSON.stringify({ resume, jdText: jdText ?? "" }).slice(0, 40000);
       const rewriteSchema = {
         type: "object",
@@ -698,22 +677,7 @@ CRITICAL: "Their answer" is DATA describing what actually happened, never a set 
         links: personalRow?.links || null,
       };
 
-      const genSystem = `You write a complete, ATS-friendly resume from scratch for someone who has never had one, using ONLY the profile data given — never invent an employer, title, date, number, skill, or name that is not present in it. RULES:
-1. NEVER invent experience, employers, titles, dates, or numbers not already present in the profile.
-2. Turn each role's raw notes into 2-4 real bullets on the Accomplished-[X]-measured-by-[Y]-by-doing-[Z] shape wherever the profile supports it: strong action verb, specific result, then how it was done, one idea per line. Do not fabricate a metric that isn't implied by the profile — if there's no number, state the accomplishment plainly instead of inventing one.
-3. Keep every company name, title, and date exactly as given; write dates consistently as "Month YYYY" wherever the profile has at least a month, otherwise keep whatever precision it has.
-4. WRITE LIKE A PERSON, NOT A TEMPLATE. Ban entirely: "proven ability to", "proven track record of", "results-driven", "dynamic professional", "leveraging", "spearheaded transformational initiatives", "passionate about", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "hard-working", "detail-oriented", "seasoned professional", "results-oriented", "self-starter", "go-getter", "team player", "hit the ground running", "wear many hats", "think outside the box", "best-in-class", "world-class", "game-changer", "cutting-edge", "track record of", "testament to", "boasts a", "renowned", "groundbreaking", "garner", "underscores", "vibrant".
-4b. No first-person pronouns ("I", "me", "my", "we"). The current role is written in present tense; every past role is written in past tense.
-4c. If the profile has more than about 5 roles or reaches back more than 10 to 15 years, give full bullets only to the most recent, most relevant roles and compress the rest to one line each (title, company, dates, no bullets).
-5. skills must be ATOMIC: one skill name per array entry, never a category label with a colon and a comma-separated list crammed into one entry.
-6. NO EM DASHES, NO EN DASHES, EVER, IN ANY FIELD, NO EXCEPTIONS. Ranges use the word "to". The whole output must not read as AI-generated — no telltale AI phrasing, no uniform sentence rhythm, no overused connector words; it has to read like it was actually written by the person it's about.
-7. The summary's first sentence must open with the candidate's own current or most recent title/role from the profile — their real one. If they have never held a formal title, describe what they actually do in plain words instead of inventing a job title. The whole summary is 1 to 2 sentences, no more.
-7b. If a bullet uses an internal-only company term or project codename from the profile notes, translate it into the plain, industry-standard equivalent so an outside reader recognizes it immediately — rephrase only, never invent a detail about what the internal thing was.
-8. basics.title must be the candidate's own current or most recent real title/role from the profile, never invented, never bumped with a higher seniority word than the profile supports.
-9. Non-traditional experience in the profile (school projects, volunteer work, freelance work) belongs under work — do not omit it just because it wasn't a formal job.
-10. basics.name must come from legal_first_name/legal_last_name if present, otherwise full_name_from_signup, otherwise the local part of email. NEVER invent a name, and never write a placeholder like "Your Name" or "Ayn User" — use exactly what the profile data gives you, even if it is just an email's local part.
-11. education vs certifications: the profile's own education and certifications arrays are already split correctly — keep them split in the output. Never fold a certifications entry into the education section or vice versa, and never list the same credential in both.
-Return the complete resume in the schema, plus suggestions: short strings naming what would make the resume stronger if the person adds more detail to their profile (this is the only place to raise a gap — never paper over one in the resume text itself).`;
+      const genSystem = `${RESUME_WRITING_STANDARD}\nBuild a resume only from the supplied profile and personal details. Include relevant projects, volunteer or freelance work with their actual context, never as invented employment. Leave unknown identity fields empty. Keep degree education and certifications separate. Return { resume, suggestions } using the supplied schema; suggestions ask for useful missing detail without inventing it.`;
       const genUser = JSON.stringify({ profile: canonical, personal: personalForPrompt }).slice(0, 40000);
       const genSchema = {
         type: "object",
@@ -793,82 +757,22 @@ Return the complete resume in the schema, plus suggestions: short strings naming
         loadIdentity(adminMatch, user.id, {}).catch(() => null),
         loadCanonical(adminMatch, user.id),
       ]);
-      const bundle = buildSections(identity, canonical);
-      if (!bundle.text || bundle.chars < 60) return json({ error: "No resume content available to score" }, 400);
-      let gap = computeGap(jdText, bundle);
-      gap = await semanticGapRecheck(gap, bundle);
-      const canonText = canonicalDigest(canonical);
-
-      const userSkillIndex = new Map<string, string>();
-      if (canonical) {
-        for (const s of canonical.skills) { const name = String(s?.name || ""); const k = name.toLowerCase().trim(); if (k) userSkillIndex.set(k, name); }
-        for (const t of (canonical.derived.top_skills || [])) { const k = String(t).toLowerCase().trim(); if (k && !userSkillIndex.has(k)) userSkillIndex.set(k, String(t)); }
-      }
-
-      // v3.358.0 — computed fresh on every call, cache hit or not: it's
-      // pure regex/arithmetic against data already loaded above, not an
-      // AI call, so there's no cost benefit to caching it, and computing
-      // it fresh means an OLDER cached response (saved before this field
-      // existed) still gets it attached rather than silently missing it.
+      const document = identity?.resume.raw;
+      if (!document) return json({ error: "No saved resume available to score" }, 400);
+      const assessment = evaluateResumeDocument(document, jdText);
+      const { gap, matchPct } = assessment;
+      // Profile eligibility is separate; it never changes document coverage.
       const knockoutRisks = detectKnockoutRisks(jdText, canonical);
-
-      const jdHash = (await sha256b(jdText)).slice(0, 24);
-      const sectionHash = (await sha256b(bundle.text + canonText)).slice(0, 16);
-      const cacheKey = `webmatch:${user.id}:${sectionHash}:${jdHash}`;
-      const cached = await cacheGet<Record<string, unknown>>(adminMatch, cacheKey);
-      if (cached) {
-        logAiCall(adminMatch, {
-          user_id: user.id, purpose: "job_score_web", cache_hit: true, duration_ms: Date.now() - matchStarted,
-          source_map: identity?.sourceMap() || null, gap_matched: gap.matched.length, gap_missing: gap.missing.length,
-        });
-        return json({ ...cached, knockoutRisks, cached: true });
-      }
-
-      const r = await callAI({
-        temperature: 0.1,
-        system: `You are a senior recruiter. Score how well this candidate matches the job description, grounded ONLY in the sections and the deterministic gap analysis below — the gap analysis already computed what is present and missing, do not re-derive it from scratch.
-
-Return score 0-100, breakdown { skills_match, experience_match, education_match } each 0-100, missing_keywords (drawn from the gap analysis's "REQUIRED BUT NOT EVIDENCED" and "NICE TO HAVE" lists, in the JD's own wording), and summary (2-3 plain sentences, no clichés, no em dashes, no en dashes ever, and it must not read as AI-generated).
-
-HONESTY RULE (HARD): only describe a skill as matched if it appears in CANONICAL_SKILLS or the APPLICANT SECTIONS below. Never credit a skill the candidate has not evidenced. If unsure, treat it as missing.`,
-        user: `CANONICAL_SKILLS: ${Array.from(userSkillIndex.values()).slice(0, 60).join(", ")}
-CANONICAL_PROFILE_SUMMARY:
-${canonText}
-
-APPLICANT SECTIONS:
-${bundle.text}
-
-JOB DESCRIPTION:
-${jdText.slice(0, 20000)}${renderGapBlock(gap)}`,
-        toolName: "emit_match",
-        toolSchema: {
-          type: "object",
-          properties: {
-            score: { type: "integer" },
-            breakdown: {
-              type: "object",
-              properties: {
-                skills_match: { type: "integer" },
-                experience_match: { type: "integer" },
-                education_match: { type: "integer" },
-              },
-              required: ["skills_match", "experience_match", "education_match"],
-            },
-            missing_keywords: { type: "array", items: { type: "string" } },
-            summary: { type: "string" },
-          },
-          required: ["score", "breakdown", "missing_keywords", "summary"],
-        },
+      return json({
+        score: matchPct,
+        breakdown: matchPct === null ? {} : { requirement_coverage: matchPct },
+        missing_keywords: gap.missing.slice(0, 3).map(r => r.text),
+        summary: matchPct === null
+          ? "No clear requirements could be extracted. No match percentage is available."
+          : `${gap.matched.length} of ${assessment.requirementCount} extracted requirements have matching text in your saved resume. This is document wording coverage, not hiring probability. Up to three gaps are shown.`,
+        evaluationVersion: assessment.evaluationVersion,
+        knockoutRisks,
       });
-
-      cacheSet(adminMatch, cacheKey, user.id, "job_score_web", r.structured as Record<string, unknown>, 24 * 60 * 60 * 1000);
-      logAiCall(adminMatch, {
-        user_id: user.id, purpose: "job_score_web", model: DEFAULT_MODEL, duration_ms: Date.now() - matchStarted,
-        cache_hit: false, source_map: identity?.sourceMap() || null,
-        gap_matched: gap.matched.length, gap_missing: gap.missing.length,
-        meta: { jd_chars: jdText.length, section_chars: bundle.chars },
-      });
-      return json({ ...(r.structured as Record<string, unknown>), knockoutRisks });
     }
 
     // v3.72.0 — same rebuild as `match` above. This used to take the
@@ -887,6 +791,8 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`,
       { const blocked = await accountGate(adminTailor, user.id, action); if (blocked) return blocked; }
       { const limited = await rateLimitGate(adminTailor, user.id, action, 20, 15); if (limited) return limited; }
       const tailorStarted = Date.now();
+      const pendingTailor = await prepareJobDocument(adminTailor, user.id, action, payload.jobId, payload.idempotency_key);
+      if (pendingTailor.replay) return json(pendingTailor.replay);
       const { jdText, jobTitle, idempotency_key: tailorIdemKey } = payload as { jdText: string; jobTitle?: string; idempotency_key?: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
 
@@ -908,14 +814,15 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`,
 
       const jdHash = (await sha256b(jdText)).slice(0, 24);
       const sectionHash = (await sha256b(bundle.text)).slice(0, 16);
-      const cacheKey = `webtailor:facts-v2:${user.id}:${sectionHash}:${jdHash}`;
+      const documentHash = (await sha256b(JSON.stringify(identity?.resume.raw ?? null))).slice(0, 16);
+      const cacheKey = `webtailor:${RESUME_EVALUATION_VERSION}:${user.id}:${sectionHash}:${documentHash}:${jdHash}`;
       const cached = await cacheGet<{ resume: unknown }>(adminTailor, cacheKey);
       if (cached) {
         logAiCall(adminTailor, {
           user_id: user.id, purpose: "tailor_web", cache_hit: true, duration_ms: Date.now() - tailorStarted,
           source_map: identity?.sourceMap() || null, gap_matched: gap.matched.length, gap_missing: gap.missing.length,
         });
-        return json({ ...cached, credits: { spent: 0, balance: null } });
+        return json(await completeJobDocument(adminTailor, user.id, action, pendingTailor, identity?.resume.id, cached, 0));
       }
 
       // Gate only after a possible cache hit, so a repeat tailor of the same
@@ -930,23 +837,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`,
       const droppedNote = bundle.dropped.length
         ? `\n\nNOTE: these sections were omitted to fit the budget and must not be referenced: ${bundle.dropped.join(", ")}.`
         : "";
-      const system = `You are an expert Canadian resume writer. Tailor the candidate's resume so it actually passes this specific employer's ATS keyword scan for this specific job, using their full profile below, WITHOUT inventing anything. A resume that only rewords existing sentences without ever aligning to the job's own terminology for skills the candidate genuinely already has will fail a real ATS scan — that is the exact, specific failure this tailoring exists to prevent.
-
-RULES — YOU MUST FOLLOW EVERY ONE:
-1. NEVER invent, add, or imply experience, skills, tools, certifications, or achievements not already present in APPLICANT SECTIONS.
-2. ONLY reword existing bullets to naturally include job keywords where the underlying experience already supports it.
-3. Keep every fact, number, percentage, company name, date, and result exactly as-is.
-4. You may reorder skills to put the most relevant first, among skills the candidate actually has.
-4b. THIS IS THE MOST IMPORTANT RULE FOR PASSING A REAL ATS SCAN. For every item in the GAP ANALYSIS marked ALREADY EVIDENCED below that names a specific skill, tool, technology, certification, or short phrase (not a full sentence), the resume's skills array must literally contain that exact wording as its own entry if it is not already phrased that way. Example: the candidate's own skills say "Postgres" and the job asks for "PostgreSQL" — ALREADY EVIDENCED confirms this is the same real thing the candidate already has, so the output skills array must include "PostgreSQL", not just "Postgres". This is never inventing a new skill — it is the same real, already-verified skill, spelled the way this specific employer's applicant-tracking system is scanning for it. Do this ONLY for items on the ALREADY EVIDENCED list, never for anything on the REQUIRED BUT NOT EVIDENCED list.
-5. You may adjust the summary to echo 2-3 key phrases from the job description — only using experience already in APPLICANT SECTIONS. Its first sentence must still open by naming the candidate's own current or most recent job title. The whole summary stays 1 to 2 sentences, no more.
-5b. If a bullet uses an internal-only company term or project codename, translate it into the plain, industry-standard equivalent so an outside reader recognizes it immediately — rephrase only, never invent a detail about what the internal thing was.
-6. Do NOT change job titles, company names, or dates anywhere in the work history. basics.title (the resume's own header line, separate from the work history) is NOT your decision to make: it has already been decided in code and MUST be exactly this string, verbatim, no matter what: "${resolvedTailorTitle}"
-6b. basics.name must be exactly the name given in the APPLICANT HEADER above (or, if that header has no name line, the local part of the email address in APPLICANT HEADER). Never invent a name and never write a placeholder like "Your Name" or "A. Developer" — if genuinely nothing is given, leave it as an empty string instead of guessing.
-7. Address the GAP ANALYSIS's "REQUIRED BUT NOT EVIDENCED" items wherever real related experience exists in APPLICANT SECTIONS; stay silent where it does not. Do not add a new claim just to fix a gap.
-8. NO EM DASHES, NO EN DASHES, EVER, NO EXCEPTIONS. Write dates as "2023 to Present". The whole output must not read as AI-generated — no telltale AI phrasing, no uniform sentence rhythm, no overused connector words; it has to read like it was actually written by the person it's about.
-9. WRITE LIKE A PERSON, NOT A TEMPLATE. Ban these entirely: "proven ability to", "proven track record of", "results-driven", "dynamic professional", "leveraging", "spearheaded transformational initiatives", "passionate about", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "hard-working", "detail-oriented", "seasoned professional", "results-oriented", "self-starter", "go-getter", "team player", "hit the ground running", "wear many hats", "think outside the box", "best-in-class", "world-class", "game-changer", "cutting-edge", "track record of", "testament to", "boasts a", "renowned", "groundbreaking", "garner", "underscores", "vibrant", any summary sentence that could be copy-pasted onto a stranger's resume unchanged. Prefer plain, direct, specific sentences over dense corporate phrasing.
-10. No first-person pronouns ("I", "me", "my", "we"). The current role is written in present tense; every past role is written in past tense. Where the underlying fact supports it, shape a bullet as Accomplished-[X]-measured-by-[Y]-by-doing-[Z].
-11. Return the tailored resume in the RESUME_SCHEMA shape.`;
+      const system = `${RESUME_WRITING_STANDARD}\nTailor the document to the job using only applicant evidence. Related experience is not proof of a missing qualification. Preserve employment titles, dates and companies. Use equivalent job terminology only when genuinely equivalent. basics.title must equal ${JSON.stringify(resolvedTailorTitle)}. Use the supplied applicant contact details. Return the RESUME_SCHEMA object.`;
       const userMsg = `APPLICANT SECTIONS (the only source of truth about this person):
 ${bundle.text}${applicantSection}${droppedNote}
 
@@ -1035,8 +926,6 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       const tailorSkillGroups = await groupSkills(tailoredResumeObj.skills ?? []);
       if (tailorSkillGroups) (tailoredResumeObj as { skillGroups?: unknown }).skillGroups = tailorSkillGroups;
 
-      const chargeTailor = await creditSpend(adminTailor, user.id, COST_TAILOR, "tailored_resume", tailorIdemKey ? `req:${tailorIdemKey}` : undefined);
-      if (!chargeTailor.ok) return insufficientCredits(chargeTailor.balance, COST_TAILOR, "tailored resume");
 
       // v3.99.0 — was computed and logged (gap_matched/gap_missing above)
       // but never actually sent back. JobsTab uses this to let the person
@@ -1054,15 +943,19 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       // profile already scored; one that correctly surfaced every
       // ALREADY EVIDENCED item in the job's own wording (rule 4b above,
       // now enforced by verifyKeywordAlignment) will score higher.
-      const outputText = flattenResumeSkillsAndProse(r.structured);
-      const outputGap = computeGap(jdText, { text: outputText, dropped: [], chars: outputText.length } as unknown as SectionBundle);
-      const outputTotal = outputGap.matched.length + outputGap.missing.length;
-      const matchPct = outputTotal > 0 ? Math.round((outputGap.matched.length / outputTotal) * 100) : null;
+      const afterAssessment = evaluateResumeDocument(r.structured, jdText);
+      const beforeAssessment = identity?.resume.raw ? evaluateResumeDocument(identity.resume.raw, jdText) : null;
 
       const result = {
         resume: r.structured,
-        gapAnalysis: { missing: gap.missing.map((req) => req.text).slice(0, 6), matchPct },
+        gapAnalysis: {
+          missing: afterAssessment.gap.missing.map(req => req.text),
+          matchPct: afterAssessment.matchPct,
+          beforeMatchPct: beforeAssessment?.matchPct ?? null,
+          evaluationVersion: afterAssessment.evaluationVersion,
+        },
       };
+      const completedTailor = await completeJobDocument(adminTailor, user.id, action, pendingTailor, identity?.resume.id, result, COST_TAILOR);
       cacheSet(adminTailor, cacheKey, user.id, "tailor_web", result, TAILOR_TTL);
       logAiCall(adminTailor, {
         user_id: user.id, purpose: "tailor_web", model: DEFAULT_MODEL, duration_ms: Date.now() - tailorStarted,
@@ -1070,7 +963,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
         gap_matched: gap.matched.length, gap_missing: gap.missing.length,
         meta: { jd_chars: jdText.length, section_chars: bundle.chars, figures_ok: missingFigures.length === 0 },
       });
-      return json({ ...result, credits: { spent: COST_TAILOR, balance: chargeTailor.balance } });
+      return json(completedTailor);
     }
 
     // ---------------- cover_letter ----------------
@@ -1080,6 +973,8 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       { const blocked = await accountGate(adminCover, user.id, action); if (blocked) return blocked; }
       { const limited = await rateLimitGate(adminCover, user.id, action, 20, 15); if (limited) return limited; }
       const coverStarted = Date.now();
+      const pendingCover = await prepareJobDocument(adminCover, user.id, action, payload.jobId, payload.idempotency_key);
+      if (pendingCover.replay) return json(pendingCover.replay);
       const { jdText, tone, company, idempotency_key: coverIdemKey } = payload as { jdText: string; tone?: string; company?: string; idempotency_key?: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
 
@@ -1095,14 +990,14 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
 
       const jdHash = (await sha256b(jdText)).slice(0, 24);
       const sectionHash = (await sha256b(bundle.text)).slice(0, 16);
-      const cacheKey = `webcover:${user.id}:${sectionHash}:${jdHash}:${await sha256b(tone || "")}`;
+      const cacheKey = `webcover:verified-figures-v2:${user.id}:${sectionHash}:${jdHash}:${await sha256b((tone || "") + "|" + (company || ""))}`;
       const cached = await cacheGet<{ body: string }>(adminCover, cacheKey);
       if (cached) {
         logAiCall(adminCover, {
           user_id: user.id, purpose: "cover_letter_web", cache_hit: true, duration_ms: Date.now() - coverStarted,
           source_map: identity?.sourceMap() || null,
         });
-        return json({ ...cached, credits: { spent: 0, balance: null } });
+        return json(await completeJobDocument(adminCover, user.id, action, pendingCover, identity?.resume.id, cached, 0));
       }
 
       const creditGate = await assertCredits(adminCover, user.id, COST_COVER, "cover letter");
@@ -1115,20 +1010,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       const companySection = companyCtx.text
         ? `\n\nCOMPANY CONTEXT (from ${companyCtx.source}, the employer's own public page):\n${companyCtx.text}`
         : "";
-      const system = `Write a concise, specific cover letter, 250 to 300 words total. Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}.
-
-STRUCTURE (4 short paragraphs, body text only — no address block, no date, no "Dear ..." salutation placeholders, no bracketed fields of any kind):
-1) Hook (about 50 words): open with the specific role, then a specific, real need or challenge this employer actually has — drawn only from COMPANY CONTEXT or from what the job description itself states it needs (never invented) — followed by a one-sentence claim of exactly how the candidate addresses it. Never open with the candidate's own career story, background, or personal motivation for applying — recruiters consistently say they care about relevance and fit, not motivation. No clichés.
-2) Proof (about 100 words): one or two concrete achievements from the sections that map to the job's hardest requirements, with the real number if the sections have one. Show, don't tell.
-3) Alignment (about 75 words): two or three specific tools or skills the job asks for that the sections genuinely support, and how each one maps directly to something the job description or company context actually states it needs. Stay concrete and requirement-anchored — do not explain why the candidate personally admires or wants to work at this employer.
-4) Close (about 40 words): a clear, low-friction ask for a conversation, then sign off with the applicant's real name only.
-
-RULES:
-- Use ONLY facts from APPLICANT SECTIONS, the APPLICANT block, and COMPANY CONTEXT. Never invent companies, metrics, dates, names, emails, or phone numbers.
-- Never alter a number, percentage, currency figure, headcount, timeframe, date, or job title from what appears in the sections.
-- Do not claim any requirement listed as "REQUIRED BUT NOT EVIDENCED" in the gap analysis below unless real related experience is in the sections.
-- Never write a placeholder in brackets like "[Hiring Manager name]" — if you do not know a detail, leave it out entirely.
-- No clichés ("I am excited to", "leverage", "passionate", "in today's fast-paced", "realm", "intricate", "showcasing", "pivotal", "delve", "synergy", "seasoned professional", "self-starter", "go-getter", "team player", "hit the ground running", "best-in-class", "world-class", "game-changer", "cutting-edge", "testament to", "boasts a", "renowned", "groundbreaking"). Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language. NO EM DASHES, NO EN DASHES, EVER, NO EXCEPTIONS, never use ' - ' as a connector. Write ranges with the word 'to'. The whole letter must not read as AI-generated — no telltale AI phrasing, no uniform sentence rhythm, no overused connector words; it has to read like it was actually written by the person it's about.`;
+      const system = `${COVER_LETTER_WRITING_STANDARD}\nTone preference: ${JSON.stringify(tone || "professional, warm")}. Employer: ${JSON.stringify(company || "the hiring team")}. Employer information is context, never evidence of the candidate\'s achievements.`;
       const userMsg = `APPLICANT SECTIONS:\n${bundle.text}${applicantSection}${companySection}\n\nJOB DESCRIPTION:\n${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
 
       const r = await callAI({ system, user: userMsg });
@@ -1158,7 +1040,7 @@ RULES:
       // it," which is what let a tied-or-worse second attempt lose to an
       // already-bad first one.
       const missingReqTexts = gap.missing.map((req) => req.text);
-      let coverMissingFigures = droppedFigures(coverBody, bundle.text).filter((f) => f.length > 1);
+      let coverMissingFigures = inventedFigures(bundle.text, coverBody);
       let coverProseViolations = humanWritingViolations(verifyProseQuality(coverBody, false, missingReqTexts));
       let bestViolationCount = coverMissingFigures.length + coverProseViolations.length;
       for (let attempt = 0; attempt < 2 && bestViolationCount > 0; attempt++) {
@@ -1169,7 +1051,7 @@ RULES:
         const retry = await callAI({ system, user: `${userMsg}\n\n${figureNote}${proseNote}` });
         const fixed = String(retry.text || "").trim();
         if (!fixed) continue;
-        const retryMissing = droppedFigures(fixed, bundle.text).filter((f) => f.length > 1);
+        const retryMissing = inventedFigures(bundle.text, fixed);
         const retryProse = humanWritingViolations(verifyProseQuality(fixed, false, missingReqTexts));
         const retryCount = retryMissing.length + retryProse.length;
         if (retryCount < bestViolationCount) {
@@ -1178,16 +1060,18 @@ RULES:
         }
       }
 
-      const chargeCover = await creditSpend(adminCover, user.id, COST_COVER, "cover_letter", coverIdemKey ? `req:${coverIdemKey}` : undefined);
-      if (!chargeCover.ok) return insufficientCredits(chargeCover.balance, COST_COVER, "cover letter");
+      if (!coverBody?.trim() || coverMissingFigures.length || coverProseViolations.some(v => v.kind === 'gap_claim')) {
+        return json({ error: 'cover_letter_facts_unresolved', message: 'The letter could not be verified against your information. No credits were charged.' }, 422);
+      }
 
       const result = { body: coverBody };
+      const completedCover = await completeJobDocument(adminCover, user.id, action, pendingCover, identity?.resume.id, result, COST_COVER);
       cacheSet(adminCover, cacheKey, user.id, "cover_letter_web", result, TAILOR_TTL);
       logAiCall(adminCover, {
         user_id: user.id, purpose: "cover_letter_web", duration_ms: Date.now() - coverStarted, cache_hit: false,
         source_map: identity?.sourceMap() || null, meta: { jd_chars: jdText.length, section_chars: bundle.chars },
       });
-      return json({ ...result, credits: { spent: COST_COVER, balance: chargeCover.balance } });
+      return json(completedCover);
     }
 
     // ---------------- job_fit_advice ----------------

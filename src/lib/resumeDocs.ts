@@ -123,17 +123,6 @@ const FIT_OPTIONS = [
   { size: 10, gapScale: 0.5, after: 1 },
 ] as const;
 
-// A senior executive resume genuinely has more real, non-fluff history to
-// report than this app's one-page budget assumes -- verified live once
-// already (an 8-role, 20-year executive resume correctly spilling onto a
-// real second page at 10.5pt rather than being shrunk or refused). Never
-// applied outside this one title-matched case: everyone else who overflows
-// gets the plain, honest ResumeOverflowError asking them to trim, not a
-// silent second page they didn't ask for.
-const EXEC_TITLE_RE = /\b(chief\s+\w+\s+officer|c[eoxfmt]o|president|vice\s*president|\bvp\b|executive\s+director|managing\s+director)\b/i;
-function isExecutiveResume(c: ResumeContent): boolean {
-  return EXEC_TITLE_RE.test(c.basics?.title || "");
-}
 
 export class ResumeOverflowError extends Error {
   readonly code = "RESUME_ONE_PAGE_OVERFLOW";
@@ -170,13 +159,6 @@ export async function buildResumeDocxBlob(c: ResumeContent): Promise<Blob> {
   const blocks = buildResumeBlocks(c);
   let layout = FIT_OPTIONS.map(option => measureLayout(blocks, option))
     .find(candidate => candidate.height <= HEIGHT_BUDGET);
-  if (!layout && isExecutiveResume(c)) {
-    // Same 10.5pt option, a real second page's worth of budget instead of
-    // a tighter one -- Word still paginates this on its own; this only
-    // widens what this function is willing to accept before refusing.
-    const twoPage = measureLayout(blocks, FIT_OPTIONS[0]);
-    if (twoPage.height <= HEIGHT_BUDGET * 2) layout = twoPage;
-  }
   if (!layout) throw new ResumeOverflowError();
 
   // Emit measured breaks and spacing to reduce drift. This is still an

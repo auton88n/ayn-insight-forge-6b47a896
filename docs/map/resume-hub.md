@@ -2,6 +2,18 @@
 
 ## September 2026 improvement batch (local, not deployed)
 
+### Public disclosure boundary, 28 September (local)
+
+### Document evaluation and writing follow-up (local, not release-ready)
+
+`_shared/resumeEvaluation.ts` versions one deterministic document/JD wording-coverage calculation. Public text checking, saved-resume `match`, and tailoring before/after call it. `match` no longer asks a model to invent a score or blends canonical profile facts into the document score; profile knockout notices remain separate. A score is null when no requirements are extracted; the client does not persist a fake zero into `job_matches`. Tailoring returns `beforeMatchPct` and evaluation version and reports gaps from the output document; its cache namespace and key include evaluation version and primary document hash. Exported projects, locations and flat skills omitted from stale groups now enter the document evidence text. This is still lexical/synonym coverage, not semantic proof of skill proficiency.
+
+Resume generation, rewrite, tailoring and cover-letter prompts now use the existing shared natural-writing standards instead of contradictory inline dash bans, tense rules and word quotas. Cover-letter unsupported numbers/empty output/gap claims fail before charging; the cache namespace is invalidated and includes employer context name. Semantic fact verification is still incomplete. Tailored regeneration no longer deletes prior versions before saving. The document builder no longer permits an executive two-page exception: overflow refuses export at the readable font floor without modifying content. DOCX pagination remains an estimate pending actual rendering verification.
+
+Remaining release gates: provenance-level semantic factual checks; evidence-status/required-vs-preferred matching; automatic protected-content selection; persistent before/after UI and tailored/letter paid-result recovery; actual renderer and browser testing; staging billing/auth verification. Do not deploy this partial batch as completion of the agreed scope.
+
+`_shared/publicResumeReview.ts` explicitly projects the public text assessment: the percentage uses all extracted required items, but the response includes at most three missing requirement texts, aggregate counts, and an evaluation version. Full matched and optional requirement lists are no longer sent to anonymous clients. The public page budgets its existing local wording observations against those three alignment observations and uses `requirementCount`, not empty detail arrays, to recognize unassessable input. Input types and whitespace are validated before evaluation. No AI call, new storage, billing change, or raw-text telemetry is added. Backend must deploy before the new count-aware frontend. Tests exercise the real matcher and serialized public response. This is a disclosure fix, not completion of unified paid/public evaluation, semantic evidence grading or paid entitlement enforcement on other actions.
+
 ### Durable base-resume completion, 25 September
 
 Migration `20260925090000_atomic_paid_base_resume.sql` adds service-role-only `complete_paid_base_resume`. For rewrite/generation it saves a retained resume version, debits existing credits, switches the active version, and records an exact response in one transaction. A failure in any write rolls everything back. Zero-change optimization records a zero-cost response without creating a version. It takes the existing per-user primary-save lock; replay does not reactivate an older document or charge again.

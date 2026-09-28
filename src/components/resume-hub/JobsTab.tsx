@@ -121,7 +121,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // list to begin with.
   const [backTarget, setBackTarget] = useState<"list" | "browse">("list");
   const [primaryResume, setPrimaryResume] = useState<{ id: string; content: ResumeContent; ats_score: number | null } | null>(null);
-  const [matchData, setMatchData] = useState<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string } | null>(null);
+  const [matchData, setMatchData] = useState<{ score: number | null; breakdown: Record<string, number>; missing_keywords: string[]; summary: string } | null>(null);
   const [tailored, setTailored] = useState<TailoredRow | null>(null);
   // v3.99.0 — required-but-not-evidenced skills the job asked for, shown as
   // an opt-in add, never applied automatically. Each carries its own
@@ -244,7 +244,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     try {
       const m = await resumeHubApi.match(selected.jd_text);
       setMatchData(m);
-      await supabase.from("job_matches").insert({
+      if (m.score !== null) await supabase.from("job_matches").insert({
         user_id: userId, job_id: selected.id, resume_id: primaryResume.id,
         score: m.score, breakdown: m.breakdown,
       });
@@ -262,12 +262,11 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     if (!pendingIdemKeys.current[idemMapKey]) pendingIdemKeys.current[idemMapKey] = crypto.randomUUID();
     const idemKey = pendingIdemKeys.current[idemMapKey];
     try {
-      const { resume, gapAnalysis } = await resumeHubApi.tailor(selected.jd_text, idemKey, selected.title);
+      const { resume, gapAnalysis } = await resumeHubApi.tailor(selected.jd_text, idemKey, selected.title, selected.id);
       delete pendingIdemKeys.current[idemMapKey]; // succeeded — next click is a genuinely new charge
       // Preserve the headline resolved by the backend's seniority checks.
       // The posting's title is a target, not proof of the applicant's title.
-      // Regenerating replaces the stored copy for this job.
-      await supabase.from("resume_versions").delete().eq("user_id", userId).eq("created_for_job_id", selected.id);
+      // Retain prior paid versions; a failed insert must not erase them.
       const { error } = await supabase.from("resume_versions").insert({
         user_id: userId, resume_id: primaryResume.id, content: resume as never, created_for_job_id: selected.id,
         match_pct: gapAnalysis?.matchPct ?? null, still_missing: gapAnalysis?.missing ?? [],
@@ -332,7 +331,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     if (!pendingIdemKeys.current[idemMapKey]) pendingIdemKeys.current[idemMapKey] = crypto.randomUUID();
     const idemKey = pendingIdemKeys.current[idemMapKey];
     try {
-      const { body } = await resumeHubApi.coverLetter(selected.jd_text, { company: selected.company, idempotencyKey: idemKey });
+      const { body } = await resumeHubApi.coverLetter(selected.jd_text, { company: selected.company, idempotencyKey: idemKey, jobId: selected.id });
       delete pendingIdemKeys.current[idemMapKey]; // succeeded — next click is a genuinely new charge
       await supabase.from("cover_letters").delete().eq("user_id", userId).eq("job_id", selected.id);
       await supabase.from("cover_letters").insert({ user_id: userId, job_id: selected.id, resume_id: primaryResume.id, body });
@@ -465,7 +464,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {matchData && (
+              {matchData && matchData.score !== null && (
                 <div
                   className="text-lg px-3 py-1 rounded-full font-semibold"
                   style={{ fontFamily: "JetBrains Mono, monospace", ...scoreBadgeStyle(matchData.score) }}
@@ -654,8 +653,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                         </span>
                         <p className="text-xs" style={{ color: "var(--rh-muted)" }}>
                           {tailored.still_missing.length === 0
-                            ? "Everything this job asks for that you've done is now on the page."
-                            : `Still missing because you haven't done ${tailored.still_missing.length === 1 ? "it" : "them"} yet: ${tailored.still_missing.join(", ")}.`}
+                            ? "Matching text was found for the extracted requirements. This is not proof of eligibility or a hiring prediction."
+                            : `Not evidenced by this wording check: ${tailored.still_missing.join(", ")}. This does not establish that you lack these qualifications.`}
                         </p>
                       </div>
                     )}
