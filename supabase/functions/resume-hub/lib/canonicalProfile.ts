@@ -47,7 +47,7 @@ export type CanonicalProfile = {
 };
 
 
-const EMPTY_CANONICAL: CanonicalProfile = {
+export const EMPTY_CANONICAL: CanonicalProfile = {
   skills: [], experiences: [], education: [], certifications: [],
   work_auth: {}, preferences: {}, derived: {},
 };

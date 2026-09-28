@@ -24,6 +24,14 @@ import {
   applySemanticRecheck, cosineSimilarity, computeQuickScore,
   type GapAnalysis, type SectionBundle,
 } from "../_shared/tailoring.ts";
+// A dash is not evidence of AI authorship (see writingPolicy.ts's own
+// HUMAN_WRITING_STANDARD comment) -- this one wrapper strips the "dash"
+// violation kind out of whatever verifyWriteQuality/verifyProseQuality
+// already reported, applied at every write-verification call site below,
+// so a stray em/en dash can no longer force a retry or block a result.
+// Every other check (figures, pronouns, tense, banned phrases, gaps) is
+// completely untouched by this.
+import { humanWritingViolations } from "../_shared/writingPolicy.ts";
 // v3.131.0 — stage 1 of the monolith reorganization: pure, self-contained
 // utilities with no dependency on a live request's closure state. See
 // lib/utils.ts's own header comment for the full rationale and scope.
@@ -50,7 +58,7 @@ import { RESUME_SCHEMA, ATS_RUBRIC, scoreResumeContent, groupSkills } from "./li
 // v3.131.0 — stage 5: the canonical profile type, loader, and AI
 // extractor. See lib/canonicalProfile.ts's own header comment.
 import {
-  type CanonicalProfile, loadCanonical, canonicalDigest, CANONICAL_SCHEMA, extractCanonical,
+  type CanonicalProfile, loadCanonical, canonicalDigest, CANONICAL_SCHEMA, extractCanonical, EMPTY_CANONICAL,
 } from "./lib/canonicalProfile.ts";
 // v3.131.0 — stage 6: job URL/JD normalization, AI job-metadata parsing,
 // and the keyword-overlap fallback scorer. See lib/jobParsing.ts's own
@@ -422,7 +430,7 @@ Return the complete improved resume in the same schema, plus suggestions: an arr
       // worse retry silently kept the original flawed draft, with no third
       // attempt). Now a real loop, up to two retries, always keeping
       // whichever attempt across all three has the fewest violations.
-      let writeViolations = verifyWriteQuality(JSON.stringify(resume), rewritten.resume);
+      let writeViolations = humanWritingViolations(verifyWriteQuality(JSON.stringify(resume), rewritten.resume));
       let rewriteBest = writeViolations.length;
       for (let attempt = 0; attempt < 2 && rewriteBest > 0; attempt++) {
         const retryNote = violationsToRetryNote(writeViolations);
@@ -433,7 +441,7 @@ Return the complete improved resume in the same schema, plus suggestions: an arr
         });
         const retried = retry.structured as { resume?: unknown; suggestions?: string[] } | undefined;
         if (!retried?.resume) continue;
-        const retryViolations = verifyWriteQuality(JSON.stringify(resume), retried.resume);
+        const retryViolations = humanWritingViolations(verifyWriteQuality(JSON.stringify(resume), retried.resume));
         if (retryViolations.length < rewriteBest) {
           rewritten = retried; writeViolations = retryViolations; rewriteBest = retryViolations.length;
         }
@@ -728,7 +736,7 @@ Return the complete resume in the schema, plus suggestions: short strings naming
       // retry adopted only if strictly better than the first draft has no
       // recovery when the retry also has a violation.
       const genInputText = JSON.stringify({ profile: canonical, personal: personalForPrompt });
-      let genViolations = verifyWriteQuality(genInputText, built.resume);
+      let genViolations = humanWritingViolations(verifyWriteQuality(genInputText, built.resume));
       let genBest = genViolations.length;
       for (let attempt = 0; attempt < 2 && genBest > 0; attempt++) {
         const retryNote = violationsToRetryNote(genViolations);
@@ -739,7 +747,7 @@ Return the complete resume in the schema, plus suggestions: short strings naming
         });
         const retried = retry.structured as { resume?: unknown; suggestions?: string[] } | undefined;
         if (!retried?.resume) continue;
-        const retryViolations = verifyWriteQuality(genInputText, retried.resume);
+        const retryViolations = humanWritingViolations(verifyWriteQuality(genInputText, retried.resume));
         if (retryViolations.length < genBest) {
           built = retried; genViolations = retryViolations; genBest = retryViolations.length;
         }
@@ -974,7 +982,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       // a genuine fabricated figure survived a retry that also fabricated
       // one, and got silently kept since neither was "strictly better").
       const missingReqTexts = gap.missing.map((req) => req.text);
-      let writeViolations = verifyWriteQuality(bundle.text, r.structured, missingReqTexts);
+      let writeViolations = humanWritingViolations(verifyWriteQuality(bundle.text, r.structured, missingReqTexts));
       for (const kw of verifyKeywordAlignment(gap, r.structured)) writeViolations.push({ kind: "keyword_gap", detail: kw });
       let tailorBest = writeViolations.length;
       for (let attempt = 0; attempt < 2 && tailorBest > 0; attempt++) {
@@ -984,7 +992,7 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
           user: `${userMsg}\n\n${retryNote}`,
           toolName: "emit_resume", toolSchema: RESUME_SCHEMA,
         });
-        const retryViolations = verifyWriteQuality(bundle.text, retry.structured, missingReqTexts);
+        const retryViolations = humanWritingViolations(verifyWriteQuality(bundle.text, retry.structured, missingReqTexts));
         for (const kw of verifyKeywordAlignment(gap, retry.structured)) retryViolations.push({ kind: "keyword_gap", detail: kw });
         if (retryViolations.length < tailorBest) {
           r = retry; writeViolations = retryViolations; tailorBest = retryViolations.length;
@@ -1151,7 +1159,7 @@ RULES:
       // already-bad first one.
       const missingReqTexts = gap.missing.map((req) => req.text);
       let coverMissingFigures = droppedFigures(coverBody, bundle.text).filter((f) => f.length > 1);
-      let coverProseViolations = verifyProseQuality(coverBody, false, missingReqTexts);
+      let coverProseViolations = humanWritingViolations(verifyProseQuality(coverBody, false, missingReqTexts));
       let bestViolationCount = coverMissingFigures.length + coverProseViolations.length;
       for (let attempt = 0; attempt < 2 && bestViolationCount > 0; attempt++) {
         const figureNote = coverMissingFigures.length
@@ -1162,7 +1170,7 @@ RULES:
         const fixed = String(retry.text || "").trim();
         if (!fixed) continue;
         const retryMissing = droppedFigures(fixed, bundle.text).filter((f) => f.length > 1);
-        const retryProse = verifyProseQuality(fixed, false, missingReqTexts);
+        const retryProse = humanWritingViolations(verifyProseQuality(fixed, false, missingReqTexts));
         const retryCount = retryMissing.length + retryProse.length;
         if (retryCount < bestViolationCount) {
           coverBody = fixed; coverMissingFigures = retryMissing; coverProseViolations = retryProse;
@@ -1239,11 +1247,11 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       // v3.312.0 — same loop-and-keep-best fix as the sibling checks in
       // rewrite/resume_generate/tailor/cover_letter.
       let r = await callAI({ system: fitSystem, user: "Write the verdict now." });
-      let adviceViolations = verifyProseQuality(r.text, false);
+      let adviceViolations = humanWritingViolations(verifyProseQuality(r.text, false));
       let adviceBest = adviceViolations.length;
       for (let attempt = 0; attempt < 2 && adviceBest > 0; attempt++) {
         const retry = await callAI({ system: fitSystem, user: `Write the verdict now.\n\n${violationsToRetryNote(adviceViolations)}` });
-        const retryViolations = verifyProseQuality(retry.text, false);
+        const retryViolations = humanWritingViolations(verifyProseQuality(retry.text, false));
         if (retryViolations.length < adviceBest) { r = retry; adviceViolations = retryViolations; adviceBest = retryViolations.length; }
       }
       return json({ verdict, coverage: Math.round(coverage * 100), advice: r.text });
