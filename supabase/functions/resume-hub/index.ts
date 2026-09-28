@@ -113,6 +113,21 @@ import {
   type PubQuestion, publicQuestion, assessmentDeadline,
   finaliseAssessment as finaliseAssessmentImpl,
 } from "./lib/assessmentHelpers.ts";
+// v3.325.0 — stage 15+: the shared ActionCtx type. See lib/actionCtx.ts's
+// own header comment.
+import type { ActionCtx } from "./lib/actionCtx.ts";
+// v3.325.0 — stage 15: plans/billing/admin-employer-queue action handlers.
+// See lib/billingAdminActions.ts's own header comment.
+import {
+  handlePlansList, handleBillingGet, handleEmployerBillingGet, handleBillingUpgradeIntent,
+  handleAdminEmployerList, handleAdminEmployerDecide,
+} from "./lib/billingAdminActions.ts";
+// v3.325.0 — stage 16: canonical-profile CRUD and Talent Pool actions. See
+// lib/profileTalentPoolActions.ts's own header comment.
+import {
+  handleProfileCanonicalGet, handleProfileCanonicalExtract, handleProfileCanonicalSave,
+  handleTalentPoolGet, handleLegalConsentRecord, handleTalentPoolSet, handleTalentPoolReindexSelf,
+} from "./lib/profileTalentPoolActions.ts";
 
 Deno.serve((req) => withAiContext(async () => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -1416,155 +1431,25 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       return ok;
     };
 
-    if (action === "plans_list") {
-      // v3.253.0 -- searches_limit was missing from this SELECT even though
-      // it's a real column on every employer plan row (employer_billing_get
-      // already reads it, just never this generic list action) -- the
-      // employer dashboard's own Features & pricing tab needs real per-plan
-      // search limits, not a hardcoded guess.
-      const { data } = await adminForNew.from("plans")
-        .select("key, audience, name, price_cents, interval, credits, proposals_limit, assessments_limit, searches_limit, sort")
-        .eq("active", true).order("sort");
-      return json({ plans: data || [] });
-    }
+    // v3.325.0 — stage 15+: the shared context every extracted "NEW
+    // ACTIONS"-era handler file takes as its one explicit parameter,
+    // instead of closing over this dispatcher's own scope. See
+    // lib/actionCtx.ts's own header comment.
+    const ctx: ActionCtx = {
+      req, supabaseUrl, anonKey, serviceKey, action, payload, jwt, reqIp,
+      supa, user, userId, admin: adminForNew,
+      isApprovedEmployer, assertOrgMember, assertOrgProfileComplete, finaliseAssessment,
+      isPlatformAdmin,
+    };
 
-    // Seeker: plan, balance, renewal date, recent ledger.
-    if (action === "billing_get") {
-      const sub = await billingEnsure(adminForNew, userId, "seeker");
-      const [{ data: plan }, balance, { data: ledger }] = await Promise.all([
-        adminForNew.from("plans").select("key, name, price_cents, interval, credits")
-          .eq("key", sub?.plan_key || "seeker_free").maybeSingle(),
-        creditBalance(adminForNew, userId),
-        adminForNew.from("credit_ledger").select("delta, reason, balance_after, created_at")
-          .eq("user_id", userId).order("created_at", { ascending: false }).limit(20),
-      ]);
-      return json({
-        plan: plan || null,
-        status: sub?.status || "active",
-        balance,
-        current_period_end: sub?.current_period_end || null,
-        costs: { tailored_resume: COST_TAILOR, cover_letter: COST_COVER },
-        ledger: ledger || [],
-      });
-    }
-
-    // Employer: plan, what is used this period, trial end.
-    if (action === "employer_billing_get") {
-      const { org_id } = payload as { org_id?: string };
-      if (!org_id) return json({ error: "org_id required" }, 400);
-      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
-      const b = await employerBilling(adminForNew, userId, org_id);
-      // v3.29.0 — the surface reads the limits actually in force, not the raw plan.
-      return json({
-        ...b,
-        plan: {
-          ...b.plan,
-          proposals_limit: effectiveLimit(b, "proposal").limit,
-          assessments_limit: effectiveLimit(b, "assessment").limit,
-          searches_limit: effectiveLimit(b, "search").limit,
-        },
-        plan_limits: {
-          proposals_limit: b.plan.proposals_limit,
-          assessments_limit: b.plan.assessments_limit,
-          searches_limit: b.plan.searches_limit,
-        },
-        overridden: !!b.override,
-        search_soft_cap: EMPLOYER_SEARCH_SOFT_CAP,
-      });
-    }
-
-    // Payments are not wired yet, so an upgrade records intent and the team follows up.
-    if (action === "billing_upgrade_intent") {
-      const { plan_key, note } = payload as { plan_key?: string; note?: string };
-      if (!plan_key) return json({ error: "plan_key required" }, 400);
-      const { data: plan } = await adminForNew.from("plans").select("key, name").eq("key", plan_key).maybeSingle();
-      if (!plan) return json({ error: "unknown plan" }, 404);
-      await adminForNew.from("upgrade_intents").insert({
-        user_id: userId, plan_key, note: String(note || "").slice(0, 500) || null,
-      });
-      return json({ ok: true, plan: plan.name, message: "Thanks. We will be in touch to set up billing." });
-    }
-
-    // ---- Admin: employer access requests ----
-    if (action === "admin_employer_list") {
-      if (!(await isPlatformAdmin())) return json({ error: "admin only" }, 403);
-      const { data: accounts } = await adminForNew.from("employer_accounts")
-        .select("id, user_id, company_name, status, created_at, approved_at, package_notes, position_title, phone, company_website, company_address, company_country")
-        .order("created_at", { ascending: false }).limit(200);
-      const ids = (accounts || []).map(a => a.user_id);
-      const [{ data: profiles }, { data: members }, { data: subs }] = await Promise.all([
-        ids.length ? adminForNew.from("profiles").select("user_id, email, full_name").in("user_id", ids) : { data: [] },
-        ids.length ? adminForNew.from("org_members").select("user_id, org_id").in("user_id", ids) : { data: [] },
-        ids.length ? adminForNew.from("subscriptions").select("user_id, plan_key, status, current_period_start, current_period_end, trial_ends_at").in("user_id", ids) : { data: [] },
-      ]);
-      const orgIds = [...new Set((members || []).map(m => m.org_id))];
-      const { data: orgs } = orgIds.length
-        ? await adminForNew.from("orgs").select("id, name, website, industry, company_size, headquarters, about").in("id", orgIds)
-        : { data: [] };
-      const orgByUser = new Map((members || []).map(m => [m.user_id, (orgs || []).find(o => o.id === m.org_id) || null]));
-      const profByUser = new Map((profiles || []).map(p => [p.user_id, p]));
-      const subByUser = new Map((subs || []).map(s => [s.user_id, s]));
-
-      const rows = [];
-      for (const a of (accounts || [])) {
-        const org = orgByUser.get(a.user_id) as Record<string, unknown> | null;
-        const sub = subByUser.get(a.user_id) || null;
-        let usage = null;
-        if (org?.id && sub) {
-          const b = await employerBilling(adminForNew, a.user_id, String(org.id));
-          usage = {
-            plan: b.plan.name, proposals_used: b.proposals_used, proposals_limit: effectiveLimit(b, "proposal").limit,
-            assessments_used: b.assessments_used, assessments_limit: effectiveLimit(b, "assessment").limit,
-            searches_used: b.searches_used, searches_limit: effectiveLimit(b, "search").limit,
-            overridden: !!b.override,
-            period_end: b.current_period_end,
-
-          };
-        }
-        rows.push({
-          id: a.id, user_id: a.user_id, status: a.status,
-          company_name: org?.name || a.company_name,
-          website: org?.website || null, industry: org?.industry || null,
-          company_size: org?.company_size || null, headquarters: org?.headquarters || null,
-          about: org?.about || null,
-          email: profByUser.get(a.user_id)?.email || null,
-          contact_name: profByUser.get(a.user_id)?.full_name || null,
-          requested_at: a.created_at, approved_at: a.approved_at,
-          note: a.package_notes,
-          subscription: sub, usage,
-          // v3.163.0 — collected and checked at signup (handle_new_user_profile),
-          // surfaced here so approval is an informed decision, not a blind one.
-          verification: {
-            position: a.position_title, phone: a.phone,
-            website: a.company_website, address: a.company_address,
-            country: a.company_country,
-          },
-        });
-      }
-      return json({ employers: rows });
-    }
-
-    if (action === "admin_employer_decide") {
-      if (!(await isPlatformAdmin())) return json({ error: "admin only" }, 403);
-      const { user_id, decision, note } = payload as { user_id?: string; decision?: string; note?: string };
-      if (!user_id || !["approve", "decline", "suspend"].includes(String(decision))) {
-        return json({ error: "user_id and a decision of approve, decline or suspend are required" }, 400);
-      }
-      // Declined and suspended are different things: declined never got in,
-      // suspended was approved and then stopped.
-      const status = decision === "approve" ? "approved" : decision === "decline" ? "declined" : "suspended";
-
-      const { error } = await adminForNew.from("employer_accounts").update({
-        status,
-        approved_at: decision === "approve" ? new Date().toISOString() : null,
-        approved_by: userId,
-        package_notes: String(note || "").slice(0, 500) || null,
-      }).eq("user_id", user_id);
-      if (error) return json({ error: error.message }, 500);
-      // Approval starts the free month automatically.
-      if (decision === "approve") await billingEnsure(adminForNew, user_id, "employer");
-      return json({ ok: true, status });
-    }
+    // v3.325.0 — plans/billing/admin-employer-queue actions moved to
+    // lib/billingAdminActions.ts. See that file's own header comment.
+    if (action === "plans_list") return await handlePlansList(ctx);
+    if (action === "billing_get") return await handleBillingGet(ctx);
+    if (action === "employer_billing_get") return await handleEmployerBillingGet(ctx);
+    if (action === "billing_upgrade_intent") return await handleBillingUpgradeIntent(ctx);
+    if (action === "admin_employer_list") return await handleAdminEmployerList(ctx);
+    if (action === "admin_employer_decide") return await handleAdminEmployerDecide(ctx);
 
 
 
@@ -1572,211 +1457,15 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
 
     // ---------------- Canonical Profile (Phase 1) ----------------
     // profile_canonical_get: load the saved canonical profile (empty shell if none)
-    if (action === "profile_canonical_get") {
-      const canonical = await loadCanonical(adminForNew, userId);
-      return json({ canonical: canonical || EMPTY_CANONICAL, hasProfile: !!canonical });
-    }
-
-    // profile_canonical_extract: run AI to (re)build canonical from primary resume + user_profile_data.
-    // Does NOT save automatically; UI shows the result for confirmation/edit.
-    if (action === "profile_canonical_extract") {
-      { const limited = await rateLimitGate(adminForNew, userId, action, 20, 15); if (limited) return limited; }
-      const [{ data: resume }, { data: profile }] = await Promise.all([
-        adminForNew.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
-        adminForNew.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
-      ]);
-      if (!resume?.content && !profile) return json({ error: "No primary resume or profile to extract from" }, 404);
-      const canonical = await extractCanonical({
-        resumeContent: resume?.content || null,
-        profileExtras: profile || null,
-      });
-      return json({ canonical });
-    }
-
-    // profile_canonical_save: persist user-edited canonical profile (upsert by user_id).
-    if (action === "profile_canonical_save") {
-      const { canonical } = payload as { canonical?: Partial<CanonicalProfile> };
-      if (!canonical || typeof canonical !== "object") return json({ error: "canonical required" }, 400);
-      const row = {
-        user_id: userId,
-        skills: canonical.skills ?? [],
-        experiences: canonical.experiences ?? [],
-        education: canonical.education ?? [],
-        certifications: canonical.certifications ?? [],
-        work_auth: canonical.work_auth ?? {},
-        preferences: canonical.preferences ?? {},
-        derived: canonical.derived ?? {},
-        updated_at: new Date().toISOString(),
-      };
-      const { error } = await adminForNew.from("user_profile_canonical")
-        .upsert(row, { onConflict: "user_id" });
-      if (error) return json({ error: error.message }, 500);
-      // v2.9.0-A: re-index this user for the talent pool if they've opted in.
-      reindexIfOptedIn(adminForNew, userId);
-      return json({ ok: true });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // v2.9.0-A — Talent Pool (Phase A: data layer)
-    // Seeker-side consent + indexing. Employer search lives in Phase B
-    // and runs via the service role, gated on opted_in.
-    // ─────────────────────────────────────────────────────────────
-    if (action === "talent_pool_get") {
-      // v3.2.0 — the Hub renders the employer-facing preview, skills split by
-      // provenance, and a freshness line, so this returns everything needed
-      // for that in one round trip. v3.5.1 adds the consent wording version.
-      const [{ data: consent }, { data: idx }, { data: skillRows }, { data: resumeRow }, { data: canonRow }] = await Promise.all([
-        adminForNew.from("talent_pool_consent").select("opted_in, consented_at, consent_version").eq("user_id", userId).maybeSingle(),
-
-        adminForNew.from("candidate_index")
-          .select("headline, summary, seniority, location, years_experience, indexed_at, embedding_model")
-          .eq("user_id", userId).maybeSingle(),
-        adminForNew.from("candidate_skills").select("id, skill, provenance, source").eq("user_id", userId).order("provenance"),
-        adminForNew.from("resumes").select("updated_at").eq("user_id", userId).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
-        adminForNew.from("user_profile_canonical").select("updated_at").eq("user_id", userId).maybeSingle(),
-      ]);
-      const skills = (skillRows ?? []) as Array<{ id: string; skill: string; provenance: string; source: string }>;
-      // v3.28.0 — say it plainly when an admin has taken this profile out of
-      // the pool, instead of showing a toggle that quietly does nothing.
-      const discoveryBlock = await discoveryRestriction(adminForNew, userId);
-      return json({
-        discovery_restricted: discoveryBlock.restricted,
-        discovery_restriction_reason: discoveryBlock.reason,
-        opted_in: !!consent?.opted_in,
-        consented_at: consent?.consented_at ?? null,
-        consent_version: (consent as { consent_version?: string } | null)?.consent_version ?? null,
-
-        indexed: !!idx,
-        skills_count: skills.length,
-        preview: idx
-          ? {
-              headline: idx.headline ?? "",
-              seniority: idx.seniority ?? "",
-              location: idx.location ?? "",
-              years_experience: idx.years_experience ?? null,
-              indexed_at: idx.indexed_at ?? null,
-              embedding_model: idx.embedding_model ?? null,
-            }
-          : null,
-        skills,
-        indexed_at: idx?.indexed_at ?? null,
-        resume_updated_at: resumeRow?.updated_at ?? null,
-        profile_updated_at: canonRow?.updated_at ?? null,
-      });
-    }
-
-    // v3.33.0 — the acceptance itself is recorded by handle_new_user, inside
-    // the same transaction as the account, so it cannot be skipped by a failed
-    // request or a closed tab. This action only completes that row with the IP
-    // address, which only the server can see, and it records a re-acceptance
-    // of a newer version as a new row. Append only otherwise.
-    if (action === "legal_consent_record") {
-      const { terms_version, privacy_version, source } = payload as {
-        terms_version?: string; privacy_version?: string; source?: string;
-      };
-      if (!terms_version || !privacy_version) {
-        return json({ error: "terms_version and privacy_version required" }, 400);
-      }
-      const tv = String(terms_version).slice(0, 32);
-      const pv = String(privacy_version).slice(0, 32);
-      const fwd = req.headers.get("x-forwarded-for") || "";
-      const ip = (fwd.split(",")[0] || req.headers.get("cf-connecting-ip") || "").trim() || null;
-      const ua = (req.headers.get("user-agent") || "").slice(0, 500);
-
-      const { data: existing } = await adminForNew
-        .from("terms_consent_log")
-        .select("id, ip_address, user_agent")
-        .eq("user_id", userId)
-        .eq("terms_version", tv)
-        .eq("privacy_version", pv)
-        .eq("terms_accepted", true)
-        .order("accepted_at", { ascending: false })
-        .limit(1);
-
-      if (existing && existing.length > 0) {
-        const row = existing[0] as { id: string; ip_address: string | null; user_agent: string | null };
-        if (!row.ip_address || !row.user_agent) {
-          const { error } = await adminForNew.from("terms_consent_log")
-            .update({ ip_address: row.ip_address || ip, user_agent: row.user_agent || ua })
-            .eq("id", row.id);
-          if (error) return json({ error: error.message }, 500);
-        }
-        return json({ ok: true, completed: true });
-      }
-
-      const { error } = await adminForNew.from("terms_consent_log").insert({
-        user_id: userId,
-        terms_version: tv,
-        privacy_version: pv,
-        privacy_accepted: true,
-        terms_accepted: true,
-        ip_address: ip,
-        source: source === "reaccept" ? "reaccept" : "signup",
-        user_agent: ua,
-      });
-      if (error) return json({ error: error.message }, 500);
-      return json({ ok: true });
-    }
-
-
-
-    if (action === "talent_pool_set") {
-      const { opted_in, consent_version } = payload as { opted_in?: boolean; consent_version?: string };
-      if (typeof opted_in !== "boolean") return json({ error: "opted_in required" }, 400);
-      // v3.28.0 — cannot opt back in while restricted from discovery.
-      if (opted_in) {
-        const block = await discoveryRestriction(adminForNew, userId);
-        if (block.restricted) {
-          return json({
-            code: "account_restricted",
-            error: "account_restricted",
-            capability: "discovery",
-            reason: block.reason,
-            message: RESTRICTION_MESSAGE.discovery,
-          }, 403);
-        }
-      }
-      const now = new Date().toISOString();
-      // v3.5.1 — record WHICH consent wording the user agreed to, so a future
-      // copy change never leaves us guessing what they were shown.
-      const row = {
-        user_id: userId,
-        opted_in,
-        consented_at: opted_in ? now : null,
-        revoked_at: opted_in ? null : now,
-        consent_version: opted_in ? (consent_version || "v3.5.1-full-profile") : null,
-        updated_at: now,
-      };
-      const { error } = await adminForNew.from("talent_pool_consent").upsert(row, { onConflict: "user_id" });
-      if (error) return json({ error: error.message }, 500);
-
-      if (opted_in) {
-        try { await indexCandidate(adminForNew, userId); }
-        catch (e) { console.error("indexCandidate failed", (e as Error).message); }
-      } else {
-        await Promise.all([
-          adminForNew.from("candidate_index").delete().eq("user_id", userId),
-          adminForNew.from("candidate_skills").delete().eq("user_id", userId),
-        ]);
-      }
-      return json({ ok: true, opted_in });
-    }
-
-    // v2.9.1 — manual re-index (Talent Pool card "Re-index my profile" link).
-    // Only useful when opted in; refreshes the caller's candidate_index row
-    // with the current embedding model.
-    if (action === "talent_pool_reindex_self") {
-      const { data: consent } = await adminForNew.from("talent_pool_consent")
-        .select("opted_in").eq("user_id", userId).maybeSingle();
-      if (!consent?.opted_in) return json({ error: "Opt in first" }, 400);
-      try {
-        const result = await indexCandidate(adminForNew, userId);
-        if (!result) return json({ error: "No profile to index" }, 400);
-        return json(result);
-      } catch (e) {
-        return json({ error: (e as Error).message }, 500);
-      }
-    }
+    // v3.325.0 — canonical-profile CRUD and Talent Pool actions moved to
+    // lib/profileTalentPoolActions.ts. See that file's own header comment.
+    if (action === "profile_canonical_get") return await handleProfileCanonicalGet(ctx);
+    if (action === "profile_canonical_extract") return await handleProfileCanonicalExtract(ctx);
+    if (action === "profile_canonical_save") return await handleProfileCanonicalSave(ctx);
+    if (action === "talent_pool_get") return await handleTalentPoolGet(ctx);
+    if (action === "legal_consent_record") return await handleLegalConsentRecord(ctx);
+    if (action === "talent_pool_set") return await handleTalentPoolSet(ctx);
+    if (action === "talent_pool_reindex_self") return await handleTalentPoolReindexSelf(ctx);
 
 
 
