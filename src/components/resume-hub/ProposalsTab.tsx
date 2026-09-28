@@ -25,7 +25,7 @@ import { Loader2, Inbox, MapPin, Briefcase, Banknote, ExternalLink, ChevronDown,
 import { employerApi, type Proposal } from "@/lib/employer";
 import { resumeHubApi } from "@/lib/resumeHub";
 import MessageThread from "@/components/shared/MessageThread";
-import { companyAvatar } from "./BrowseJobs";
+import { companyAvatar } from "@/lib/jobPostingFormat";
 
 function when(iso: string | null): string {
   if (!iso) return "";

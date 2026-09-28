@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, GraduationCap, CheckCircle2, Circle, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { companyAvatar } from "./BrowseJobs";
+import { companyAvatar } from "@/lib/jobPostingFormat";
 
 type Row = {
   id: string;

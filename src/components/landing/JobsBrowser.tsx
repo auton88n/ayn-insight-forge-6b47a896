@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { JobPosting } from '@/lib/resumeHub';
-import { companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike, JobDescriptionBody, EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeCategory } from '@/components/resume-hub/BrowseJobs';
+import { companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike, JobDescriptionBody, employmentTypeLabel, seniorityLabel, humanizeCategory } from '@/lib/jobPostingFormat';
 import { Search, ExternalLink, Loader2, MapPin, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
 
 const PAGE_SIZE = 25;
@@ -151,7 +151,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
           const salary = resolveSalary({ ...job, description: '' });
           return (
         <button id={'job-result-' + job.id} key={job.id} type="button" onClick={() => openJob(job)} aria-pressed={selectedId === job.id} className={'lp-browser-card ' + (selectedId === job.id ? 'is-active' : '')}>
-          <div className="lp-browser-card-row">{logo(job)}<div className="lp-browser-card-text"><div className="lp-browser-card-company">{job.company}</div><div className="lp-browser-card-title">{job.title}</div><div className="lp-browser-card-meta">{job.location || 'Location not listed'}{job.work_mode && ' · ' + job.work_mode.charAt(0).toUpperCase() + job.work_mode.slice(1)}</div><div className="ayn-job-meta-bottom"><span>{job.employment_type ? EMPLOYMENT_TYPE_LABELS[job.employment_type] || job.employment_type : 'View posting'}</span>{salary && <span className="ayn-job-salary" title={salary.fromListingText ? "Read directly from this posting's own text." : undefined}>{salary.text}</span>}<span className="ayn-job-posted">{postedAge(job.posted_at)}</span></div></div></div>
+          <div className="lp-browser-card-row">{logo(job)}<div className="lp-browser-card-text"><div className="lp-browser-card-company">{job.company}</div><div className="lp-browser-card-title">{job.title}</div><div className="lp-browser-card-meta">{job.location || 'Location not listed'}{job.work_mode && ' · ' + job.work_mode.charAt(0).toUpperCase() + job.work_mode.slice(1)}</div><div className="ayn-job-meta-bottom"><span>{employmentTypeLabel(job.employment_type) || 'View posting'}</span>{salary && <span className="ayn-job-salary" title={salary.fromListingText ? "Read directly from this posting's own text." : undefined}>{salary.text}</span>}<span className="ayn-job-posted">{postedAge(job.posted_at)}</span></div></div></div>
         </button>
           );
         })}
@@ -163,7 +163,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
         {selectedId && detail.isPending ? <div className="ayn-inline-state" role="status"><Loader2 size={20} className="animate-spin" /><p>Loading the full posting…</p></div> : detail.isError ? <div className="ayn-inline-state" role="alert"><h3>This posting could not load</h3><button className="lp-btn lp-btn-ghost" onClick={() => detail.refetch()}>Try again</button></div> : selected ? <article className="lp-browser-detail-card">
           <div className="lp-browser-detail-head">{logo(selected, true)}<div><p className="lp-browser-detail-company">{selected.company}</p><p className="ayn-source-note">Posted {postedDate(selected.posted_at)}</p></div></div>
           <h2 ref={headingRef} tabIndex={-1} className="ayn-job-title">{selected.title}</h2>
-          <div className="lp-browser-pill-row">{selected.location && <span><MapPin size={15} />{selected.location}</span>}{selected.employment_type && <span>{EMPLOYMENT_TYPE_LABELS[selected.employment_type] || selected.employment_type}</span>}{selected.seniority && <span>{SENIORITY_LABELS[selected.seniority] || selected.seniority}</span>}{resolveSalary(selected) && <span>{resolveSalary(selected)!.text}</span>}</div>
+          <div className="lp-browser-pill-row">{selected.location && <span><MapPin size={15} />{selected.location}</span>}{selected.employment_type && <span>{employmentTypeLabel(selected.employment_type)}</span>}{selected.seniority && <span>{seniorityLabel(selected.seniority)}</span>}{resolveSalary(selected) && <span>{resolveSalary(selected)!.text}</span>}</div>
           <div className="lp-browser-actions"><a href={/^https?:\/\//i.test(selected.apply_url) ? selected.apply_url : undefined} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-primary">Open application <ExternalLink size={16} /></a><button className="lp-btn lp-btn-ghost" onClick={() => { try { sessionStorage.setItem('ayn_check_jd', selected.description); } catch { /* checker remains usable */ } navigate('/check-resume'); }}>Check my fit</button></div>
           <p className="ayn-source-note">The application opens on the employer’s site. AYN does not submit it for you.</p>
           <div className="lp-browser-jd"><h3>About this role</h3><JobDescriptionBody text={selected.description} /></div>

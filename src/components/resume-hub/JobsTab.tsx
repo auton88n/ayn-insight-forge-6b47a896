@@ -34,7 +34,7 @@ import ResumeDiffViewer from "./ResumeDiffViewer";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
-import { companyAvatar } from "./BrowseJobs";
+import { companyAvatar } from "@/lib/jobPostingFormat";
 
 interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile: () => void; onCreditsChanged?: () => void; onBackToBrowse: () => void }
 

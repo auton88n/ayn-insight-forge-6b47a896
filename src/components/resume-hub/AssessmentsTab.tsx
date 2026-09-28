@@ -15,7 +15,7 @@ import { Loader2, Timer, CheckCircle2, Type } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { assessmentApi, type SeekerAssessment, type StartedAssessment } from "@/lib/assessments";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
-import { companyAvatar } from "./BrowseJobs";
+import { companyAvatar } from "@/lib/jobPostingFormat";
 
 // v3.172.0 — checked assessments against real research on what candidates
 // say about skills tests: a good one "feels collaborative and real," a bad

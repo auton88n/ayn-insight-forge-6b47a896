@@ -25,7 +25,7 @@
 import { memo, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { companyAvatar } from '@/components/resume-hub/BrowseJobs';
+import { companyAvatar } from '@/lib/jobPostingFormat';
 
 const HOT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const PREVIEW_SIZE = 4;

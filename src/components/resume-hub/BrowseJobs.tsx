@@ -43,6 +43,20 @@ import {
 } from "lucide-react";
 import { resumeHubApi, type JobPosting } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
+// v3.322.0 — these used to be defined in this file; four separate public,
+// no-login pages (JobsBrowser.tsx, LiveJobsPreview.tsx, PublicJobs.tsx,
+// SalaryGuide.tsx) imported them straight from here for reuse, which meant
+// every anonymous visitor's build pulled in this whole ~2,600-line account
+// module just for a formatter function -- confirmed at the built-output
+// level, not assumed. Moved to a real, neutral shared module; this file is
+// now a consumer like every other caller, not the source. See that file's
+// own header for the full story, including a real, live label-map bug
+// fixed in the same move.
+import {
+  EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeCategory, humanizeSlug, resolveSalary,
+  companyAvatar, resolveLogoUrl, postedAge, postedDate, safeLike,
+  JobDescriptionBody, parseJobDescription,
+} from "@/lib/jobPostingFormat";
 
 interface Props {
   userId: string;
@@ -53,55 +67,14 @@ interface Props {
 
 const PAGE_SIZE = 25;
 const HOT_WINDOW_MS = 24 * 60 * 60 * 1000;
-// v3.166.0 — the enrichment columns job-board-sync now captures, so filters
-// and ranking can read them without a second round trip per row.
-const COLS = "id, source, company, company_slug, company_logo_url, title, description, location, apply_url, posted_at, "
-  + "employment_type, seniority, salary_min, salary_max, salary_currency, category, work_mode, city, skills";
-
-export const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
-  full_time: "Full-time", part_time: "Part-time", contract: "Contract", internship: "Internship",
-};
-export const SENIORITY_LABELS: Record<string, string> = {
-  junior: "Junior", mid: "Mid", senior: "Senior", staff: "Staff", lead: "Lead", principal: "Principal",
-};
+// v3.145.0 — whatever's open in the detail pane, restored once on a
+// refresh via its own one-shot effect below.
+const BROWSE_LAST_OPEN_KEY = "ayn_browse_last_open";
 const POSTED_WITHIN_OPTIONS = [
   { key: "1", label: "24 hours" },
   { key: "3", label: "3 days" },
   { key: "7", label: "This week" },
 ] as const;
-
-// Freehire's own vocabulary for these two fields is broader than the curated
-// label maps above (c_level, middle, fellowship all showed up live, none of
-// them hardcoded) -- fall back to a humanized slug instead of the raw
-// underscore-joined value so an unmapped one still reads like a real label.
-function humanizeSlug(s: string) {
-  return s.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-}
-
-// v3.167.0 — category values (job_postings.category) come from two
-// different sources that don't share a formatting convention: freehire's
-// own enrichment field (sometimes carries raw punctuation, confirmed live
-// -- "starlink_enterprise_sales&account_management") and ats-direct-
-// sync's own toSlug() of a company's free-text department name.
-// humanizeSlug alone left "&" glued to the next word ("Sales&Account").
-// This normalizes any stray punctuation to a space first, not just
-// underscores. One real, disclosed limit that stays unfixed: a department
-// name with no separator at all between two real words in the source data
-// ("AIInfrastructure" with no space) can't be split back apart without
-// knowing "AI" is an acronym -- confirmed live as "Aiinfrastructure
-// Operations," a genuine quirk of one company's own internal naming, not
-// something guessable from the slug alone.
-export function humanizeCategory(s: string) {
-  return s
-    .replace(/_/g, " ")
-    .replace(/&/g, " and ")
-    .replace(/[^a-zA-Z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-}
 
 // v3.167.0 — asked directly not to expose the raw catalog size. A precise
 // count is genuinely useful feedback when it's small (a filtered search
@@ -114,166 +87,6 @@ export function humanizeCategory(s: string) {
 // anything.
 function displayCount(n: number): string {
   return n > 999 ? "1,000+" : String(n);
-}
-
-function formatSalary(min: number | null | undefined, max: number | null | undefined, currency: string | null | undefined) {
-  if (min == null && max == null) return null;
-  const cur = currency || "USD";
-  const fmt = (n: number) => n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
-  if (min != null && max != null) return `${cur} ${fmt(min)}–${fmt(max)}`;
-  return `${cur} ${fmt((min ?? max)!)}+`;
-}
-
-// v3.170.0 — asked directly to look into salary coverage after the earlier
-// LinkedIn/Indeed research: 67-98% of job seekers across every survey
-// checked call salary the single most important thing on a listing, and
-// 44-60% say they won't even apply without one. Checked AYN's real
-// coverage first (34%, per this file's own header note) and then checked
-// WHY it's that low rather than assuming employers just don't disclose --
-// 18 US states plus DC now legally require a salary range on job postings
-// (California, Colorado, New York, Illinois and Massachusetts among the
-// strictest), so a real, employer-stated range is very often sitting
-// right in the description text even when freehire's own structured
-// enrichment field didn't capture it. Confirmed live against a 150-row
-// random sample of postings with no structured salary: a clean, sane
-// range was extractable from 90 of them (60%) after two rounds of
-// tightening the regex against real false positives found in that same
-// sample (a $5.8B company valuation, a $600B market-size projection, a
-// $400 sign-on bonus, a $100M funding round -- none of these are a real
-// two-number RANGE, which is exactly why this only ever matches an actual
-// "$X - $Y" or "$X to $Y" pattern, never a single bare dollar figure).
-//
-// Deliberately NOT Indeed's own approach here, checked directly against
-// real critique of it: Indeed shows an ALGORITHM-ESTIMATED salary when an
-// employer doesn't disclose one, and that's flagged by real complaints as
-// actively misleading -- a candidate can see an estimated range, apply
-// expecting it, and receive a real offer well below it. This never
-// estimates or invents a number; it only reads a real range the employer
-// already wrote themselves, the same "code decides facts, never invents
-// one" rule every other deterministic check in this app already follows.
-const SALARY_RANGE_RE = /\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s?([Kk])?\s?(?:-|–|—|&mdash;|&ndash;|to)\s?\$?\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s?([Kk])?/;
-const HOURLY_CONTEXT_RE = /(per\s*hour|\/\s*hr\b|\/\s*hour|hourly|per\s*hr\b)/i;
-
-function parseSalaryToken(raw: string, kSuffix: string | undefined): { value: number; scaled: boolean } {
-  const value = parseFloat(raw.replace(/,/g, "")) * (kSuffix ? 1000 : 1);
-  return { value, scaled: raw.includes(",") || !!kSuffix };
-}
-
-function extractSalaryFromText(text: string): { min: number; max: number; period: "annual" | "hourly" } | null {
-  const m = text.match(SALARY_RANGE_RE);
-  if (!m || m.index == null) return null;
-  const [, loRaw, loK, hiRaw, hiK] = m;
-  const lo = parseSalaryToken(loRaw, loK);
-  const hi = parseSalaryToken(hiRaw, hiK);
-  if (!(lo.value > 0) || !(hi.value > 0) || hi.value < lo.value || hi.value > 2_000_000) return null;
-  const start = Math.max(0, m.index - 60);
-  const end = Math.min(text.length, m.index + m[0].length + 60);
-  const isHourly = HOURLY_CONTEXT_RE.test(text.slice(start, end));
-  const small = lo.value < 1000 && !lo.scaled && hi.value < 1000 && !hi.scaled;
-  // A small pair with no nearby "per hour"/"hourly" text is ambiguous
-  // (could be years of experience, a headcount, anything) -- rejected
-  // rather than guessed, same "when unsure, leave it out" rule this app
-  // already applies to location scoping and everything else deterministic.
-  if (small && !isHourly) return null;
-  if (small) {
-    if (!(lo.value >= 5 && lo.value <= 500 && hi.value >= 5 && hi.value <= 500)) return null;
-    return { min: lo.value, max: hi.value, period: "hourly" };
-  }
-  if (!(lo.value >= 15_000 && lo.value <= 1_500_000 && hi.value >= 15_000)) return null;
-  return { min: lo.value, max: hi.value, period: "annual" };
-}
-
-/** Structured salary (freehire's own enrichment field) when present,
- * otherwise a real employer-stated range read straight out of the
- * description text. Both are equally real numbers from the same
- * employer's own posting -- the second is just a different, deterministic
- * way of finding the same fact, disclosed via fromListingText so a caller
- * can note where it came from if it wants to. */
-export function resolveSalary(job: JobPosting): { text: string; fromListingText: boolean } | null {
-  const structured = formatSalary(job.salary_min, job.salary_max, job.salary_currency);
-  if (structured) return { text: structured, fromListingText: false };
-  const extracted = extractSalaryFromText(job.description || "");
-  if (!extracted) return null;
-  const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
-  const suffix = extracted.period === "hourly" ? "/hr" : "";
-  return { text: `USD ${fmt(extracted.min)}–${fmt(extracted.max)}${suffix}`, fromListingText: true };
-}
-// v3.145.0 — whatever's open in the detail pane, restored once on a
-// refresh via its own one-shot effect below.
-const BROWSE_LAST_OPEN_KEY = "ayn_browse_last_open";
-
-// v3.171.0 — was a flat pastel fill (bg-blue-100/text-blue-700, etc.), the
-// exact "safe, offends no one" default the AI-slop research flagged. Each
-// company still gets one deterministically, so the same company always
-// lands on the same color across a session — just a real two-stop
-// gradient with white text now, matching the weight the real ember logo
-// mark already carries, instead of reading like a placeholder next to it.
-export const AVATAR_PALETTE = [
-  "bg-gradient-to-br from-blue-500 to-indigo-600 text-white",
-  "bg-gradient-to-br from-violet-500 to-purple-600 text-white",
-  "bg-gradient-to-br from-rose-500 to-pink-600 text-white",
-  "bg-gradient-to-br from-emerald-500 to-teal-600 text-white",
-  "bg-gradient-to-br from-cyan-500 to-sky-600 text-white",
-  "bg-gradient-to-br from-amber-500 to-yellow-600 text-white",
-  "bg-gradient-to-br from-fuchsia-500 to-pink-600 text-white",
-  "bg-gradient-to-br from-slate-500 to-slate-700 text-white",
-];
-
-// v3.233.0 -- every render site now uses rounded-full for this fallback,
-// not rounded-xl (still used by the real <img> logo it sits beside). A
-// letter in a circle reads unmistakably as an avatar; a bordered square at
-// list density was easy to mistake for an unchecked checkbox.
-export function companyAvatar(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  const initial = (name.trim()[0] || "?").toUpperCase();
-  return { initial, className: AVATAR_PALETTE[hash % AVATAR_PALETTE.length] };
-}
-
-// v3.169.0 — asked directly for a deep look at what people want from
-// LinkedIn/Indeed, then to use it as an advantage. Checked one of the
-// specific complaints ("logos are missing") against real data first:
-// confirmed live, only 49% of job_postings rows have a logo at all, and
-// it's far worse for the three direct-ATS sources (26% Greenhouse, 8%
-// Lever, 54% Ashby) than freehire (62%). Root cause, also confirmed live
-// against each vendor's real API response: Greenhouse, Lever, and Ashby's
-// own public job-board APIs never return a logo field, full stop — a
-// company only ever had one here because it also happened to already be
-// in the freehire feed, whose own server-side favicon-by-domain lookup
-// (done at ingestion) still only covers 62% of ITS OWN rows.
-//
-// A client-side favicon-guessing fallback was tried under all of that for
-// a while; see v3.263.0's own comment on resolveLogoUrl below for why it
-// was removed rather than kept.
-// v3.263.0 -- the client-side favicon guess (icons.duckduckgo.com/ip3/...)
-// this used to fall back to for a job with no company_logo_url is gone.
-// Reported directly against a screenshot: every card showed the identical
-// generic grey chevron glyph in place of a company logo. Traced with a
-// real, unsandboxed curl (this session's own Browser pane has no route to
-// an external host at all, so it couldn't have shown this): DuckDuckGo's
-// icon service answers a domain it has no real favicon for with a real
-// HTTP 404 status, but still serves a genuine, valid 48x48 PNG body -- its
-// own generic "unknown site" placeholder (confirmed byte-for-byte: a light
-// grey circle with a white chevron). A browser's <img> tag only reacts to
-// a load actually failing, never to the status code on a load that
-// otherwise succeeds, so onError never fires; the placeholder is well
-// above the existing MIN_LOGO_PX floor too, so the tiny-image check never
-// catches it either -- it renders exactly as if it were a real, verified
-// logo. Confirmed via curl that a real fetch() check can't tell the two
-// apart from here either: DuckDuckGo sends no CORS headers at all on this
-// endpoint, so a cross-origin fetch (needed to read the real status code)
-// is rejected by the browser before the status is ever visible to this
-// app's own JS, for a genuinely good icon exactly as much as a bad one.
-// With no reliable way to tell a real icon from the disguised placeholder,
-// the honest choice -- consistent with this whole app's own "never show
-// something that might not be real" rule -- is to stop guessing: a job
-// with no company_logo_url now goes straight to the deterministic
-// colored-initial avatar every caller already has, rather than risk
-// showing DuckDuckGo's own "we don't know" glyph as if it were real.
-/** company_logo_url when freehire's own server-side lookup found a real
- * one, otherwise null -- never a client-side guess. */
-export function resolveLogoUrl(job: JobPosting): string | null {
-  return job.company_logo_url || null;
 }
 
 // job_board_score is deliberately keyword-only (no AI call — see that
@@ -355,141 +168,14 @@ function ScoreGauge({ score, size = 28, showLabel = false }: { score: number; si
   );
 }
 
-export function postedAge(iso: string) {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 60) return `${mins} min ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
-  const days = Math.round(hours / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
-}
-
-// v3.141.0 — asked directly to also show the actual posting date, not just
-// a relative "3 hours ago". Short form for the compact list row (no year —
-// job_postings is pruned past a 3-day freshness window (v3.194.0, was 7),
-// so a stored date is always within the current year in practice); the
-// detail pane gets the same short date, room there doesn't call for
-// anything longer either.
-export function postedDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-/** Escapes the characters PostgREST treats as special inside an ilike filter. */
-export function safeLike(s: string) {
-  return s.replace(/[%,()]/g, " ").trim();
-}
-
-// v3.168.0 — asked directly for "better formatting for JD". The detail pane
-// rendered the raw description as one whitespace-pre-wrap block, so a real
-// JD with distinct sections (Responsibilities / Requirements / Benefits)
-// and bulleted lists read as a wall of text with no visual structure. This
-// is a deterministic, code-only parser -- it never rewrites, summarizes or
-// invents a single word of the source text, only groups the SAME lines
-// into headings / bullet lists / paragraphs so the existing structure most
-// JDs already carry (a "- " bullet, an ALL CAPS section label, a line
-// ending in ":") actually renders as one. A JD with no such structure at
-// all (rare -- most freehire/ATS-direct-sourced descriptions have at least
-// bullets) still renders correctly, just as plain paragraphs, same as
-// before this change.
-const JD_HEADER_KEYWORDS = new Set([
-  "responsibilities", "requirements", "qualifications", "about the role", "about the team",
-  "about us", "about the company", "who you are", "what you'll do", "what you will do",
-  "what we offer", "why join", "benefits", "perks", "compensation", "duties", "overview",
-  "summary", "role summary", "job summary", "skills", "experience", "education",
-  "nice to have", "preferred qualifications", "must have", "minimum qualifications",
-  "equal opportunity", "eeo statement", "how to apply", "the role", "the team",
-  "key responsibilities", "essential functions", "physical requirements",
-]);
-
-function isJdHeading(line: string): boolean {
-  const trimmed = line.trim();
-  if (trimmed.length < 3 || trimmed.length > 70) return false;
-  if (/[.;,]$/.test(trimmed)) return false; // a real sentence ends in punctuation, a header doesn't
-  const bare = trimmed.replace(/:$/, "").trim().toLowerCase();
-  if (JD_HEADER_KEYWORDS.has(bare)) return true;
-  if (trimmed.endsWith(":") && trimmed.length <= 50 && !/[.!?]/.test(trimmed)) return true;
-  const hasLower = /[a-z]/.test(trimmed);
-  const hasUpper = /[A-Z]/.test(trimmed);
-  return !hasLower && hasUpper && trimmed.split(/\s+/).length >= 2;
-}
-
-function jdBulletText(line: string): string | null {
-  const m = line.match(/^\s*(?:[-•*●▪◦‣]|\d+[.)])\s+(.*)$/);
-  return m ? m[1].trim() : null;
-}
-
-type JdBlock =
-  | { kind: "heading"; text: string }
-  | { kind: "bullets"; items: string[] }
-  | { kind: "para"; text: string };
-
-/** Drops a blank line sitting between two bullet lines -- found live: many
- * real postings (e.g. state-of-Ohio, NCSS listings) put one blank line
- * between every "- " item, which without this would flush and restart a
- * one-item bullet list per line instead of one real list. */
-function collapseBulletGaps(lines: string[]): string[] {
-  const out: string[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) {
-      const prevWasBullet = out.length > 0 && jdBulletText(out[out.length - 1].trim()) !== null;
-      let j = i + 1;
-      while (j < lines.length && !lines[j].trim()) j++;
-      const nextIsBullet = j < lines.length && jdBulletText(lines[j].trim()) !== null;
-      if (prevWasBullet && nextIsBullet) continue;
-    }
-    out.push(lines[i]);
-  }
-  return out;
-}
-
-function parseJobDescription(text: string): JdBlock[] {
-  const lines = collapseBulletGaps(text.replace(/\r\n/g, "\n").split("\n"));
-  const blocks: JdBlock[] = [];
-  let paraBuf: string[] = [];
-  let bulletBuf: string[] = [];
-  const flushPara = () => {
-    if (paraBuf.length) blocks.push({ kind: "para", text: paraBuf.join(" ") });
-    paraBuf = [];
-  };
-  const flushBullets = () => {
-    if (bulletBuf.length) blocks.push({ kind: "bullets", items: bulletBuf });
-    bulletBuf = [];
-  };
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) {
-      flushPara();
-      flushBullets();
-      continue;
-    }
-    const bulletText = jdBulletText(line);
-    if (bulletText !== null) {
-      flushPara();
-      bulletBuf.push(bulletText);
-      continue;
-    }
-    if (isJdHeading(line)) {
-      flushPara();
-      flushBullets();
-      blocks.push({ kind: "heading", text: line.replace(/:$/, "") });
-      continue;
-    }
-    flushBullets();
-    paraBuf.push(line);
-  }
-  flushPara();
-  flushBullets();
-  return blocks;
-}
-
 // v3.182.0 — 89% of job seekers say a company's values weigh on whether
 // they apply (real, cited research), and the highlights strip above had
 // salary/seniority/mode/type but nothing about the company itself. Zero new
 // data and zero AI call: JD_HEADER_KEYWORDS already recognizes "about us" /
-// "why join" / "who we are" style headings for the structural parser above,
-// so this just asks that same parser for the paragraph sitting right under
-// one of those specific headings and shows it verbatim, truncated. Never
+// "why join" / "who we are" style headings for the structural parser
+// (parseJobDescription, now shared -- see jobPostingFormat.tsx), so this
+// just asks that same parser for the paragraph sitting right under one of
+// those specific headings and shows it verbatim, truncated. Never
 // summarized, never scored, never invented for a JD that doesn't have one --
 // exactly the "surface what the company already said" version, not a new
 // AYN opinion about the company.
@@ -515,44 +201,10 @@ function extractCultureSnippet(text: string): string | null {
   }
   return null;
 }
-
-export function JobDescriptionBody({ text }: { text: string }) {
-  const blocks = useMemo(() => parseJobDescription(text.trim()), [text]);
-  if (!blocks.length) {
-    return (
-      <p className="text-sm leading-relaxed text-foreground/90">
-        This posting did not include a description. Open it on the company site to read the full details.
-      </p>
-    );
-  }
-  return (
-    <div className="space-y-2">
-      {blocks.map((b, i) => {
-        if (b.kind === "heading") {
-          return (
-            <h4 key={i} className="text-sm font-semibold text-foreground mt-4 mb-1 first:mt-0">
-              {b.text}
-            </h4>
-          );
-        }
-        if (b.kind === "bullets") {
-          return (
-            <ul key={i} className="list-disc pl-5 space-y-1 text-sm leading-relaxed text-foreground/90">
-              {b.items.map((item, j) => (
-                <li key={j}>{item}</li>
-              ))}
-            </ul>
-          );
-        }
-        return (
-          <p key={i} className="text-sm leading-relaxed text-foreground/90">
-            {b.text}
-          </p>
-        );
-      })}
-    </div>
-  );
-}
+// v3.166.0 — the enrichment columns job-board-sync now captures, so filters
+// and ranking can read them without a second round trip per row.
+const COLS = "id, source, company, company_slug, company_logo_url, title, description, location, apply_url, posted_at, "
+  + "employment_type, seniority, salary_min, salary_max, salary_currency, category, work_mode, city, skills";
 
 // v3.142.0 — asked directly for "a better way to organize locations": the
 // filter held 1,000+ distinct raw strings (job-board-sync pulls location

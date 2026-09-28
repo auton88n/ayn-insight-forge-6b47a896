@@ -6,7 +6,7 @@ import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { SectionHeading } from '@/components/shared/SectionHeading';
 import { Skeleton } from '@/components/ui/skeleton';
-import { humanizeCategory } from '@/components/resume-hub/BrowseJobs';
+import { humanizeCategory } from '@/lib/jobPostingFormat';
 import { TrendingUp, MapPin, Briefcase, ShieldCheck } from 'lucide-react';
 
 const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
