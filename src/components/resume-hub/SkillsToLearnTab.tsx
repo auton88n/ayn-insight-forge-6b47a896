@@ -8,7 +8,8 @@
  * static claim on a document and nothing more — a real, ongoing checklist
  * of what to actually go learn before an interview happens.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -41,21 +42,32 @@ type Group = { key: string; job_title: string | null; company: string | null; ro
 
 export default function SkillsToLearnTab({ userId, onOpenJob }: { userId: string; onOpenJob?: (jobId: string) => void }) {
   const { toast } = useToast();
-  const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState<Record<string, boolean>>({});
 
-  const load = useCallback(async () => {
-    const { data } = await supabase
-      .from("skills_to_learn")
-      .select("id, job_id, job_title, company, skill, added_at, learned_at")
-      .eq("user_id", userId)
-      .order("added_at", { ascending: false });
-    setRows((data as Row[]) || []);
-    setLoading(false);
-  }, [userId]);
-
-  useEffect(() => { load(); }, [load]);
+  // Reported directly: switching tabs and coming back feels slow, every
+  // time, on every tab. Confirmed live: this whole file re-fetched from
+  // scratch on every remount, with nothing remembered -- leave this tab,
+  // come back a moment later, same loading flash, same round trip, even
+  // though nothing changed. Same fix across every account tab: read
+  // through the app's own query cache (already proven correct for public
+  // job browsing) instead of a raw useEffect + local state with no memory.
+  // A remount within the cache's freshness window now renders the last
+  // known rows instantly, no spinner, while a genuinely first visit (or
+  // one past the freshness window) still fetches for real.
+  const queryKey = ["skills-to-learn", userId] as const;
+  const { data: rows = [], isLoading: loading } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("skills_to_learn")
+        .select("id, job_id, job_title, company, skill, added_at, learned_at")
+        .eq("user_id", userId)
+        .order("added_at", { ascending: false });
+      if (error) throw error;
+      return (data as Row[]) || [];
+    },
+  });
 
   const toggleLearned = async (row: Row) => {
     setBusy(b => ({ ...b, [row.id]: true }));
@@ -64,7 +76,9 @@ export default function SkillsToLearnTab({ userId, onOpenJob }: { userId: string
     if (error) {
       toast({ title: "Couldn't update that", description: error.message, variant: "destructive" });
     } else {
-      setRows(prev => prev.map(r => r.id === row.id ? { ...r, learned_at: nextLearnedAt } : r));
+      queryClient.setQueryData<Row[]>(queryKey, (prev) =>
+        (prev ?? []).map(r => (r.id === row.id ? { ...r, learned_at: nextLearnedAt } : r))
+      );
     }
     setBusy(b => ({ ...b, [row.id]: false }));
   };

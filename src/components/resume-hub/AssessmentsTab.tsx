@@ -8,6 +8,7 @@
  * no endpoint on this lane that could return one.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -159,8 +160,7 @@ function CanvasQuestionText({ text, sampleClassName }: { text: string; sampleCla
 
 export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: number) => void }) {
   const { toast } = useToast();
-  const [rows, setRows] = useState<SeekerAssessment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [active, setActive] = useState<StartedAssessment | null>(null);
   const [idx, setIdx] = useState(0);
   const [draft, setDraft] = useState("");
@@ -173,18 +173,26 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
   // it stays on for the rest of this assessment, not re-asked per question.
   const [accessibleText, setAccessibleText] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
+  // Reported directly, same fix as every other account tab: leaving this
+  // tab and coming back re-fetched every time. Read through the shared
+  // query cache instead. load() used to be called imperatively too, from
+  // inside submit/start/saveAndNext -- those now invalidate the query
+  // instead of calling a bespoke fetch function, same real effect (a
+  // fresh read from the server), consistent with the cache.
+  const queryKey = ["assessments"] as const;
+  const { data: rows = [], isLoading: loading } = useQuery({
+    queryKey,
+    queryFn: async () => {
       const r = await assessmentApi.list();
-      const list = r.assessments || [];
-      setRows(list);
-      onChanged?.(list.filter(a => a.status === "sent" || a.status === "started").length);
-    } catch { setRows([]); }
-    finally { setLoading(false); }
-  }, [onChanged]);
+      return r.assessments || [];
+    },
+  });
+  const refreshRows = useCallback(() => queryClient.invalidateQueries({ queryKey }), [queryClient]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    onChanged?.(rows.filter(a => a.status === "sent" || a.status === "started").length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   const submit = useCallback(async (auto: boolean) => {
     // v3.41.0 — the 1-second countdown tick calls submit(true) again on every
@@ -198,14 +206,14 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
       const r = await assessmentApi.submit(active.id);
       setDone(r.org_name);
       setActive(null);
-      await load();
+      await refreshRows();
       if (auto) toast({ title: "Time is up", description: "Your answers were submitted." });
     } catch (e) {
       toast({ title: "Could not submit", description: (e as Error).message, variant: "destructive" });
       setActive(null);
-      await load();
+      await refreshRows();
     } finally { setBusy(false); }
-  }, [active, busy, load, toast]);
+  }, [active, busy, refreshRows, toast]);
 
   // Server enforced deadline. This countdown is only the visible half of it:
   // the edge function rejects any answer submitted after the deadline.
@@ -238,7 +246,7 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
       setDone(null);
     } catch (e) {
       toast({ title: "Could not open it", description: (e as Error).message, variant: "destructive" });
-      await load();
+      await refreshRows();
     } finally { setBusy(false); }
   };
 
@@ -271,7 +279,7 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
       }
     } catch (e) {
       toast({ title: "Could not save", description: (e as Error).message, variant: "destructive" });
-      await load();
+      await refreshRows();
       setActive(null);
     } finally { setBusy(false); }
   };

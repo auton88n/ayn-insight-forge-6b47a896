@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -80,6 +81,22 @@ const queryClient = new QueryClient({
       retry: 1,
     },
   },
+});
+
+// The account tabs (Profile, Saved jobs, Proposals, Assessments, Skills to
+// learn) were moved onto this same query cache to stop them refetching
+// from scratch on every tab switch -- see each file's own comment on that.
+// That reintroduces a real, narrow risk this app hasn't had before: the
+// cache is one instance for the whole tab's lifetime, not torn down on
+// sign-out. Six separate places in this app call supabase.auth.signOut()
+// directly (AdminPanel, PrivacySettings, EmployerSidebar, SeekerSidebar,
+// EmployerPending, Billing) -- rather than patch all six, one module-level
+// listener here, registered once for the app's whole lifetime the same way
+// Index.tsx's own auth cache already is, so a same-tab sign-out followed by
+// a different account signing back in can never render a moment of the
+// previous person's cached data before it revalidates.
+supabase.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT') queryClient.clear();
 });
 
 const AnimatedRoutes = () => {

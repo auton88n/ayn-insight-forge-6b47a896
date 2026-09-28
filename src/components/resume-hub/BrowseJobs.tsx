@@ -28,6 +28,7 @@
  * discovery, not a parallel pipeline.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ import {
   companyAvatar, resolveLogoUrl, postedAge, postedDate, safeLike,
   JobDescriptionBody, parseJobDescription,
 } from "@/lib/jobPostingFormat";
+import { savedJobsQueryKey } from "@/lib/queryKeys";
 
 interface Props {
   userId: string;
@@ -524,6 +526,7 @@ function SwipeDeck({
 
 export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [total, setTotal] = useState<number | null>(null);
@@ -1201,6 +1204,11 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       }).select("id").single();
       if (error) throw error;
       setSavedUrls((prev) => new Set(prev).add(job.apply_url));
+      // Saved jobs (JobsTab.tsx) reads this same "jobs" table through its
+      // own cached query -- a genuinely new row here would otherwise sit
+      // hidden behind that cache until it naturally expired (up to 60s),
+      // silently missing from a page whose whole job is showing it.
+      queryClient.invalidateQueries({ queryKey: savedJobsQueryKey(userId) });
       if (navigate) {
         toast({ title: "Job added", description: "Scoring and tailoring are ready on the Jobs page." });
         onAdded((data as { id: string }).id);
@@ -1227,6 +1235,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         .delete().eq("user_id", userId).eq("source_url", job.apply_url);
       if (error) throw error;
       setSavedUrls((prev) => { const next = new Set(prev); next.delete(job.apply_url); return next; });
+      queryClient.invalidateQueries({ queryKey: savedJobsQueryKey(userId) });
       toast({ title: "Removed", description: "Taken off your saved jobs." });
     } catch (e) {
       toast({ title: "Couldn't remove that job", description: e instanceof Error ? e.message : "Error", variant: "destructive" });

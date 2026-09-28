@@ -20,6 +20,7 @@
  * the one part of Resume Hub that hadn't been re-skinned.
  */
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
 import { companyAvatar } from "@/lib/jobPostingFormat";
+import { savedJobsQueryKey } from "@/lib/queryKeys";
 
 interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile: () => void; onCreditsChanged?: () => void; onBackToBrowse: () => void }
 
@@ -112,7 +114,8 @@ function scoreBadgeStyle(score: number): CSSProperties {
 
 export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBackToBrowse }: Props) {
   const { toast } = useToast();
-  const [jobs, setJobs] = useState<JobRow[]>([]);
+  const queryClient = useQueryClient();
+  const jobsQueryKey = savedJobsQueryKey(userId);
   const [selected, setSelected] = useState<JobRow | null>(null);
   // v3.145.0 — "list" means back returns to the Saved jobs list, the
   // existing behavior; "browse" means this job was opened by a handoff
@@ -170,10 +173,38 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // of rows, already loaded in full.
   const [jobQuery, setJobQuery] = useState("");
   const [nudgeSnoozed, setNudgeSnoozed] = useState(false);
-  const load = async () => {
-    const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at, application_status, application_status_changed_at").eq("user_id", userId).order("created_at", { ascending: false });
-    const rows = (data as JobRow[]) ?? [];
-    setJobs(rows);
+
+  // Reported directly, same fix as every other account tab: leaving Saved
+  // jobs and coming back re-fetched the whole list from scratch, every
+  // time, with an empty flash while it did. Read through the shared query
+  // cache instead -- a remount within the cache's freshness window (60s,
+  // the app default) renders the last known list instantly. Browse Jobs'
+  // own save/unsave actions invalidate this same key (savedJobsQueryKey,
+  // src/lib/queryKeys.ts) after writing to the same "jobs" table, so a job
+  // added or removed there is never hidden behind a stale cache here.
+  const { data: jobs = [] } = useQuery({
+    queryKey: jobsQueryKey,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("jobs")
+        .select("id, company, title, location, source_url, jd_text, created_at, application_status, application_status_changed_at")
+        .eq("user_id", userId).order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as JobRow[]) ?? [];
+    },
+  });
+
+  // The "restore what was open" logic below is a real, order-sensitive,
+  // one-time side effect of the list arriving (consume a handoff flag,
+  // or reopen whatever was last viewed) -- not something to re-run every
+  // time the cached list happens to update (a background revalidation,
+  // or an invalidation from Browse Jobs adding/removing a different job),
+  // which would otherwise reset the open detail panel out from under
+  // someone reading it. Guarded to fire exactly once per mount, matching
+  // what the old useEffect([userId]) already did.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current || jobs.length === 0) return;
+    restoredRef.current = true;
     // v3.137.0 — Browse jobs adds a posting then hands off here, naming the
     // new job id. Nothing ever read this flag before, so a job added from
     // the board landed in the list unselected and the person had to find it.
@@ -188,18 +219,19 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       const from = sessionStorage.getItem("ayn_focus_job_from");
       sessionStorage.removeItem("ayn_focus_job_from");
       setBackTarget(from === "browse" ? "browse" : "list");
-      const hit = rows.find((r) => r.id === focus);
+      const hit = jobs.find((r) => r.id === focus);
       if (hit) openJob(hit);
       return;
     }
     const lastOpen = sessionStorage.getItem(LAST_OPEN_KEY);
     if (lastOpen) {
-      const hit = rows.find((r) => r.id === lastOpen);
+      const hit = jobs.find((r) => r.id === lastOpen);
       if (hit) openJob(hit);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs]);
+
   useEffect(() => {
-    load();
     supabase.from("resumes").select("id, content, ats_score").eq("user_id", userId).eq("is_primary", true).maybeSingle()
       .then(({ data }) => data && setPrimaryResume({ id: data.id, content: data.content as ResumeContent, ats_score: data.ats_score }));
   /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [userId]);
@@ -382,7 +414,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     if (!confirm("Remove this job?")) return;
     await supabase.from("jobs").delete().eq("id", id);
     if (selected?.id === id) setSelected(null);
-    load();
+    queryClient.setQueryData<JobRow[]>(jobsQueryKey, (prev) => (prev ?? []).filter((j) => j.id !== id));
   };
 
   // v3.172.0 — one click, no ceremony, matching the exact thing the
@@ -394,7 +426,9 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     const changedAt = new Date().toISOString();
     const { error } = await supabase.from("jobs").update({ application_status: status, application_status_changed_at: changedAt }).eq("id", id);
     if (error) { toast({ title: "Couldn't update status", description: error.message, variant: "destructive" }); return; }
-    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, application_status: status, application_status_changed_at: changedAt } : j)));
+    queryClient.setQueryData<JobRow[]>(jobsQueryKey, (prev) =>
+      (prev ?? []).map((j) => (j.id === id ? { ...j, application_status: status, application_status_changed_at: changedAt } : j))
+    );
     setSelected((prev) => (prev && prev.id === id ? { ...prev, application_status: status, application_status_changed_at: changedAt } : prev));
     dismissNudgeSnooze(id, true); // a fresh status change means any prior silence nudge no longer applies
   };

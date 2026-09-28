@@ -17,6 +17,7 @@
  * AUTOSAVE on blur with a small saved indicator. No giant Save button.
  */
 import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -187,6 +188,7 @@ function mapResumeToCareer(resume: ResumeContent, prev: Career): Career {
 
 export default function ProfileTab({ userId, onCreditsChanged }: { userId: string; onCreditsChanged?: () => void }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [career, setCareer] = useState<Career>(EMPTY);
   const [viewParams] = useSearchParams();
   const navigate = useNavigate();
@@ -212,7 +214,6 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   const [compareOpen, setCompareOpen] = useState(false);
   const [personal, setPersonal] = useState<Personal>(EMPTY_PERSONAL);
   const [personalTouched, setPersonalTouched] = useState<Partial<Record<PersonalKey, boolean>>>({});
-  const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [uploading, setUploading] = useState(false);
   const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string; created_at: string; ats_score: number | null; ats_issues: string[] | null } | null>(null);
@@ -274,11 +275,19 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   // resume's skills/experience/education (merged into local state, not yet
   // persisted) ever reached the server, silently reverting them. ───────────
   type ResumeRow = { id: string; title: string; content: unknown; created_at: string; is_primary: boolean; ats_score: number | null; ats_issues: string[] | null };
-  const loadResumes = useCallback(async () => {
+  // Pure read, no state -- the one place the actual SELECT lives, so the
+  // profile query below (which needs the DATA, not a side effect -- see
+  // its own comment) and loadResumes() (which needs the side effect, for
+  // its several direct callers after an upload/restore) share the exact
+  // same query text instead of one silently drifting from the other.
+  const fetchResumeRows = useCallback(async () => {
     const { data: resumeRows, error } = await supabase.from("resumes").select("id, title, content, created_at, is_primary, ats_score, ats_issues")
       .eq("user_id", userId).order("created_at", { ascending: false });
     if (error) throw error;
-    const rows = ((resumeRows ?? []) as ResumeRow[]);
+    return (resumeRows ?? []) as ResumeRow[];
+  }, [userId]);
+
+  const applyResumeRows = (rows: ResumeRow[]) => {
     const active = rows.find(r => r.is_primary) ?? rows[0] ?? null;
     setResumeHistory(rows.filter(row => row.id !== active?.id));
     if (active) {
@@ -288,56 +297,104 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       setPrimaryResume(null);
       setResumeContent(null);
     }
-  }, [userId]);
+  };
+
+  const loadResumes = useCallback(async () => {
+    const rows = await fetchResumeRows();
+    applyResumeRows(rows);
+    // Same real bug as persist() below, same fix: a genuine fresh server
+    // read here (an upload, a restore, ...) has to also land in the
+    // profile query's own cache, or a remount within the cache's
+    // freshness window would replay the pre-upload/pre-restore snapshot
+    // straight back over this correct, freshly-fetched one. Query key
+    // built inline (not the profileQueryKey below) since this function is
+    // declared before it in the file and referencing it here would be a
+    // real "used before initialization" crash, not just a lint nit.
+    queryClient.setQueryData(["profile-load", userId], (prev: { canon: unknown; prof: unknown; auth: unknown } | undefined) =>
+      prev ? { ...prev, resumeRows: rows } : prev
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchResumeRows, queryClient, userId]);
 
   // ── Load everything the single profile reads from ───────────────────────
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [{ data: canon }, { data: prof }, , { data: auth }] = await Promise.all([
+  // Reported directly, same fix as every other account tab: leaving
+  // Profile and coming back re-fetched canonical/personal/auth from
+  // scratch every time, with a full loading flash. Read through the
+  // shared query cache instead -- a remount within the cache's freshness
+  // window seeds career/personal instantly from the last known values.
+  // Safe to do here specifically because this fetch was only ever
+  // triggered once per mount (confirmed: nothing in this file calls it a
+  // second time -- loadResumes() is its own separate, deliberately
+  // isolated refresh, unaffected by this), so there's no background
+  // revalidation that could ever clobber an in-progress unsaved edit; the
+  // autosave path (scheduleSave/persist, below) writes directly and never
+  // goes through this query at all.
+  const profileQueryKey = useMemo(() => ["profile-load", userId] as const, [userId]);
+  const profileQuery = useQuery({
+    queryKey: profileQueryKey,
+    queryFn: async () => {
+      const [{ data: canon }, { data: prof }, resumeRows, { data: auth }] = await Promise.all([
         supabase.from("user_profile_canonical")
           .select("skills, experiences, education, certifications, work_auth, preferences, derived")
           .eq("user_id", userId).maybeSingle(),
         supabase.from("user_profile_data")
           .select("legal_first_name, legal_last_name, email, phone, address, links")
           .eq("user_id", userId).maybeSingle(),
-        loadResumes(),
+        // A pure read here, not loadResumes() itself -- on a warm-cache
+        // remount this queryFn never runs at all, and loadResumes() sets
+        // state directly, so calling it here would leave the resume
+        // section stuck empty forever after a cache hit. resumeRows
+        // travels in the returned data instead, applied by the effect
+        // below every time -- cold fetch or warm cache alike, unlike
+        // this function itself.
+        fetchResumeRows(),
         supabase.auth.getUser(),
       ]);
+      return { canon, prof, resumeRows, auth };
+    },
+  });
+  const loading = profileQuery.isLoading;
 
-      const c = { ...EMPTY, ...((canon ?? {}) as unknown as Partial<Career>) };
-      // v3.5.0 migration: bare string skills become objects with empty level.
-      c.skills = normalizeSkills((canon as { skills?: unknown } | null)?.skills);
-      setCareer(c);
+  useEffect(() => {
+    if (!profileQuery.data) return;
+    const { canon, prof, resumeRows, auth } = profileQuery.data;
+    applyResumeRows(resumeRows);
+    const c = { ...EMPTY, ...((canon ?? {}) as unknown as Partial<Career>) };
+    // v3.5.0 migration: bare string skills become objects with empty level.
+    c.skills = normalizeSkills((canon as { skills?: unknown } | null)?.skills);
+    setCareer(c);
 
-      if (prof) {
-        const addr = (prof.address ?? {}) as Record<string, string>;
-        const lk = (prof.links ?? {}) as Record<string, string>;
-        const next: Personal = {
-          first_name: prof.legal_first_name ?? "",
-          last_name: prof.legal_last_name ?? "",
-          email: prof.email ?? "",
-          phone: prof.phone ?? "",
-          city: addr.city ?? "",
-          linkedin: lk.linkedin ?? "",
-          github: lk.github ?? "",
-          portfolio: lk.portfolio ?? "",
-        };
-        setPersonal(next);
-        const touched: Partial<Record<PersonalKey, boolean>> = {};
-        (Object.keys(next) as PersonalKey[]).forEach(k => { if (next[k]) touched[k] = true; });
-        setPersonalTouched(touched);
-      }
-
-      setAccountEmail(auth?.user?.email ?? "");
-    } catch (e) {
-      toast({ title: "Couldn't load profile", description: (e as Error).message, variant: "destructive" });
-    } finally {
-      setLoading(false);
+    if (prof) {
+      const addr = (prof.address ?? {}) as Record<string, string>;
+      const lk = (prof.links ?? {}) as Record<string, string>;
+      const next: Personal = {
+        first_name: prof.legal_first_name ?? "",
+        last_name: prof.legal_last_name ?? "",
+        email: prof.email ?? "",
+        phone: prof.phone ?? "",
+        city: addr.city ?? "",
+        linkedin: lk.linkedin ?? "",
+        github: lk.github ?? "",
+        portfolio: lk.portfolio ?? "",
+      };
+      setPersonal(next);
+      const touched: Partial<Record<PersonalKey, boolean>> = {};
+      (Object.keys(next) as PersonalKey[]).forEach(k => { if (next[k]) touched[k] = true; });
+      setPersonalTouched(touched);
     }
-  }, [toast, userId, loadResumes]);
 
-  useEffect(() => { load(); }, [load]);
+    setAccountEmail(auth?.user?.email ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileQuery.data]);
+
+  useEffect(() => {
+    if (profileQuery.isError) {
+      const message = profileQuery.error instanceof Error ? profileQuery.error.message : "Error";
+      toast({ title: "Couldn't load profile", description: message, variant: "destructive" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileQuery.isError]);
+
   useEffect(() => { loadPool(); }, [loadPool]);
 
   // ── Fallback layer: resume, then account. Mirrors identity.ts order. ────
@@ -465,11 +522,41 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       if (pErr) throw new Error(pErr.message);
       reindexTalentPool("profile_save");
       setSaveState("saved");
+      // Real, live bug found testing this: the profile query above is
+      // deliberately never re-fetched in the background (see its own
+      // comment -- that's what keeps a background revalidation from ever
+      // clobbering an in-progress edit). But that cut both ways: a
+      // successful save here left the CACHE still holding the pre-edit
+      // snapshot, so leaving this tab and coming back within the cache's
+      // freshness window replayed that stale snapshot over the top of the
+      // fresh local state, visibly reverting an edit that had already
+      // saved correctly server side. Confirmed live: the database had the
+      // right value, the screen didn't. Fixed by writing the same values
+      // into the cache right after they're confirmed saved, so a later
+      // remount sees the update instead of undoing it.
+      queryClient.setQueryData(profileQueryKey, (prev: typeof profileQuery.data) =>
+        prev
+          ? {
+              ...prev,
+              canon: {
+                skills: c.skills ?? [], experiences: c.experiences ?? [], education: c.education ?? [],
+                certifications: c.certifications ?? [], work_auth: c.work_auth ?? {},
+                preferences: c.preferences ?? {}, derived: c.derived ?? {},
+              },
+              prof: {
+                legal_first_name: val("first_name") || null, legal_last_name: val("last_name") || null,
+                email: val("email") || null, phone: val("phone") || null,
+                address: { city: val("city") || "" },
+                links: { linkedin: val("linkedin") || "", github: val("github") || "", portfolio: val("portfolio") || "" },
+              },
+            }
+          : prev
+      );
     } catch (e) {
       setSaveState("idle");
       toast({ title: "Save failed", description: (e as Error).message, variant: "destructive" });
     }
-  }, [toast, userId]);
+  }, [toast, userId, queryClient, profileQueryKey, profileQuery.data]);
 
   /** Called on blur and on every discrete control change. */
   const queueSave = useCallback(() => {
