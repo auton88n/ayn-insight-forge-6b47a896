@@ -83,6 +83,24 @@ export function relayApiKey(): string | undefined {
 
 
 
+// Real, live gap this codebase's own audit flagged and this fixes: the
+// fetch below had no per-attempt timeout and no overall deadline of its
+// own -- a hung upstream connection was only ever bounded by the Edge
+// Runtime's own outer worker ceiling (documented elsewhere in this file's
+// history as ~150s), not something this function controlled or could
+// report clearly. With up to 3 attempts per model across up to 3 models
+// in the fallback chain (9 possible attempts worst case), a slow-but-not-
+// fully-hung upstream could silently consume the entire platform timeout
+// through legitimate retries, ending in an opaque platform-level kill
+// instead of a clear "AI request timed out" this function throws on
+// purpose. PER_ATTEMPT_TIMEOUT_MS bounds one fetch; OVERALL_DEADLINE_MS
+// bounds the whole chain (comfortably under the ~150s platform ceiling,
+// so this always throws its own clear error first) -- checked before
+// every attempt and before every backoff sleep, so a chain that's already
+// out of budget fails fast instead of sleeping toward a doomed retry.
+const PER_ATTEMPT_TIMEOUT_MS = 30_000;
+const OVERALL_DEADLINE_MS = 120_000;
+
 export async function callAI(opts: {
   model?: string;
   system: string;
@@ -102,9 +120,11 @@ export async function callAI(opts: {
     [DEFAULT_MODEL]: ["google/gemini-2.5-flash-lite"],
   };
   const chain = [primary, ...(FALLBACKS[primary] || [])];
+  const deadlineAt = Date.now() + OVERALL_DEADLINE_MS;
 
   let lastErr = "";
   for (let mi = 0; mi < chain.length; mi++) {
+    if (Date.now() >= deadlineAt) throw new Error("AI request timed out (overall deadline exceeded).");
     const model = chain[mi];
     const body: Record<string, unknown> = {
       model,
@@ -124,17 +144,27 @@ export async function callAI(opts: {
 
     // Up to 3 attempts per model with exponential backoff on 429 / transient 5xx.
     for (let attempt = 0; attempt < 3; attempt++) {
+      if (Date.now() >= deadlineAt) throw new Error("AI request timed out (overall deadline exceeded).");
       let r: Response;
       const startedAt = Date.now();
       try {
+        // Bounds one fetch attempt so a hung upstream connection can never
+        // sit open indefinitely -- also implicitly respects whatever's
+        // left of the overall deadline, so a request that's nearly out of
+        // budget doesn't still burn the full per-attempt allowance.
+        const attemptTimeoutMs = Math.max(1000, Math.min(PER_ATTEMPT_TIMEOUT_MS, deadlineAt - Date.now()));
         r = await fetch(GATEWAY_URL, {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
           body: JSON.stringify(body),
+          signal: AbortSignal.timeout(attemptTimeoutMs),
         });
       } catch (e) {
-        lastErr = `network: ${(e as Error).message}`;
-        await new Promise(res => setTimeout(res, 400 * (attempt + 1)));
+        lastErr = (e instanceof DOMException && e.name === "TimeoutError") || (e as Error)?.name === "AbortError"
+          ? `timeout after ${Date.now() - startedAt}ms`
+          : `network: ${(e as Error).message}`;
+        if (Date.now() >= deadlineAt) throw new Error(`AI request timed out (overall deadline exceeded). Last error: ${lastErr}`);
+        await new Promise(res => setTimeout(res, Math.min(400 * (attempt + 1), Math.max(0, deadlineAt - Date.now()))));
         continue;
       }
 
@@ -172,8 +202,10 @@ export async function callAI(opts: {
       // 429 / 5xx = transient — backoff then retry same model.
       if (r.status === 429 || (r.status >= 500 && r.status < 600)) {
         lastErr = `AI ${r.status}`;
-        // 1s, 2s, 4s
-        await new Promise(res => setTimeout(res, 1000 * Math.pow(2, attempt)));
+        if (Date.now() >= deadlineAt) throw new Error(`AI request timed out (overall deadline exceeded). Last error: ${lastErr}`);
+        // 1s, 2s, 4s, capped so a near-exhausted deadline doesn't sleep
+        // straight past it toward a doomed retry.
+        await new Promise(res => setTimeout(res, Math.min(1000 * Math.pow(2, attempt), Math.max(0, deadlineAt - Date.now()))));
         continue;
       }
       // 4xx other = terminal, stop everything.
