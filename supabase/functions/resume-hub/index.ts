@@ -33,7 +33,7 @@ import {
 // completely untouched by this.
 import { humanWritingViolations, RESUME_WRITING_STANDARD, COVER_LETTER_WRITING_STANDARD } from "../_shared/writingPolicy.ts";
 import { publicResumeReview } from "../_shared/publicResumeReview.ts";
-import { evaluateResumeDocument, RESUME_EVALUATION_VERSION } from "../_shared/resumeEvaluation.ts";
+import { evaluateResumeDocument, evaluateResumeText, RESUME_EVALUATION_VERSION } from "../_shared/resumeEvaluation.ts";
 import { prepareJobDocument, completeJobDocument } from './lib/paidJobDocument.ts';
 // v3.131.0 — stage 1 of the monolith reorganization: pure, self-contained
 // utilities with no dependency on a live request's closure state. See
@@ -1093,14 +1093,13 @@ ${jdText.slice(0, 20000)}${renderGapBlock(gap)}`;
       const { jdText } = payload as { jdText: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
 
-      const [identity, canonical] = await Promise.all([
-        loadIdentity(adminFit, user.id, {}).catch(() => null),
-        loadCanonical(adminFit, user.id),
-      ]);
-      const bundle = buildSections(identity, canonical);
-      if (!bundle.text || bundle.chars < 60) return json({ error: "No resume content available" }, 400);
-      let gap = computeGap(jdText, bundle);
-      gap = await semanticGapRecheck(gap, bundle);
+      const identity = await loadIdentity(adminFit, user.id, {}).catch(() => null);
+      // Same document and same evaluation function match/tailor now use --
+      // this verdict has to agree with whatever score the person already
+      // saw for this same resume and job, not compute its own separate one.
+      const document = identity?.resume.raw;
+      if (!document) return json({ error: "No saved resume available to score" }, 400);
+      const { gap } = evaluateResumeDocument(document, jdText);
 
       const requiredTotal = gap.matched.length + gap.missing.length;
       const coverage = requiredTotal > 0 ? gap.matched.length / requiredTotal : 1;
@@ -1173,28 +1172,27 @@ NICE TO HAVE, NOT REQUIRED: ${JSON.stringify(gap.niceToHave.slice(0, 5).map((r) 
       if (!Array.isArray(jobs) || !jobs.length) return json({ error: "jobs required" }, 400);
       const capped = jobs.slice(0, 50);
 
-      const [identity, canonical] = await Promise.all([
-        loadIdentity(adminScore, user.id, {}).catch(() => null),
-        loadCanonical(adminScore, user.id),
-      ]);
-      const bundle = buildSections(identity, canonical);
-      if (!bundle.text || bundle.chars < 60) {
+      const identity = await loadIdentity(adminScore, user.id, {}).catch(() => null);
+      const document = identity?.resume.raw;
+      if (!document) {
         return json({ scores: capped.map((j) => ({ id: j.id, match_pct: null })) });
       }
-
-      const sectionHash = (await sha256b(bundle.text)).slice(0, 16);
+      // Flattened once, reused for every job below -- evaluateResumeText
+      // does the identical computeGap match/tailor/job_fit_advice now share,
+      // just against pre-flattened text so a 50-job page doesn't re-flatten
+      // the same resume 50 times. A browse-list score and a clicked-into
+      // score can no longer disagree about what's genuinely matched.
+      const documentText = flattenResumeSkillsAndProse(document);
+      const sectionHash = (await sha256b(documentText)).slice(0, 16);
       const scores = await mapConcurrent(capped, 2, async (j) => {
         const jdText = String(j.description || "");
         if (!jdText.trim()) return { id: j.id, match_pct: null };
         const jdHash = (await sha256b(jdText)).slice(0, 24);
-        const cacheKey = `boardscore:${user.id}:${sectionHash}:${jdHash}`;
+        const cacheKey = `boardscore:${RESUME_EVALUATION_VERSION}:${user.id}:${sectionHash}:${jdHash}`;
         const cached = await cacheGet<{ match_pct: number }>(adminScore, cacheKey);
         if (cached) return { id: j.id, match_pct: cached.match_pct };
 
-        let gap = computeGap(jdText, bundle);
-        gap = await semanticGapRecheck(gap, bundle);
-        const total = gap.matched.length + gap.missing.length;
-        const match_pct = total > 0 ? Math.round((gap.matched.length / total) * 100) : null;
+        const { matchPct: match_pct } = evaluateResumeText(documentText, jdText);
 
         if (match_pct != null) cacheSet(adminScore, cacheKey, user.id, "job_board_score", { match_pct }, 24 * 60 * 60 * 1000);
         return { id: j.id, match_pct };
