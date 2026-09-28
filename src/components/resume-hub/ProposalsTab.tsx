@@ -27,6 +27,7 @@ import { employerApi, type Proposal } from "@/lib/employer";
 import { resumeHubApi } from "@/lib/resumeHub";
 import MessageThread from "@/components/shared/MessageThread";
 import { companyAvatar } from "@/lib/jobPostingFormat";
+import { poolStatusQueryKey } from "@/lib/queryKeys";
 
 function when(iso: string | null): string {
   if (!iso) return "";
@@ -48,10 +49,18 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
   const [openThread, setOpenThread] = useState<string | null>(null);
   // v3.186.0 — reported directly: the empty state always said "Turn on
   // discovery," even for an account that already had it on and was
-  // correctly just waiting for a real employer to send one. Fetches the
-  // same talent_pool_get status ProfileTab's own toggle already reads, so
-  // the two surfaces can't disagree about whether discovery is on.
-  const [poolOptedIn, setPoolOptedIn] = useState<boolean | null>(null);
+  // correctly just waiting for a real employer to send one. Reads the
+  // same talent_pool_get status ProfileTab's own toggle reads, so the
+  // two surfaces can't disagree about whether discovery is on -- and,
+  // since v3.323.0, the exact same cached query, not a second independent
+  // fetch. Measured live: talent_pool_get is an edge-function call, 3-4x
+  // slower than a direct table read; two components each firing it
+  // separately on every mount was real, avoidable, duplicated cost.
+  const { data: poolStatus } = useQuery({
+    queryKey: poolStatusQueryKey(),
+    queryFn: () => resumeHubApi.talentPoolGet(),
+  });
+  const poolOptedIn = poolStatus ? !!poolStatus.opted_in : null;
 
   // Reported directly, same fix as every other account tab: leaving this
   // tab and coming back re-fetched every time, with nothing remembered.
@@ -73,10 +82,6 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
     onChanged?.(rows.filter(x => x.status === "pending").length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows]);
-
-  useEffect(() => {
-    resumeHubApi.talentPoolGet().then(r => setPoolOptedIn(!!r.opted_in)).catch(() => {});
-  }, []);
 
   const decide = async (id: string, approve: boolean) => {
     setBusy(p => ({ ...p, [id]: true }));

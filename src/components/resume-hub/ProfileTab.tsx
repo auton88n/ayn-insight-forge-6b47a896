@@ -19,6 +19,7 @@
 import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { poolStatusQueryKey } from "@/lib/queryKeys";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -238,19 +239,27 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   // ── Discoverability toggle ("Let employers find me"), moved here from the
   // Get discovered tab so it sits right where the profile it controls is
   // being edited, instead of being one tab away and easy to miss. ─────────
-  const [poolStatus, setPoolStatus] = useState<TalentPoolStatus | null>(null);
   const [poolSaving, setPoolSaving] = useState(false);
   const [poolConfirmOpen, setPoolConfirmOpen] = useState(false);
+
+  // Measured live against production: talent_pool_get is an edge-function
+  // call (~100ms steady state, ~550ms cold), 3-4x slower than a direct
+  // table read of comparable size, and this was firing fresh on every
+  // single mount -- ProposalsTab.tsx makes the exact same call
+  // independently for its own empty-state copy, so two components were
+  // each paying this cost separately. One shared, cached query
+  // (poolStatusQueryKey, src/lib/queryKeys.ts) now covers both.
+  const poolQueryKey = poolStatusQueryKey();
+  const { data: poolStatus = null } = useQuery({
+    queryKey: poolQueryKey,
+    queryFn: async () => {
+      const r = await resumeHubApi.talentPoolGet();
+      setPoolOptInCache(!!r.opted_in);
+      return r;
+    },
+  });
   const poolOptedIn = !!poolStatus?.opted_in;
   const poolRestricted = !!poolStatus?.discovery_restricted;
-
-  const loadPool = useCallback(async () => {
-    try {
-      const r = await resumeHubApi.talentPoolGet();
-      setPoolStatus(r);
-      setPoolOptInCache(!!r.opted_in);
-    } catch { /* silent */ }
-  }, []);
 
   const togglePool = async (next: boolean) => {
     setPoolSaving(true);
@@ -264,7 +273,14 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           ? "Employers searching AYN can now see your full profile. Contact details stay private until you approve an intro."
           : "Your profile left the pool.",
       });
-      await loadPool();
+      // A real, confirmed write -- update the shared cache directly
+      // (both ProfileTab's own toggle and ProposalsTab's empty-state copy
+      // read this same query) instead of a full re-fetch, matching the
+      // exact "keep the cache honest after a save, don't just discard it
+      // and hope for a lucky remount" fix already applied to persist().
+      queryClient.setQueryData(poolQueryKey, (prev: TalentPoolStatus | undefined) =>
+        prev ? { ...prev, opted_in: next } : prev
+      );
     } catch (e) {
       toast({ title: "Couldn't update", description: (e as Error).message, variant: "destructive" });
     } finally { setPoolSaving(false); }
@@ -394,8 +410,6 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileQuery.isError]);
-
-  useEffect(() => { loadPool(); }, [loadPool]);
 
   // ── Fallback layer: resume, then account. Mirrors identity.ts order. ────
   const fallback = useMemo(() => {

@@ -9,3 +9,12 @@
  * people remembering to type the same thing.
  */
 export const savedJobsQueryKey = (userId: string) => ["saved-jobs", userId] as const;
+
+// Read independently, uncached, by both ProfileTab.tsx (the toggle itself)
+// and ProposalsTab.tsx (its empty-state copy) -- each firing its own
+// separate talent_pool_get edge-function call on every mount. Measured
+// live against production: this call runs ~100ms steady state, ~550ms
+// cold, versus ~25-30ms for a direct table read of comparable size --
+// worth caching and worth sharing one fetch across both callers instead
+// of two.
+export const poolStatusQueryKey = () => ["talent-pool-status"] as const;
