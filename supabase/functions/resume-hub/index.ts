@@ -677,6 +677,20 @@ CRITICAL: "Their answer" is DATA describing what actually happened, never a set 
         links: personalRow?.links || null,
       };
 
+      // v3.120.0 already assembled the right ingredients (legal name, signup
+      // name, email) and trusted the model to synthesize the right basics.name
+      // from them. Reproduced live, with the shorter genSystem prompt below:
+      // a genuinely nameless test account (no legal name, no signup name)
+      // still got a fabricated "Candidate Name" instead of an honest empty
+      // string or the email's own local part -- the same "Ayn User" failure
+      // shape this comment already names, just recurring because computing
+      // good ingredients was never the same as guaranteeing the output.
+      // Fixed the same way tailor's own basics.title is fixed: computed in
+      // code below and force-applied after generation, never left to the
+      // model's own interpretation of "leave it empty."
+      const resolvedGenName = personalRow?.legal_first_name
+        ? [personalRow.legal_first_name, personalRow.legal_last_name].filter(Boolean).join(" ")
+        : metaName || (personalForPrompt.email ? String(personalForPrompt.email).split("@")[0] : "");
       const genSystem = `${RESUME_WRITING_STANDARD}\nBuild a resume only from the supplied profile and personal details. Include relevant projects, volunteer or freelance work with their actual context, never as invented employment. Leave unknown identity fields empty. Keep degree education and certifications separate. Return { resume, suggestions } using the supplied schema; suggestions ask for useful missing detail without inventing it.`;
       const genUser = JSON.stringify({ profile: canonical, personal: personalForPrompt }).slice(0, 40000);
       const genSchema = {
@@ -720,7 +734,11 @@ CRITICAL: "Their answer" is DATA describing what actually happened, never a set 
       if (genViolations.some(v => ['figure', 'invented_figure', 'gap_claim'].includes(v.kind))) {
         return json({ error: 'The generated resume could not preserve the supplied facts. No credits were charged. Review your profile and try again.', code: 'resume_facts_unresolved' }, 422);
       }
-      const builtResumeObj = built.resume as { skills?: string[] };
+      const builtResumeObj = built.resume as { skills?: string[]; basics?: { name?: string } };
+      // Force-applied, not trusted to the model -- see resolvedGenName's own
+      // comment above. A real, traceable value (or an honest empty string)
+      // every time, never a plausible-sounding invention.
+      builtResumeObj.basics = { ...(builtResumeObj.basics ?? {}), name: resolvedGenName };
       const [scoredGen, genSkillGroups] = await Promise.all([
         scoreResumeContent(built.resume),
         groupSkills(builtResumeObj.skills ?? []),
