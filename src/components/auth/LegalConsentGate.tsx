@@ -7,14 +7,32 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AYNLoader } from '@/components/ui/page-loader';
 
+// Performance fix — the second of two sequential, uncached full-screen
+// gates every signed-in remount of <Index> paid (see useUserRole.ts's own
+// comment for the first, and the measured ~600-850ms round trip this
+// carries too). Whether this account is current on terms/privacy can't
+// change mid-session under any normal use — it only ever changes via a
+// real acceptance this same gate itself just recorded, or a new LEGAL
+// version shipping in a fresh deploy, which a full page reload (a fresh
+// module load, so a fresh empty cache) already covers. Cached per user,
+// cleared on sign-out.
+interface CachedConsent { userId: string; needsReacceptance: boolean }
+let cachedConsent: CachedConsent | null = null;
+
+supabase.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT') cachedConsent = null;
+});
+
 export function LegalConsentGate({ userId, children }: { userId: string; children: ReactNode }) {
-  const [checking, setChecking] = useState(true);
-  const [needsReacceptance, setNeedsReacceptance] = useState(false);
+  const cachedForThisUser = cachedConsent?.userId === userId ? cachedConsent : null;
+  const [checking, setChecking] = useState(!cachedForThisUser);
+  const [needsReacceptance, setNeedsReacceptance] = useState(cachedForThisUser?.needsReacceptance ?? false);
   const [accepted, setAccepted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    if (cachedConsent?.userId === userId) { setChecking(false); return; }
     let alive = true;
     supabase.from('terms_consent_log')
       .select('terms_version, privacy_version, terms_accepted, privacy_accepted')
@@ -28,6 +46,7 @@ export function LegalConsentGate({ userId, children }: { userId: string; childre
           && data.terms_version === LEGAL.termsVersion
           && data.privacy_version === LEGAL.privacyVersion;
         setNeedsReacceptance(!current);
+        cachedConsent = { userId, needsReacceptance: !current };
         setChecking(false);
       });
     return () => { alive = false; };
@@ -38,8 +57,10 @@ export function LegalConsentGate({ userId, children }: { userId: string; childre
     setSaving(true);
     setFailed(false);
     const ok = await attachConsentIp('reaccept');
-    if (ok) setNeedsReacceptance(false);
-    else setFailed(true);
+    if (ok) {
+      setNeedsReacceptance(false);
+      cachedConsent = { userId, needsReacceptance: false };
+    } else setFailed(true);
     setSaving(false);
   };
 
