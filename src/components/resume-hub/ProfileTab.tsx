@@ -435,7 +435,20 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       setSaveState("idle");
       toast({ title: "Save failed", description: (e as Error).message, variant: "destructive" });
     }
-  }, [toast, userId, queryClient, profileQueryKey, profileQuery.data]);
+  // profileQuery.data is deliberately NOT a dependency here, even though
+  // it appears on the line above: that's a `typeof profileQuery.data`
+  // type annotation, erased at compile time, never a runtime read (the
+  // callback only ever touches its own `prev` argument). Keeping it in
+  // this array meant `persist` got a fresh identity every time this same
+  // function's own queryClient.setQueryData call above landed -- i.e.,
+  // after every successful autosave -- which cascaded through queueSave
+  // into updateExp and every other useCallback built on it, busting every
+  // ExperienceCard's (and sibling row's) memoization once per save cycle
+  // for no real reason. Found live: a single isolated keystroke in one
+  // role's own field still showed a stray extra render on an untouched
+  // sibling role, traced to this.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast, userId, queryClient, profileQueryKey]);
 
   /** Called on blur and on every discrete control change. */
   const queueSave = useCallback(() => {
