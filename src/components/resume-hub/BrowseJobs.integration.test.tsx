@@ -79,8 +79,10 @@ const rowByTitle = (t: string) => rows().find((r) => r.textContent?.includes(t))
 const active = () => document.querySelector('.ayn-match-row.is-active');
 
 function mount() {
+  const onAdded = vi.fn();
   const qc = new QueryClient();
-  render(<QueryClientProvider client={qc}><BrowseJobs userId="user-1" onAdded={vi.fn()} onOpenProfile={vi.fn()} /></QueryClientProvider>);
+  render(<QueryClientProvider client={qc}><BrowseJobs userId="user-1" onAdded={onAdded} onOpenProfile={vi.fn()} /></QueryClientProvider>);
+  return { onAdded };
 }
 
 describe('BrowseJobs list (real component, mocked backend)', () => {
@@ -133,5 +135,21 @@ describe('BrowseJobs list (real component, mocked backend)', () => {
     // Acme 1 is auto-selected (its detail pane also renders an avatar); compare the others.
     expect(h.rowCalls['Acme 2']).toBe(before['Acme 2']);
     expect(h.rowCalls['Acme 3']).toBe(before['Acme 3']);
+  });
+
+  it('detail pane follows the selection, and "Score and tailor" saves that job and hands off', async () => {
+    const { onAdded } = mount();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    // the pane shows the auto-selected first job, then whichever row is opened
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Role 1' })).toBeInTheDocument());
+    fireEvent.click(within(rowByTitle('Role 3')).getByText('Role 3'));
+    const heading = await screen.findByRole('heading', { level: 2, name: 'Role 3' });
+    const pane = heading.closest('div.p-5') as HTMLElement;
+    expect(within(pane).getByText('Build things')).toBeInTheDocument();
+    expect(within(pane).getByText(/Sourced directly from Acme 3/)).toBeInTheDocument();
+    fireEvent.click(within(pane).getByText('Score and tailor'));
+    await waitFor(() => expect(onAdded).toHaveBeenCalledWith('saved-row-1'));
+    const insert = h.ops.find((o) => o.table === 'jobs' && o.op === 'insert')!;
+    expect(insert.args[0]).toMatchObject({ source_url: 'https://example.com/apply/3', title: 'Role 3' });
   });
 });

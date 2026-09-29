@@ -15,7 +15,7 @@ import {
   companyAvatar, resolveLogoUrl, postedAge, postedDate,
 } from "@/lib/jobPostingFormat";
 import { HOT_WINDOW_MS } from "./browseJobsHelpers";
-import { ScoreGauge } from "./ScoreGauge";
+import { ScorePill } from "./ScorePill";
 
 interface JobListRowProps {
   job: JobPosting;
@@ -33,14 +33,6 @@ interface JobListRowProps {
   onOpen: (job: JobPosting) => void;
   onToggleBookmark: (job: JobPosting, isSaved: boolean) => void;
   onLogoError: (jobId: string) => void;
-}
-
-function ScorePill({ score, hasScored }: { score: number | null | undefined; hasScored: boolean }) {
-  if (score != null) return <ScoreGauge score={score} size={28} showLabel={false} />;
-  if (!hasScored) {
-    return <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground animate-pulse">Scoring…</span>;
-  }
-  return <span className="text-xs text-muted-foreground">No resume yet</span>;
 }
 
 function JobListRowImpl({

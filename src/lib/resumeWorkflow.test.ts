@@ -6,15 +6,20 @@ import { describe, expect, it, vi } from 'vitest';
 // Execute the actual rewrite branch with mocked external services. This
 // covers billing decisions without calling production, spending credits,
 // or substituting a second implementation of the handler.
-const backend = readFileSync(new URL('../../supabase/functions/resume-hub/index.ts', import.meta.url), 'utf8');
-const start = backend.indexOf('if (action === "rewrite")');
-const end = backend.indexOf('// ---------------- guided_intake_extract', start);
-if (start < 0 || end < 0) throw new Error('Rewrite handler boundaries changed; update the harness.');
-const branch = backend.slice(start, end);
+const backend = readFileSync(new URL('../../supabase/functions/resume-hub/lib/resumeDocumentActions.ts', import.meta.url), 'utf8');
+const start = backend.indexOf('export async function handleRewrite(');
+const next = backend.indexOf('\nexport async function ', start + 1);
+if (start < 0) throw new Error('Rewrite handler boundaries changed; update the harness.');
+const handler = backend.slice(start, next < 0 ? undefined : next);
+// The handler's own body (between its signature line and closing brace). It
+// begins by destructuring the request context, so the harness supplies `ctx`.
+const bodyStart = handler.indexOf('Promise<Response> {') + 'Promise<Response> {'.length;
+const branch = handler.slice(bodyStart, handler.lastIndexOf('}'));
 
 async function runRewrite(unchanged: boolean, insufficient = false, violations: { kind: string; detail: string }[] = [], replayed: object | null = null) {
   const spend = vi.fn(async (_admin: unknown, _user: string, _cost: number, _reason: string, _ref?: string) => ({ ok: true, balance: 25 }));
   const dependencies = {
+    ctx: null as unknown,
     action: 'rewrite',
     payload: { resume: { basics: { name: 'Test Applicant' } }, idempotency_key: 'request-1' },
     supabaseUrl: 'unused', serviceKey: 'unused', user: { id: 'user-1' },
@@ -38,6 +43,7 @@ async function runRewrite(unchanged: boolean, insufficient = false, violations: 
     creditSpend: spend, creditBalance: async () => 40,
     insufficientCredits: () => ({ status: 402 }), json: (value: object, status = 200) => ({ ...value, status }),
   };
+  dependencies.ctx = dependencies;
   const javascript = ts.transpileModule(`async function run() { ${branch} }`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
   }).outputText;

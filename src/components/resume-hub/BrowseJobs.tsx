@@ -32,15 +32,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Loader2, ExternalLink, Plus, Flame, Search, MapPin, Home, ChevronDown, X, Building2, Bookmark, Wand2, Compass,
-  DollarSign, Clock, TrendingUp, SlidersHorizontal, ShieldCheck, List, Layers, Heart,
+  Loader2, Search, MapPin, Home, ChevronDown, X, Building2, Wand2, Compass, Clock, TrendingUp, SlidersHorizontal, ShieldCheck, List, Layers,
 } from "lucide-react";
 import { resumeHubApi, type JobPosting } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
@@ -54,21 +52,18 @@ import { useToast } from "@/hooks/use-toast";
 // own header for the full story, including a real, live label-map bug
 // fixed in the same move.
 import {
-  EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeCategory, humanizeSlug, resolveSalary,
-  companyAvatar, resolveLogoUrl, postedAge, postedDate, safeLike,
-  JobDescriptionBody, parseJobDescription,
+  EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeCategory, humanizeSlug, safeLike,
 } from "@/lib/jobPostingFormat";
 import { savedJobsQueryKey } from "@/lib/queryKeys";
 // v3.330.0 — this file was 2,282 lines; the pieces below were pulled out
 // into their own focused files as part of splitting it up. Pure code
 // movement, zero logic changes -- see each file's own header comment.
 import { groupByRegion } from "@/lib/locationRegion";
-import { ScoreGauge } from "./ScoreGauge";
 import { SwipeDeck } from "./SwipeDeck";
 import { JobListRow } from "./JobListRow";
+import { JobDetailPane } from "./JobDetailPane";
 import {
-  PAGE_SIZE, HOT_WINDOW_MS, BROWSE_LAST_OPEN_KEY, POSTED_WITHIN_OPTIONS, COLS,
-  displayCount, extractCultureSnippet,
+  PAGE_SIZE, BROWSE_LAST_OPEN_KEY, POSTED_WITHIN_OPTIONS, COLS, displayCount,
 } from "./browseJobsHelpers";
 
 interface Props {
@@ -848,235 +843,21 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     setMatchMode(true);
   };
 
-  const scorePill = (id: string, size = 28) => {
-    const score = scores[id];
-    if (score != null) return <ScoreGauge score={score} size={size} showLabel={size >= 40} />;
-    if (!scored.has(id)) {
-      return <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground animate-pulse">Scoring…</span>;
-    }
-    return <span className="text-xs text-muted-foreground">No resume yet</span>;
-  };
 
-  const selectedSalary = selected ? resolveSalary(selected) : null;
-  const cultureSnippet = useMemo(
-    () => (selected ? extractCultureSnippet(selected.description ?? "") : null),
-    [selected],
-  );
-
-  // v3.171.0 — "read it in 5 seconds," the highlights strip from the
-  // approved Ember Discovery mockup. Recruiters skim a resume in 6-10
-  // seconds; the same courtesy was never extended back to a JD here, which
-  // meant opening the full formatted body was the only way to learn the
-  // basics. Every fact in this strip already lived in job_postings (real,
-  // freehire-tagged enrichment) or resolveSalary's own extraction — this
-  // only changes where it's shown, not what's shown. Skills shown here are
-  // the posting's own tagged requirements (job.skills), not a match/gap
-  // comparison against the candidate's profile -- that comparison already
-  // has a real, authoritative home (the deterministic gap analysis behind
-  // Score and tailor), and reimplementing a second version of it here
-  // client-side risked disagreeing with it, which would be worse than not
-  // showing one at all.
-  const highlightCells = selected
-    ? [
-        selectedSalary && { key: "salary", label: "Salary", value: selectedSalary.text, tone: "gold" as const },
-        selected.seniority && { key: "seniority", label: "Seniority", value: SENIORITY_LABELS[selected.seniority] || humanizeSlug(selected.seniority) },
-        // v3.344.0 — real, live bug caught while verifying the list
-        // card's own new work-mode chip below: a raw value like
-        // "not_remote" only ever got its first letter capitalized here,
-        // rendering as the literal "Not_remote" with the underscore
-        // still showing. humanizeSlug already exists for exactly this
-        // shape of value (used for employment_type/seniority already) —
-        // reused here instead of the narrower, wrong capitalize-only fix.
-        selected.work_mode && { key: "mode", label: "Work mode", value: humanizeSlug(selected.work_mode), tone: "trust" as const },
-        selected.employment_type && { key: "type", label: "Type", value: EMPLOYMENT_TYPE_LABELS[selected.employment_type] || humanizeSlug(selected.employment_type) },
-      ].filter((c): c is { key: string; label: string; value: string; tone?: "gold" | "trust" } => !!c)
-    : [];
-
-  {/* Sept 2026 -- "why still small card not like the other one full and
-      scroll in... i want you to copy exactly how the cards in job search
-      and mimic the cards layout and the movements." This used to be a
-      fixed-height header (border-b) plus a SEPARATE inner flex-1
-      overflow-y-auto div for the job description alone -- two scroll
-      regions stacked inside one outer Card, itself pinned to a hard
-      h-[calc(100vh-8rem)]. Job search's own equivalent (.lp-browser-detail)
-      is one plain flowing block -- header, pills, buttons, description,
-      all together -- inside a single sticky/max-height/overflow-y:auto
-      wrapper, so the whole card scrolls (and pins) as one piece, the same
-      "movement" a real Indeed-style detail pane has. Restructured to
-      match exactly: no more inner split, one continuous block: the
-      sticky/max-height/scroll treatment now lives on the outer Card
-      itself (below, at this component's return), matching Job search's
-      own top:20px / max-height:calc(100vh-40px) numbers precisely rather
-      than the old, unrelated 16px/8rem values. */}
   const detail = selected && (
-    <div className="p-5 space-y-3">
-        <div className="flex items-start gap-3">
-          {resolveLogoUrl(selected) && !logoFailed.has(selected.id) ? (
-            <img
-              src={resolveLogoUrl(selected)!}
-              alt=""
-              className="w-14 h-14 rounded-xl shrink-0 object-contain bg-white p-1.5 border"
-              style={{ borderColor: "var(--rh-hair)" }}
-              onError={() => setLogoFailed((prev) => new Set(prev).add(selected.id))}
-            />
-          ) : (
-            <div
-              className={`w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${companyAvatar(selected.company).className}`}
-              style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
-            >
-              {companyAvatar(selected.company).initial}
-            </div>
-          )}
-          <div className="min-w-0">
-            <h2 className="rh-display text-[24px] leading-snug">{selected.title}</h2>
-            <p className="text-sm flex items-center gap-1.5 mt-0.5" style={{ color: "var(--rh-muted)" }}>
-              <Building2 className="w-3.5 h-3.5 shrink-0" />{selected.company}
-            </p>
-            {selected.location && (
-              <p className="text-sm flex items-center gap-1.5" style={{ color: "var(--rh-muted)" }}>
-                <MapPin className="w-3.5 h-3.5 shrink-0" />{selected.location}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {scorePill(selected.id, 44)}
-          <span className="text-xs" style={{ color: "var(--rh-faint)" }}>Posted {postedAge(selected.posted_at)} · {postedDate(selected.posted_at)}</span>
-        </div>
-
-        {/* v3.169.0 — asked directly to research what job seekers actually
-            complain about on LinkedIn/Indeed, then use it as an advantage.
-            The single most-repeated complaint, across every source checked:
-            fake and ghost listings, and no way to tell a real posting from
-            one that's already been filled or was never real. AYN's real,
-            structural answer to that (never a third-party aggregator like
-            LinkedIn/Indeed, sourced straight from the company's own hiring
-            system, pruned the moment it's 3 days old, v3.194.0, was 7) was
-            already true and already stated once in this page's own
-            subtitle, but never
-            surfaced as its own trust signal where someone deciding whether
-            to trust THIS posting actually is.
-            v3.171.0 — recolored to the new trust teal, its own accent
-            reserved only for this class of signal, distinct from the
-            decorative ember used everywhere else on the page. */}
-        <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--rh-trust)" }} title="Never a third-party aggregator, never LinkedIn or Indeed. Pulled straight from the company's own hiring system and dropped from AYN 3 days after it's posted, so nothing here goes stale.">
-          <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-          Sourced directly from {selected.company}'s own hiring system
-        </p>
-
-        {activelyHiring && (
-          <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--rh-trust)" }} title="Based on real turnover AYN has actually observed over time for this company, not a guess from one listing.">
-            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-            {selected.company} is actively hiring
-          </p>
-        )}
-
-        {/* Sept 2026 -- reported directly, comparing this detail header
-            against Job search's own: "two is better." Job search's own
-            equivalent line (.lp-browser-pill-row) is plain inline text,
-            no boxed background, no uppercase label -- this used to be a
-            grid of separately-boxed "SALARY"/"WORK MODE" mini-cards, the
-            single biggest visual difference between the two. Flattened to
-            match: one plain inline row, values only (a job's own salary
-            string or "Remote" already reads as what it is without a label
-            over it), keeping the same gold/trust color cues the list row
-            right next to this pane already uses for salary and work mode. */}
-        {highlightCells.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap text-[13px] font-semibold">
-            {highlightCells.map((c, i) => (
-              <span key={c.key} className="inline-flex items-center gap-2">
-                {i > 0 && <span aria-hidden="true" style={{ color: "var(--rh-hair)" }}>·</span>}
-                <span style={{ color: c.tone === "gold" ? "var(--rh-gold)" : c.tone === "trust" ? "var(--rh-trust)" : "var(--rh-muted)" }}>
-                  {c.value}
-                </span>
-              </span>
-            ))}
-          </div>
-        )}
-
-        <div className="flex items-center gap-2 flex-wrap pt-1">
-          <Button onClick={() => handleAdd(selected)} disabled={addingId === selected.id} style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }} className="hover:opacity-90">
-            {addingId === selected.id
-              ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              : <Plus className="w-4 h-4 mr-2" />}
-            Score and tailor
-          </Button>
-          {/* v3.148.0 — reported directly against a live screenshot: this
-              rendered half-fixed — a plain white/black-bordered button at
-              rest that flipped to a solid black fill on hover, since it's
-              a Button with asChild wrapping a real <a> tag, and the
-              resume-hub.css ember retint below only ever targeted actual
-              <button> elements (button.border-foreground), never an
-              anchor carrying the same class. Rather than widen that CSS
-              to catch every possible tag, this one's asked to be solid
-              black outright — a secondary "leave AYN" action reads fine
-              as a plain dark button next to the ember "Score and tailor"
-              primary action, not fighting it for the same accent color. */}
-          <Button asChild style={{ background: "#1c1712", borderColor: "#1c1712", color: "#fff" }} className="hover:opacity-90">
-            <a href={selected.apply_url} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="w-4 h-4 mr-2" />Apply on company site
-            </a>
-          </Button>
-        </div>
-
-      {/* Sept 2026 -- "the job search is better than the job match in
-          terms of showing full card JD," compared directly against a
-          live screenshot of each. Job search's own detail pane reaches
-          the actual job description almost immediately (title, a pill
-          row, two buttons, one note, then the JD); this pane made you
-          scroll past a score pill, two trust lines, a four-cell
-          highlight grid, a skills list, a quote box and an activity note
-          first -- real, valuable information, just enough of it stacked
-          ahead of the JD that the description itself barely fit on
-          screen. Nothing here was deleted: skills, the company's own
-          words, and its hiring activity all still show, just after the
-          job description instead of pushing it down, matching Job
-          search's own "the description is the main content" ordering.
-          Sept 2026 -- no longer its own separate scroll region either
-          (see this block's own opening comment): a plain divider before
-          the description, matching Job search's .lp-browser-jd border-top,
-          not a second flex-1/overflow-y-auto area competing with the
-          outer Card's own scroll. */}
-      <div className="pt-4 mt-1 border-t space-y-4" style={{ borderColor: "var(--rh-hair)" }}>
-        <div>
-          <h3 className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: "var(--rh-faint)" }}>Job description</h3>
-          <JobDescriptionBody text={selected.description ?? ""} />
-        </div>
-
-        {selected.skills && selected.skills.length > 0 && (
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--rh-faint)" }}>Skills for this role</div>
-            <div className="flex flex-wrap gap-1.5">
-              {selected.skills.slice(0, 10).map((s) => (
-                <span key={s} className="text-xs font-semibold rounded-full px-2.5 py-1" style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}>
-                  {s}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {cultureSnippet && (
-          <div className="rounded-lg px-3 py-2.5" style={{ background: "var(--rh-tint)", border: "1px solid #e85d3a33" }}>
-            <div className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--rh-faint)" }}>
-              In {selected.company}'s own words
-            </div>
-            <p className="text-[13px] leading-relaxed" style={{ color: "var(--rh-ink)" }}>{cultureSnippet}</p>
-          </div>
-        )}
-
-        {companyActivity && (
-          <p className="text-xs" style={{ color: "var(--rh-faint)" }} title="How many roles this company has open right now, and how recently the newest one landed. Not how fast they reply to an application.">
-            {companyActivity.count === 1
-              ? `${selected.company}'s only open role right now`
-              : `${companyActivity.count} open roles at ${selected.company} right now`}
-            {" · newest posted "}{postedAge(companyActivity.mostRecent)}
-          </p>
-        )}
-      </div>
-    </div>
+    <JobDetailPane
+      job={selected}
+      score={scores[selected.id]}
+      hasScored={scored.has(selected.id)}
+      logoFailed={logoFailed.has(selected.id)}
+      isAdding={addingId === selected.id}
+      activelyHiring={activelyHiring}
+      companyActivity={companyActivity}
+      onAdd={handleAdd}
+      onLogoError={handleLogoError}
+    />
   );
+
 
   return (
     <div className="space-y-4">
