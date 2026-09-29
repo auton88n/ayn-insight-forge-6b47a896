@@ -16,6 +16,7 @@ vi.mock('@/integrations/supabase/client', () => {
   const builder = (table: string) => {
     let op = 'select';
     let single = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential chainable query-builder stub
     const proxy: any = new Proxy(function () {}, {
       get(_t, prop: string) {
         if (prop === 'then') {
@@ -45,9 +46,18 @@ vi.mock('@/integrations/supabase/client', () => {
 });
 vi.mock('@/lib/resumeHub', () => ({
   resumeHubApi: new Proxy({}, {
-    get: (_t, p) => (p === 'jobBoardScore'
-      ? async (rows: Array<{ id: string }>) => ({ scores: rows.map((r, i) => ({ id: r.id, match_pct: 60 + i })) })
-      : async () => ({})),
+    get: (_t, p) => {
+      if (p === 'jobBoardScore') return async (rows: Array<{ id: string }>) => ({ scores: rows.map((r, i) => ({ id: r.id, match_pct: 60 + i })) });
+      if (p === 'jobBoardTrending') return async () => ({
+        national: { byCategory: [{ category: 'software_engineering', count: 42 }], byCompany: [{ company: 'Globex', count: 7 }] },
+        city: null,
+      });
+      if (p === 'roleFinder') return async () => ({
+        has_profile: true,
+        roles: [{ title: 'Backend Engineer', match_pct: 92, openings: 3, companies: ['Acme', 'Beta', 'Gamma'], sample_job_id: 'job-1' }],
+      });
+      return async () => ({});
+    },
   }),
 }));
 // The real hook returns a stable `toast`; a fresh one per render would retrigger the fetch effect forever.
@@ -151,5 +161,92 @@ describe('BrowseJobs list (real component, mocked backend)', () => {
     await waitFor(() => expect(onAdded).toHaveBeenCalledWith('saved-row-1'));
     const insert = h.ops.find((o) => o.table === 'jobs' && o.op === 'insert')!;
     expect(insert.args[0]).toMatchObject({ source_url: 'https://example.com/apply/3', title: 'Role 3' });
+  });
+
+  it('Trending dialog shows real counts by role and company', async () => {
+    mount();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    fireEvent.click(screen.getByText('Trending'));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Trending right now')).toBeInTheDocument();
+    await within(dialog).findByText('Globex');
+    expect(within(dialog).getByText('Software Engineering')).toBeInTheDocument();
+    expect(within(dialog).getByText('42')).toBeInTheDocument();
+    expect(within(dialog).getByText('7')).toBeInTheDocument();
+  });
+
+  it('Explore roles lists roles, and picking one closes the dialog and searches for it', async () => {
+    mount();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    fireEvent.click(screen.getByText('Explore roles'));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Roles that fit you')).toBeInTheDocument();
+    await within(dialog).findByText('Backend Engineer');
+    expect(within(dialog).getByText('92%')).toBeInTheDocument();
+    expect(within(dialog).getByText(/3 open postings · Acme, Beta…/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByText('Backend Engineer'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect((screen.getAllByPlaceholderText(/search/i)[0] as HTMLInputElement).value).toBe('Backend Engineer');
+  });
+
+  it('location picker: opens, filters, and choosing a location re-queries with it', async () => {
+    mount();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    fireEvent.click(screen.getByText('All locations', { selector: 'span' }));
+    const search = await screen.findByPlaceholderText(/Search \d+ locations/);
+    // the mocked catalog lists "Toronto" for every job
+    fireEvent.change(search, { target: { value: 'nowhere' } });
+    expect(screen.getByText('No location matches that.')).toBeInTheDocument();
+    fireEvent.change(search, { target: { value: 'tor' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Toronto' }));
+    await waitFor(() => expect(screen.queryByPlaceholderText(/Search \d+ locations/)).not.toBeInTheDocument());
+    expect(screen.getByText('Toronto', { selector: 'span' })).toBeInTheDocument();
+    await waitFor(() => expect(h.ops.some((o) => o.table === 'job_postings' && o.op === 'eq' && o.args[0] === 'location' && o.args[1] === 'Toronto')).toBe(true));
+  });
+
+  it('Remote toggles a remote-only query and shows the Clear button', async () => {
+    mount();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    expect(screen.queryByText('Clear')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Remote'));
+    await waitFor(() => expect(h.ops.some((o) => o.op === 'ilike' && o.args[0] === 'location' && o.args[1] === '%remote%')).toBe(true));
+    fireEvent.click(await screen.findByText('Clear'));
+    await waitFor(() => expect(screen.queryByText('Clear')).not.toBeInTheDocument());
+  });
+
+  it('Filters menu: shows an active count, applies posted-within, and clears', async () => {
+    mount();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    const filtersBtn = () => screen.getByText('Filters').closest('button') as HTMLElement;
+    fireEvent.click(filtersBtn());
+    expect(screen.getByText('Posted within')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('3 days'));
+    await waitFor(() => expect(h.ops.some((o) => o.table === 'job_postings' && o.op === 'gte' && o.args[0] === 'posted_at')).toBe(true));
+    expect(filtersBtn()).toHaveTextContent('1');
+    fireEvent.click(screen.getByText('Clear these filters'));
+    await waitFor(() => expect(filtersBtn()).not.toHaveTextContent('1'));
+  });
+
+  it('search suggestions are offered from the catalog and picking one fills the box', async () => {
+    mount();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    const box = screen.getAllByPlaceholderText(/search by title/i)[0] as HTMLInputElement;
+    fireEvent.focus(box);
+    await act(async () => { await new Promise((r) => setTimeout(r, 30)); });
+    fireEvent.change(box, { target: { value: 'role 2' } });
+    const suggestion = await screen.findByRole('button', { name: 'Role 2' });
+    fireEvent.click(suggestion);
+    expect(box.value).toBe('Role 2');
+  });
+
+  it('the Best match / Newest and List / Swipe toggles switch modes', async () => {
+    mount();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    fireEvent.click(screen.getByText('Best match'));
+    expect(screen.getByText('Newest')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Swipe'));
+    await waitFor(() => expect(rows()).toHaveLength(0));
+    fireEvent.click(screen.getByText('List'));
+    await waitFor(() => expect(rows()).toHaveLength(3));
   });
 });

@@ -32,14 +32,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Loader2, Search, MapPin, Home, ChevronDown, X, Building2, Wand2, Compass, Clock, TrendingUp, SlidersHorizontal, ShieldCheck, List, Layers,
-} from "lucide-react";
+
+import { Loader2, Search, Home, X } from "lucide-react";
 import { resumeHubApi, type JobPosting } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
 // v3.322.0 — these used to be defined in this file; four separate public,
@@ -51,9 +49,7 @@ import { useToast } from "@/hooks/use-toast";
 // now a consumer like every other caller, not the source. See that file's
 // own header for the full story, including a real, live label-map bug
 // fixed in the same move.
-import {
-  EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeCategory, humanizeSlug, safeLike,
-} from "@/lib/jobPostingFormat";
+import { safeLike } from "@/lib/jobPostingFormat";
 import { savedJobsQueryKey } from "@/lib/queryKeys";
 // v3.330.0 — this file was 2,282 lines; the pieces below were pulled out
 // into their own focused files as part of splitting it up. Pure code
@@ -62,9 +58,10 @@ import { groupByRegion } from "@/lib/locationRegion";
 import { SwipeDeck } from "./SwipeDeck";
 import { JobListRow } from "./JobListRow";
 import { JobDetailPane } from "./JobDetailPane";
-import {
-  PAGE_SIZE, BROWSE_LAST_OPEN_KEY, POSTED_WITHIN_OPTIONS, COLS, displayCount,
-} from "./browseJobsHelpers";
+import { BrowseToolbar } from "./BrowseToolbar";
+import { SearchBox, LocationPicker, FiltersMenu } from "./BrowseFilters";
+import { RoleFinderDialog, TrendingDialog, type RoleFit } from "./BrowseJobsDialogs";
+import { PAGE_SIZE, BROWSE_LAST_OPEN_KEY, COLS, displayCount } from "./browseJobsHelpers";
 
 interface Props {
   userId: string;
@@ -264,7 +261,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   // cached in state so reopening it doesn't re-run the sweep.
   const [rolesOpen, setRolesOpen] = useState(false);
   const [rolesLoading, setRolesLoading] = useState(false);
-  const [roles, setRoles] = useState<Array<{ title: string; match_pct: number; openings: number; companies: string[]; sample_job_id: string }> | null>(null);
+  const [roles, setRoles] = useState<RoleFit[] | null>(null);
   // Distinguishes "you have no profile data yet" from "you have a real
   // profile, nothing in today's postings scored well" -- these are
   // different, both honest, and read very differently to the person.
@@ -861,209 +858,43 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* v3.167.0 — reported directly: the toolbar visibly jumped up and
-          down. Real cause: title and toolbar shared one flex-wrap row, so
-          whenever a button's own label changed length ("Best match" <->
-          "Newest", "Match me" <-> "Showing my matches") the row's total
-          width crossed the wrap threshold and the toolbar jumped between
-          sharing the title's line and wrapping below it. Stacked into two
-          always-separate rows instead -- the toolbar's vertical position
-          can no longer depend on any button's text length. Each button
-          also gets a fixed min-width so its own label change doesn't
-          shift its neighbors horizontally either. */}
-      {/* v3.273.0 -- swapped the thin accent-dash heading for the site's
-          real .lp-eyebrow pill (see JobsTab.tsx's own note on this same
-          pass for the full reasoning). */}
-      <div>
-        <h3 className="lp-eyebrow" style={{ marginBottom: 8 }}>Browse jobs</h3>
-        {/* v3.169.0 — asked directly to research what people actually say
-            about LinkedIn and Indeed, then use it as an advantage. Ghost
-            and fake listings came back as the single most-repeated
-            complaint across every real source checked (surveys put it
-            around 40% of job seekers, and it's a named driver of why
-            people now blanket-apply to hundreds of jobs at once instead
-            of trusting any one posting). This was already true and
-            already stated as plain body text; given real weight instead —
-            a shield icon and its own line — since research says this is
-            exactly the thing worth leading with, not burying.
-            v3.171.0 — recolored to the new trust teal, matching the same
-            signal repeated in the detail pane below. */}
-        <p className="text-sm mt-1.5 flex items-center gap-1.5 font-semibold" style={{ color: "var(--rh-trust)" }}>
-          <ShieldCheck className="w-4 h-4 shrink-0" />
-          Every posting comes straight from a real company's own hiring system. Never LinkedIn, Indeed, or a third-party aggregator.
-        </p>
-      </div>
-      {/* v3.185.0 — reported directly from a mobile screenshot: the
-          List/Swipe toggle used ml-auto inside the SAME wrapping row as the
-          sort/discovery buttons, so once that row actually wrapped on a
-          narrow screen, ml-auto flung the toggle onto its own line pinned
-          hard against the right edge -- stranded, with no visual
-          connection to anything above it. Splitting the sort cluster and
-          the view toggle into two real sibling flex items under one
-          justify-between row fixes both widths at once: wide screens still
-          get the exact same left-cluster/right-toggle layout (justify-
-          between does what ml-auto used to), and a narrow screen's second
-          line now left-aligns directly under the sort buttons instead of
-          floating disconnected on the right. */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-1 flex-wrap">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setNewestFirst((v) => !v)}
-            className="text-xs text-muted-foreground min-w-[104px] justify-start"
-          >
-            <Clock className="w-3.5 h-3.5 mr-1.5 shrink-0" />{newestFirst ? "Newest" : "Best match"}
-          </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={openTrending} className="text-xs text-muted-foreground">
-            <TrendingUp className="w-3.5 h-3.5 mr-1.5" />Trending
-          </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={openRoleFinder} className="text-xs text-muted-foreground">
-            <Compass className="w-3.5 h-3.5 mr-1.5" />Explore roles
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => (matchMode ? setMatchMode(false) : startMatchMode())}
-            style={matchMode ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" } : undefined}
-            variant={matchMode ? undefined : "outline"}
-            className={matchMode ? "hover:opacity-90 ml-1 min-w-[132px] justify-start" : "ml-1 min-w-[132px] justify-start"}
-          >
-            <Wand2 className="w-4 h-4 mr-1.5 shrink-0" />{matchMode ? "Showing my matches" : "Match me"}
-          </Button>
-        </div>
-
-        {/* v3.171.0 — "swipe to decide," a genuinely second way to move
-            through the same filtered/scored jobs, not a reskin of the
-            list. A plain segmented toggle, not its own nav item, since
-            it's a view of the same data rather than a different page. */}
-        <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--rh-raised)" }}>
-          <button
-            type="button"
-            onClick={() => setViewMode("list")}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition"
-            style={viewMode === "list" ? { background: "var(--rh-surface)", color: "var(--rh-ink)", boxShadow: "var(--rh-shadow-card)" } : { color: "var(--rh-muted)" }}
-          >
-            <List className="w-3.5 h-3.5" />List
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("swipe")}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition"
-            style={viewMode === "swipe" ? { background: "var(--rh-gradient)", color: "#fff", boxShadow: "var(--rh-glow)" } : { color: "var(--rh-muted)" }}
-          >
-            <Layers className="w-3.5 h-3.5" />Swipe
-          </button>
-        </div>
-      </div>
-
-      {matchMode && (
-        <p className="text-xs text-muted-foreground -mt-2">
-          Sorted by fit, filtered to {desiredLocations?.length === 1 ? "the location" : "the locations"} you set in Profile:{" "}
-          <span className="text-foreground font-medium">{desiredLocations?.join(", ")}</span>.{" "}
-          <button type="button" className="underline hover:text-foreground" onClick={onOpenProfile}>Change this</button>
-        </p>
-      )}
+      <BrowseToolbar
+        newestFirst={newestFirst}
+        onToggleNewest={() => setNewestFirst((v) => !v)}
+        onOpenTrending={openTrending}
+        onOpenRoles={openRoleFinder}
+        matchMode={matchMode}
+        onToggleMatchMode={() => (matchMode ? setMatchMode(false) : startMatchMode())}
+        desiredLocations={desiredLocations}
+        onOpenProfile={onOpenProfile}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
 
       {/* Filters */}
       <div className="flex flex-col lg:flex-row gap-2">
-        <div className="relative flex-1" ref={searchBoxRef}>
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={rawQuery}
-            onChange={(e) => { setRawQuery(e.target.value); setSearchOpen(true); }}
-            onFocus={() => setSearchOpen(true)}
-            placeholder="Search by title or company"
-            className="pl-9"
-          />
-          {searchOpen && searchSuggestions.length > 0 && (
-            <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg py-1 max-h-64 overflow-y-auto">
-              {searchSuggestions.map((s) => (
-                <button
-                  key={`${s.kind}-${s.v}`}
-                  type="button"
-                  className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-sm hover:bg-muted"
-                  onClick={() => { setRawQuery(s.v); setQuery(s.v); setSearchOpen(false); }}
-                >
-                  {s.kind === "company"
-                    ? <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                    : <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
-                  <span className="truncate">{s.v}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <SearchBox
+          boxRef={searchBoxRef}
+          value={rawQuery}
+          onType={(v) => { setRawQuery(v); setSearchOpen(true); }}
+          onFocus={() => setSearchOpen(true)}
+          open={searchOpen}
+          suggestions={searchSuggestions}
+          onPick={(v) => { setRawQuery(v); setQuery(v); setSearchOpen(false); }}
+        />
 
-        <div className={`relative w-full lg:w-64 ${matchMode ? "opacity-50 pointer-events-none" : ""}`} ref={locBoxRef}>
-          <button
-            type="button"
-            onClick={() => { setLocOpen((v) => !v); setLocFilter(""); }}
-            className="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
-            <span className={`flex-1 text-left truncate ${location ? "" : "text-muted-foreground"}`}>
-              {location ?? "All locations"}
-            </span>
-            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-          </button>
-          {locOpen && (
-            <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg">
-              <div className="p-2 border-b">
-                <Input
-                  autoFocus
-                  value={locFilter}
-                  onChange={(e) => setLocFilter(e.target.value)}
-                  placeholder={`Search ${locations.length} locations`}
-                  className="h-8"
-                />
-              </div>
-              <div className="max-h-64 overflow-y-auto py-1">
-                <button
-                  type="button"
-                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted"
-                  onClick={() => { setLocation(null); setLocOpen(false); }}
-                >
-                  All locations
-                </button>
-                {visibleLocations.flat
-                  ? visibleLocations.flat.map((loc) => (
-                    <button
-                      key={loc}
-                      type="button"
-                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted ${loc === location ? "font-medium" : ""}`}
-                      style={loc === location ? { color: "var(--rh-accent-2)" } : undefined}
-                      onClick={() => { setLocation(loc); setLocOpen(false); }}
-                    >
-                      {loc}
-                    </button>
-                  ))
-                  : visibleLocations.byRegion?.map((g) => (
-                    <div key={g.region}>
-                      <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {g.region} <span className="font-normal normal-case">· {g.items.length}</span>
-                      </p>
-                      {g.items.slice(0, 14).map((loc) => (
-                        <button
-                          key={loc}
-                          type="button"
-                          className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted ${loc === location ? "font-medium" : ""}`}
-                          style={loc === location ? { color: "var(--rh-accent-2)" } : undefined}
-                          onClick={() => { setLocation(loc); setLocOpen(false); }}
-                        >
-                          {loc}
-                        </button>
-                      ))}
-                    </div>
-                  ))}
-                {visibleLocations.flat?.length === 0 && (
-                  <p className="px-3 py-2 text-sm text-muted-foreground">No location matches that.</p>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+        <LocationPicker
+          boxRef={locBoxRef}
+          disabled={matchMode}
+          location={location}
+          open={locOpen}
+          onToggle={() => { setLocOpen((v) => !v); setLocFilter(""); }}
+          filter={locFilter}
+          onFilterChange={setLocFilter}
+          totalCount={locations.length}
+          visible={visibleLocations}
+          onSelect={(loc) => { setLocation(loc); setLocOpen(false); }}
+        />
 
         {/* v3.185.0 — reported directly from a mobile screenshot: Search,
             Location, Remote and Filters stacked as four separate full-width
@@ -1094,109 +925,23 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
               active-count badge; the panel it opens is the exact same
               controls, just out of the way until wanted. Same hand-rolled
               dropdown pattern as the location box, not a new primitive. */}
-          <div className="relative flex-1 lg:flex-initial shrink-0" ref={filtersBoxRef}>
-          <Button
-            type="button"
-            variant={activeFilterCount > 0 ? "default" : "outline"}
-            onClick={() => setFiltersOpen((v) => !v)}
-            style={activeFilterCount > 0 ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" } : undefined}
-            className={activeFilterCount > 0 ? "hover:opacity-90" : ""}
-          >
-            <SlidersHorizontal className="w-4 h-4 mr-1.5" />Filters
-            {activeFilterCount > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-semibold bg-white/25 px-1">
-                {activeFilterCount}
-              </span>
-            )}
-          </Button>
-          {filtersOpen && (
-            <div className="absolute z-50 mt-1 right-0 w-[300px] rounded-md border bg-popover shadow-lg p-3 space-y-3 max-h-[70vh] overflow-y-auto">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Posted within</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {POSTED_WITHIN_OPTIONS.map((o) => (
-                    <button
-                      key={o.key}
-                      type="button"
-                      onClick={() => setPostedWithin((v) => (v === o.key ? null : o.key))}
-                      className="text-xs px-2.5 py-1 rounded-full border transition"
-                      style={postedWithin === o.key
-                        ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
-                        : { borderColor: "var(--border, hsl(var(--border)))" }}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {employmentTypes.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Job type</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {employmentTypes.map((et) => (
-                      <button
-                        key={et}
-                        type="button"
-                        onClick={() => setEmploymentType((v) => (v === et ? null : et))}
-                        className="text-xs px-2.5 py-1 rounded-full border transition"
-                        style={employmentType === et
-                          ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
-                          : { borderColor: "var(--border, hsl(var(--border)))" }}
-                      >
-                        {EMPLOYMENT_TYPE_LABELS[et] || humanizeSlug(et)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {seniorities.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Seniority</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {seniorities.map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setSeniority((v) => (v === s ? null : s))}
-                        className="text-xs px-2.5 py-1 rounded-full border transition"
-                        style={seniority === s
-                          ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
-                          : { borderColor: "var(--border, hsl(var(--border)))" }}
-                      >
-                        {SENIORITY_LABELS[s] || humanizeSlug(s)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {categories.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Category</p>
-                  <Select value={category ?? "__all"} onValueChange={(v) => setCategory(v === "__all" ? null : v)}>
-                    <SelectTrigger className="h-8 w-full text-xs">
-                      <SelectValue placeholder="All categories" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all">All categories</SelectItem>
-                      {categories.map((c) => (
-                        <SelectItem key={c} value={c}>{humanizeCategory(c)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {activeFilterCount > 0 && (
-                <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => { setEmploymentType(null); setSeniority(null); setCategory(null); setPostedWithin(null); }}>
-                  Clear these filters
-                </Button>
-              )}
-            </div>
-          )}
-          </div>
+          <FiltersMenu
+            boxRef={filtersBoxRef}
+            open={filtersOpen}
+            onToggle={() => setFiltersOpen((v) => !v)}
+            activeCount={activeFilterCount}
+            postedWithin={postedWithin}
+            setPostedWithin={setPostedWithin}
+            employmentTypes={employmentTypes}
+            employmentType={employmentType}
+            setEmploymentType={setEmploymentType}
+            seniorities={seniorities}
+            seniority={seniority}
+            setSeniority={setSeniority}
+            categories={categories}
+            category={category}
+            setCategory={setCategory}
+          />
         </div>
 
         {(hasFilters || matchMode) && (
@@ -1335,141 +1080,29 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         </SheetContent>
       </Sheet>
 
-      {/* v3.151.0 — real job titles, scored the same free way every card
-          already is, grouped from the live catalog instead of guessed by
-          an AI. Picking one filters the list to real postings under it. */}
-      <Dialog open={rolesOpen} onOpenChange={setRolesOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Roles that fit you</DialogTitle>
-          </DialogHeader>
-          <p className="text-xs text-muted-foreground -mt-2">
-            Real job titles from postings open right now, ranked by the same quick match every card shows. Not a guess at demand, just a count of what's actually listed.
-          </p>
-          <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1 space-y-1.5">
-            {rolesLoading ? (
-              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-md" />)
-            ) : rolesError ? (
-              <div className="py-6 text-center space-y-3">
-                <p className="text-sm text-muted-foreground">Couldn't load this right now.</p>
-                <Button type="button" variant="outline" size="sm" onClick={() => { setRoles(null); openRoleFinder(); }}>
-                  Try again
-                </Button>
-              </div>
-            ) : !roles || roles.length === 0 ? (
-              <div className="py-6 text-center space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  {rolesHasProfile
-                    ? "Nothing in today's postings scored well against your profile yet. Check back as new jobs come in."
-                    : "Add a resume or a few skills to Profile first, then AYN can find roles that fit you."}
-                </p>
-                {!rolesHasProfile && (
-                  <Button type="button" size="sm" onClick={() => { setRolesOpen(false); onOpenProfile(); }}>
-                    Open Profile
-                  </Button>
-                )}
-              </div>
-            ) : (
-              roles.map((r) => (
-                <button
-                  key={r.title}
-                  type="button"
-                  onClick={() => pickRole(r.title)}
-                  className="w-full text-left rounded-md border border-border/60 px-3 py-2.5 hover:bg-muted transition flex items-center gap-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm truncate">{r.title}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {r.openings} open posting{r.openings === 1 ? "" : "s"}{r.companies.length ? ` · ${r.companies.slice(0, 2).join(", ")}${r.companies.length > 2 ? "…" : ""}` : ""}
-                    </p>
-                  </div>
-                  <span
-                    className="shrink-0 text-xs font-semibold rounded-full px-2 py-1"
-                    style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}
-                  >
-                    {r.match_pct}%
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <RoleFinderDialog
+        open={rolesOpen}
+        onOpenChange={setRolesOpen}
+        loading={rolesLoading}
+        error={rolesError}
+        roles={roles}
+        hasProfile={rolesHasProfile}
+        onRetry={() => { setRoles(null); openRoleFinder(); }}
+        onPick={pickRole}
+        onOpenProfile={onOpenProfile}
+      />
 
-      {/* v3.166.0 — real posting volume, nationally and by chosen city, over
-          the last 3 days. Never a guessed demand number, always a real count
-          of what's actually landing on file right now. */}
-      <Dialog open={trendingOpen} onOpenChange={setTrendingOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Trending right now</DialogTitle>
-          </DialogHeader>
-          <p className="text-xs text-muted-foreground -mt-2">
-            Real posting volume from the last 3 days, across every region AYN tracks. Not a guess at demand, just a count of what's actually landing.
-          </p>
-
-          {structuredCities.length > 0 && (
-            <Select
-              value={trendingCity ?? "__national"}
-              onValueChange={(v) => pickTrendingCity(v === "__national" ? null : v)}
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="All tracked locations" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__national">All tracked locations</SelectItem>
-                {structuredCities.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          {trendingLoading ? (
-            <div className="space-y-1.5">
-              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-md" />)}
-            </div>
-          ) : trendingError ? (
-            <div className="py-6 text-center space-y-3">
-              <p className="text-sm text-muted-foreground">Couldn't load this right now.</p>
-              <Button type="button" variant="outline" size="sm" onClick={() => loadTrending(trendingCity)}>Try again</Button>
-            </div>
-          ) : (() => {
-            const scope = trendingCity && trendingData?.city ? trendingData.city : trendingData?.national;
-            const byCategory = scope && "byCategory" in scope ? scope.byCategory : [];
-            const byCompany = scope && "byCompany" in scope ? scope.byCompany : [];
-            if (!byCategory.length && !byCompany.length) {
-              return <p className="py-6 text-center text-sm text-muted-foreground">Nothing landed here in the last 3 days.</p>;
-            }
-            return (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">By role</p>
-                  <div className="space-y-1">
-                    {byCategory.map((r) => (
-                      <div key={r.category} className="flex items-start justify-between gap-2 text-sm py-1">
-                        <span>{humanizeCategory(r.category)}</span>
-                        <span className="shrink-0 text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}>{r.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">By company</p>
-                  <div className="space-y-1">
-                    {byCompany.map((r) => (
-                      <div key={r.company} className="flex items-start justify-between gap-2 text-sm py-1">
-                        <span>{r.company}</span>
-                        <span className="shrink-0 text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}>{r.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
+      <TrendingDialog
+        open={trendingOpen}
+        onOpenChange={setTrendingOpen}
+        cities={structuredCities}
+        city={trendingCity}
+        onPickCity={pickTrendingCity}
+        loading={trendingLoading}
+        error={trendingError}
+        data={trendingData}
+        onRetry={() => loadTrending(trendingCity)}
+      />
     </div>
   );
 }
