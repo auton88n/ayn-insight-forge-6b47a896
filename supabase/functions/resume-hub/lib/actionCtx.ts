@@ -10,6 +10,23 @@
 // then packaged into one ActionCtx and passed down. No logic lives here.
 import type { SupabaseClient, User } from "npm:@supabase/supabase-js@2.45.0";
 
+/** The request context available as soon as the caller's JWT has been
+ * validated: enough for the seeker-facing document and job-board actions,
+ * which build their own service-role clients where they need one. */
+export type BaseCtx = {
+  req: Request;
+  supabaseUrl: string;
+  anonKey: string;
+  serviceKey: string;
+  action: string;
+  payload: Record<string, unknown>;
+  jwt: string;
+  reqIp: string | null;
+  /** RLS-respecting client, authenticated as the caller via their own JWT. */
+  supa: SupabaseClient;
+  user: User;
+};
+
 export type ActionCtx = {
   req: Request;
   supabaseUrl: string;

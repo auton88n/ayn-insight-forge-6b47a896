@@ -32,16 +32,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Loader2, ExternalLink, Plus, Flame, Search, MapPin, Home, ChevronDown, X, Building2, Bookmark, Wand2, Compass,
-  DollarSign, Clock, TrendingUp, SlidersHorizontal, ShieldCheck, List, Layers, Heart,
-} from "lucide-react";
+
+import { Loader2, Search, Home, X } from "lucide-react";
 import { resumeHubApi, type JobPosting } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
 // v3.322.0 — these used to be defined in this file; four separate public,
@@ -53,22 +49,19 @@ import { useToast } from "@/hooks/use-toast";
 // now a consumer like every other caller, not the source. See that file's
 // own header for the full story, including a real, live label-map bug
 // fixed in the same move.
-import {
-  EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeCategory, humanizeSlug, resolveSalary,
-  companyAvatar, resolveLogoUrl, postedAge, postedDate, safeLike,
-  JobDescriptionBody, parseJobDescription,
-} from "@/lib/jobPostingFormat";
+import { safeLike } from "@/lib/jobPostingFormat";
 import { savedJobsQueryKey } from "@/lib/queryKeys";
 // v3.330.0 — this file was 2,282 lines; the pieces below were pulled out
 // into their own focused files as part of splitting it up. Pure code
 // movement, zero logic changes -- see each file's own header comment.
 import { groupByRegion } from "@/lib/locationRegion";
-import { ScoreGauge } from "./ScoreGauge";
 import { SwipeDeck } from "./SwipeDeck";
-import {
-  PAGE_SIZE, HOT_WINDOW_MS, BROWSE_LAST_OPEN_KEY, POSTED_WITHIN_OPTIONS, COLS,
-  displayCount, extractCultureSnippet,
-} from "./browseJobsHelpers";
+import { JobListRow } from "./JobListRow";
+import { JobDetailPane } from "./JobDetailPane";
+import { BrowseToolbar } from "./BrowseToolbar";
+import { SearchBox, LocationPicker, FiltersMenu } from "./BrowseFilters";
+import { RoleFinderDialog, TrendingDialog, type RoleFit } from "./BrowseJobsDialogs";
+import { PAGE_SIZE, BROWSE_LAST_OPEN_KEY, COLS, displayCount } from "./browseJobsHelpers";
 
 interface Props {
   userId: string;
@@ -268,7 +261,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   // cached in state so reopening it doesn't re-run the sweep.
   const [rolesOpen, setRolesOpen] = useState(false);
   const [rolesLoading, setRolesLoading] = useState(false);
-  const [roles, setRoles] = useState<Array<{ title: string; match_pct: number; openings: number; companies: string[]; sample_job_id: string }> | null>(null);
+  const [roles, setRoles] = useState<RoleFit[] | null>(null);
   // Distinguishes "you have no profile data yet" from "you have a real
   // profile, nothing in today's postings scored well" -- these are
   // different, both honest, and read very differently to the person.
@@ -797,11 +790,21 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   };
 
   const handleAdd = (job: JobPosting) => saveJob(job, true);
-  const toggleBookmark = (e: React.MouseEvent, job: JobPosting) => {
-    e.stopPropagation();
-    if (savedUrls.has(job.apply_url)) unsaveJob(job);
-    else saveJob(job);
-  };
+  // Stable callbacks for the memoized list rows. The functions above close
+  // over per-render state, so the rows call through a ref that is refreshed
+  // every render: identity never changes (rows don't re-render on unrelated
+  // state), yet a click always runs the latest closure (no stale state).
+  const rowActionsRef = useRef({ openJob, saveJob, unsaveJob });
+  rowActionsRef.current = { openJob, saveJob, unsaveJob };
+  const handleOpenRow = useCallback((job: JobPosting) => rowActionsRef.current.openJob(job), []);
+  const handleToggleBookmark = useCallback((job: JobPosting, isSaved: boolean) => {
+    if (isSaved) rowActionsRef.current.unsaveJob(job);
+    else rowActionsRef.current.saveJob(job);
+  }, []);
+  const handleLogoError = useCallback(
+    (jobId: string) => setLogoFailed((prev) => (prev.has(jobId) ? prev : new Set(prev).add(jobId))),
+    [],
+  );
 
   // v3.142.0 — flat while searching (a typed filter beats a category
   // browse every time), grouped by region while just browsing so 1,000+
@@ -837,441 +840,61 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     setMatchMode(true);
   };
 
-  const scorePill = (id: string, size = 28) => {
-    const score = scores[id];
-    if (score != null) return <ScoreGauge score={score} size={size} showLabel={size >= 40} />;
-    if (!scored.has(id)) {
-      return <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground animate-pulse">Scoring…</span>;
-    }
-    return <span className="text-xs text-muted-foreground">No resume yet</span>;
-  };
 
-  const selectedSalary = selected ? resolveSalary(selected) : null;
-  const cultureSnippet = useMemo(
-    () => (selected ? extractCultureSnippet(selected.description ?? "") : null),
-    [selected],
-  );
-
-  // v3.171.0 — "read it in 5 seconds," the highlights strip from the
-  // approved Ember Discovery mockup. Recruiters skim a resume in 6-10
-  // seconds; the same courtesy was never extended back to a JD here, which
-  // meant opening the full formatted body was the only way to learn the
-  // basics. Every fact in this strip already lived in job_postings (real,
-  // freehire-tagged enrichment) or resolveSalary's own extraction — this
-  // only changes where it's shown, not what's shown. Skills shown here are
-  // the posting's own tagged requirements (job.skills), not a match/gap
-  // comparison against the candidate's profile -- that comparison already
-  // has a real, authoritative home (the deterministic gap analysis behind
-  // Score and tailor), and reimplementing a second version of it here
-  // client-side risked disagreeing with it, which would be worse than not
-  // showing one at all.
-  const highlightCells = selected
-    ? [
-        selectedSalary && { key: "salary", label: "Salary", value: selectedSalary.text, tone: "gold" as const },
-        selected.seniority && { key: "seniority", label: "Seniority", value: SENIORITY_LABELS[selected.seniority] || humanizeSlug(selected.seniority) },
-        // v3.344.0 — real, live bug caught while verifying the list
-        // card's own new work-mode chip below: a raw value like
-        // "not_remote" only ever got its first letter capitalized here,
-        // rendering as the literal "Not_remote" with the underscore
-        // still showing. humanizeSlug already exists for exactly this
-        // shape of value (used for employment_type/seniority already) —
-        // reused here instead of the narrower, wrong capitalize-only fix.
-        selected.work_mode && { key: "mode", label: "Work mode", value: humanizeSlug(selected.work_mode), tone: "trust" as const },
-        selected.employment_type && { key: "type", label: "Type", value: EMPLOYMENT_TYPE_LABELS[selected.employment_type] || humanizeSlug(selected.employment_type) },
-      ].filter((c): c is { key: string; label: string; value: string; tone?: "gold" | "trust" } => !!c)
-    : [];
-
-  {/* Sept 2026 -- "why still small card not like the other one full and
-      scroll in... i want you to copy exactly how the cards in job search
-      and mimic the cards layout and the movements." This used to be a
-      fixed-height header (border-b) plus a SEPARATE inner flex-1
-      overflow-y-auto div for the job description alone -- two scroll
-      regions stacked inside one outer Card, itself pinned to a hard
-      h-[calc(100vh-8rem)]. Job search's own equivalent (.lp-browser-detail)
-      is one plain flowing block -- header, pills, buttons, description,
-      all together -- inside a single sticky/max-height/overflow-y:auto
-      wrapper, so the whole card scrolls (and pins) as one piece, the same
-      "movement" a real Indeed-style detail pane has. Restructured to
-      match exactly: no more inner split, one continuous block: the
-      sticky/max-height/scroll treatment now lives on the outer Card
-      itself (below, at this component's return), matching Job search's
-      own top:20px / max-height:calc(100vh-40px) numbers precisely rather
-      than the old, unrelated 16px/8rem values. */}
   const detail = selected && (
-    <div className="p-5 space-y-3">
-        <div className="flex items-start gap-3">
-          {resolveLogoUrl(selected) && !logoFailed.has(selected.id) ? (
-            <img
-              src={resolveLogoUrl(selected)!}
-              alt=""
-              className="w-14 h-14 rounded-xl shrink-0 object-contain bg-white p-1.5 border"
-              style={{ borderColor: "var(--rh-hair)" }}
-              onError={() => setLogoFailed((prev) => new Set(prev).add(selected.id))}
-            />
-          ) : (
-            <div
-              className={`w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${companyAvatar(selected.company).className}`}
-              style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
-            >
-              {companyAvatar(selected.company).initial}
-            </div>
-          )}
-          <div className="min-w-0">
-            <h2 className="rh-display text-[24px] leading-snug">{selected.title}</h2>
-            <p className="text-sm flex items-center gap-1.5 mt-0.5" style={{ color: "var(--rh-muted)" }}>
-              <Building2 className="w-3.5 h-3.5 shrink-0" />{selected.company}
-            </p>
-            {selected.location && (
-              <p className="text-sm flex items-center gap-1.5" style={{ color: "var(--rh-muted)" }}>
-                <MapPin className="w-3.5 h-3.5 shrink-0" />{selected.location}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {scorePill(selected.id, 44)}
-          <span className="text-xs" style={{ color: "var(--rh-faint)" }}>Posted {postedAge(selected.posted_at)} · {postedDate(selected.posted_at)}</span>
-        </div>
-
-        {/* v3.169.0 — asked directly to research what job seekers actually
-            complain about on LinkedIn/Indeed, then use it as an advantage.
-            The single most-repeated complaint, across every source checked:
-            fake and ghost listings, and no way to tell a real posting from
-            one that's already been filled or was never real. AYN's real,
-            structural answer to that (never a third-party aggregator like
-            LinkedIn/Indeed, sourced straight from the company's own hiring
-            system, pruned the moment it's 3 days old, v3.194.0, was 7) was
-            already true and already stated once in this page's own
-            subtitle, but never
-            surfaced as its own trust signal where someone deciding whether
-            to trust THIS posting actually is.
-            v3.171.0 — recolored to the new trust teal, its own accent
-            reserved only for this class of signal, distinct from the
-            decorative ember used everywhere else on the page. */}
-        <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--rh-trust)" }} title="Never a third-party aggregator, never LinkedIn or Indeed. Pulled straight from the company's own hiring system and dropped from AYN 3 days after it's posted, so nothing here goes stale.">
-          <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-          Sourced directly from {selected.company}'s own hiring system
-        </p>
-
-        {activelyHiring && (
-          <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--rh-trust)" }} title="Based on real turnover AYN has actually observed over time for this company, not a guess from one listing.">
-            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-            {selected.company} is actively hiring
-          </p>
-        )}
-
-        {/* Sept 2026 -- reported directly, comparing this detail header
-            against Job search's own: "two is better." Job search's own
-            equivalent line (.lp-browser-pill-row) is plain inline text,
-            no boxed background, no uppercase label -- this used to be a
-            grid of separately-boxed "SALARY"/"WORK MODE" mini-cards, the
-            single biggest visual difference between the two. Flattened to
-            match: one plain inline row, values only (a job's own salary
-            string or "Remote" already reads as what it is without a label
-            over it), keeping the same gold/trust color cues the list row
-            right next to this pane already uses for salary and work mode. */}
-        {highlightCells.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap text-[13px] font-semibold">
-            {highlightCells.map((c, i) => (
-              <span key={c.key} className="inline-flex items-center gap-2">
-                {i > 0 && <span aria-hidden="true" style={{ color: "var(--rh-hair)" }}>·</span>}
-                <span style={{ color: c.tone === "gold" ? "var(--rh-gold)" : c.tone === "trust" ? "var(--rh-trust)" : "var(--rh-muted)" }}>
-                  {c.value}
-                </span>
-              </span>
-            ))}
-          </div>
-        )}
-
-        <div className="flex items-center gap-2 flex-wrap pt-1">
-          <Button onClick={() => handleAdd(selected)} disabled={addingId === selected.id} style={{ background: "var(--rh-gradient)", borderColor: "transparent", color: "#fff", boxShadow: "var(--rh-glow)" }} className="hover:opacity-90">
-            {addingId === selected.id
-              ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              : <Plus className="w-4 h-4 mr-2" />}
-            Score and tailor
-          </Button>
-          {/* v3.148.0 — reported directly against a live screenshot: this
-              rendered half-fixed — a plain white/black-bordered button at
-              rest that flipped to a solid black fill on hover, since it's
-              a Button with asChild wrapping a real <a> tag, and the
-              resume-hub.css ember retint below only ever targeted actual
-              <button> elements (button.border-foreground), never an
-              anchor carrying the same class. Rather than widen that CSS
-              to catch every possible tag, this one's asked to be solid
-              black outright — a secondary "leave AYN" action reads fine
-              as a plain dark button next to the ember "Score and tailor"
-              primary action, not fighting it for the same accent color. */}
-          <Button asChild style={{ background: "#1c1712", borderColor: "#1c1712", color: "#fff" }} className="hover:opacity-90">
-            <a href={selected.apply_url} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="w-4 h-4 mr-2" />Apply on company site
-            </a>
-          </Button>
-        </div>
-
-      {/* Sept 2026 -- "the job search is better than the job match in
-          terms of showing full card JD," compared directly against a
-          live screenshot of each. Job search's own detail pane reaches
-          the actual job description almost immediately (title, a pill
-          row, two buttons, one note, then the JD); this pane made you
-          scroll past a score pill, two trust lines, a four-cell
-          highlight grid, a skills list, a quote box and an activity note
-          first -- real, valuable information, just enough of it stacked
-          ahead of the JD that the description itself barely fit on
-          screen. Nothing here was deleted: skills, the company's own
-          words, and its hiring activity all still show, just after the
-          job description instead of pushing it down, matching Job
-          search's own "the description is the main content" ordering.
-          Sept 2026 -- no longer its own separate scroll region either
-          (see this block's own opening comment): a plain divider before
-          the description, matching Job search's .lp-browser-jd border-top,
-          not a second flex-1/overflow-y-auto area competing with the
-          outer Card's own scroll. */}
-      <div className="pt-4 mt-1 border-t space-y-4" style={{ borderColor: "var(--rh-hair)" }}>
-        <div>
-          <h3 className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: "var(--rh-faint)" }}>Job description</h3>
-          <JobDescriptionBody text={selected.description ?? ""} />
-        </div>
-
-        {selected.skills && selected.skills.length > 0 && (
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--rh-faint)" }}>Skills for this role</div>
-            <div className="flex flex-wrap gap-1.5">
-              {selected.skills.slice(0, 10).map((s) => (
-                <span key={s} className="text-xs font-semibold rounded-full px-2.5 py-1" style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}>
-                  {s}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {cultureSnippet && (
-          <div className="rounded-lg px-3 py-2.5" style={{ background: "var(--rh-tint)", border: "1px solid #e85d3a33" }}>
-            <div className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--rh-faint)" }}>
-              In {selected.company}'s own words
-            </div>
-            <p className="text-[13px] leading-relaxed" style={{ color: "var(--rh-ink)" }}>{cultureSnippet}</p>
-          </div>
-        )}
-
-        {companyActivity && (
-          <p className="text-xs" style={{ color: "var(--rh-faint)" }} title="How many roles this company has open right now, and how recently the newest one landed. Not how fast they reply to an application.">
-            {companyActivity.count === 1
-              ? `${selected.company}'s only open role right now`
-              : `${companyActivity.count} open roles at ${selected.company} right now`}
-            {" · newest posted "}{postedAge(companyActivity.mostRecent)}
-          </p>
-        )}
-      </div>
-    </div>
+    <JobDetailPane
+      job={selected}
+      score={scores[selected.id]}
+      hasScored={scored.has(selected.id)}
+      logoFailed={logoFailed.has(selected.id)}
+      isAdding={addingId === selected.id}
+      activelyHiring={activelyHiring}
+      companyActivity={companyActivity}
+      onAdd={handleAdd}
+      onLogoError={handleLogoError}
+    />
   );
+
 
   return (
     <div className="space-y-4">
-      {/* v3.167.0 — reported directly: the toolbar visibly jumped up and
-          down. Real cause: title and toolbar shared one flex-wrap row, so
-          whenever a button's own label changed length ("Best match" <->
-          "Newest", "Match me" <-> "Showing my matches") the row's total
-          width crossed the wrap threshold and the toolbar jumped between
-          sharing the title's line and wrapping below it. Stacked into two
-          always-separate rows instead -- the toolbar's vertical position
-          can no longer depend on any button's text length. Each button
-          also gets a fixed min-width so its own label change doesn't
-          shift its neighbors horizontally either. */}
-      {/* v3.273.0 -- swapped the thin accent-dash heading for the site's
-          real .lp-eyebrow pill (see JobsTab.tsx's own note on this same
-          pass for the full reasoning). */}
-      <div>
-        <h3 className="lp-eyebrow" style={{ marginBottom: 8 }}>Browse jobs</h3>
-        {/* v3.169.0 — asked directly to research what people actually say
-            about LinkedIn and Indeed, then use it as an advantage. Ghost
-            and fake listings came back as the single most-repeated
-            complaint across every real source checked (surveys put it
-            around 40% of job seekers, and it's a named driver of why
-            people now blanket-apply to hundreds of jobs at once instead
-            of trusting any one posting). This was already true and
-            already stated as plain body text; given real weight instead —
-            a shield icon and its own line — since research says this is
-            exactly the thing worth leading with, not burying.
-            v3.171.0 — recolored to the new trust teal, matching the same
-            signal repeated in the detail pane below. */}
-        <p className="text-sm mt-1.5 flex items-center gap-1.5 font-semibold" style={{ color: "var(--rh-trust)" }}>
-          <ShieldCheck className="w-4 h-4 shrink-0" />
-          Every posting comes straight from a real company's own hiring system. Never LinkedIn, Indeed, or a third-party aggregator.
-        </p>
-      </div>
-      {/* v3.185.0 — reported directly from a mobile screenshot: the
-          List/Swipe toggle used ml-auto inside the SAME wrapping row as the
-          sort/discovery buttons, so once that row actually wrapped on a
-          narrow screen, ml-auto flung the toggle onto its own line pinned
-          hard against the right edge -- stranded, with no visual
-          connection to anything above it. Splitting the sort cluster and
-          the view toggle into two real sibling flex items under one
-          justify-between row fixes both widths at once: wide screens still
-          get the exact same left-cluster/right-toggle layout (justify-
-          between does what ml-auto used to), and a narrow screen's second
-          line now left-aligns directly under the sort buttons instead of
-          floating disconnected on the right. */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-1 flex-wrap">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setNewestFirst((v) => !v)}
-            className="text-xs text-muted-foreground min-w-[104px] justify-start"
-          >
-            <Clock className="w-3.5 h-3.5 mr-1.5 shrink-0" />{newestFirst ? "Newest" : "Best match"}
-          </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={openTrending} className="text-xs text-muted-foreground">
-            <TrendingUp className="w-3.5 h-3.5 mr-1.5" />Trending
-          </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={openRoleFinder} className="text-xs text-muted-foreground">
-            <Compass className="w-3.5 h-3.5 mr-1.5" />Explore roles
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => (matchMode ? setMatchMode(false) : startMatchMode())}
-            style={matchMode ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" } : undefined}
-            variant={matchMode ? undefined : "outline"}
-            className={matchMode ? "hover:opacity-90 ml-1 min-w-[132px] justify-start" : "ml-1 min-w-[132px] justify-start"}
-          >
-            <Wand2 className="w-4 h-4 mr-1.5 shrink-0" />{matchMode ? "Showing my matches" : "Match me"}
-          </Button>
-        </div>
-
-        {/* v3.171.0 — "swipe to decide," a genuinely second way to move
-            through the same filtered/scored jobs, not a reskin of the
-            list. A plain segmented toggle, not its own nav item, since
-            it's a view of the same data rather than a different page. */}
-        <div className="flex items-center rounded-lg p-0.5" style={{ background: "var(--rh-raised)" }}>
-          <button
-            type="button"
-            onClick={() => setViewMode("list")}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition"
-            style={viewMode === "list" ? { background: "var(--rh-surface)", color: "var(--rh-ink)", boxShadow: "var(--rh-shadow-card)" } : { color: "var(--rh-muted)" }}
-          >
-            <List className="w-3.5 h-3.5" />List
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("swipe")}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition"
-            style={viewMode === "swipe" ? { background: "var(--rh-gradient)", color: "#fff", boxShadow: "var(--rh-glow)" } : { color: "var(--rh-muted)" }}
-          >
-            <Layers className="w-3.5 h-3.5" />Swipe
-          </button>
-        </div>
-      </div>
-
-      {matchMode && (
-        <p className="text-xs text-muted-foreground -mt-2">
-          Sorted by fit, filtered to {desiredLocations?.length === 1 ? "the location" : "the locations"} you set in Profile:{" "}
-          <span className="text-foreground font-medium">{desiredLocations?.join(", ")}</span>.{" "}
-          <button type="button" className="underline hover:text-foreground" onClick={onOpenProfile}>Change this</button>
-        </p>
-      )}
+      <BrowseToolbar
+        newestFirst={newestFirst}
+        onToggleNewest={() => setNewestFirst((v) => !v)}
+        onOpenTrending={openTrending}
+        onOpenRoles={openRoleFinder}
+        matchMode={matchMode}
+        onToggleMatchMode={() => (matchMode ? setMatchMode(false) : startMatchMode())}
+        desiredLocations={desiredLocations}
+        onOpenProfile={onOpenProfile}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
 
       {/* Filters */}
       <div className="flex flex-col lg:flex-row gap-2">
-        <div className="relative flex-1" ref={searchBoxRef}>
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={rawQuery}
-            onChange={(e) => { setRawQuery(e.target.value); setSearchOpen(true); }}
-            onFocus={() => setSearchOpen(true)}
-            placeholder="Search by title or company"
-            className="pl-9"
-          />
-          {searchOpen && searchSuggestions.length > 0 && (
-            <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg py-1 max-h-64 overflow-y-auto">
-              {searchSuggestions.map((s) => (
-                <button
-                  key={`${s.kind}-${s.v}`}
-                  type="button"
-                  className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-sm hover:bg-muted"
-                  onClick={() => { setRawQuery(s.v); setQuery(s.v); setSearchOpen(false); }}
-                >
-                  {s.kind === "company"
-                    ? <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                    : <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
-                  <span className="truncate">{s.v}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <SearchBox
+          boxRef={searchBoxRef}
+          value={rawQuery}
+          onType={(v) => { setRawQuery(v); setSearchOpen(true); }}
+          onFocus={() => setSearchOpen(true)}
+          open={searchOpen}
+          suggestions={searchSuggestions}
+          onPick={(v) => { setRawQuery(v); setQuery(v); setSearchOpen(false); }}
+        />
 
-        <div className={`relative w-full lg:w-64 ${matchMode ? "opacity-50 pointer-events-none" : ""}`} ref={locBoxRef}>
-          <button
-            type="button"
-            onClick={() => { setLocOpen((v) => !v); setLocFilter(""); }}
-            className="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
-            <span className={`flex-1 text-left truncate ${location ? "" : "text-muted-foreground"}`}>
-              {location ?? "All locations"}
-            </span>
-            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-          </button>
-          {locOpen && (
-            <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg">
-              <div className="p-2 border-b">
-                <Input
-                  autoFocus
-                  value={locFilter}
-                  onChange={(e) => setLocFilter(e.target.value)}
-                  placeholder={`Search ${locations.length} locations`}
-                  className="h-8"
-                />
-              </div>
-              <div className="max-h-64 overflow-y-auto py-1">
-                <button
-                  type="button"
-                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted"
-                  onClick={() => { setLocation(null); setLocOpen(false); }}
-                >
-                  All locations
-                </button>
-                {visibleLocations.flat
-                  ? visibleLocations.flat.map((loc) => (
-                    <button
-                      key={loc}
-                      type="button"
-                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted ${loc === location ? "font-medium" : ""}`}
-                      style={loc === location ? { color: "var(--rh-accent-2)" } : undefined}
-                      onClick={() => { setLocation(loc); setLocOpen(false); }}
-                    >
-                      {loc}
-                    </button>
-                  ))
-                  : visibleLocations.byRegion?.map((g) => (
-                    <div key={g.region}>
-                      <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {g.region} <span className="font-normal normal-case">· {g.items.length}</span>
-                      </p>
-                      {g.items.slice(0, 14).map((loc) => (
-                        <button
-                          key={loc}
-                          type="button"
-                          className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted ${loc === location ? "font-medium" : ""}`}
-                          style={loc === location ? { color: "var(--rh-accent-2)" } : undefined}
-                          onClick={() => { setLocation(loc); setLocOpen(false); }}
-                        >
-                          {loc}
-                        </button>
-                      ))}
-                    </div>
-                  ))}
-                {visibleLocations.flat?.length === 0 && (
-                  <p className="px-3 py-2 text-sm text-muted-foreground">No location matches that.</p>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+        <LocationPicker
+          boxRef={locBoxRef}
+          disabled={matchMode}
+          location={location}
+          open={locOpen}
+          onToggle={() => { setLocOpen((v) => !v); setLocFilter(""); }}
+          filter={locFilter}
+          onFilterChange={setLocFilter}
+          totalCount={locations.length}
+          visible={visibleLocations}
+          onSelect={(loc) => { setLocation(loc); setLocOpen(false); }}
+        />
 
         {/* v3.185.0 — reported directly from a mobile screenshot: Search,
             Location, Remote and Filters stacked as four separate full-width
@@ -1302,109 +925,23 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
               active-count badge; the panel it opens is the exact same
               controls, just out of the way until wanted. Same hand-rolled
               dropdown pattern as the location box, not a new primitive. */}
-          <div className="relative flex-1 lg:flex-initial shrink-0" ref={filtersBoxRef}>
-          <Button
-            type="button"
-            variant={activeFilterCount > 0 ? "default" : "outline"}
-            onClick={() => setFiltersOpen((v) => !v)}
-            style={activeFilterCount > 0 ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" } : undefined}
-            className={activeFilterCount > 0 ? "hover:opacity-90" : ""}
-          >
-            <SlidersHorizontal className="w-4 h-4 mr-1.5" />Filters
-            {activeFilterCount > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-semibold bg-white/25 px-1">
-                {activeFilterCount}
-              </span>
-            )}
-          </Button>
-          {filtersOpen && (
-            <div className="absolute z-50 mt-1 right-0 w-[300px] rounded-md border bg-popover shadow-lg p-3 space-y-3 max-h-[70vh] overflow-y-auto">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Posted within</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {POSTED_WITHIN_OPTIONS.map((o) => (
-                    <button
-                      key={o.key}
-                      type="button"
-                      onClick={() => setPostedWithin((v) => (v === o.key ? null : o.key))}
-                      className="text-xs px-2.5 py-1 rounded-full border transition"
-                      style={postedWithin === o.key
-                        ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
-                        : { borderColor: "var(--border, hsl(var(--border)))" }}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {employmentTypes.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Job type</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {employmentTypes.map((et) => (
-                      <button
-                        key={et}
-                        type="button"
-                        onClick={() => setEmploymentType((v) => (v === et ? null : et))}
-                        className="text-xs px-2.5 py-1 rounded-full border transition"
-                        style={employmentType === et
-                          ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
-                          : { borderColor: "var(--border, hsl(var(--border)))" }}
-                      >
-                        {EMPLOYMENT_TYPE_LABELS[et] || humanizeSlug(et)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {seniorities.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Seniority</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {seniorities.map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setSeniority((v) => (v === s ? null : s))}
-                        className="text-xs px-2.5 py-1 rounded-full border transition"
-                        style={seniority === s
-                          ? { background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }
-                          : { borderColor: "var(--border, hsl(var(--border)))" }}
-                      >
-                        {SENIORITY_LABELS[s] || humanizeSlug(s)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {categories.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Category</p>
-                  <Select value={category ?? "__all"} onValueChange={(v) => setCategory(v === "__all" ? null : v)}>
-                    <SelectTrigger className="h-8 w-full text-xs">
-                      <SelectValue placeholder="All categories" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all">All categories</SelectItem>
-                      {categories.map((c) => (
-                        <SelectItem key={c} value={c}>{humanizeCategory(c)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {activeFilterCount > 0 && (
-                <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => { setEmploymentType(null); setSeniority(null); setCategory(null); setPostedWithin(null); }}>
-                  Clear these filters
-                </Button>
-              )}
-            </div>
-          )}
-          </div>
+          <FiltersMenu
+            boxRef={filtersBoxRef}
+            open={filtersOpen}
+            onToggle={() => setFiltersOpen((v) => !v)}
+            activeCount={activeFilterCount}
+            postedWithin={postedWithin}
+            setPostedWithin={setPostedWithin}
+            employmentTypes={employmentTypes}
+            employmentType={employmentType}
+            setEmploymentType={setEmploymentType}
+            seniorities={seniorities}
+            seniority={seniority}
+            setSeniority={setSeniority}
+            categories={categories}
+            category={category}
+            setCategory={setCategory}
+          />
         </div>
 
         {(hasFilters || matchMode) && (
@@ -1467,173 +1004,22 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                   the direct apply link) is untouched, only the row's own
                   outer shape changed. */}
               <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--rh-hair)" }}>
-                {jobs.map((j) => {
-                  const isHot = Date.now() - new Date(j.posted_at).getTime() < HOT_WINDOW_MS;
-                  const avatar = companyAvatar(j.company);
-                  const logoUrl = resolveLogoUrl(j);
-                  const showLogo = !!logoUrl && !logoFailed.has(j.id);
-                  const salary = resolveSalary(j);
-                  const active = selected?.id === j.id;
-                  const isSaved = savedUrls.has(j.apply_url);
-                  const isSeen = seenIds.has(j.id);
-                  return (
-                    // v3.142.0 — the row used to be one big <button>; adding
-                    // a bookmark control meant it could no longer be, since
-                    // an interactive element can't nest inside another one.
-                    // The clickable area (avatar + text) is now its own
-                    // inner button, with the bookmark as a sibling instead
-                    // of a child.
-                    <div
-                      key={j.id}
-                      className={"ayn-match-row w-full flex items-start gap-2 p-4 relative" + (active ? " is-active" : "")}
-                      style={{ background: active ? undefined : "var(--rh-surface)" }}
-                    >
-                      <button type="button" onClick={() => openJob(j)} className="flex items-start gap-3 flex-1 min-w-0 text-left">
-                        {showLogo ? (
-                          <img
-                            src={logoUrl!}
-                            alt=""
-                            className="w-12 h-12 rounded-xl shrink-0 object-contain bg-white p-1.5 border"
-                            style={{ borderColor: "var(--rh-hair)" }}
-                            onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
-                          />
-                        ) : (
-                          <div
-                            className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-base shrink-0 ${avatar.className}`}
-                            style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
-                          >
-                            {avatar.initial}
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <p className="rh-display text-[15.5px] leading-snug">{j.title}</p>
-                          <p className="text-[13px] truncate" style={{ color: "var(--rh-muted)" }}>
-                            {j.company}{j.location ? ` • ${j.location}` : ""}
-                          </p>
-                          <div className="flex items-center gap-2 flex-wrap pt-0.5">
-                            {scorePill(j.id)}
-                            <span className="text-[11px]" style={{ color: "var(--rh-faint)" }}>{postedAge(j.posted_at)} · {postedDate(j.posted_at)}</span>
-                            {salary && (
-                              <span
-                                className="text-[11px] font-bold"
-                                style={{ color: "var(--rh-gold)" }}
-                                title={salary.fromListingText ? "Read directly from this posting's own text." : undefined}
-                              >
-                                {salary.text}
-                              </span>
-                            )}
-                          </div>
-                          {/* v3.344.0 — reported directly against a
-                              competitor's own card: theirs shows type,
-                              seniority, and work mode right on the list
-                              row, real basics you'd otherwise only see
-                              after opening the detail pane. Same three
-                              facts the detail pane's own highlight strip
-                              already computes (EMPLOYMENT_TYPE_LABELS/
-                              SENIORITY_LABELS, work_mode capitalized),
-                              just reused here as small neutral pills
-                              instead of a second, heavier grid — this
-                              row is read in passing, not studied. */}
-                          {(j.employment_type || j.seniority || j.work_mode) && (
-                            <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                              {j.employment_type && (
-                                <span
-                                  className="text-[10.5px] font-medium rounded-full px-2 py-0.5"
-                                  style={{ background: "var(--rh-raised)", color: "var(--rh-muted)", border: "1px solid var(--rh-hair)" }}
-                                >
-                                  {EMPLOYMENT_TYPE_LABELS[j.employment_type] || humanizeSlug(j.employment_type)}
-                                </span>
-                              )}
-                              {j.seniority && (
-                                <span
-                                  className="text-[10.5px] font-medium rounded-full px-2 py-0.5"
-                                  style={{ background: "var(--rh-raised)", color: "var(--rh-muted)", border: "1px solid var(--rh-hair)" }}
-                                >
-                                  {SENIORITY_LABELS[j.seniority] || humanizeSlug(j.seniority)}
-                                </span>
-                              )}
-                              {j.work_mode && (
-                                <span
-                                  className="text-[10.5px] font-medium rounded-full px-2 py-0.5"
-                                  style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}
-                                >
-                                  {humanizeSlug(j.work_mode)}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        {/* v3.139.0 — reported directly: the New badge sat
-                            inline right after the title, so a one-line title
-                            and a two-line title left it in a different spot
-                            on every card. Pulled out to its own column at the
-                            end of the row instead, so it lands in the same
-                            place on every card regardless of title length.
-                            v3.171.0 — given the real ember gradient + glow
-                            instead of a flat tint pill, matching every other
-                            "real accent" moment on this page now. */}
-                        {isHot && (
-                          <Badge
-                            variant="outline"
-                            className="shrink-0 gap-1 border-0"
-                            style={{ background: "var(--rh-gradient)", color: "#fff", boxShadow: "var(--rh-glow)" }}
-                          >
-                            <Flame className="w-3 h-3" /> New
-                          </Badge>
-                        )}
-                        {/* v3.183.0 — reported directly: no way to tell at a
-                            glance whether a card had already been opened
-                            before. Real, persistent per-user tracking
-                            (job_postings_seen), not a guess — set the moment
-                            this card's detail is actually opened. */}
-                        {isSeen && (
-                          <Badge variant="outline" className="shrink-0 border-0" style={{ background: "var(--rh-raised)", color: "var(--rh-faint)" }}>
-                            Seen
-                          </Badge>
-                        )}
-                        {/* v3.344.0 — the other half of the same
-                            competitor-card gap: their row lets you act
-                            (apply) without opening the job first, this
-                            list only ever offered "open, then apply."
-                            A direct external link to the real apply_url,
-                            same one the detail pane's own primary button
-                            already points at — no new data, no new
-                            action, just reachable one click earlier. */}
-                        <a
-                          href={j.apply_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          aria-label="Apply on the company's site"
-                          title="Apply on the company's site"
-                          className="p-1 rounded hover:bg-muted transition"
-                        >
-                          <ExternalLink className="w-4 h-4" style={{ color: "var(--rh-faint, #9ca3af)" }} />
-                        </a>
-                        {/* v3.142.0 — asked directly for a bookmark-style
-                            save so a job can be kept without leaving the
-                            list or reading the full posting first.
-                            v3.144.0 — and asked directly to make it a real
-                            toggle, not save-only. */}
-                        <button
-                          type="button"
-                          onClick={(e) => toggleBookmark(e, j)}
-                          disabled={addingId === j.id}
-                          aria-label={isSaved ? "Remove from saved" : "Save job"}
-                          title={isSaved ? "Remove from saved" : "Save job"}
-                          className="p-1 rounded hover:bg-muted transition"
-                        >
-                          <Bookmark
-                            className="w-4 h-4"
-                            style={isSaved ? { fill: "var(--rh-accent)", color: "var(--rh-accent)" } : { color: "var(--rh-faint, #9ca3af)" }}
-                          />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                {jobs.map((j) => (
+                  <JobListRow
+                    key={j.id}
+                    job={j}
+                    active={selected?.id === j.id}
+                    isSaved={savedUrls.has(j.apply_url)}
+                    isSeen={seenIds.has(j.id)}
+                    isSaving={addingId === j.id}
+                    logoFailed={logoFailed.has(j.id)}
+                    score={scores[j.id]}
+                    hasScored={scored.has(j.id)}
+                    onOpen={handleOpenRow}
+                    onToggleBookmark={handleToggleBookmark}
+                    onLogoError={handleLogoError}
+                  />
+                ))}
               </div>
 
               {total !== null && jobs.length < total && (
@@ -1694,141 +1080,29 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         </SheetContent>
       </Sheet>
 
-      {/* v3.151.0 — real job titles, scored the same free way every card
-          already is, grouped from the live catalog instead of guessed by
-          an AI. Picking one filters the list to real postings under it. */}
-      <Dialog open={rolesOpen} onOpenChange={setRolesOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Roles that fit you</DialogTitle>
-          </DialogHeader>
-          <p className="text-xs text-muted-foreground -mt-2">
-            Real job titles from postings open right now, ranked by the same quick match every card shows. Not a guess at demand, just a count of what's actually listed.
-          </p>
-          <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1 space-y-1.5">
-            {rolesLoading ? (
-              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-md" />)
-            ) : rolesError ? (
-              <div className="py-6 text-center space-y-3">
-                <p className="text-sm text-muted-foreground">Couldn't load this right now.</p>
-                <Button type="button" variant="outline" size="sm" onClick={() => { setRoles(null); openRoleFinder(); }}>
-                  Try again
-                </Button>
-              </div>
-            ) : !roles || roles.length === 0 ? (
-              <div className="py-6 text-center space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  {rolesHasProfile
-                    ? "Nothing in today's postings scored well against your profile yet. Check back as new jobs come in."
-                    : "Add a resume or a few skills to Profile first, then AYN can find roles that fit you."}
-                </p>
-                {!rolesHasProfile && (
-                  <Button type="button" size="sm" onClick={() => { setRolesOpen(false); onOpenProfile(); }}>
-                    Open Profile
-                  </Button>
-                )}
-              </div>
-            ) : (
-              roles.map((r) => (
-                <button
-                  key={r.title}
-                  type="button"
-                  onClick={() => pickRole(r.title)}
-                  className="w-full text-left rounded-md border border-border/60 px-3 py-2.5 hover:bg-muted transition flex items-center gap-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm truncate">{r.title}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {r.openings} open posting{r.openings === 1 ? "" : "s"}{r.companies.length ? ` · ${r.companies.slice(0, 2).join(", ")}${r.companies.length > 2 ? "…" : ""}` : ""}
-                    </p>
-                  </div>
-                  <span
-                    className="shrink-0 text-xs font-semibold rounded-full px-2 py-1"
-                    style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}
-                  >
-                    {r.match_pct}%
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <RoleFinderDialog
+        open={rolesOpen}
+        onOpenChange={setRolesOpen}
+        loading={rolesLoading}
+        error={rolesError}
+        roles={roles}
+        hasProfile={rolesHasProfile}
+        onRetry={() => { setRoles(null); openRoleFinder(); }}
+        onPick={pickRole}
+        onOpenProfile={onOpenProfile}
+      />
 
-      {/* v3.166.0 — real posting volume, nationally and by chosen city, over
-          the last 3 days. Never a guessed demand number, always a real count
-          of what's actually landing on file right now. */}
-      <Dialog open={trendingOpen} onOpenChange={setTrendingOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Trending right now</DialogTitle>
-          </DialogHeader>
-          <p className="text-xs text-muted-foreground -mt-2">
-            Real posting volume from the last 3 days, across every region AYN tracks. Not a guess at demand, just a count of what's actually landing.
-          </p>
-
-          {structuredCities.length > 0 && (
-            <Select
-              value={trendingCity ?? "__national"}
-              onValueChange={(v) => pickTrendingCity(v === "__national" ? null : v)}
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="All tracked locations" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__national">All tracked locations</SelectItem>
-                {structuredCities.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          {trendingLoading ? (
-            <div className="space-y-1.5">
-              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-md" />)}
-            </div>
-          ) : trendingError ? (
-            <div className="py-6 text-center space-y-3">
-              <p className="text-sm text-muted-foreground">Couldn't load this right now.</p>
-              <Button type="button" variant="outline" size="sm" onClick={() => loadTrending(trendingCity)}>Try again</Button>
-            </div>
-          ) : (() => {
-            const scope = trendingCity && trendingData?.city ? trendingData.city : trendingData?.national;
-            const byCategory = scope && "byCategory" in scope ? scope.byCategory : [];
-            const byCompany = scope && "byCompany" in scope ? scope.byCompany : [];
-            if (!byCategory.length && !byCompany.length) {
-              return <p className="py-6 text-center text-sm text-muted-foreground">Nothing landed here in the last 3 days.</p>;
-            }
-            return (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">By role</p>
-                  <div className="space-y-1">
-                    {byCategory.map((r) => (
-                      <div key={r.category} className="flex items-start justify-between gap-2 text-sm py-1">
-                        <span>{humanizeCategory(r.category)}</span>
-                        <span className="shrink-0 text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}>{r.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">By company</p>
-                  <div className="space-y-1">
-                    {byCompany.map((r) => (
-                      <div key={r.company} className="flex items-start justify-between gap-2 text-sm py-1">
-                        <span>{r.company}</span>
-                        <span className="shrink-0 text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "var(--rh-tint)", color: "var(--rh-accent-2)" }}>{r.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
+      <TrendingDialog
+        open={trendingOpen}
+        onOpenChange={setTrendingOpen}
+        cities={structuredCities}
+        city={trendingCity}
+        onPickCity={pickTrendingCity}
+        loading={trendingLoading}
+        error={trendingError}
+        data={trendingData}
+        onRetry={() => loadTrending(trendingCity)}
+      />
     </div>
   );
 }
