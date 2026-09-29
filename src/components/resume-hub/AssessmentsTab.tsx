@@ -12,7 +12,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Timer, CheckCircle2, Type } from "lucide-react";
+import { Loader2, Timer, CheckCircle2, Type, ClipboardList } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { assessmentApi, type SeekerAssessment, type StartedAssessment } from "@/lib/assessments";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
@@ -455,10 +455,17 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
       <MaintenanceNotice feature="assessments" />
 
       {loading && <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--rh-faint)" }} />}
+      {/* Brought up to the same shape ProposalsTab/SkillsToLearnTab's own
+          empty states already use (icon, a bold title, a short line on
+          why it's empty and what puts something here) -- this one was a
+          single flat sentence with no icon, visibly lighter-weight than
+          its two siblings on the same nav rail. */}
       {!loading && rows.length === 0 && (
-        <Card className="p-5 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
-          <p className="text-sm" style={{ color: "var(--rh-muted)" }}>
-            Nothing here yet. Assessments arrive from companies that found you in the talent pool.
+        <Card className="p-8 text-center space-y-2 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+          <ClipboardList className="w-6 h-6 mx-auto" style={{ color: "var(--rh-faint)" }} />
+          <p className="rh-display text-[15px]">No assessments yet</p>
+          <p className="text-xs" style={{ color: "var(--rh-muted)" }}>
+            Assessments arrive from companies that found you in the talent pool, a real way to show what you know, not just claim it.
           </p>
         </Card>
       )}
