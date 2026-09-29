@@ -11,6 +11,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({
   ops: [] as Array<{ table: string; op: string; args: unknown[] }>,
   canon: {} as Record<string, unknown>,
+  // Keyed by each work-history card's own Company value, so a re-render
+  // of one ExperienceCard can be told apart from a re-render of another.
+  cardCalls: {} as Record<string, number>,
 }));
 
 vi.mock('@/integrations/supabase/client', () => {
@@ -50,6 +53,22 @@ vi.mock('@/lib/resumeHub', () => ({ resumeHubApi: new Proxy({}, { get: () => asy
 vi.mock('@/lib/talentPoolSync', () => ({ reindexTalentPool: vi.fn(), setPoolOptInCache: vi.fn() }));
 const stableToast = vi.hoisted(() => ({ toast: () => {} }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => stableToast }));
+// PlainField's own "Company" call is a stable per-card marker: each
+// ExperienceCard renders it exactly once per render, with the role's own
+// (unchanging, unless that specific role is the one edited) company name
+// as its value -- the same technique BrowseJobs.integration.test.tsx uses
+// on companyAvatar() to prove a memoized row was skipped, not just that
+// the page rendered without crashing.
+vi.mock('./ProfileFormPrimitives', async (orig) => {
+  const m = await orig<typeof import('./ProfileFormPrimitives')>();
+  return {
+    ...m,
+    PlainField: (props: Parameters<typeof m.PlainField>[0]) => {
+      if (props.label === 'Company') h.cardCalls[props.value] = (h.cardCalls[props.value] ?? 0) + 1;
+      return m.PlainField(props);
+    },
+  };
+});
 import ProfileTab from './ProfileTab';
 
 const baseCanon = () => ({
@@ -71,6 +90,7 @@ const baseCanon = () => ({
 beforeEach(() => {
   h.ops.length = 0;
   h.canon = baseCanon();
+  h.cardCalls = {};
   sessionStorage.clear();
 });
 afterEach(cleanup);
@@ -145,6 +165,28 @@ describe('ProfileTab form (real component, mocked backend)', () => {
     await waitForSave(1);
     const exps = lastSave().experiences as Array<{ title: string; company: string }>;
     expect(exps.map((e) => `${e.title}@${e.company}`)).toEqual(['Senior Engineer@Acme', 'Intern@Initech']);
+  });
+
+  it('editing one role does not re-render the sibling role, even after the debounced save lands', async () => {
+    // Regression test: persist()'s own useCallback deps used to include
+    // profileQuery.data even though it's never actually read at runtime
+    // (only referenced in a `typeof` type annotation) -- and since
+    // persist() itself rewrites that same query-cache entry on a
+    // successful save, that gave persist (and therefore queueSave, and
+    // therefore updateExp) a fresh identity every time a save landed,
+    // busting every ExperienceCard's memoization once per save cycle.
+    // A single edit's own onChange render is expected and fine; what
+    // must NOT happen is a second, spurious render of the untouched
+    // sibling card once the real 900ms debounced save actually resolves.
+    await mount();
+    const before = { ...h.cardCalls };
+    expect(before['Acme']).toBeGreaterThan(0);
+    expect(before['Globex']).toBeGreaterThan(0);
+    fireEvent.change(field('Title', 0), { target: { value: 'Senior Engineer' } });
+    expect(h.cardCalls['Acme']).toBeGreaterThan(before['Acme']); // the edited card did re-render
+    expect(h.cardCalls['Globex']).toBe(before['Globex']); // the untouched sibling did not
+    await waitForSave(1); // waits out the real debounce and the real (mocked) upsert + cache write
+    expect(h.cardCalls['Globex']).toBe(before['Globex']); // still untouched after the save cycle completes
   });
 
   it('certifications and education: add, edit, remove', async () => {
