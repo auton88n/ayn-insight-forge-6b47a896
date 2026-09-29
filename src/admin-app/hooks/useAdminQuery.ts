@@ -217,10 +217,14 @@ export const adminV2Keys = {
   candidates: ['admin', 'v2', 'candidates'] as const,
   marketplace: ['admin', 'v2', 'marketplace'] as const,
   money: ['admin', 'v2', 'money'] as const,
+  activationFunnel: ['admin', 'v2', 'activation_funnel'] as const,
 };
 
 export function useAdminOverview() {
   return useQuery({ queryKey: adminV2Keys.overview, queryFn: () => adminRpc<any>('get_admin_overview'), staleTime: FAST_STALE_TIME });
+}
+export function useAdminActivationFunnel() {
+  return useQuery({ queryKey: adminV2Keys.activationFunnel, queryFn: () => adminRpc<any>('get_admin_activation_funnel'), staleTime: ADMIN_STALE_TIME });
 }
 export function useAdminEmployers() {
   return useQuery({ queryKey: adminV2Keys.employers, queryFn: () => adminRpc<any>('get_admin_employers'), staleTime: FAST_STALE_TIME });
