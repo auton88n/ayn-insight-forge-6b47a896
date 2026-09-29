@@ -64,6 +64,7 @@ import {
   Group, PlainField, SourcedField, OptionRow, MultiSelect, OptionRowMulti,
   SingleSelect, Toggle, BulkAdd, ChipList, updateAt, removeAt,
 } from "./ProfileFormPrimitives";
+import { ExperienceCard } from "./ExperienceCard";
 
 export default function ProfileTab({ userId, onCreditsChanged }: { userId: string; onCreditsChanged?: () => void }) {
   const { toast } = useToast();
@@ -707,7 +708,10 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   };
 
   const updateSkill = (i: number, next: Skill) => { updateAt(setCareer, "skills", i, next); queueSave(); };
-  const updateExp = (i: number, next: Exp) => { updateAt(setCareer, "experiences", i, next); queueSave(); };
+  // Stable identities (setCareer is stable; queueSave only changes after a
+  // save) so memoized ExperienceCards aren't re-rendered by unrelated typing.
+  const updateExp = useCallback((i: number, next: Exp) => { updateAt(setCareer, "experiences", i, next); queueSave(); }, [queueSave]);
+  const removeExp = useCallback((i: number) => { removeAt(setCareer, "experiences", i); queueSave(); }, [queueSave]);
   const updateEdu = (i: number, next: Edu) => { updateAt(setCareer, "education", i, next); queueSave(); };
   const updateCert = (i: number, next: Cert) => { updateAt(setCareer, "certifications", i, next); queueSave(); };
 
@@ -1181,88 +1185,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           {career.experiences.length === 0 && <p className="text-xs text-muted-foreground">No roles yet.</p>}
 
           {career.experiences.map((e, i) => (
-            <div key={i} className="rounded-lg border p-3 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <PlainField label="Title" value={e.title} onChange={v => updateExp(i, { ...e, title: v })} onBlur={queueSave} />
-                <PlainField label="Company" value={e.company} onChange={v => updateExp(i, { ...e, company: v })} onBlur={queueSave} />
-                <PlainField label="Start" value={e.start || ""} onChange={v => updateExp(i, { ...e, start: v })} onBlur={queueSave} placeholder="2022-01" />
-                <PlainField
-                  label="End"
-                  value={e.current ? "Present" : (e.end || "")}
-                  onChange={v => updateExp(i, { ...e, end: v })}
-                  onBlur={queueSave}
-                  placeholder="2024-06"
-                  disabled={e.current}
-                />
-                <PlainField label="Location" value={e.location || ""} onChange={v => updateExp(i, { ...e, location: v })} onBlur={queueSave} placeholder="City, or Remote" />
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Industry or domain</Label>
-                  <Input
-                    list="ayn-industries"
-                    value={e.industry || ""}
-                    onChange={ev => updateExp(i, { ...e, industry: ev.target.value })}
-                    onBlur={queueSave}
-                    placeholder="Fintech, healthcare, enterprise SaaS"
-                  />
-                </div>
-                <PlainField
-                  label="Team size managed (optional)"
-                  type="number"
-                  value={e.team_size == null ? "" : String(e.team_size)}
-                  onChange={v => updateExp(i, { ...e, team_size: v === "" ? null : Number(v) })}
-                  onBlur={queueSave}
-                />
-                <label className="flex items-center justify-between rounded-md border px-3 py-2 text-sm self-end">
-                  <span>Current role</span>
-                  {/* v3.71.0 fix: End previously kept whatever date was
-                      already typed even after this was switched on, so the
-                      toggle could silently have no effect. Turning it on now
-                      clears End (shown disabled with "Present" above);
-                      turning it off hands End back for a real date. */}
-                  <Switch checked={!!e.current} onCheckedChange={v => updateExp(i, { ...e, current: v, end: v ? "" : e.end })} />
-                </label>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground">Achievements</Label>
-                  {e.bullets_from_resume && <Badge variant="outline" className="text-[10px] font-normal">From your resume</Badge>}
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  These are the lines tailoring rewrites for each job. Empty here means tailoring has nothing to work with.
-                </p>
-                {(e.bullets ?? []).map((b, bi) => (
-                  <div key={bi} className="flex gap-2">
-                    <Textarea
-                      rows={2}
-                      value={b}
-                      placeholder="Cut checkout latency by 40 percent for 2 million monthly users"
-                      onChange={ev => {
-                        const next = [...(e.bullets ?? [])];
-                        next[bi] = ev.target.value;
-                        updateExp(i, { ...e, bullets: next });
-                      }}
-                      onBlur={queueSave}
-                    />
-                    <Button variant="ghost" size="icon" onClick={() => {
-                      updateExp(i, { ...e, bullets: (e.bullets ?? []).filter((_, j) => j !== bi) });
-                    }}><X className="w-4 h-4" /></Button>
-                  </div>
-                ))}
-                {(e.bullets ?? []).length < 5 && (
-                  <Button variant="ghost" size="sm" onClick={() => updateExp(i, { ...e, bullets: [...(e.bullets ?? []), ""] })}>
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Add achievement
-                  </Button>
-                )}
-                {(e.bullets ?? []).filter(Boolean).length > 0 && (e.bullets ?? []).filter(Boolean).length < 2 && (
-                  <p className="text-[11px] text-muted-foreground">Two to five achievements give tailoring enough to choose from.</p>
-                )}
-              </div>
-
-              <div className="flex justify-end">
-                <Button variant="ghost" size="sm" onClick={() => { removeAt(setCareer, "experiences", i); queueSave(); }}>Remove role</Button>
-              </div>
-            </div>
+            <ExperienceCard key={i} exp={e} index={i} onChange={updateExp} onRemove={removeExp} onBlurSave={queueSave} />
           ))}
           <datalist id="ayn-industries">
             {INDUSTRIES.map(x => <option key={x} value={x} />)}

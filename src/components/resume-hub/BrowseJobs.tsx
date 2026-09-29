@@ -65,6 +65,7 @@ import { savedJobsQueryKey } from "@/lib/queryKeys";
 import { groupByRegion } from "@/lib/locationRegion";
 import { ScoreGauge } from "./ScoreGauge";
 import { SwipeDeck } from "./SwipeDeck";
+import { JobListRow } from "./JobListRow";
 import {
   PAGE_SIZE, HOT_WINDOW_MS, BROWSE_LAST_OPEN_KEY, POSTED_WITHIN_OPTIONS, COLS,
   displayCount, extractCultureSnippet,
@@ -797,11 +798,21 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   };
 
   const handleAdd = (job: JobPosting) => saveJob(job, true);
-  const toggleBookmark = (e: React.MouseEvent, job: JobPosting) => {
-    e.stopPropagation();
-    if (savedUrls.has(job.apply_url)) unsaveJob(job);
-    else saveJob(job);
-  };
+  // Stable callbacks for the memoized list rows. The functions above close
+  // over per-render state, so the rows call through a ref that is refreshed
+  // every render: identity never changes (rows don't re-render on unrelated
+  // state), yet a click always runs the latest closure (no stale state).
+  const rowActionsRef = useRef({ openJob, saveJob, unsaveJob });
+  rowActionsRef.current = { openJob, saveJob, unsaveJob };
+  const handleOpenRow = useCallback((job: JobPosting) => rowActionsRef.current.openJob(job), []);
+  const handleToggleBookmark = useCallback((job: JobPosting, isSaved: boolean) => {
+    if (isSaved) rowActionsRef.current.unsaveJob(job);
+    else rowActionsRef.current.saveJob(job);
+  }, []);
+  const handleLogoError = useCallback(
+    (jobId: string) => setLogoFailed((prev) => (prev.has(jobId) ? prev : new Set(prev).add(jobId))),
+    [],
+  );
 
   // v3.142.0 — flat while searching (a typed filter beats a category
   // browse every time), grouped by region while just browsing so 1,000+
@@ -1467,173 +1478,22 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                   the direct apply link) is untouched, only the row's own
                   outer shape changed. */}
               <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--rh-hair)" }}>
-                {jobs.map((j) => {
-                  const isHot = Date.now() - new Date(j.posted_at).getTime() < HOT_WINDOW_MS;
-                  const avatar = companyAvatar(j.company);
-                  const logoUrl = resolveLogoUrl(j);
-                  const showLogo = !!logoUrl && !logoFailed.has(j.id);
-                  const salary = resolveSalary(j);
-                  const active = selected?.id === j.id;
-                  const isSaved = savedUrls.has(j.apply_url);
-                  const isSeen = seenIds.has(j.id);
-                  return (
-                    // v3.142.0 — the row used to be one big <button>; adding
-                    // a bookmark control meant it could no longer be, since
-                    // an interactive element can't nest inside another one.
-                    // The clickable area (avatar + text) is now its own
-                    // inner button, with the bookmark as a sibling instead
-                    // of a child.
-                    <div
-                      key={j.id}
-                      className={"ayn-match-row w-full flex items-start gap-2 p-4 relative" + (active ? " is-active" : "")}
-                      style={{ background: active ? undefined : "var(--rh-surface)" }}
-                    >
-                      <button type="button" onClick={() => openJob(j)} className="flex items-start gap-3 flex-1 min-w-0 text-left">
-                        {showLogo ? (
-                          <img
-                            src={logoUrl!}
-                            alt=""
-                            className="w-12 h-12 rounded-xl shrink-0 object-contain bg-white p-1.5 border"
-                            style={{ borderColor: "var(--rh-hair)" }}
-                            onError={() => setLogoFailed((prev) => new Set(prev).add(j.id))}
-                          />
-                        ) : (
-                          <div
-                            className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-base shrink-0 ${avatar.className}`}
-                            style={{ boxShadow: "0 6px 16px -6px rgba(28,23,18,0.35)" }}
-                          >
-                            {avatar.initial}
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <p className="rh-display text-[15.5px] leading-snug">{j.title}</p>
-                          <p className="text-[13px] truncate" style={{ color: "var(--rh-muted)" }}>
-                            {j.company}{j.location ? ` • ${j.location}` : ""}
-                          </p>
-                          <div className="flex items-center gap-2 flex-wrap pt-0.5">
-                            {scorePill(j.id)}
-                            <span className="text-[11px]" style={{ color: "var(--rh-faint)" }}>{postedAge(j.posted_at)} · {postedDate(j.posted_at)}</span>
-                            {salary && (
-                              <span
-                                className="text-[11px] font-bold"
-                                style={{ color: "var(--rh-gold)" }}
-                                title={salary.fromListingText ? "Read directly from this posting's own text." : undefined}
-                              >
-                                {salary.text}
-                              </span>
-                            )}
-                          </div>
-                          {/* v3.344.0 — reported directly against a
-                              competitor's own card: theirs shows type,
-                              seniority, and work mode right on the list
-                              row, real basics you'd otherwise only see
-                              after opening the detail pane. Same three
-                              facts the detail pane's own highlight strip
-                              already computes (EMPLOYMENT_TYPE_LABELS/
-                              SENIORITY_LABELS, work_mode capitalized),
-                              just reused here as small neutral pills
-                              instead of a second, heavier grid — this
-                              row is read in passing, not studied. */}
-                          {(j.employment_type || j.seniority || j.work_mode) && (
-                            <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                              {j.employment_type && (
-                                <span
-                                  className="text-[10.5px] font-medium rounded-full px-2 py-0.5"
-                                  style={{ background: "var(--rh-raised)", color: "var(--rh-muted)", border: "1px solid var(--rh-hair)" }}
-                                >
-                                  {EMPLOYMENT_TYPE_LABELS[j.employment_type] || humanizeSlug(j.employment_type)}
-                                </span>
-                              )}
-                              {j.seniority && (
-                                <span
-                                  className="text-[10.5px] font-medium rounded-full px-2 py-0.5"
-                                  style={{ background: "var(--rh-raised)", color: "var(--rh-muted)", border: "1px solid var(--rh-hair)" }}
-                                >
-                                  {SENIORITY_LABELS[j.seniority] || humanizeSlug(j.seniority)}
-                                </span>
-                              )}
-                              {j.work_mode && (
-                                <span
-                                  className="text-[10.5px] font-medium rounded-full px-2 py-0.5"
-                                  style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}
-                                >
-                                  {humanizeSlug(j.work_mode)}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        {/* v3.139.0 — reported directly: the New badge sat
-                            inline right after the title, so a one-line title
-                            and a two-line title left it in a different spot
-                            on every card. Pulled out to its own column at the
-                            end of the row instead, so it lands in the same
-                            place on every card regardless of title length.
-                            v3.171.0 — given the real ember gradient + glow
-                            instead of a flat tint pill, matching every other
-                            "real accent" moment on this page now. */}
-                        {isHot && (
-                          <Badge
-                            variant="outline"
-                            className="shrink-0 gap-1 border-0"
-                            style={{ background: "var(--rh-gradient)", color: "#fff", boxShadow: "var(--rh-glow)" }}
-                          >
-                            <Flame className="w-3 h-3" /> New
-                          </Badge>
-                        )}
-                        {/* v3.183.0 — reported directly: no way to tell at a
-                            glance whether a card had already been opened
-                            before. Real, persistent per-user tracking
-                            (job_postings_seen), not a guess — set the moment
-                            this card's detail is actually opened. */}
-                        {isSeen && (
-                          <Badge variant="outline" className="shrink-0 border-0" style={{ background: "var(--rh-raised)", color: "var(--rh-faint)" }}>
-                            Seen
-                          </Badge>
-                        )}
-                        {/* v3.344.0 — the other half of the same
-                            competitor-card gap: their row lets you act
-                            (apply) without opening the job first, this
-                            list only ever offered "open, then apply."
-                            A direct external link to the real apply_url,
-                            same one the detail pane's own primary button
-                            already points at — no new data, no new
-                            action, just reachable one click earlier. */}
-                        <a
-                          href={j.apply_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          aria-label="Apply on the company's site"
-                          title="Apply on the company's site"
-                          className="p-1 rounded hover:bg-muted transition"
-                        >
-                          <ExternalLink className="w-4 h-4" style={{ color: "var(--rh-faint, #9ca3af)" }} />
-                        </a>
-                        {/* v3.142.0 — asked directly for a bookmark-style
-                            save so a job can be kept without leaving the
-                            list or reading the full posting first.
-                            v3.144.0 — and asked directly to make it a real
-                            toggle, not save-only. */}
-                        <button
-                          type="button"
-                          onClick={(e) => toggleBookmark(e, j)}
-                          disabled={addingId === j.id}
-                          aria-label={isSaved ? "Remove from saved" : "Save job"}
-                          title={isSaved ? "Remove from saved" : "Save job"}
-                          className="p-1 rounded hover:bg-muted transition"
-                        >
-                          <Bookmark
-                            className="w-4 h-4"
-                            style={isSaved ? { fill: "var(--rh-accent)", color: "var(--rh-accent)" } : { color: "var(--rh-faint, #9ca3af)" }}
-                          />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                {jobs.map((j) => (
+                  <JobListRow
+                    key={j.id}
+                    job={j}
+                    active={selected?.id === j.id}
+                    isSaved={savedUrls.has(j.apply_url)}
+                    isSeen={seenIds.has(j.id)}
+                    isSaving={addingId === j.id}
+                    logoFailed={logoFailed.has(j.id)}
+                    score={scores[j.id]}
+                    hasScored={scored.has(j.id)}
+                    onOpen={handleOpenRow}
+                    onToggleBookmark={handleToggleBookmark}
+                    onLogoError={handleLogoError}
+                  />
+                ))}
               </div>
 
               {total !== null && jobs.length < total && (
