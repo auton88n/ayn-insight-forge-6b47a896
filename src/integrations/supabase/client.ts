@@ -42,6 +42,12 @@ type SkillToLearn = {
   Update: { id?: string; user_id?: string; job_id?: string | null; job_title?: string | null; company?: string | null; skill?: string; added_at?: string; learned_at?: string | null };
   Relationships: [];
 };
+type InboxMessage = {
+  Row: { id: string; reveal_request_id: string; sender_role: string; sender_user_id: string | null; kind: string; body: string | null; call_url: string | null; call_scheduled_at: string | null; status: string; block_reason: string | null; read_at: string | null; created_at: string };
+  Insert: { id?: string; reveal_request_id: string; sender_role: string; sender_user_id?: string | null; kind?: string; body?: string | null; call_url?: string | null; call_scheduled_at?: string | null; status?: string; block_reason?: string | null; read_at?: string | null; created_at?: string };
+  Update: { id?: string; reveal_request_id?: string; sender_role?: string; sender_user_id?: string | null; kind?: string; body?: string | null; call_url?: string | null; call_scheduled_at?: string | null; status?: string; block_reason?: string | null; read_at?: string | null; created_at?: string };
+  Relationships: [];
+};
 type CurrentDatabase = Omit<Database, 'public'> & {
   public: Omit<PublicSchema, 'Tables' | 'Functions'> & {
     Tables: Omit<Tables, 'job_postings' | 'jobs' | 'resume_versions'> & {
@@ -50,11 +56,13 @@ type CurrentDatabase = Omit<Database, 'public'> & {
       resume_versions: ExtendTable<Tables['resume_versions'], VersionExtras, Partial<VersionExtras>, Partial<VersionExtras>>;
       job_postings_seen: Seen;
       skills_to_learn: SkillToLearn;
+      inbox_messages: InboxMessage;
     };
     Functions: Functions & {
       company_hiring_status: { Args: { p_company_slug: string }; Returns: string | null };
       company_hiring_status_batch: { Args: { p_company_slugs: string[] }; Returns: { company_slug: string; status: string | null }[] };
       save_primary_resume: { Args: { p_id: string; p_title: string; p_content: Database['public']['Tables']['resumes']['Row']['content']; p_ats_score: number | null; p_ats_issues: Database['public']['Tables']['resumes']['Row']['content'] | null }; Returns: string };
+      job_market_snapshot: { Args: never; Returns: Database['public']['Tables']['resumes']['Row']['content'] };
     };
   };
 };
