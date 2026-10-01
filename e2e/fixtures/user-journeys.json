@@ -1,0 +1,142 @@
+{
+  "journeys": {
+    "newUserOnboarding": {
+      "description": "Complete new user journey from landing to first chat",
+      "steps": [
+        { "action": "navigate", "target": "/" },
+        { "action": "click", "target": "text=Sign Up" },
+        { "action": "fill", "target": "input[type='email']", "value": "{{randomEmail}}" },
+        { "action": "fill", "target": "input[type='password']", "value": "TestPassword123!" },
+        { "action": "click", "target": "button[type='submit']" },
+        { "action": "wait", "duration": 3000 },
+        { "action": "acceptTerms" },
+        { "action": "sendMessage", "value": "Hello, I'm a new user!" },
+        { "action": "waitForResponse" }
+      ],
+      "assertions": [
+        { "type": "visible", "target": "textarea" },
+        { "type": "responseReceived" }
+      ]
+    },
+    "returningUser": {
+      "description": "Returning user login and session restoration",
+      "steps": [
+        { "action": "navigate", "target": "/" },
+        { "action": "login", "email": "test-user@aynn.io", "password": "TestPassword123!" },
+        { "action": "wait", "duration": 2000 },
+        { "action": "sendMessage", "value": "Welcome back message" },
+        { "action": "waitForResponse" },
+        { "action": "navigate", "target": "/settings" },
+        { "action": "navigate", "target": "/" },
+        { "action": "verifySessionRestored" }
+      ],
+      "assertions": [
+        { "type": "loggedIn" },
+        { "type": "visible", "target": "textarea" }
+      ]
+    },
+    "engineerWorkflow": {
+      "description": "Complete engineering calculation workflow",
+      "steps": [
+        { "action": "login", "email": "test-user@aynn.io", "password": "TestPassword123!" },
+        { "action": "navigate", "target": "/engineering" },
+        { "action": "click", "target": "button:has-text('Beam')" },
+        { "action": "fill", "target": "input[name*='span']", "value": "6" },
+        { "action": "fill", "target": "input[name*='load']", "value": "20" },
+        { "action": "click", "target": "button:has-text('Calculate')" },
+        { "action": "wait", "duration": 3000 },
+        { "action": "verifyResults" },
+        { "action": "click", "target": "button:has-text('3D')" },
+        { "action": "wait", "duration": 2000 },
+        { "action": "exportDXF" }
+      ],
+      "assertions": [
+        { "type": "calculationComplete" },
+        { "type": "visualizationLoaded" }
+      ]
+    },
+    "supportTicketFlow": {
+      "description": "Create and manage support ticket",
+      "steps": [
+        { "action": "login", "email": "test-user@aynn.io", "password": "TestPassword123!" },
+        { "action": "navigate", "target": "/support" },
+        { "action": "click", "target": "button:has-text('New Ticket')" },
+        { "action": "fill", "target": "input[name*='subject']", "value": "Test Support Request" },
+        { "action": "fill", "target": "textarea", "value": "This is a test ticket description." },
+        { "action": "click", "target": "button[type='submit']" },
+        { "action": "wait", "duration": 2000 },
+        { "action": "verifyTicketCreated" }
+      ],
+      "assertions": [
+        { "type": "ticketVisible" },
+        { "type": "statusOpen" }
+      ]
+    },
+    "adminWorkflow": {
+      "description": "Admin user management workflow",
+      "steps": [
+        { "action": "login", "email": "test-admin@aynn.io", "password": "AdminPassword123!" },
+        { "action": "enterAdminPIN" },
+        { "action": "navigateToAdminPanel" },
+        { "action": "viewUserList" },
+        { "action": "viewSystemMetrics" },
+        { "action": "runTests" }
+      ],
+      "assertions": [
+        { "type": "adminAccessGranted" },
+        { "type": "metricsVisible" }
+      ]
+    }
+  },
+  "testUsers": {
+    "standardUser": {
+      "email": "test-user@aynn.io",
+      "password": "TestPassword123!",
+      "role": "user"
+    },
+    "adminUser": {
+      "email": "test-admin@aynn.io",
+      "password": "AdminPassword123!",
+      "role": "admin"
+    }
+  },
+  "testData": {
+    "beamCalculation": {
+      "span": "6",
+      "load": "20",
+      "width": "300",
+      "height": "500"
+    },
+    "columnCalculation": {
+      "width": "400",
+      "height": "400",
+      "load": "1000"
+    },
+    "foundationCalculation": {
+      "load": "500",
+      "bearing": "150",
+      "width": "2",
+      "depth": "0.5"
+    },
+    "chatMessages": {
+      "english": [
+        "Hello, how are you?",
+        "Can you help me with my business?",
+        "What services do you offer?",
+        "Tell me about AI integration"
+      ],
+      "arabic": [
+        "مرحبا، كيف حالك؟",
+        "هل يمكنك مساعدتي في عملي؟",
+        "ما هي الخدمات التي تقدمونها؟",
+        "أخبرني عن تكامل الذكاء الاصطناعي"
+      ]
+    }
+  },
+  "stressTestConfig": {
+    "maxMessages": 100,
+    "maxCalculations": 50,
+    "maxConcurrentUsers": 10,
+    "sessionDurationMinutes": 30
+  }
+}

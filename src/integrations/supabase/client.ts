@@ -43,7 +43,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 // stale token), the original 401 is returned unchanged, so a real
 // "please sign in again" case still surfaces normally rather than
 // silently retrying forever.
-let clientRef: ReturnType<typeof createClient<Database>> | null = null;
+let clientRef: ReturnType<typeof createClient<any>> | null = null;
 
 async function fetchWithAuthRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const res = await fetch(input, init);
@@ -68,7 +68,7 @@ async function fetchWithAuthRetry(input: RequestInfo | URL, init?: RequestInit):
   return fetch(input, { ...init, headers });
 }
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+export const supabase = createClient<any>(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: brokeredPreviewStorage(),
     persistSession: true,

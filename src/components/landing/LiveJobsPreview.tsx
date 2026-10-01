@@ -25,7 +25,7 @@
 import { memo, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { companyAvatar } from '@/lib/jobPostingFormat';
+import { companyAvatar } from '@/components/resume-hub/BrowseJobs';
 
 const HOT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const PREVIEW_SIZE = 4;
@@ -51,7 +51,8 @@ export const LiveJobsPreview = memo(() => {
       .limit(PREVIEW_SIZE)
       .then(({ data }) => {
         if (!cancelled && data) setJobs(data as PreviewJob[]);
-      }, () => {}); // A failed request leaves the preview empty.
+      // An empty list is honest if this fails -- never a fabricated row.
+      }, () => {});
     return () => { cancelled = true; };
   }, []);
 

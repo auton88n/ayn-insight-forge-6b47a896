@@ -80,11 +80,6 @@ function handleCallError(status: number, data: unknown): never {
 // helper -- same fetch, same apikey header every call already needs, just
 // no Authorization header to omit.
 export interface ResumeCheckPublicResult {
-  evaluationVersion: string;
-  requirementCount: number;
-  matchedCount: number;
-  missingCount: number;
-  disclosureLimit: number;
   matched: string[];
   missing: string[];
   niceToHave: string[];
@@ -108,6 +103,87 @@ export async function resumeCheckPublic(resumeText: string, jdText: string): Pro
     throw new Error(coded?.error || `Request failed (${r.status})`);
   }
   return data as ResumeCheckPublicResult;
+}
+
+// v3.265.0 — the auto-apply answer bank matcher. Takes the real question
+// labels read off a job application form and gets back, per question,
+// either the user's own already-stored real answer or null (meaning no
+// real ground truth exists and the person has to type it themselves —
+// never a guessed one). See supabase/functions/resume-hub/lib/applicationAnswers.ts.
+export interface ApplicationAnswerResult {
+  fieldId: string;
+  label: string;
+  matchedType: string | null;
+  answer: string | null;
+  confidence: number;
+}
+
+export async function applicationAnswerMatch(
+  questions: Array<{ id: string; label: string }>,
+): Promise<ApplicationAnswerResult[]> {
+  const r = await call<{ results: ApplicationAnswerResult[] }>("resume-hub", {
+    action: "application_answer_match",
+    questions,
+  });
+  return r.results;
+}
+
+// v3.266.0 — auto-apply. Two real, honest outcomes per job, decided by the
+// employer's own application form, not guessed at up front: a real,
+// fillable form (the normal case, returns fields/matches), or a wall this
+// can't cross (signinRequired: the employer's own site needs the person's
+// own account; extractionFailed: the form couldn't be read at all, usually
+// active bot-blocking). Neither is an error — both are shown to the person
+// with an "open it yourself" fallback, never silently dropped.
+export interface AutoApplyIdentityMatch { fieldId: string; label: string; role: string; value: string | null }
+export interface AutoApplyRadioMatch {
+  groupName: string; groupLabel: string;
+  resolvedAnswer: string | null; chosenFieldId: string | null; chosenOptionLabel: string | null;
+}
+export interface AutoApplyExtractResult {
+  signinRequired?: boolean;
+  extractionFailed?: boolean;
+  reason?: string;
+  job?: { id: string; company: string; title: string; url: string };
+  applyUrl?: string;
+  radioMatches?: AutoApplyRadioMatch[];
+  identityMatches?: Record<string, AutoApplyIdentityMatch>;
+  answerMatches?: ApplicationAnswerResult[];
+  fileFields?: Array<{ id: string; label: string }>;
+}
+export function autoApplyExtract(jobId: string): Promise<AutoApplyExtractResult> {
+  return call<AutoApplyExtractResult>("resume-hub", { action: "auto_apply_extract", jobId });
+}
+
+export interface AutoApplyFillResult {
+  ok: boolean;
+  filled?: number;
+  failed?: string[];
+  submitted?: boolean;
+  submitError?: string;
+  finalUrl?: string;
+  screenshotBase64?: string;
+  chargedCredits: number;
+}
+export function autoApplyFill(params: {
+  jobId: string;
+  applyUrl?: string;
+  textValues: Array<{ label: string; value: string; isIdentity?: boolean }>;
+  radioSelections?: Array<{ groupLabel: string; optionLabel: string }>;
+  resumeLabel?: string; resumeFileUrl?: string;
+  coverLetterLabel?: string; coverLetterFileUrl?: string;
+  submit?: boolean;
+  // v3.316.0 — the one real gap in the Answer Library: a real answer
+  // typed here for a "not on file" screening question used to be spent
+  // once and discarded, so the identical question on the next real
+  // application showed the same empty prompt again. Every answer-match
+  // question already carries its own known slug (matchedType) whenever
+  // it's one of ProfileTab's real screening questions — this is that
+  // slug, paired with whatever the person actually typed or confirmed,
+  // so the backend can write it back to their own profile once.
+  learnedAnswers?: Array<{ slug: string; value: string }>;
+}): Promise<AutoApplyFillResult> {
+  return call<AutoApplyFillResult>("resume-hub", { action: "auto_apply_fill", ...params });
 }
 
 export interface GuidedIntakeExtraction {
@@ -187,18 +263,18 @@ export const resumeHubApi = {
   // so the client can't send stale or partial content and there's nothing
   // to keep in sync on this side.
   match: (jdText: string) =>
-    call<{ score: number | null; breakdown: Record<string, number>; missing_keywords: string[]; summary: string }>("resume-hub", { action: "match", jdText }),
+    call<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string }>("resume-hub", { action: "match", jdText }),
   /** idempotencyKey: pass the same value on a retry of a failed attempt so
    * the server recognizes it and doesn't charge twice if the first attempt
    * actually succeeded server side despite the client never seeing it. */
   /** jobTitle: the posting's own title, used to decide (in code, not by the
    * model) whether the resume header can safely align to it -- see
    * resolveTailorTitle's own comment for the seniority-inflation guard. */
-  tailor: (jdText: string, idempotencyKey?: string, jobTitle?: string, jobId?: string) =>
-    call<{ resume: ResumeContent; gapAnalysis?: { missing: string[]; matchPct: number | null; beforeMatchPct?: number | null; evaluationVersion?: string } }>("resume-hub", { action: "tailor", jdText, jobTitle, jobId, idempotency_key: idempotencyKey }),
+  tailor: (jdText: string, idempotencyKey?: string, jobTitle?: string) =>
+    call<{ resume: ResumeContent; gapAnalysis?: { missing: string[]; matchPct: number | null } }>("resume-hub", { action: "tailor", jdText, jobTitle, idempotency_key: idempotencyKey }),
 
-  coverLetter: (jdText: string, opts?: { tone?: string; company?: string; idempotencyKey?: string; jobId?: string }) =>
-    call<{ body: string }>("resume-hub", { action: "cover_letter", jdText, jobId: opts?.jobId, tone: opts?.tone, company: opts?.company, idempotency_key: opts?.idempotencyKey }),
+  coverLetter: (jdText: string, opts?: { tone?: string; company?: string; idempotencyKey?: string }) =>
+    call<{ body: string }>("resume-hub", { action: "cover_letter", jdText, tone: opts?.tone, company: opts?.company, idempotency_key: opts?.idempotencyKey }),
 
   // v2.9.0-A — Talent pool consent + status.
   // v3.2.0 — also returns the employer preview, skills with provenance, and
@@ -308,3 +384,4 @@ export interface TalentPoolStatus {
   resume_updated_at: string | null;
   profile_updated_at: string | null;
 }
+

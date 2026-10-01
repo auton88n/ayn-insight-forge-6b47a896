@@ -360,42 +360,39 @@ export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthM
 
     setIsLoading(true);
     try {
-      // Sept 2026, pentest finding 3 (account enumeration): GoTrue itself
-      // returns a distinct, unmaskable error for an email that already has
-      // a confirmed account, with no self-hosted config to suppress it —
-      // calling supabase.auth.signUp() directly, as this used to, let a
-      // caller learn exactly which emails are registered. auth-signup
-      // proxies the identical call server side and always answers with the
-      // same shape either way; only a genuine input problem (weak password,
-      // rate limited) comes back distinguishable, which is fine, since that
-      // fires the same regardless of whether the email is taken.
-      const { data, error } = await supabase.functions.invoke('auth-signup', {
-        body: {
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-            data: {
-              full_name: fullName,
-              company_name: companyName,
-              role: signupRole,
-              ...(signupRole === 'employer' ? {
-                position_title: positionTitle,
-                phone,
-                company_website: companyWebsite,
-                company_address: companyAddress,
-                company_country: companyCountry,
-              } : {}),
-              ...consent,
-            }
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            full_name: fullName,
+            company_name: companyName,
+            role: signupRole,
+            ...(signupRole === 'employer' ? {
+              position_title: positionTitle,
+              phone,
+              company_website: companyWebsite,
+              company_address: companyAddress,
+              company_country: companyCountry,
+            } : {}),
+            ...consent,
           }
         }
       });
 
-      if (error || !data?.ok) {
+      if (error) {
+
         toast({
           title: t('auth.registrationError'),
-          description: data?.error || error?.message || t('error.systemErrorDesc'),
+          description: error.message,
+          variant: "destructive"
+        });
+      } else if (data.user?.identities?.length === 0) {
+        // User already exists - Supabase doesn't return error for security
+        toast({
+          title: t('auth.emailAlreadyRegistered'),
+          description: t('auth.emailAlreadyRegisteredDesc'),
           variant: "destructive"
         });
       } else {
@@ -406,18 +403,31 @@ export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthM
         // seeker with no company account. handle_new_user_profile now reads
         // role and company_name out of the same signup metadata directly,
         // in the same transaction as the account, so it can never miss.
-        //
-        // This success branch is now also reached when the email already
-        // had an account (see above) — attachConsentIp needs an active
-        // session to do anything, and a brand-new unconfirmed signup has
-        // none yet either, so it silently no-ops on both paths exactly as
-        // it always has; nothing here depends on telling the two apart.
-        void attachConsentIp('signup');
+        if (data.user) {
+          // v3.33.0 — the acceptance itself is already recorded by the account
+          // creation trigger. This only attaches the IP, which only the server
+          // can see, and it is allowed to fail without losing the record.
+          void attachConsentIp('signup');
+        }
+
+        // Send welcome email (async, don't block signup)
+        try {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              to: email,
+              userId: data.user?.id,
+              emailType: 'welcome',
+              data: { userName: fullName || 'there', role: signupRole }
+            }
+          });
+        } catch (emailError) {
+          console.warn('[AuthModal] Welcome email failed:', emailError);
+        }
 
         toast({
           title: t('auth.registrationSuccess'),
           description: signupRole === 'employer'
-            ? "If this address is new, check your email to confirm your account, then our team will review and reach out. Already have an account? Sign in, or use Forgot password."
+            ? "Account created. Our team will review and reach out shortly."
             : t('auth.registrationSuccessDesc')
         });
         onOpenChange(false);
@@ -762,7 +772,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthM
                       </button>
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-tight">
-                      Employer accounts are currently available in the United States and Canada.
+                      AYN currently operates only in the United States and Canada.
                     </p>
                   </div>
                 </>
@@ -830,7 +840,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthM
                 >
                   Privacy Policy
                 </a>
-                {' '}(Terms {LEGAL.termsVersion}, effective {LEGAL.termsEffectiveDate}; Privacy {LEGAL.privacyVersion}, effective {LEGAL.privacyEffectiveDate}). We record the date, time and versions you accept.
+                {' '}(Terms {LEGAL.termsVersion} and Privacy {LEGAL.privacyVersion}, effective {LEGAL.effectiveDate}). We record the date, time and versions you accept.
                 </label>
               </div>
 

@@ -13,7 +13,6 @@ import LandingPage from '@/components/LandingPage';
 const EmployerHub = lazy(() => import('@/pages/EmployerHub'));
 import { useFeature } from '@/hooks/useFeatureFlags';
 import { PlatformMaintenanceScreen } from '@/components/shared/MaintenanceNotice';
-import { LegalConsentGate } from '@/components/auth/LegalConsentGate';
 
 
 
@@ -103,7 +102,8 @@ const Index = () => {
 // v3.6.0 — an APPROVED employer lands in the hiring surface.
 // v3.8.0 — a job seeker lands in Resume Hub. The open ended dashboard chat is
 // gone in favor of grounded, per-job actions (score, tailor, cover letter).
-// Every seeker-facing capability lives in Resume Hub itself.
+// v3.164.0 — the Chrome extension that later carried "Ask AYN" is retired too;
+// every seeker-facing capability now lives in Resume Hub itself.
 // v3.228.0 — reported directly, the exact "sign in and I see a different
 // dashboard" complaint this whole redesign effort started from: a signed
 // in job seeker no longer gets hard-navigated to the separate /resume-hub
@@ -118,13 +118,13 @@ const AuthedShell = ({ user, session: _session }: { user: User; session: Session
   if (platform.loaded && !platform.enabled) return <PlatformMaintenanceScreen />;
   if (role === 'employer') {
     if (employerStatus !== 'approved') return <Navigate to="/employer/pending" replace />;
-    return <LegalConsentGate userId={user.id}>
+    return (
       <Suspense fallback={<DashboardLoader />}>
         <EmployerHub companyName={companyName} />
       </Suspense>
-    </LegalConsentGate>;
+    );
   }
-  return <LegalConsentGate userId={user.id}><LandingPage /></LegalConsentGate>;
+  return <LandingPage />;
 };
 
 

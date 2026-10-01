@@ -66,6 +66,7 @@ export const en: Record<string, string> = {
   'cta.secondary': 'Explore Features',
 
   // Footer
+  'footer.copyright': `© ${currentYear} AYN Intelligence. All rights reserved.`,
   
   // Mode names
   'modes.general': 'General',
@@ -661,8 +662,8 @@ export const en: Record<string, string> = {
   'auth.businessEmail': 'Business Email',
   'auth.phoneNumber': 'Phone Number',
   'auth.createPassword': 'Create a secure password',
-  'auth.registrationSuccess': 'Check your email',
-  'auth.registrationSuccessDesc': 'If this address is new, we have sent a link to confirm your account. Already have an account? Sign in, or use Forgot password.',
+  'auth.registrationSuccess': 'Account Created!',
+  'auth.registrationSuccessDesc': 'Please check your email to verify your account. You can sign in once verified.',
   'auth.registrationError': 'Registration Error',
   'auth.forgotPassword': 'Forgot password?',
   'auth.forgotPasswordSending': 'Sending...',

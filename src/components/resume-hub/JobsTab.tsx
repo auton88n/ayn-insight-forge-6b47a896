@@ -20,7 +20,6 @@
  * the one part of Resume Hub that hadn't been re-skinned.
  */
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,13 +29,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Download, X, ArrowLeft, Search } from "lucide-react";
-import { resumeToText, downloadBlob, fileBase } from "@/lib/resumeText";
+import { resumeToText, buildResumeDocxBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import ResumeDiffViewer from "./ResumeDiffViewer";
+import AutoApplyPanel from "./AutoApplyPanel";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
-import { companyAvatar } from "@/lib/jobPostingFormat";
-import { savedJobsQueryKey } from "@/lib/queryKeys";
+import { companyAvatar } from "./BrowseJobs";
 
 interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile: () => void; onCreditsChanged?: () => void; onBackToBrowse: () => void }
 
@@ -47,7 +46,7 @@ interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile
 // handoff from Browse jobs having just happened.
 const LAST_OPEN_KEY = "ayn_jobs_last_open";
 
-interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string; application_status: string; application_status_changed_at: string }
+interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string; application_status: string; application_status_changed_at: string; auto_apply_charged_at: string | null }
 
 // v3.182.0 — "status silence is the #1 killer": research consistently found
 // candidates expect a reply within days and disengage after 1-2 weeks of
@@ -114,8 +113,7 @@ function scoreBadgeStyle(score: number): CSSProperties {
 
 export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBackToBrowse }: Props) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const jobsQueryKey = savedJobsQueryKey(userId);
+  const [jobs, setJobs] = useState<JobRow[]>([]);
   const [selected, setSelected] = useState<JobRow | null>(null);
   // v3.145.0 — "list" means back returns to the Saved jobs list, the
   // existing behavior; "browse" means this job was opened by a handoff
@@ -124,7 +122,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // list to begin with.
   const [backTarget, setBackTarget] = useState<"list" | "browse">("list");
   const [primaryResume, setPrimaryResume] = useState<{ id: string; content: ResumeContent; ats_score: number | null } | null>(null);
-  const [matchData, setMatchData] = useState<{ score: number | null; breakdown: Record<string, number>; missing_keywords: string[]; summary: string } | null>(null);
+  const [matchData, setMatchData] = useState<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string } | null>(null);
   const [tailored, setTailored] = useState<TailoredRow | null>(null);
   // v3.99.0 — required-but-not-evidenced skills the job asked for, shown as
   // an opt-in add, never applied automatically. Each carries its own
@@ -173,38 +171,15 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // of rows, already loaded in full.
   const [jobQuery, setJobQuery] = useState("");
   const [nudgeSnoozed, setNudgeSnoozed] = useState(false);
+  // v3.271.0 — set only when Browse jobs' own "Auto-apply" button is what
+  // brought us here; cleared the moment AutoApplyPanel actually consumes it,
+  // so re-opening the same job later (or any other job) never re-triggers it.
+  const [autoStartApplyJobId, setAutoStartApplyJobId] = useState<string | null>(null);
 
-  // Reported directly, same fix as every other account tab: leaving Saved
-  // jobs and coming back re-fetched the whole list from scratch, every
-  // time, with an empty flash while it did. Read through the shared query
-  // cache instead -- a remount within the cache's freshness window (60s,
-  // the app default) renders the last known list instantly. Browse Jobs'
-  // own save/unsave actions invalidate this same key (savedJobsQueryKey,
-  // src/lib/queryKeys.ts) after writing to the same "jobs" table, so a job
-  // added or removed there is never hidden behind a stale cache here.
-  const { data: jobs = [] } = useQuery({
-    queryKey: jobsQueryKey,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("jobs")
-        .select("id, company, title, location, source_url, jd_text, created_at, application_status, application_status_changed_at")
-        .eq("user_id", userId).order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data as JobRow[]) ?? [];
-    },
-  });
-
-  // The "restore what was open" logic below is a real, order-sensitive,
-  // one-time side effect of the list arriving (consume a handoff flag,
-  // or reopen whatever was last viewed) -- not something to re-run every
-  // time the cached list happens to update (a background revalidation,
-  // or an invalidation from Browse Jobs adding/removing a different job),
-  // which would otherwise reset the open detail panel out from under
-  // someone reading it. Guarded to fire exactly once per mount, matching
-  // what the old useEffect([userId]) already did.
-  const restoredRef = useRef(false);
-  useEffect(() => {
-    if (restoredRef.current || jobs.length === 0) return;
-    restoredRef.current = true;
+  const load = async () => {
+    const { data } = await supabase.from("jobs").select("id, company, title, location, source_url, jd_text, created_at, application_status, application_status_changed_at, auto_apply_charged_at").eq("user_id", userId).order("created_at", { ascending: false });
+    const rows = (data as JobRow[]) ?? [];
+    setJobs(rows);
     // v3.137.0 — Browse jobs adds a posting then hands off here, naming the
     // new job id. Nothing ever read this flag before, so a job added from
     // the board landed in the list unselected and the person had to find it.
@@ -219,19 +194,25 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       const from = sessionStorage.getItem("ayn_focus_job_from");
       sessionStorage.removeItem("ayn_focus_job_from");
       setBackTarget(from === "browse" ? "browse" : "list");
-      const hit = jobs.find((r) => r.id === focus);
+      // v3.271.0 — Browse jobs' own "Auto-apply" button rides the same
+      // handoff, naming which job should skip straight to reading the real
+      // application form instead of landing on a page where the person has
+      // to find and click the button themselves a second time.
+      const autoStart = sessionStorage.getItem("ayn_autostart_autoapply");
+      sessionStorage.removeItem("ayn_autostart_autoapply");
+      if (autoStart === focus) setAutoStartApplyJobId(focus);
+      const hit = rows.find((r) => r.id === focus);
       if (hit) openJob(hit);
       return;
     }
     const lastOpen = sessionStorage.getItem(LAST_OPEN_KEY);
     if (lastOpen) {
-      const hit = jobs.find((r) => r.id === lastOpen);
+      const hit = rows.find((r) => r.id === lastOpen);
       if (hit) openJob(hit);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobs]);
-
+  };
   useEffect(() => {
+    load();
     supabase.from("resumes").select("id, content, ats_score").eq("user_id", userId).eq("is_primary", true).maybeSingle()
       .then(({ data }) => data && setPrimaryResume({ id: data.id, content: data.content as ResumeContent, ats_score: data.ats_score }));
   /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [userId]);
@@ -276,7 +257,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     try {
       const m = await resumeHubApi.match(selected.jd_text);
       setMatchData(m);
-      if (m.score !== null) await supabase.from("job_matches").insert({
+      await supabase.from("job_matches").insert({
         user_id: userId, job_id: selected.id, resume_id: primaryResume.id,
         score: m.score, breakdown: m.breakdown,
       });
@@ -294,11 +275,22 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     if (!pendingIdemKeys.current[idemMapKey]) pendingIdemKeys.current[idemMapKey] = crypto.randomUUID();
     const idemKey = pendingIdemKeys.current[idemMapKey];
     try {
-      const { resume, gapAnalysis } = await resumeHubApi.tailor(selected.jd_text, idemKey, selected.title, selected.id);
+      const { resume, gapAnalysis } = await resumeHubApi.tailor(selected.jd_text, idemKey, selected.title);
       delete pendingIdemKeys.current[idemMapKey]; // succeeded — next click is a genuinely new charge
-      // Preserve the headline resolved by the backend's seniority checks.
-      // The posting's title is a target, not proof of the applicant's title.
-      // Retain prior paid versions; a failed insert must not erase them.
+      // v3.315.0 — asked directly for the job's own title to apply
+      // automatically, no click needed (unlike a missing skill: a title is
+      // a much softer, more commonly-blurred claim in real hiring practice
+      // than a specific technical skill, and this reuses the exact same
+      // real-title-only text the old manual "Use this job's title" button
+      // already wrote — no new inflation risk introduced, just no longer
+      // gated behind a click). Skipped for the same placeholder guard the
+      // old button already had: a manually-added job with no real title
+      // yet must never overwrite a real resume title with "Untitled role".
+      if (selected.title && selected.title !== "Untitled role" && resume.basics) {
+        resume.basics.title = selected.title;
+      }
+      // Regenerating replaces the stored copy for this job.
+      await supabase.from("resume_versions").delete().eq("user_id", userId).eq("created_for_job_id", selected.id);
       const { error } = await supabase.from("resume_versions").insert({
         user_id: userId, resume_id: primaryResume.id, content: resume as never, created_for_job_id: selected.id,
         match_pct: gapAnalysis?.matchPct ?? null, still_missing: gapAnalysis?.missing ?? [],
@@ -363,7 +355,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     if (!pendingIdemKeys.current[idemMapKey]) pendingIdemKeys.current[idemMapKey] = crypto.randomUUID();
     const idemKey = pendingIdemKeys.current[idemMapKey];
     try {
-      const { body } = await resumeHubApi.coverLetter(selected.jd_text, { company: selected.company, idempotencyKey: idemKey, jobId: selected.id });
+      const { body } = await resumeHubApi.coverLetter(selected.jd_text, { company: selected.company, idempotencyKey: idemKey });
       delete pendingIdemKeys.current[idemMapKey]; // succeeded — next click is a genuinely new charge
       await supabase.from("cover_letters").delete().eq("user_id", userId).eq("job_id", selected.id);
       await supabase.from("cover_letters").insert({ user_id: userId, job_id: selected.id, resume_id: primaryResume.id, body });
@@ -387,13 +379,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // to parse reliably, and there's nothing lost by dropping it here since
   // AYN's own renderer is producing this file either way, not preserving
   // an original upload's formatting. Word only, from here on.
-  //
-  // Sept 2026 — both builders (and the jsPDF/docx libraries behind them)
-  // are now a dynamic import, not a static one, so opening Saved Jobs
-  // never pays that ~230KB cost until someone actually clicks Download.
   const downloadDoc = async (content: ResumeContent, base: string) => {
     try {
-      const { buildResumeDocxBlob } = await import("@/lib/resumeDocs");
       downloadBlob(await buildResumeDocxBlob(content), `${base}.docx`);
     } catch (e) {
       toast({ title: "Download failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
@@ -402,7 +389,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
 
   const downloadText = async (text: string, base: string) => {
     try {
-      const { buildTextDocxBlob } = await import("@/lib/resumeDocs");
       downloadBlob(await buildTextDocxBlob(text), `${base}.docx`);
     } catch (e) {
       toast({ title: "Download failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
@@ -414,7 +400,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     if (!confirm("Remove this job?")) return;
     await supabase.from("jobs").delete().eq("id", id);
     if (selected?.id === id) setSelected(null);
-    queryClient.setQueryData<JobRow[]>(jobsQueryKey, (prev) => (prev ?? []).filter((j) => j.id !== id));
+    load();
   };
 
   // v3.172.0 — one click, no ceremony, matching the exact thing the
@@ -426,9 +412,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     const changedAt = new Date().toISOString();
     const { error } = await supabase.from("jobs").update({ application_status: status, application_status_changed_at: changedAt }).eq("id", id);
     if (error) { toast({ title: "Couldn't update status", description: error.message, variant: "destructive" }); return; }
-    queryClient.setQueryData<JobRow[]>(jobsQueryKey, (prev) =>
-      (prev ?? []).map((j) => (j.id === id ? { ...j, application_status: status, application_status_changed_at: changedAt } : j))
-    );
+    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, application_status: status, application_status_changed_at: changedAt } : j)));
     setSelected((prev) => (prev && prev.id === id ? { ...prev, application_status: status, application_status_changed_at: changedAt } : prev));
     dismissNudgeSnooze(id, true); // a fresh status change means any prior silence nudge no longer applies
   };
@@ -458,8 +442,9 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // hides the list entirely and uses the full width for a real two-column
   // split — description on the left, AYN's own actions and results on the
   // right — with a back control to return to the list. "Add job manually"
-  // moved into a dialog instead of an inline card. Scoring and document
-  // generation remain directly in this detail view.
+  // moved into a dialog instead of an inline card. "Open job with AYN"
+  // (handoff to the extension) is gone; the exact same actions are already
+  // right here.
   if (selected) {
     return (
       <div className="space-y-4">
@@ -489,6 +474,17 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                     href={selected.source_url}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={() => {
+                      // v3.173.0 — the one status transition AYN can actually
+                      // observe: clicking through to the real posting is what
+                      // "applying" looks like from here. Everything past this
+                      // (interviewing, offer, rejected) happens in someone's
+                      // inbox or on a call, nowhere AYN has visibility, so
+                      // those stay a manual pill. Never overwrite a status
+                      // already moved past "saved" — a re-click on an
+                      // already-applied job shouldn't roll it backward.
+                      if (selected.application_status === "saved") updateStatus(selected.id, "applied");
+                    }}
                     className="inline-flex items-center text-xs mt-1"
                     style={{ color: "var(--rh-accent-2)" }}
                   >
@@ -498,7 +494,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {matchData && matchData.score !== null && (
+              {matchData && (
                 <div
                   className="text-lg px-3 py-1 rounded-full font-semibold"
                   style={{ fontFamily: "JetBrains Mono, monospace", ...scoreBadgeStyle(matchData.score) }}
@@ -546,7 +542,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
             permanently dismissible, since the silence itself doesn't end
             just because someone closed the card once. */}
         {selected.application_status === "applied" && !nudgeSnoozed && daysSince(selected.application_status_changed_at) >= SILENCE_NUDGE_DAYS && (
-          <Card className="p-4 rounded-xl flex items-start justify-between gap-3 shadow-none hover:shadow-none" style={{ background: "var(--rh-tint)", borderColor: "#e85d3a33" }}>
+          <Card className="p-4 rounded-xl flex items-start justify-between gap-3" style={{ background: "var(--rh-tint)", borderColor: "#e85d3a33" }}>
             <p className="text-sm leading-relaxed" style={{ color: "var(--rh-ink)" }}>
               It's been <span className="font-semibold">{daysSince(selected.application_status_changed_at)} days</span> since you applied to{" "}
               <span className="font-semibold">{selected.company}</span> for {selected.title} — still no word? Most replies land faster than
@@ -610,6 +606,22 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                 </p>
               )}
             </Card>
+
+            {tailoring.enabled && (
+              <AutoApplyPanel
+                userId={userId}
+                jobId={selected.id}
+                jobTitle={selected.title}
+                company={selected.company}
+                sourceUrl={selected.source_url}
+                resumeContent={tailored?.content ?? primaryResume?.content ?? null}
+                coverLetterBody={cover?.body ?? null}
+                alreadyCharged={!!selected.auto_apply_charged_at}
+                onMarkApplied={() => updateStatus(selected.id, "applied")}
+                autoStart={autoStartApplyJobId === selected.id}
+                onAutoStartConsumed={() => setAutoStartApplyJobId(null)}
+              />
+            )}
 
             {matchData && (
               <Card className="p-5 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
@@ -687,8 +699,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                         </span>
                         <p className="text-xs" style={{ color: "var(--rh-muted)" }}>
                           {tailored.still_missing.length === 0
-                            ? "Matching text was found for the extracted requirements. This is not proof of eligibility or a hiring prediction."
-                            : `Not evidenced by this wording check: ${tailored.still_missing.join(", ")}. This does not establish that you lack these qualifications.`}
+                            ? "Everything this job asks for that you've done is now on the page."
+                            : `Still missing because you haven't done ${tailored.still_missing.length === 1 ? "it" : "them"} yet: ${tailored.still_missing.join(", ")}.`}
                         </p>
                       </div>
                     )}
@@ -709,32 +721,18 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                       your Skills to learn page, so you have a real reason to actually pick it up.
                     </p>
                     {gapSuggestions.map((s, idx) => (
-                      <div key={s.text} className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={s.value}
-                            onChange={e => setGapSuggestions(prev => prev.map((x, i) => i === idx ? { ...x, value: e.target.value } : x))}
-                            className="h-8 text-sm"
-                          />
-                          <Button size="sm" variant="outline" className="shrink-0" onClick={() => addSuggestedSkill(idx)}>
-                            <Plus className="w-3.5 h-3.5 mr-1" />Add
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => dismissSuggestion(idx)} aria-label="Skip this suggestion">
-                            <X className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                        {/* v3.316.0 — a real, always-valid search link for the
-                            exact skill name, never a specific invented course
-                            (see SkillsToLearnTab's own courseSearchUrl for why). */}
-                        <a
-                          href={`https://www.coursera.org/search?query=${encodeURIComponent(s.value)}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-xs pl-0.5"
-                          style={{ color: "var(--rh-accent-2)" }}
-                        >
-                          See if there's a course for this <ExternalLink className="w-3 h-3" />
-                        </a>
+                      <div key={s.text} className="flex items-center gap-2">
+                        <Input
+                          value={s.value}
+                          onChange={e => setGapSuggestions(prev => prev.map((x, i) => i === idx ? { ...x, value: e.target.value } : x))}
+                          className="h-8 text-sm"
+                        />
+                        <Button size="sm" variant="outline" className="shrink-0" onClick={() => addSuggestedSkill(idx)}>
+                          <Plus className="w-3.5 h-3.5 mr-1" />Add
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => dismissSuggestion(idx)} aria-label="Skip this suggestion">
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -879,14 +877,14 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       )}
 
       {jobs.length === 0 && (
-        <Card className="p-10 text-center rounded-xl shadow-none hover:shadow-none" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
+        <Card className="p-10 text-center rounded-xl" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
           <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
           No saved jobs yet. Browse jobs to get started.
         </Card>
       )}
 
       {visibleJobs.length === 0 && jobs.length > 0 && (
-        <Card className="p-8 text-center rounded-xl shadow-none hover:shadow-none" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
+        <Card className="p-8 text-center rounded-xl" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
           {q ? `Nothing matches "${jobQuery.trim()}".` : "Nothing in this stage yet."}
         </Card>
       )}
@@ -912,7 +910,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
           slot -- real data, not invented, and the actual at-a-glance
           state this specific card needs -- and "View posting" (the
           external apply link) was dropped from the card entirely: it is
-          not lost: the exact same link already lives one tap away on the detail view
+          not lost, the exact same link with the exact same auto-apply
+          click behavior already lives one tap away on the detail view
           this card opens into. */}
       {/* v3.180.0 — reported directly, repeatedly, that this still didn't
           look like the reference: the actual gap was never the padding or

@@ -4,7 +4,7 @@ import { SEO } from '@/components/shared/SEO';
 import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { JobsBrowser, unslugifyCity } from '@/components/landing/JobsBrowser';
-import { humanizeCategory } from '@/lib/jobPostingFormat';
+import { humanizeCategory } from '@/components/resume-hub/BrowseJobs';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';

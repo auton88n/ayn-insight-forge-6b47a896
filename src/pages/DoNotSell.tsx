@@ -53,7 +53,7 @@ export default function DoNotSell() {
           Do Not Sell or Share My Personal Information
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Privacy Policy version {LEGAL.privacyVersion}, effective {LEGAL.privacyEffectiveDate}.
+          Privacy Policy version {LEGAL.privacyVersion}, effective {LEGAL.effectiveDate}.
         </p>
 
         <div className="mt-8 space-y-6 text-[15px] leading-relaxed text-muted-foreground">

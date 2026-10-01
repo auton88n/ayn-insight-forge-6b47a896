@@ -1,0 +1,8 @@
+{
+  "name": "ayn-frontend-wrapper",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "yarn --cwd /app dev"
+  },
+  "dependencies": {}
+}

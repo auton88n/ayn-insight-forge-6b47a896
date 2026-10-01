@@ -1,0 +1,238 @@
+{
+  "beam": {
+    "standard": {
+      "span": 6,
+      "deadLoad": 15,
+      "liveLoad": 10,
+      "beamWidth": 300,
+      "concreteGrade": "C30",
+      "steelGrade": "B500B",
+      "supportType": "simply_supported"
+    },
+    "edgeCases": [
+      {
+        "name": "Maximum span",
+        "span": 20,
+        "deadLoad": 25,
+        "liveLoad": 15,
+        "beamWidth": 400
+      },
+      {
+        "name": "Heavy loading",
+        "span": 8,
+        "deadLoad": 50,
+        "liveLoad": 40,
+        "beamWidth": 350
+      },
+      {
+        "name": "Minimum dimensions",
+        "span": 2,
+        "deadLoad": 5,
+        "liveLoad": 3,
+        "beamWidth": 200
+      },
+      {
+        "name": "Cantilever",
+        "span": 3,
+        "deadLoad": 10,
+        "liveLoad": 8,
+        "supportType": "cantilever"
+      },
+      {
+        "name": "Continuous beam",
+        "span": 10,
+        "deadLoad": 20,
+        "liveLoad": 15,
+        "supportType": "continuous"
+      }
+    ]
+  },
+  "column": {
+    "standard": {
+      "axialLoad": 1500,
+      "momentX": 100,
+      "momentY": 80,
+      "width": 400,
+      "depth": 400,
+      "height": 3500,
+      "concreteGrade": "C35",
+      "cover": 40,
+      "columnType": "square"
+    },
+    "edgeCases": [
+      {
+        "name": "High axial load",
+        "axialLoad": 5000,
+        "momentX": 200,
+        "momentY": 150,
+        "width": 600,
+        "depth": 600
+      },
+      {
+        "name": "Circular column",
+        "axialLoad": 1200,
+        "width": 450,
+        "columnType": "circular"
+      },
+      {
+        "name": "Slender column",
+        "axialLoad": 800,
+        "width": 300,
+        "depth": 300,
+        "height": 6000
+      },
+      {
+        "name": "Biaxial bending",
+        "axialLoad": 2000,
+        "momentX": 300,
+        "momentY": 250,
+        "width": 500,
+        "depth": 400
+      }
+    ]
+  },
+  "foundation": {
+    "standard": {
+      "columnLoad": 1200,
+      "momentX": 80,
+      "momentY": 60,
+      "columnWidth": 400,
+      "columnDepth": 400,
+      "bearingCapacity": 150,
+      "concreteGrade": "C30",
+      "soilType": "medium_sand"
+    },
+    "edgeCases": [
+      {
+        "name": "Heavy load on weak soil",
+        "columnLoad": 2500,
+        "bearingCapacity": 80,
+        "soilType": "soft_clay"
+      },
+      {
+        "name": "Eccentric loading",
+        "columnLoad": 1500,
+        "momentX": 200,
+        "momentY": 180
+      },
+      {
+        "name": "Dense gravel bearing",
+        "columnLoad": 3000,
+        "bearingCapacity": 300,
+        "soilType": "dense_gravel"
+      }
+    ]
+  },
+  "slab": {
+    "standard": {
+      "length": 6,
+      "width": 5,
+      "deadLoad": 8,
+      "liveLoad": 5,
+      "concreteGrade": "C30",
+      "steelGrade": "B500B",
+      "slabType": "two_way",
+      "supportCondition": "simply_supported"
+    },
+    "edgeCases": [
+      {
+        "name": "One-way slab",
+        "length": 8,
+        "width": 3,
+        "slabType": "one_way"
+      },
+      {
+        "name": "Large two-way slab",
+        "length": 10,
+        "width": 9,
+        "slabType": "two_way"
+      },
+      {
+        "name": "Cantilever slab",
+        "length": 2.5,
+        "width": 4,
+        "slabType": "cantilever"
+      },
+      {
+        "name": "Heavy loading",
+        "length": 5,
+        "width": 5,
+        "deadLoad": 15,
+        "liveLoad": 12
+      }
+    ]
+  },
+  "retainingWall": {
+    "standard": {
+      "wallHeight": 3,
+      "stemThicknessTop": 250,
+      "stemThicknessBottom": 400,
+      "baseWidth": 2000,
+      "baseThickness": 400,
+      "toeWidth": 500,
+      "soilDensity": 18,
+      "frictionAngle": 30,
+      "surcharge": 10,
+      "concreteGrade": "C30"
+    },
+    "edgeCases": [
+      {
+        "name": "High wall",
+        "wallHeight": 6,
+        "baseWidth": 4000,
+        "stemThicknessBottom": 600
+      },
+      {
+        "name": "Heavy surcharge",
+        "wallHeight": 4,
+        "surcharge": 25
+      },
+      {
+        "name": "Low friction soil",
+        "wallHeight": 3.5,
+        "frictionAngle": 22
+      }
+    ]
+  },
+  "parking": {
+    "standard": {
+      "siteLength": 60,
+      "siteWidth": 40,
+      "parkingType": "surface",
+      "parkingAngle": 90,
+      "spaceWidth": 2.5,
+      "spaceLength": 5,
+      "aisleWidth": 6,
+      "accessiblePercent": 5,
+      "evPercent": 10,
+      "compactPercent": 15
+    },
+    "edgeCases": [
+      {
+        "name": "Angled parking 45°",
+        "parkingAngle": 45,
+        "aisleWidth": 4
+      },
+      {
+        "name": "Angled parking 60°",
+        "parkingAngle": 60,
+        "aisleWidth": 5
+      },
+      {
+        "name": "Multi-story structure",
+        "parkingType": "structured",
+        "floors": 3
+      },
+      {
+        "name": "Small site",
+        "siteLength": 25,
+        "siteWidth": 20
+      },
+      {
+        "name": "Large site",
+        "siteLength": 120,
+        "siteWidth": 80
+      }
+    ]
+  }
+}

@@ -6,9 +6,8 @@ import { EmployerSidebar } from '@/components/landing/EmployerSidebar';
 import { AuthModal } from './auth/AuthModal';
 import { LandingSections } from '@/components/landing/LandingSections';
 import type { Audience } from '@/lib/landingAudience';
-import { TAB_META, MORE_TAB_META, ACCOUNT_TAB_META, HOME_TAB_HANDOFF_KEY, type HomeTabId } from '@/components/landing/homeTabMeta';
-import { useState, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { TAB_META, MORE_TAB_META, ACCOUNT_TAB_META, HOME_TAB_HANDOFF_KEY, type HomeTabId } from '@/components/landing/HomeTabs';
+import { useState } from 'react';
 
 // v3.219.0 -- /pricing, /contact, /about and /help still exist as real
 // routes (old links and bookmarks keep working), but now redirect here
@@ -22,30 +21,15 @@ import { useLocation, useNavigate } from 'react-router-dom';
 const ALL_TAB_IDS = new Set<HomeTabId>([
   'search', ...TAB_META.map((t) => t.id), ...MORE_TAB_META.map((t) => t.id), ...ACCOUNT_TAB_META.map((t) => t.id),
 ]);
-// Sept 2026 -- reported directly: "urls should be constantly [stable]."
-// Traced it live: loading a bare "/" (or a real deep link like
-// "/?job=<id>") silently rewrote the address bar to end in "#search"
-// within about a second of load, every single time -- the browser's own
-// URL, changing itself with no user action. readHandoffTab() previously
-// returned one plain HomeTabId, with no way to tell "a real cross-page
-// handoff was consumed from sessionStorage, this hash genuinely needs
-// converting into a bookmarkable one" apart from "there was nothing to
-// convert, this is just the ordinary empty-hash default." The effect
-// below could not tell those two cases apart either, so it force-wrote a
-// hash on every single first mount, real deep link or not. Now returns
-// which case it was, so only a genuine handoff gets converted into a
-// real, visible hash -- a plain, hash-less visit (or one already
-// carrying real search params like ?job=) is left exactly as it arrived.
-function readHandoffTab(): { tab: HomeTabId; fromHandoff: boolean } {
+function readHandoffTab(): HomeTabId {
   try {
     const v = sessionStorage.getItem(HOME_TAB_HANDOFF_KEY);
     if (v && ALL_TAB_IDS.has(v as HomeTabId)) {
       sessionStorage.removeItem(HOME_TAB_HANDOFF_KEY);
-      return { tab: v as HomeTabId, fromHandoff: true };
+      return v as HomeTabId;
     }
   } catch { /* ignore */ }
-  const hashTab = window.location.hash.slice(1) as HomeTabId;
-  return { tab: ALL_TAB_IDS.has(hashTab) ? hashTab : 'search', fromHandoff: false };
+  return 'search';
 }
 
 // v3.210.0 -- "/" and "/employers" are now two real, separately-identified
@@ -58,6 +42,7 @@ function readHandoffTab(): { tab: HomeTabId; fromHandoff: boolean } {
 const SEEKER_FAQ = createFAQSchema([
   { question: 'What is AYN?', answer: 'AYN reads a real job posting in full and scores you against it. Then it writes a one page resume and a cover letter from your own history.' },
   { question: 'Where do the jobs come from?', answer: 'Real company career pages, sourced automatically and refreshed every two hours, never LinkedIn or Indeed.' },
+  { question: 'Does AYN apply for me?', answer: 'No. It only reads the page. It never types into a form and never submits anything for you.' },
   { question: 'Can employers see my name and email?', answer: 'Not until you accept their proposal. Before that they see your profile and your match evidence only.' },
   { question: 'Is AYN free to try?', answer: 'Yes, free to start and no credit card needed.' },
 ]);
@@ -92,25 +77,7 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
   // sign-in gate's "already have an account" link) open straight to the
   // Sign In tab instead of always defaulting to Sign Up.
   const [authTab, setAuthTab] = useState<'signin' | 'signup'>('signup');
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [{ tab: entryTab, fromHandoff }] = useState(readHandoffTab);
-  const handoffApplied = useRef(false);
-  const hashTab = location.hash.slice(1) as HomeTabId;
-  const activeTab = ALL_TAB_IDS.has(hashTab) ? hashTab : entryTab;
-  const setActiveTab = (tab: HomeTabId) => {
-    if (tab !== activeTab) navigate({ pathname: location.pathname, search: location.search, hash: tab });
-  };
-  // Convert a real cross-page handoff into a bookmarkable route state.
-  // Later selections use router navigation so Back and refresh work too.
-  // fromHandoff-gated: a plain hash-less visit (or a real deep link like
-  // ?job=<id>, which already carries its own meaningful search string)
-  // is left exactly as it arrived -- there is nothing here to "convert."
-  useEffect(() => {
-    if (handoffApplied.current || !fromHandoff) return;
-    handoffApplied.current = true;
-    navigate({ pathname: location.pathname, search: location.search, hash: entryTab }, { replace: true });
-  }, [entryTab, fromHandoff, navigate]);
+  const [activeTab, setActiveTab] = useState<HomeTabId>(readHandoffTab);
   const { direction } = useLanguage();
 
   // The landing page owns a warm paper canvas, independent of app theme.

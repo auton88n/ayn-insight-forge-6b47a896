@@ -62,49 +62,6 @@ async function sendReceiptEmail(userId: string, planName: string, creditsGranted
   }).then(({ error }) => { if (error) console.error("[stripe-webhook] email_logs insert failed", error.message); });
 }
 
-// A failed payment previously produced zero signal anywhere: no email, no
-// in-app banner -- subscriptions.status quietly became past_due/unpaid
-// (still correctly tracked via the subscription.updated case below, Stripe
-// always fires that alongside a failed invoice) with nothing reading that
-// status back out to the person it happened to. They'd only find out once
-// access actually lapsed, with no idea why. Mirrors sendReceiptEmail's own
-// shape: best effort, logged to email_logs either way, never blocks the
-// handler's own 200 response back to Stripe.
-async function sendPaymentFailedEmail(userId: string, planName: string | null, invoice: Stripe.Invoice) {
-  const { data: authUser } = await admin.auth.admin.getUserById(userId);
-  const email = authUser?.user?.email;
-  if (!email) return;
-  const amount = ((invoice.amount_due ?? 0) / 100).toLocaleString(undefined, {
-    style: "currency", currency: (invoice.currency || "usd").toUpperCase(),
-  });
-  // Stripe sets next_payment_attempt only when it's actually going to retry;
-  // null means this was the final attempt and nothing else happens on its
-  // own -- the two cases genuinely call for different copy, not a fudged
-  // "we'll try again" when there's no retry actually coming.
-  const retryAt = invoice.next_payment_attempt
-    ? new Date(invoice.next_payment_attempt * 1000).toLocaleDateString(undefined, { month: "long", day: "numeric" })
-    : null;
-  const html = wrapEmail(`
-    ${heading("We couldn't process your payment")}
-    ${para(
-      retryAt
-        ? `A charge of ${amount} for your ${escapeHtml(planName || "AYN")} plan didn't go through. We'll try again on ${retryAt}, but updating your card now avoids any interruption.`
-        : `A charge of ${amount} for your ${escapeHtml(planName || "AYN")} plan didn't go through, and we're not able to retry it automatically. Update your card to keep your plan active.`,
-    )}
-    ${para("This is usually an expired card or insufficient funds, not something wrong on our end.", { muted: true, marginTop: 24 })}
-  `, undefined, ctaButton("https://ayn.careers/billing", "Update payment method"));
-  const r = await sendBrandedEmail(email, "Action needed: your AYN payment failed", html);
-  if (!r.ok) console.error("[stripe-webhook] payment-failed email failed", r.error);
-
-  await admin.from("email_logs").insert({
-    user_id: userId,
-    email_type: "payment_failed",
-    recipient_email: email,
-    status: r.ok ? "sent" : "failed",
-    error_message: r.ok ? null : r.error,
-  }).then(({ error }) => { if (error) console.error("[stripe-webhook] email_logs insert failed", error.message); });
-}
-
 async function userIdForCustomer(customerId: string, fallback?: string | null) {
   if (fallback) return fallback;
   const customer = await stripe.customers.retrieve(customerId);
@@ -232,24 +189,6 @@ Deno.serve(async (req) => {
         }
         break;
       }
-
-      case "invoice.payment_failed": {
-        const invoice = event.data.object as Stripe.Invoice;
-        const userId = await userIdForCustomer(String(invoice.customer));
-        if (!userId) break;
-
-        const priceId = invoice.lines.data[0]?.pricing?.price_details?.price ||
-          (invoice.lines.data[0] as unknown as { price?: { id?: string } })?.price?.id || "";
-        const plan = priceId ? await planFromPriceId(String(priceId)) : null;
-
-        try {
-          await sendPaymentFailedEmail(userId, plan?.name ?? null, invoice);
-        } catch (e) {
-          console.error("[stripe-webhook] payment-failed email threw", e);
-        }
-        break;
-      }
-
       default:
         break;
     }

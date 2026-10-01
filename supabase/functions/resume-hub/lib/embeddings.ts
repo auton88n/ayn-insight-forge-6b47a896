@@ -8,7 +8,6 @@
 // used by match/tailor/cover_letter. Pure code movement, zero logic changes.
 import type { GapAnalysis, SectionBundle } from "../../_shared/tailoring.ts";
 import { applySemanticRecheck } from "../../_shared/tailoring.ts";
-import { mapConcurrent } from "../../_shared/concurrency.ts";
 
 const EMBED_DIMS = 768;
 const REAL_EMBED_MODEL = "openai/text-embedding-3-small";
@@ -111,7 +110,7 @@ export async function embedText(text: string): Promise<{ vector: number[]; model
  * of real and hashed vectors.
  */
 async function embedBatch(texts: string[]): Promise<{ vectors: number[][]; model: string }> {
-  const results = await mapConcurrent(texts, 4, (t) => embedText(t));
+  const results = await Promise.all(texts.map((t) => embedText(t)));
   const model = results.every((r) => r.model === REAL_EMBED_MODEL) ? REAL_EMBED_MODEL : FALLBACK_EMBED_MODEL;
   return { vectors: results.map((r) => r.vector), model };
 }
@@ -134,8 +133,9 @@ export async function semanticGapRecheck(gap: GapAnalysis, bundle: SectionBundle
   // never change the result.
   const missingReqs = gap.requirements.filter((r) => r.status === "missing" && r.text.trim().split(/\s+/).length >= 3).slice(0, 12);
   if (!missingReqs.length) return gap;
-  // Bound total work separately from concurrency: up to 32 texts per job,
-  // at most four embedding requests in flight for each job.
+  // Capped at 20: embedBatch now fans out to one real HTTP call per text
+  // (see its own comment), so this bounds total concurrent requests to
+  // roughly 32 worst case, not an unbounded fan-out.
   const chunks = Array.from(new Set([
     ...bundle.sections.skills,
     ...bundle.sections.work.flatMap((w) => (Array.isArray(w.bullets) ? (w.bullets as unknown[]) : []).map(String)),

@@ -56,21 +56,23 @@ export const RESUME_SCHEMA = {
 // see the v3.133.0 comment on scoreResumeContent below for which half of it
 // is actually code-computed now. Every deduction is a concrete, checkable
 // fact about the resume, never an impression.
-export const RESUME_QUALITY_VERSION = "quality-2026-09-28";
-export const ATS_RUBRIC = `Writing-quality assessment, not an employer ATS score or hiring probability. Score out of 100, starting at 100 and subtracting only for what is actually true of this resume:
+export const ATS_RUBRIC = `Score out of 100, starting at 100 and subtracting only for what is actually true of this resume:
+- No summary or profile section: -10
 - No dedicated skills section: -10
+- Fewer than 2 roles listed: -10
 - First-person pronouns anywhere ("I", "me", "my", "we"): -5, once regardless of how many appear
-- Inconsistent date notation at the same known precision: -5. Year-only dates are valid; never invent missing months.
+- Dates not written consistently as "Month YYYY" throughout: -5
 - Each work bullet that neither contains a number/percentage/scale NOR leads with a specific action verb: -5 each, capped at -40 total for this category
 - Summary reads generic enough to apply to any candidate (buzzwords, no specifics from this actual background): -10
-- Past employment described as ongoing: -5 once. Completed achievements in a current role correctly use past tense.
+- A real, uncovered gap of 6 months or more in the person's FULL combined timeline (checked against every role's date range, not just adjacent list entries — an overlapping/concurrent role can cover what looks like a gap between two other roles): -10, once per gap, capped at -20 total for this category
+- A role with no end date (current) written with past-tense verbs, or a role with an end date written with present-tense verbs: -5, once regardless of how many bullets are affected
 - The same opening word used to start 3 or more bullets across the resume (e.g. "Managed" leading four different lines): -5, once regardless of how many words repeat this way
-Do not deduct for an absent optional summary, fewer than two roles, career breaks, or a lack of numerical metrics when a contribution is clear. Floor the result at 0.`;
+Floor the result at 0.`;
 
 const POINTS = {
-  no_skills_section: 10, pronouns_present: 5,
+  no_summary: 10, no_skills_section: 10, too_few_roles: 10, pronouns_present: 5,
   date_format_inconsistent: 5, weak_bullet: 5, weak_bullet_cap: 40,
-  generic_summary: 10, tense_mismatch: 5,
+  generic_summary: 10, unexplained_gap: 10, unexplained_gap_cap: 20, tense_mismatch: 5,
   repeated_opening_word: 5,
 };
 
@@ -138,19 +140,28 @@ function monthIndex(d: { year: number; month: number | null } | null, atStart: b
   return d.year * 12 + (month - 1);
 }
 
-export function deterministicDeductions(resume: unknown): { points: number; issues: string[] } {
+function deterministicDeductions(resume: unknown): { points: number; issues: string[] } {
   const r = (resume || {}) as Record<string, unknown>;
+  const basics = (r.basics || {}) as Record<string, unknown>;
   const work = Array.isArray(r.work) ? (r.work as unknown[]) : [];
   const skills = Array.isArray(r.skills) ? (r.skills as unknown[]) : [];
   let points = 0;
   const issues: string[] = [];
+  if (!(typeof basics.summary === "string" && basics.summary.trim())) {
+    points += POINTS.no_summary;
+    issues.push("There's no summary section at the top of the resume.");
+  }
   if (!skills.length) {
     points += POINTS.no_skills_section;
     issues.push("There's no dedicated skills section.");
   }
+  if (work.length < 2) {
+    points += POINTS.too_few_roles;
+    issues.push("The resume lists fewer than 2 roles.");
+  }
   if (/\b(I|me|my|we)\b/.test(extractResumeProse(resume))) {
     points += POINTS.pronouns_present;
-    issues.push('The resume uses a first-person pronoun ("I", "me", "my", or "we"); implied first person is usually more concise.');
+    issues.push('The resume uses a first-person pronoun ("I", "me", "my", or "we") somewhere — resumes should stay in implied third person.');
   }
   const repeated = mostRepeatedOpeningWord(work);
   if (repeated) {
@@ -174,8 +185,39 @@ export function deterministicDeductions(resume: unknown): { points: number; issu
     }
   }
 
-  // Employment gaps are not writing defects. The work array alone cannot
-  // establish whether a break is explained by education, caregiving or prose.
+  // Real, uncovered gaps of 6+ months across the FULL timeline, not just
+  // between list-adjacent entries. Every entry with a parseable start
+  // becomes a real [start, end] interval (end = today for "Present"/unparseable
+  // end text — the charitable, still-honest reading, matching how this
+  // schema already treats an open end date everywhere else); overlapping or
+  // touching intervals merge first, so a genuinely concurrent role (the
+  // real, reported case: a third role fully covering what looked like a gap
+  // between two others) can never produce a false gap.
+  const intervals: Array<[number, number]> = [];
+  for (const w of work) {
+    const wr = (w || {}) as Record<string, unknown>;
+    const startIdx = monthIndex(parseResumeDate(wr.start), true);
+    if (startIdx === null) continue;
+    const endParsed = parseResumeDate(wr.end);
+    const endIdx = endParsed === null ? todayIdx : (monthIndex(endParsed, false) ?? todayIdx);
+    intervals.push([startIdx, Math.max(startIdx, endIdx)]);
+  }
+  intervals.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const [s, e] of intervals) {
+    const last = merged[merged.length - 1];
+    if (last && s <= last[1] + 1) last[1] = Math.max(last[1], e); // touching/overlapping -> one continuous span
+    else merged.push([s, e]);
+  }
+  let gapPoints = 0;
+  for (let i = 1; i < merged.length; i++) {
+    const gapMonths = merged[i][0] - merged[i - 1][1];
+    if (gapMonths >= 6) {
+      gapPoints = Math.min(gapPoints + POINTS.unexplained_gap, POINTS.unexplained_gap_cap);
+      issues.push(`There's a real, uncovered gap of about ${gapMonths} months in the work timeline with nothing in the resume explaining it.`);
+    }
+  }
+  points += gapPoints;
 
   return { points, issues };
 }
@@ -303,11 +345,10 @@ export async function scoreResumeContent(resume: unknown): Promise<{ ats_score: 
   const r = await callAI({
     temperature: 0.1,
     system: `You judge specific, checkable facts about this resume's writing — you do NOT compute a score, code does that from what you report here. Report only what is actually true, nothing invented.
-- date_format_inconsistent: true only for inconsistent notation at the same known precision. Year-only dates are valid, including alongside month/year dates when months are unknown. Never request invented months or judge whether a date is in the future.
+- date_format_inconsistent: true if dates are not written consistently as "Month YYYY" throughout. When explaining this, describe the different FORMATS used (e.g. "some dates use 'YYYY' while others use 'MM/YYYY'") — never comment on whether a specific date sounds early, late, recent, or futuristic. Whether a date is in the future is not yours to judge and is checked separately, in code, with the real current date — you do not know what year it actually is right now, so never use the word "future" or imply a date is impossible, wrong, or out of place in time anywhere in your response.
 - weak_bullet_count: the number of work bullets that neither contain a number/percentage/scale NOR lead with a specific, strong action verb.
-- generic_summary: true only if an existing nonempty summary makes generic claims without specifics. An absent summary is valid and must return false.
-- tense_mismatch: true only if completed employment is described as ongoing. Current roles can correctly mix present tense for ongoing duties and past tense for completed achievements.
-Do not flag career breaks, the number of roles, ordinary punctuation, or alleged AI authorship. Do not demand metrics when a bullet already describes a specific contribution.
+- generic_summary: true if the summary reads generic enough to apply to any candidate (buzzwords, no specifics from this actual background).
+- tense_mismatch: true if a role with no end date (current) is written with past-tense verbs, or a role with an end date is written with present-tense verbs. Read the actual bullet text carefully before deciding — "Delivered," "Led," "Built," "Managed" and similar -ed forms are PAST tense, never present tense; do not flag a role for using past-tense verbs unless it has NO end date (i.e. is ongoing/current).
 issues: one plain sentence a person would say out loud for EACH true boolean or nonzero count above, and nothing else — name the actual weak bullet or missing thing, e.g. "The bullet 'Responsible for various marketing tasks' has no number and no strong verb" rather than the rubric's own wording.`,
     user: JSON.stringify({ resume }).slice(0, 30000),
     toolName: "emit_diagnosis",
@@ -338,3 +379,4 @@ issues: one plain sentence a person would say out loud for EACH true boolean or 
   const verdict = ats_score >= 85 ? "Strong" : ats_score >= 70 ? "Good" : ats_score >= 50 ? "Fair" : "Poor";
   return { ats_score, verdict, issues: [...det.issues, ...(s?.issues ?? [])] };
 }
+

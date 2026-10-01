@@ -1,8 +1,8 @@
 # AYN Privacy Policy
 
-Version: 2.5
-Last updated: 19 September 2026
-Effective: 19 September 2026
+Version: 2.0
+Last updated: 18 August 2026
+Effective: 18 August 2026
 
 ---
 
@@ -10,7 +10,7 @@ Effective: 19 September 2026
 
 AYN helps job seekers apply for roles and helps approved employers find candidates who have chosen to be found. That means handling career information, so this policy is written to be read.
 
-- **AYN sources and displays job listings across North America, Europe, the Middle East, and Australia.** Employer accounts are currently available in the United States and Canada. Where you use AYN from another region, this policy describes how we process your information.
+- **AYN currently operates only in the United States and Canada.** We do not target, market to, or knowingly collect information from individuals located in the European Union, the United Kingdom, or elsewhere outside the US and Canada. If that changes, we will update this policy first.
 - We do not sell your personal information and we do not share it for cross-context behavioural advertising.
 - You are not visible to employers unless you switch discoverability on yourself.
 - Employers never see your name, email address, or telephone number until you accept their proposal.
@@ -45,7 +45,7 @@ AYN helps job seekers apply for roles and helps approved employers find candidat
 - Stripe provides your subscription status and the last four digits and brand of your card. **We never receive or store your full card number.**
 - If you sign in through a third-party identity provider, we receive your email address and basic profile.
 
-**Job posting information.** We process the title, description, employer, location, and URL of catalogue postings and of postings you add to AYN by link or by pasting text. We use that information to score fit and generate documents. AYN does not access, read, fill, or submit third-party application forms, and it does not collect your browsing history.
+**What the browser extension collects.** The extension reads the visible text of a job posting on a page you are viewing, together with that page's address, so it can assess fit against the real posting. It does not read your browsing history, does not operate on pages it does not identify as job-related, and is read-only. It never enters data into, interacts with, or submits anything on any page.
 
 ## 3. Purposes and legal bases
 
@@ -81,7 +81,6 @@ Where we rely on consent, you may withdraw it at any time. Withdrawal does not a
 | OpenAI | Text embedding model used to represent profiles, reached through the gateway above | United States and globally |
 | Resend | Transactional and support email delivery | United States |
 | Google Analytics | Aggregate usage measurement | United States and globally |
-| PostHog | Anonymized, masked session recordings, so we can see what went wrong when something breaks | United States |
 
 Unlike a managed database provider, our database and application servers run on infrastructure we lease from Hostinger but administer ourselves. Hostinger provides the physical and network infrastructure; it does not have its own access to your data.
 
@@ -107,7 +106,7 @@ AYN is operated from Canada by a Canadian company. **Your account data, profile,
 
 When we generate or evaluate text, the relevant content is processed in the United States by our AI gateway and the underlying model providers. Payment processing also takes place in the United States. Our own administration takes place in Canada.
 
-So a single request may involve the United States and Canada. The catalogue's geographic coverage does not change where AYN stores or administers account data. If a transfer mechanism is required for a particular processing activity, we will put the applicable safeguards in place before carrying it out.
+So a single request may involve the United States and Canada — both countries this policy already covers. Because AYN does not target users outside the US and Canada, we do not currently rely on the cross-border transfer mechanisms (such as the UK International Data Transfer Addendum or the EU Standard Contractual Clauses) that would apply if we did.
 
 ## 7. Retention
 
@@ -163,7 +162,7 @@ We respond within thirty days, or sooner where the law requires. We verify ident
 
 ## 10. Security
 
-We use encryption in transit and at rest, database-level access controls restricting each account to its own records, administrative access behind both a role check and a second factor, and audit logging of privileged actions.
+We use encryption in transit and at rest, database-level access controls restricting each account to its own records, scoped and revocable extension tokens rather than stored passwords, administrative access behind both a role check and a second factor, and audit logging of privileged actions.
 
 No system is entirely secure. Where a breach creates a real risk of significant harm we will notify affected individuals and the relevant regulators within the periods the law requires, and will maintain a breach register as required under PIPEDA.
 
@@ -173,7 +172,7 @@ AYN is not directed to children. You must be at least 16, or the age of consent 
 
 ## 12. Cookies
 
-Signing in and remembering your cookie choice are handled by your browser's local storage, not a cookie; disabling cookies alone will not prevent sign-in. Analytics is opt-in and off by default: once accepted, AYN records a random browser identifier, route, time, and referrer origin for first-party aggregate visitor measurement; Google Analytics sets a cookie for aggregate usage measurement; and PostHog records masked, anonymized sessions in your browser's local storage (not a cookie) so we can see what went wrong when something breaks. The first-party event never contains your account ID, typed content, resume, application information, page text, or URL query string. We do not use advertising cookies or third-party tracking pixels. See our Cookie Policy for the full detail.
+We use cookies strictly necessary for authentication, session management, and security, and Google Analytics cookies for aggregate usage measurement. We do not use advertising cookies or third-party tracking pixels. Disabling essential cookies will prevent sign-in.
 
 We honour Global Privacy Control signals where technically feasible.
 
@@ -182,14 +181,6 @@ We honour Global Privacy Control signals where technically feasible.
 We will post any change here with a new version number and date. For changes materially affecting your rights we will notify you in the Platform before they take effect and, where required, seek your consent again.
 
 **Version 2.0 (18 August 2026):** AYN narrowed its operating scope to the United States and Canada only, and stopped targeting users in the European Union, United Kingdom, or Middle East. This version also corrects prior descriptions of where account data is stored — it has always been on servers we operate ourselves, and this version accurately describes that infrastructure as US-based rather than referencing a third-party UK-based database provider.
-
-**Version 2.2 (7 September 2026):** Added PostHog to the service provider table: opt-in, masked session recordings that let us see what went wrong when something breaks, never what was typed or shown on screen. This version also corrects the Cookies section — sign-in has always used your browser's local storage, not a cookie, and this version states that plainly instead of grouping it with the actual analytics cookie Google Analytics sets.
-
-**Version 2.3 (10 September 2026):** Corrected our geographic-scope description to match the live job catalogue, which covers North America, Europe, the Middle East, and Australia. Employer accounts remain available in the United States and Canada.
-
-**Version 2.4 (19 September 2026):** Added consent-gated, first-party aggregate visitor measurement. It records only a random browser identifier, route, time, and referrer origin, never account data or page content. Existing cookie choices are requested again before this collection starts.
-
-**Version 2.5 (19 September 2026):** Retired the browser-extension and application-form automation feature. AYN now processes job-posting information only when it appears in its catalogue or is added by the user; it does not access, read, fill, or submit third-party application forms.
 
 ## 14. Contact
 

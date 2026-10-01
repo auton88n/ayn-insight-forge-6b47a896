@@ -8,10 +8,7 @@ const localStorageMock = {
   removeItem: vi.fn(),
   clear: vi.fn(),
 };
-Object.defineProperty(globalThis, 'localStorage', {
-  value: localStorageMock,
-  configurable: true,
-});
+global.localStorage = localStorageMock as any;
 
 // Mock crypto.randomUUID
 // In newer jsdom/node versions, `global.crypto` may be a read-only getter.

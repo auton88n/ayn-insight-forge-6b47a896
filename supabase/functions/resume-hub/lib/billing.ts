@@ -27,6 +27,12 @@ import { json } from "./utils.ts";
 export const COST_TAILOR = 2;
 export const COST_COVER = 1;
 export const COST_OPTIMIZE = 15;
+// v3.265.0 -- auto-apply: real Playwright automation reading and filling a
+// job's actual application form. Charged once per job on the first
+// successful auto_apply_fill (see jobs.auto_apply_charged_at) -- the
+// natural preview-then-confirm-submit flow calls this action twice per
+// real application, and only the first counts.
+export const COST_AUTO_APPLY = 5;
 export const EMPLOYER_SEARCH_SOFT_CAP = 200;
 
 export type Anyish = SupabaseClient<any, any, any>;

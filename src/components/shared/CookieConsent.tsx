@@ -5,7 +5,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  readCookieConsent, writeCookieConsent, loadAnalytics, globalPrivacyControlOn, trackPageView,
+  readCookieConsent, writeCookieConsent, loadAnalytics, globalPrivacyControlOn,
 } from '@/lib/analytics';
 
 const OPEN_EVENT = 'ayn:open-cookie-preferences';
@@ -35,12 +35,7 @@ export function CookieConsent() {
 
   const decide = useCallback((choice: 'accepted' | 'rejected') => {
     writeCookieConsent(choice);
-    if (choice === 'accepted') {
-      loadAnalytics();
-      // VisitorTracker has already seen the initial route by the time this
-      // dialog is clicked, so record this first consented view explicitly.
-      void trackPageView();
-    }
+    if (choice === 'accepted') loadAnalytics();
     setVisible(false);
   }, []);
 
@@ -56,10 +51,9 @@ export function CookieConsent() {
       <div className="rounded-2xl border border-border bg-card/95 backdrop-blur p-4 shadow-lg">
         <p className="text-sm font-medium text-foreground">Analytics cookies</p>
         <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
-          We would like to measure which AYN pages are used with a random browser identifier and
-          route, use Google Analytics, and record masked sessions with PostHog when something
-          breaks. This never captures a resume, an answer, page text, or anything else you write.
-          Staying signed in does not depend on this choice. You can change it later from the footer.
+          We would like to measure how the site is used, with Google Analytics. Nothing else on
+          AYN sets a cookie, and staying signed in does not depend on this choice. You can change
+          it later from the footer.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button

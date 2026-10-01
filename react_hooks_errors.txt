@@ -1,0 +1,30 @@
+
+/Users/g/AYN PROJECTS/ayn-insight-forge/src/components/dashboard/CenterStageLayout.tsx
+  449:5  warning  React Hook useCallback has missing dependencies: 'completeAbsorption', 'setIsResponding', and 'startMessageAnimation'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+--
+
+/Users/g/AYN PROJECTS/ayn-insight-forge/src/components/dashboard/ChartUnifiedChat.tsx
+  356:6  warning  React Hook useCallback has an unnecessary dependency: 'attachedPreview'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/g/AYN PROJECTS/ayn-insight-forge/src/components/dashboard/CreditUpgradeCard.tsx
+  179:5  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+
+/Users/g/AYN PROJECTS/ayn-insight-forge/src/components/dashboard/Sidebar.tsx
+  299:6  warning  React Hook useEffect has a missing dependency: 'profilePopoverOpen'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/g/AYN PROJECTS/ayn-insight-forge/src/components/dashboard/UsageCard.tsx
+  126:6  warning  React Hook useEffect has a missing dependency: 'fetchCredits'. Either include it or remove the dependency array                                                                                                                                             react-hooks/exhaustive-deps
+  142:6  warning  React Hook useEffect has a missing dependency: 'fetchCredits'. Either include it or remove the dependency array                                                                                                                                             react-hooks/exhaustive-deps
+  172:6  warning  React Hook useEffect has a missing dependency: 'credits.remaining'. Either include it or remove the dependency array. You can also replace multiple useState variables with useReducer if 'setDisplayCount' needs the current value of 'credits.remaining'  react-hooks/exhaustive-deps
+--
+  16:29  error    Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
+  48:53  error    Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
+  58:6   warning  React Hook useCallback has an unnecessary dependency: 'toast'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+--
+   83:39  error    Unexpected any. Specify a different type                                                                       @typescript-eslint/no-explicit-any
+   84:49  error    Unexpected any. Specify a different type                                                                       @typescript-eslint/no-explicit-any
+  218:6   warning  React Hook useEffect has a missing dependency: 'isExpanded'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+--
+  105:18  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  106:40  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  119:74  warning  The ref value 'sessionStartRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'sessionStartRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
