@@ -28,7 +28,8 @@ import { Input } from "@/components/ui/input";
 import { Loader2, ExternalLink, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { autoApplyExtract, autoApplyFill, type AutoApplyExtractResult } from "@/lib/resumeHub";
-import { buildResumePdfBlob, buildTextPdfBlob, downloadBlob, fileBase, type ResumeContent } from "@/lib/resumeDocs";
+import { buildResumePdfBlob, buildTextPdfBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
+import type { ResumeContent } from "@/lib/resumeHub";
 
 interface Props {
   userId: string;
