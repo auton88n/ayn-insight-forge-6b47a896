@@ -1,5 +1,6 @@
 import express from 'express';
 import compression from 'compression';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -9,6 +10,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DIST = path.join(__dirname, 'dist');
+const INDEX_HTML = path.join(DIST, 'index.html');
 
 // v3.133.0 — real security headers. script-src and style-src both drop
 // 'unsafe-inline': the two theme-init scripts that used to sit inline in
@@ -19,10 +21,24 @@ const DIST = path.join(__dirname, 'dist');
 // note for how to re-check after a template change.
 // v3.159.0 — self-hosted deployments point this app at a different
 // Supabase backend (a different origin entirely), so the CSP's own allow
-// list has to follow. SUPABASE_ORIGIN now reads from the same env var the
-// build itself uses (VITE_SUPABASE_URL), falling back to Cloud's URL so an
-// unconfigured deploy (still the normal case) behaves exactly as before.
-const SUPABASE_ORIGIN = process.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co';
+// list has to follow. SUPABASE_ORIGIN reads from the same env var the
+// build itself uses (VITE_SUPABASE_URL).
+//
+// v3.339.0 (correction) — the fallback here used to be the old Lovable
+// Cloud project's URL, reasoned at the time as "an unconfigured deploy is
+// still the normal case." That's backwards now: self-hosted (ayn.careers)
+// is the real, current, only production deployment, and the old Cloud
+// project is meant to be reached from exactly one place in this whole
+// app — resume-hub's own server-to-server AI relay (lib/ai.ts,
+// AI_RELAY_URL) — never from here. A fallback pointing at Cloud meant
+// that if this env var were ever unset on a container rebuild, the CSP
+// would silently start allowing the BROWSER to talk to the old cloud
+// project, and this file's own job_postings fetch below would silently
+// hit the wrong database, both violating "only AI touches Cloud, local
+// Supabase for everything else." The fallback now matches src/config.ts's
+// own default instead: the real self-hosted domain, so an unconfigured
+// deploy fails toward the correct backend, not the wrong one.
+const SUPABASE_ORIGIN = process.env.VITE_SUPABASE_URL || 'https://ayn.careers';
 const SUPABASE_WS_ORIGIN = 'wss://' + SUPABASE_ORIGIN.replace(/^https?:\/\//, '');
 const CSP = [
   "default-src 'self'",
@@ -91,8 +107,18 @@ app.use(express.static(DIST, {
 // policy, v3.201.0) — no new backend surface, no new risk. Capped at
 // 45,000 rows, a safety margin under the sitemap protocol's real
 // 50,000-URL ceiling; today's real count is well under half that.
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY
-  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg2ODg5MDQyLCJleHAiOjIxMDIyNDkwNDJ9.AmUVtzKLnrXO_ubBNxSDCBDnI7jJyNkGfK9p7nrzkGI';
+// Sept 2026 security review: removed the hardcoded literal fallback (the
+// same anon key was also duplicated in src/config.ts, a stale-drift risk
+// on rotation, not a secrecy one -- this key is meant to be public, RLS
+// protects the data). Read lazily, inside the one route that uses it, so
+// a missing env var degrades just this crawler-only endpoint to its
+// existing empty-sitemap fail-safe below rather than crashing the whole
+// static-file server that serves the entire site.
+function requireSupabaseAnonKey() {
+  const key = process.env.VITE_SUPABASE_ANON_KEY;
+  if (!key) throw new Error('VITE_SUPABASE_ANON_KEY is not set in the server environment');
+  return key;
+}
 
 let jobsSitemapCache = { xml: null, at: 0 };
 // A crawler refetching more often than this is rare, and this only ever
@@ -112,6 +138,7 @@ app.get('/sitemap-jobs.xml', async (req, res) => {
     return;
   }
   try {
+    const SUPABASE_ANON_KEY = requireSupabaseAnonKey();
     // PostgREST caps rows per request at its own configured max (1000 on
     // this instance) regardless of the "limit" query param requested --
     // confirmed live testing this route: asking for 45,000 silently came
@@ -161,7 +188,6 @@ app.get('/sitemap-jobs.xml', async (req, res) => {
 const ROUTES = [
   '/', '/pricing', '/resume-hub', '/contact', '/support', '/help', '/about', '/check-resume', '/jobs', '/salary-guide',
   '/terms', '/privacy', '/legal', '/cookies', '/security', '/subprocessors', '/dpa', '/sla', '/copyright', '/do-not-sell',
-  '/autofill',
   '/settings', '/billing',
   '/employer/pending', '/employers', '/reset-password',
   '/approval-result', '/subscription-success', '/subscription-canceled',
@@ -175,9 +201,60 @@ function isKnownRoute(pathname) {
 }
 
 // React Router handles rendering; the status code is decided here.
-app.get('*', (req, res) => {
+// Express 5's path-to-regexp requires a named wildcard. This form includes
+// the root path as well as every SPA route, preserving Express 4's `*`.
+//
+// Sept 2026 -- reported directly: "the app pages being slow and refrash...
+// dont feel the app is stable." Traced through docker logs, not guessed.
+// First fix (below the surface here, superseded by this one): delay
+// app.listen() until dist/index.html exists, closing the startup half of
+// the race. Deployed, then a REAL live 503 on the very next deploy proved
+// that fix was still only half the story -- it protects a container's own
+// startup, but does nothing for the container that's ALREADY running and
+// ALREADY serving traffic the moment auto_deploy.sh's build step reaches
+// dist/ (Vite's own emptyOutDir wipes the directory before writing the
+// fresh build back), since the OLD process has long since called
+// app.listen() and has no reason to ever re-check the file again on its
+// own. sendFile() reads straight off disk on every single request, so
+// that live container hit a real, repeatable ENOENT the instant a request
+// landed in that window -- confirmed directly in docker logs, seconds
+// after "deploy complete," on the very next deploy after the first fix
+// shipped.
+//
+// The actual fix: index.html is 7-8KB of static markup that never changes
+// for the life of a running process (a real content change always ships
+// with a restart, since auto_deploy.sh calls docker restart on every
+// deploy) -- there was never a good reason to touch the filesystem for it
+// on every request at all. Read once, held in memory, served from RAM.
+// A container can now no longer be affected by a build wiping the very
+// file out from under it after start, because it never looks at that file
+// again after the one read below.
+let indexHtml = null;
+
+app.get('/{*path}', (req, res) => {
   const status = isKnownRoute(req.path) ? 200 : 404;
-  res.status(status).sendFile(path.join(DIST, 'index.html'));
+  if (indexHtml === null) {
+    // Only reachable if startWhenBuilt gave up after its own retries and
+    // started the server anyway (a genuinely broken build) -- a real,
+    // rare failure, not the transient race this whole fix targets.
+    res.status(503).send('Service temporarily unavailable, please retry.');
+    return;
+  }
+  res.status(status).type('html').send(indexHtml);
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+function startWhenBuilt(attemptsLeft = 30) {
+  if (fs.existsSync(INDEX_HTML)) {
+    indexHtml = fs.readFileSync(INDEX_HTML, 'utf8');
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    return;
+  }
+  if (attemptsLeft <= 0) {
+    console.error(`dist/index.html never appeared, starting anyway: ${INDEX_HTML}`);
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    return;
+  }
+  setTimeout(() => startWhenBuilt(attemptsLeft - 1), 200);
+}
+
+startWhenBuilt();

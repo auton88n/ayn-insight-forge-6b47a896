@@ -53,3 +53,50 @@ export function detectScamSignal(description: string, title?: string): { suspect
   }
   return { suspected: false, reason: null };
 }
+
+// v3.358.0 — a second, independent signal, checked while looking at how
+// career-ops (an unrelated open-source job-search toolkit) validates a
+// posting's own apply link: detectScamSignal above reads the JD TEXT;
+// this reads the LINK ITSELF, a genuinely different axis, not a
+// duplicate of the same check. A URL shortener on a job application
+// link is a real, specific red flag (a real ATS or a company's own
+// career page never needs one) that no content-based keyword scan could
+// ever catch, since the description text says nothing about it.
+//
+// Deliberately narrower than the source idea: career-ops also flags a
+// company-name/domain mismatch, which needs a real allowlist of every
+// ATS vendor's own multi-tenant domain to avoid false-positiving on an
+// ordinary Greenhouse/Lever/Ashby posting. Left out here on purpose —
+// AYN's own ingestion already constrains apply_url to exactly those
+// vendors or a company's own domain (job-board-sync's own
+// BLOCKED_AGGREGATOR_HOSTS, and ats-direct-sync's per-vendor API
+// construction), so that signal has near-zero marginal value on data
+// this narrow, and porting its own careful Unicode-company-name-folding
+// logic for that little benefit would trade a low-false-positive check
+// for a higher-risk one. A missing apply_url isn't checked either —
+// both callers already require one to be present before a row is ever
+// built at all, so it can't reach this function empty in practice.
+const URL_SHORTENER_HOSTS = [
+  "bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd", "ow.ly",
+  "buff.ly", "rebrand.ly", "cutt.ly", "shorturl.at", "forms.gle",
+];
+
+export function checkApplyUrlTrust(applyUrl: string): { suspected: boolean; reason: string | null } {
+  const url = (applyUrl ?? "").trim();
+  if (!url) return { suspected: false, reason: null }; // not reachable today; fail open, not closed, on an unexpected empty value
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { suspected: true, reason: "Automated check: the application link is not a valid web address." };
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return { suspected: true, reason: "Automated check: the application link does not use http or https." };
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  if (URL_SHORTENER_HOSTS.some((d) => hostname === d || hostname.endsWith("." + d))) {
+    return { suspected: true, reason: "Automated check: the application link uses a URL shortener instead of a direct company or ATS link." };
+  }
+  return { suspected: false, reason: null };
+}

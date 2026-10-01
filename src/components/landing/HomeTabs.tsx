@@ -37,71 +37,7 @@ import { billingApi, priceLabel, type SeekerBilling } from '@/lib/billing';
 import { toast } from 'sonner';
 import type { Audience } from '@/lib/landingAudience';
 
-export type HomeTabId =
-  | 'search' | 'features' | 'how-it-works' | 'why-ayn'
-  | 'get-discovered' | 'proof' | 'faq'
-  | 'pricing' | 'contact' | 'about' | 'help'
-  | 'profile' | 'matched-jobs' | 'saved-jobs' | 'proposals' | 'assessments' | 'account-settings' | 'skills-to-learn';
-
-// v3.219.0 -- every tab now takes the same two callbacks, whether it needs
-// them or not (a plain () => JSX.Element is still a valid value here --
-// TypeScript allows a function that takes fewer parameters wherever one
-// taking more is expected). onSelectTab lets a tab link to another tab
-// without ever leaving the page (Help -> Contact); onStartFree opens the
-// one AuthModal the shell owns, instead of a tab mounting a second one.
-export type TabProps = {
-  onSelectTab: (id: HomeTabId) => void;
-  // v3.233.0 -- the optional second argument lets a caller open straight
-  // to Sign In instead of the default Sign Up tab, without a second
-  // callback threaded through every tab component. Omitted, it behaves
-  // exactly as before.
-  onStartFree: (role?: Audience, tab?: 'signin' | 'signup') => void;
-};
-
-// v3.229.0 -- Messaging removed as its own entry, folded into Get
-// discovered (one continuous story: turn on discovery, then here's what
-// happens once someone reaches out), part of the same sidebar reorg pass.
-export const TAB_META: { id: HomeTabId; label: string }[] = [
-  { id: 'features', label: 'Features' },
-  { id: 'how-it-works', label: 'How it works' },
-  { id: 'why-ayn', label: 'Why AYN' },
-  { id: 'get-discovered', label: 'Get discovered' },
-  { id: 'proof', label: 'Proof' },
-  // v3.233.0 -- renamed from "FAQ" so the nav label matches the page's own
-  // heading ("Good to know"), the friendlier of the two, rather than the
-  // reader landing on a heading that never echoes the word they clicked.
-  { id: 'faq', label: 'Good to know' },
-];
-
-export const MORE_TAB_META: { id: HomeTabId; label: string }[] = [
-  { id: 'pricing', label: 'Pricing' },
-  { id: 'contact', label: 'Contact' },
-  { id: 'about', label: 'About' },
-  { id: 'help', label: 'Help' },
-];
-
-// v3.228.0 -- the five tabs that used to only exist behind the separate
-// /resume-hub shell (see AccountTabs.tsx). Real content, gated on being
-// signed in; the nav item itself is always visible, signed in or not.
-export const ACCOUNT_TAB_META: { id: HomeTabId; label: string }[] = [
-  { id: 'profile', label: 'Profile' },
-  { id: 'matched-jobs', label: 'Job matches' },
-  { id: 'saved-jobs', label: 'Saved jobs' },
-  { id: 'proposals', label: 'Proposals' },
-  { id: 'assessments', label: 'Assessments' },
-  // v3.315.0 — the real follow-through on a confirm-first choice made in
-  // Saved jobs: when a person adds a skill a job wants that they don't
-  // have yet, it lands here too, not just on the resume.
-  { id: 'skills-to-learn', label: 'Skills to learn' },
-  { id: 'account-settings', label: 'Settings' },
-];
-
-// v3.219.0 -- the sessionStorage key LandingPage.tsx reads on mount to land
-// on a specific tab, used by HomeTabRedirect (old /pricing etc. links) and,
-// as of v3.220.0, by SeekerSidebar itself when it's rendered on a real,
-// separate route (like /jobs) rather than on Home -- clicking a tab button
-// there has to navigate to "/" first, so it stashes the target the same way.
-export const HOME_TAB_HANDOFF_KEY = 'ayn_home_tab';
+import type { HomeTabId, TabProps } from './homeTabMeta';
 
 // v3.222.0 -- the seeker TrustBento stat strip and the "Stop sending the
 // same resume into the dark" closer both used to sit on Home and repeat on
@@ -117,7 +53,7 @@ export const FeaturesTab = ({ onStartFree }: TabProps) => (
           <h2 className="lp-display lp-h2">Everything AYN actually does for you</h2>
           <p className="lp-lead">One posting in, one real application out. Nothing here is a preview, it is what you get.</p>
         </div>
-        <div className="lp-bento lp-reveal">
+        <div className="lp-bento lp-reveal ayn-feature-directory">
           {SEEKER_TILES.map((tile) => {
             const Icon = tile.icon;
             return (
@@ -172,7 +108,7 @@ export const HowItWorksTab = () => (
         </div>
         <div className="lp-art lp-art-plain"><TailoredDocsMockup /></div>
       </div>
-      <div className="lp-flow lp-reveal">
+      <div className="lp-flow lp-reveal ayn-directory-grid">
         {SEEKER_STEPS.map((s, i) => {
           const Icon = s.icon;
           return (
@@ -214,9 +150,8 @@ export const WhyAynTab = () => (
       {/* v3.216.0 -- Real AI, folded in here rather than its own thin page:
           the same "why choose AYN" positioning, one section down.
           v3.229.0 -- reported directly: this section still read like it was
-          describing the retired Chrome extension ("the posting you have
-          open," "the job in front of you" -- language for a tool that
-          watched a live browser tab). AYN has no such mechanism any more;
+          describing a posting outside AYN ("the posting you have open,"
+          "the job in front of you"). AYN has no such mechanism;
           a job is something you add to AYN (browse it, paste a link, or
           paste the text), not something "open" elsewhere. Reworded to
           describe the real, current flow. */}
@@ -224,8 +159,8 @@ export const WhyAynTab = () => (
         <p className="lp-eyebrow">The AI, and what it refuses to do</p>
         <h2 className="lp-display lp-h2">Real AI, aimed at <em>one job at a time.</em></h2>
         <p className="lp-lead" style={{ maxWidth: 680 }}>
-          Some tools use AI to auto-apply to hundreds of postings a day and hope volume gets you an interview.
-          Low quality, unread by anyone, and it is not even looking for the right job, just applying to all of them.
+          Some tools optimize for sending large volumes of applications and hope one gets an interview.
+          That approach is not focused on whether a role actually fits you.
           AYN's AI does the opposite: it reads the specific posting you added, writes your resume and
           cover letter from your real experience for that job, and stops there.
         </p>
@@ -453,10 +388,9 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
           switched from centered to left-aligned to match. */}
       <div className="lp-shell">
         <div className="lp-reveal" style={{ marginBottom: 34 }}>
-          <Badge className="ayn-ember-badge">Pricing for job seekers</Badge>
-          <h2 className="lp-display lp-h2" style={{ marginTop: 14 }}>Less time formatting. More time applying.</h2>
+          <h2 className="lp-display lp-h2">Plans & credits</h2>
           <p className="lp-lead" style={{ maxWidth: 620 }}>
-            A tailored resume costs 2 credits. A cover letter costs 1. Everything else is free.
+            A tailored resume costs 2 credits. A cover letter costs 1. Building or optimizing your base resume costs 15 credits. Browsing and match scoring are free.
           </p>
         </div>
 
@@ -472,18 +406,14 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
           </div>
         )}
 
-        <div className="lp-reveal" style={{ display: 'grid', gap: 20, gridTemplateColumns: 'repeat(auto-fit, minmax(248px, 1fr))' }}>
+        <div className="lp-reveal ayn-plan-grid">
           {PLANS.map((p) => {
             const current = billing?.plan?.key === p.key;
             const featured = p.key === 'seeker_starter';
             return (
               <div
                 key={p.key}
-                className="lp-tile"
-                style={featured ? {
-                  borderColor: 'hsl(var(--lp-ember))',
-                  background: 'linear-gradient(160deg, hsl(var(--lp-ember) / 0.05) 0%, hsl(var(--lp-card)) 55%)',
-                } : undefined}
+                className={`lp-tile ayn-plan${featured ? ' ayn-plan-featured' : ''}`}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <h3 style={{ margin: 0 }}>{p.name}</h3>
@@ -494,7 +424,7 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
                   ) : null}
                 </div>
                 <p className="lp-display" style={{ fontSize: 32, margin: '14px 0 0', lineHeight: 1 }}>{priceLabel(p.cents, p.interval)}</p>
-                <p style={{ color: 'hsl(var(--lp-ember))', fontWeight: 600, fontSize: 14, margin: '8px 0 0' }}>{p.credits} credits</p>
+                <p className="ayn-plan-credits">{p.credits} credits</p>
                 <p style={{ flex: 1, margin: '12px 0 0' }}>{p.line}</p>
                 <button
                   type="button"
@@ -584,33 +514,40 @@ export const AboutTab = () => (
         <h2 className="lp-display lp-h2">Hiring runs on volume. We think it should run on evidence.</h2>
         <p className="lp-lead">AYN is built by a team in Canada.</p>
       </div>
-      <div className="lp-reveal" style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 }}>
-        <p className="lp-note" style={{ fontSize: 15 }}>
-          AI made it effortless to apply everywhere, so everyone did. Hiring drowned in noise, and a hiring
-          manager who used to read forty applications started opening six hundred and reading none of them
-          properly. Somewhere in that pile was the one person who could actually do the job. Nobody had time
-          to find them.
-        </p>
-        <p className="lp-pullquote">
-          We built AYN because that person should not have to out-send a machine to be seen.
-        </p>
-        <div>
-          <h3 className="lp-display" style={{ fontSize: 17, marginBottom: 8 }}>Mission and vision</h3>
+      {/* Sept 2026 -- "in about us add a nice card i dont like to see the
+          text on the web cream page." This prose sat directly on the
+          page's own warm-paper background with nothing behind it; wrapped
+          in .lp-panel, the same real white card ContactTab right below
+          this one already uses, instead of inventing a second card style. */}
+      <div className="lp-panel lp-reveal" style={{ marginTop: 24, maxWidth: 720 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <p className="lp-note" style={{ fontSize: 15 }}>
-            Replace volume with evidence. Build a hiring market where being seen depends on what you have
-            done, not on how many places you applied.
+            AI made it effortless to apply everywhere, so everyone did. Hiring drowned in noise, and a hiring
+            manager who used to read forty applications started opening six hundred and reading none of them
+            properly. Somewhere in that pile was the one person who could actually do the job. Nobody had time
+            to find them.
+          </p>
+          <p className="lp-pullquote">
+            We built AYN because that person should not have to out-send a machine to be seen.
+          </p>
+          <div>
+            <h3 className="lp-display" style={{ fontSize: 17, marginBottom: 8 }}>Mission and vision</h3>
+            <p className="lp-note" style={{ fontSize: 15 }}>
+              Replace volume with evidence. Build a hiring market where being seen depends on what you have
+              done, not on how many places you applied.
+            </p>
+          </div>
+          <p className="lp-note" style={{ fontSize: 15 }}>
+            For job seekers, AYN reads a job posting, shows how you line up against it, and writes a resume
+            and cover letter from your real experience for that specific role. For employers, describe a role
+            once and AYN finds the people worth talking to, with the evidence behind each match and what they
+            are missing, instead of six hundred resumes and a guess.
+          </p>
+          <p className="lp-note" style={{ fontSize: 15 }}>
+            Switch discoverability on and employers see your background, not your name, email, or phone, until
+            you accept an offer.
           </p>
         </div>
-        <p className="lp-note" style={{ fontSize: 15 }}>
-          For job seekers, AYN reads a job posting, shows how you line up against it, and writes a resume
-          and cover letter from your real experience for that specific role. For employers, describe a role
-          once and AYN finds the people worth talking to, with the evidence behind each match and what they
-          are missing, instead of six hundred resumes and a guess.
-        </p>
-        <p className="lp-note" style={{ fontSize: 15 }}>
-          Switch discoverability on and employers see your background, not your name, email, or phone, until
-          you accept an offer.
-        </p>
       </div>
     </div>
   </section>
@@ -618,15 +555,16 @@ export const AboutTab = () => (
 
 export const HelpTab = ({ onSelectTab }: TabProps) => {
   const [query, setQuery] = useState('');
+  const [topic, setTopic] = useState('Getting started');
   const hasQuery = query.trim().length > 0;
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return SECTIONS;
+    if (!q) return SECTIONS.filter(section => section.title === topic);
     return SECTIONS
       .map((s) => ({ ...s, entries: s.entries.filter((e) => (e.q + ' ' + e.a).toLowerCase().includes(q)) }))
       .filter((s) => s.entries.length > 0);
-  }, [query]);
+  }, [query, topic]);
 
   return (
     <section className="lp-section">
@@ -652,17 +590,31 @@ export const HelpTab = ({ onSelectTab }: TabProps) => {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search for an answer"
             aria-label="Search for an answer"
-            className="pl-11 h-12 rounded-full"
+            className="pl-11 h-12 rounded-lg"
           />
         </div>
 
-        <div className="lp-reveal" style={{ display: 'flex', flexDirection: 'column', gap: 32, maxWidth: 720 }}>
+        <div className="ayn-help-layout">
+        <nav className="ayn-help-topics" aria-label="Help topics">
+          {SECTIONS.map(section => (
+            <button
+              key={section.title}
+              type="button"
+              aria-pressed={!hasQuery && topic === section.title}
+              onClick={() => { setQuery(''); setTopic(section.title); }}
+            >
+              {section.title}<ArrowRight size={14} aria-hidden="true" />
+            </button>
+          ))}
+        </nav>
+        <div className="ayn-help-answers">
+          {hasQuery && <p className="lp-note" role="status">{results.reduce((count, section) => count + section.entries.length, 0)} answers found</p>}
           {results.map((section) => (
             <div key={section.title}>
-              <SectionHeading className="mb-3">{section.title}</SectionHeading>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <h3 className="ayn-topic-heading">{section.title}</h3>
+              <div className="ayn-question-list">
                 {section.entries.map((e) => (
-                  <details key={e.q} open={hasQuery || undefined} className="group rounded-2xl border border-border bg-card p-5">
+                  <details key={`${section.title}-${e.q}-${hasQuery}`} open={hasQuery || undefined} className="group">
                     <summary className="flex items-center justify-between gap-4 cursor-pointer list-none font-semibold marker:content-none">
                       {e.q}
                       <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
@@ -684,10 +636,11 @@ export const HelpTab = ({ onSelectTab }: TabProps) => {
             </p>
           )}
         </div>
+        </div>
 
         <div className="lp-reveal" style={{ marginTop: 40 }}>
-          <SectionHeading className="mb-3">Still stuck</SectionHeading>
-          <div className="rounded-2xl border border-border bg-card p-6">
+          <div className="ayn-support-footer">
+            <h3 className="ayn-topic-heading">Still need help?</h3>
             <p className="lp-note" style={{ margin: 0 }}>
               A real person reads every message. Include what you were doing and what happened, and a
               screenshot if you have one.
@@ -723,7 +676,6 @@ const SECTIONS: HelpSection[] = [
       { q: 'How do I start?', a: 'Create a free account, add your resume, and either browse real postings or add one yourself by link or by pasting the text.' },
       { q: 'Do I need a card?', a: 'No, and the free plan does not expire.' },
       { q: 'Where do the postings come from?', a: 'Real company career pages, sourced automatically and refreshed every two hours. Never LinkedIn or Indeed. You can also add any posting yourself.' },
-      { q: 'Does it apply for me?', a: 'No. It writes the resume and the cover letter. You review them and submit the application yourself, on the company’s own site.' },
     ],
   },
   {

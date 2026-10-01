@@ -16,7 +16,8 @@
  * before — no org_logo_url meant nothing rendered, not even an initial),
  * and its own accent border so it reads as the moment it actually is.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +26,8 @@ import { Loader2, Inbox, MapPin, Briefcase, Banknote, ExternalLink, ChevronDown,
 import { employerApi, type Proposal } from "@/lib/employer";
 import { resumeHubApi } from "@/lib/resumeHub";
 import MessageThread from "@/components/shared/MessageThread";
-import { companyAvatar } from "./BrowseJobs";
+import { companyAvatar } from "@/lib/jobPostingFormat";
+import { poolStatusQueryKey } from "@/lib/queryKeys";
 
 function when(iso: string | null): string {
   if (!iso) return "";
@@ -41,32 +43,45 @@ function when(iso: string | null): string {
 
 export default function ProposalsTab({ onChanged }: { onChanged?: (pending: number) => void }) {
   const { toast } = useToast();
-  const [rows, setRows] = useState<Proposal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [historyOpen, setHistoryOpen] = useState(false);
   const [openThread, setOpenThread] = useState<string | null>(null);
   // v3.186.0 — reported directly: the empty state always said "Turn on
   // discovery," even for an account that already had it on and was
-  // correctly just waiting for a real employer to send one. Fetches the
-  // same talent_pool_get status ProfileTab's own toggle already reads, so
-  // the two surfaces can't disagree about whether discovery is on.
-  const [poolOptedIn, setPoolOptedIn] = useState<boolean | null>(null);
+  // correctly just waiting for a real employer to send one. Reads the
+  // same talent_pool_get status ProfileTab's own toggle reads, so the
+  // two surfaces can't disagree about whether discovery is on -- and,
+  // since v3.323.0, the exact same cached query, not a second independent
+  // fetch. Measured live: talent_pool_get is an edge-function call, 3-4x
+  // slower than a direct table read; two components each firing it
+  // separately on every mount was real, avoidable, duplicated cost.
+  const { data: poolStatus } = useQuery({
+    queryKey: poolStatusQueryKey(),
+    queryFn: () => resumeHubApi.talentPoolGet(),
+  });
+  const poolOptedIn = poolStatus ? !!poolStatus.opted_in : null;
 
-  const load = useCallback(async () => {
-    try {
+  // Reported directly, same fix as every other account tab: leaving this
+  // tab and coming back re-fetched every time, with nothing remembered.
+  // Read through the shared query cache instead -- a remount within the
+  // cache's freshness window renders the last known proposals instantly.
+  const queryKey = ["proposals"] as const;
+  const { data: rows = [], isLoading: loading } = useQuery({
+    queryKey,
+    queryFn: async () => {
       const r = await employerApi.proposalList();
-      const list = r.requests || [];
-      setRows(list);
-      onChanged?.(list.filter(x => x.status === "pending").length);
-    } catch { /* silent */ }
-    finally { setLoading(false); }
-  }, [onChanged]);
+      return r.requests || [];
+    },
+  });
 
-  useEffect(() => { load(); }, [load]);
+  // Notifying the parent (the sidebar's own pending-count badge) is a
+  // side effect of the data arriving, not part of fetching it -- kept
+  // separate so the query itself stays a plain read.
   useEffect(() => {
-    resumeHubApi.talentPoolGet().then(r => setPoolOptedIn(!!r.opted_in)).catch(() => {});
-  }, []);
+    onChanged?.(rows.filter(x => x.status === "pending").length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   const decide = async (id: string, approve: boolean) => {
     setBusy(p => ({ ...p, [id]: true }));
@@ -78,7 +93,7 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
           ? "The employer can now see your name, email and phone."
           : "They were not told why.",
       });
-      await load();
+      await queryClient.invalidateQueries({ queryKey });
     } catch (e) {
       toast({ title: "Couldn't update", description: (e as Error).message, variant: "destructive" });
     } finally { setBusy(p => ({ ...p, [id]: false })); }

@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
+import { reportClientError } from '@/lib/errorReporting';
 
 const AYN_MARK = '/ayn-mark.svg';
 
@@ -34,12 +35,27 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  public async componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    
-    // Non-blocking error report to Supabase
-    this.reportError(error, errorInfo).catch(() => {});
-    
+
+    // Reported directly: "sometimes the whole tab starts to reload." This
+    // auto-reload is real and mostly correct (confirmed live against
+    // production's own error_logs — genuine "Failed to fetch dynamically
+    // imported module" failures after a deploy, the exact case this exists
+    // to recover from) — but it used to fire-and-forget the report, then
+    // immediately call window.location.reload() in the same synchronous
+    // tick. A page reload aborts any in-flight network request, so the one
+    // class of error most worth having a record of was the one class that
+    // almost never actually landed in error_logs — every real occurrence
+    // of THIS specific bug was probably invisible even to us. Now the
+    // report gets a real, bounded window to complete before the page goes
+    // away, capped so a slow/dead network can't meaningfully delay a
+    // legitimate stale-chunk recovery either.
+    await Promise.race([
+      this.reportError(error, errorInfo).catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, 2500)),
+    ]);
+
     // Auto-reload on dynamic import failures (stale chunk errors) — a
     // deploy replaced the JS chunk files with new content-hashed names
     // while this tab still has the old index.html's manifest, so a lazy
@@ -71,22 +87,18 @@ export class ErrorBoundary extends Component<Props, State> {
     }
   }
 
+  // v3.357.0 -- now the shared helper every automatic error report goes
+  // through (also used by main.tsx's own global listeners below), so a
+  // render-crashing bug and a "quiet" one (an unhandled rejection, a
+  // click handler that throws) get the identical dedup/rate-cap
+  // treatment and land in the same place.
   private async reportError(error: Error, errorInfo: ErrorInfo) {
-    try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data: { session } } = await supabase.auth.getSession();
-
-      await (supabase as any).from('error_logs').insert({
-        error_message: (error.message || 'Unknown error').slice(0, 1000),
-        error_stack: error.stack?.slice(0, 5000) || null,
-        component_stack: errorInfo.componentStack?.slice(0, 5000) || null,
-        url: window.location.href,
-        user_id: session?.user?.id || null,
-        user_agent: navigator.userAgent,
-      });
-    } catch {
-      // Silent failure — error reporting should never break the app
-    }
+    await reportClientError({
+      message: error.message || 'Unknown error',
+      stack: error.stack || null,
+      componentStack: errorInfo.componentStack || null,
+      source: 'render_crash',
+    });
   }
 
   public render() {

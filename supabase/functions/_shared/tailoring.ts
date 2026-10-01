@@ -226,28 +226,17 @@ const STOP = new Set(("a an the and or of to in on for with as at by from is are
   "experience experiences work working ability able strong excellent good years year plus using use used " +
   "knowledge understanding skills skill including include includes etc other others related similar role " +
   "candidate candidates who what when where how team teams within across into about over under more most " +
-  "such well also than then them there here very much many any all not no if while during per each both").split(/\s+/));
+  "such well also than then them there here very much many any all not no if while during per each both required preferred").split(/\s+/));
 
-// Generic quals/soft-skill filler that shows up as its own bullet in almost
-// every JD ("5+ years of experience", "Bachelor's degree preferred", "Strong
-// team player") but is not a real, addable skill -- surfacing it as a
-// "missing skill" in the UI would read as nonsensical. Checked as a whole
-// line, not per term, since none of its individual words are unusual enough
-// to blocklist on their own without also blocking real requirements.
-// v3.143.0 — live-tested widening this to also catch "years of <domain>
-// experience" (e.g. "5+ years of product management experience", which
-// slipped through since the old pattern only matched the literal "years of
-// experience"). Reverted after checking the failure case: the same widened
-// pattern also swallows "3+ years of Kubernetes experience", silently
-// hiding a real, specific technology gap instead of a generic seniority
-// bar. Regex can't tell "product management" (a role descriptor) apart
-// from "Kubernetes" (a real skill) in that slot, and guessing which words
-// are "role-ish" is exactly the fragile semantic detection this file's own
-// design avoids. Left as the narrower, safer match; an occasional short
-// "N years of experience" line surviving is a much smaller problem than
-// silently dropping a genuine skill gap.
+// Keep the existing soft-skill filter, but never discard a degree, license,
+// certification or experience threshold just because it is not an addable skill.
+const QUALIFICATION = /\b(degree|bachelor'?s?|master'?s?|doctorate|phd|licen[cs]e|certification|\d+\+?\s+years?)\b/i;
 const GENERIC_QUAL =
-  /\b(years?\s+of\s+experience|degree\s*(preferred|required)?|bachelor'?s?|master'?s?(\s+degree)?|communication\s+skills?|team\s*player|problem[- ]solving|self[- ]starter|fast[- ]paced|detail[- ]oriented|work(ing)?\s+independently|interpersonal\s+skills?|time\s+management|organi[sz]ational\s+skills?|leadership\s+skills?|analytical\s+skills?|people\s+skills?|multi[- ]?task)\b/i;
+  /\b(communication\s+skills?|team\s*player|problem[- ]solving|self[- ]starter|fast[- ]paced|detail[- ]oriented|work(ing)?\s+independently|interpersonal\s+skills?|time\s+management|organi[sz]ational\s+skills?|leadership\s+skills?|analytical\s+skills?|people\s+skills?|multi[- ]?task)\b/i;
+
+// Qualifications are requirements even when they cannot be added as skills.
+// Keep them in coverage; this lexical check does not verify degree equivalence
+// or derive years of experience from employment dates.
 
 // v3.314.0 — a real, live JD (Bloomreach) opened with three bulleted
 // company-mission sentences ("We're taking autonomous search mainstream,
@@ -347,7 +336,7 @@ function expandWithSynonyms(normalizedHaystack: string): string {
   let expanded = normalizedHaystack;
   for (const group of SYNONYM_GROUPS) {
     const variants = group.map((g) => g.toLowerCase());
-    const present = variants.some((v) => expanded.includes(v.length >= 4 ? v : ` ${v} `));
+    const present = variants.some((v) => containsMatchingTerm(expanded, v));
     if (present) expanded += " " + variants.join(" ");
   }
   return expanded;
@@ -359,6 +348,15 @@ function norm(s: string): string {
     .replace(/[^a-z0-9+#./\s-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** Token boundaries matter for long names too: Java is not JavaScript,
+ * SQL is not NoSQL, and C is not C++ or C#. Punctuation may separate terms. */
+function containsMatchingTerm(normalizedText: string, term: string): boolean {
+  const n = norm(term);
+  if (!n) return false;
+  const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9+#])${escaped}($|[^a-z0-9+#])`).test(normalizedText);
 }
 
 // minLen defaults to 3 for extracting requirement LINES out of prose, where
@@ -403,7 +401,7 @@ function extractRequirements(jd: string): Array<{ text: string; kind: "required"
     // rule, see the comment further down), never a section label, so it
     // must never be routed through the heading branch below regardless of
     // how short or unpunctuated it looks.
-    const isHeading = raw.length < 90 && !/[.!?]$/.test(raw) && !bulletish;
+    const isHeading = raw.length < 90 && !/[.!?]$/.test(raw) && !bulletish && !QUALIFICATION.test(raw);
     if (isHeading) {
       if (/(nice to have|preferred|bonus|plus(es)?|desirable|good to have)/.test(low)) { bucket = "nice_to_have"; inReqSection = true; excluded = false; continue; }
       if (/(requirement|qualification|must have|what you.{0,10}(bring|need|have)|who you are|about you|skills|we.{0,5}re looking for|you have)/.test(low)) { bucket = "required"; inReqSection = true; excluded = false; continue; }
@@ -467,7 +465,7 @@ function extractRequirements(jd: string): Array<{ text: string; kind: "required"
     // preferred over the alternative of silently breaking real
     // requirement matching on ordinarily-written JDs like this one.
     if (text.length > 200) continue;
-    if (GENERIC_QUAL.test(text)) continue;
+    if (GENERIC_QUAL.test(text) && !QUALIFICATION.test(text)) continue;
     if (COMPANY_VOICE.test(text)) continue;
     // A bullet is already a deliberate, single item -- "- Kubernetes" or
     // "- AWS" is exactly as real a requirement as a full sentence, so it
@@ -500,13 +498,7 @@ export function computeGap(
   extra?: { jdSkills?: string[]; mustHaves?: string[]; niceToHaves?: string[] },
 ): GapAnalysis {
   const haystack = " " + expandWithSynonyms(norm(bundle.text)) + " ";
-  const hasTerm = (t: string) => {
-    const n = norm(t);
-    if (!n) return false;
-    if (haystack.includes(` ${n} `)) return true;
-    // token-boundary-ish containment for things like "node.js" / "ci/cd"
-    return haystack.includes(n.length >= 4 ? n : ` ${n} `);
-  };
+  const hasTerm = (t: string) => containsMatchingTerm(haystack, t);
 
   const items: Array<{ text: string; kind: "required" | "nice_to_have" }> = [
     ...(extra?.mustHaves || []).map((t) => ({ text: t, kind: "required" as const })),
@@ -518,10 +510,10 @@ export function computeGap(
   const seen = new Set<string>();
   const requirements: Requirement[] = [];
   for (const it of items) {
-    const key = norm(it.text).slice(0, 80);
+    const key = norm(it.text);
     if (!key || seen.has(key)) continue;
     seen.add(key);
-    const ts = terms(it.text, 1);
+    const ts = Array.from(new Set(terms(it.text, 1)));
     if (!ts.length) continue;
     const evidence = ts.filter(hasTerm);
     const coverage = evidence.length / ts.length;
@@ -542,6 +534,90 @@ export function computeGap(
   const missing = requirements.filter((r) => r.status === "missing" && r.kind === "required");
   const niceToHave = requirements.filter((r) => r.kind === "nice_to_have");
   return { requirements, matched, missing, niceToHave, method: "deterministic" };
+}
+
+// v3.358.0 — a knock-out pre-scan, checked while looking at how career-ops
+// (an unrelated open-source job-search toolkit) halts its own application
+// flow before drafting an answer that's likely to trigger an ATS's own
+// automatic screening: minimum years of experience, "we cannot sponsor a
+// visa", and a hard (non-hedged) degree requirement. Ported in spirit, not
+// code — the source reads a live form's own questions client-side; this
+// reads the JD text server-side, the surface AYN already has grounded,
+// deterministic requirement extraction for (computeGap above). Same rule
+// as everywhere else in this file: code decides the fact (a number
+// extracted from the JD, a boolean the candidate already told AYN),
+// the caller only ever surfaces it — never asks a model to guess whether
+// a mismatch exists. Purely informational: this never blocks, never
+// changes what AYN fills or writes, and it never invents a different
+// answer for the candidate to give — only names a real, stated
+// requirement against a fact the candidate already has on file, so they
+// can decide for themselves whether a specific posting is worth their
+// time before they invest more of it.
+//
+// Deliberately conservative in every direction a false positive could
+// come from: a YoE mention with no comparable "years" fact on file is
+// skipped (not assumed zero), a degree requirement with an "or
+// equivalent experience" hedge anywhere in the JD is skipped entirely
+// (a hedged requirement isn't really a hard requirement), and a
+// candidate whose own education_level was never determined never gets
+// flagged for a degree gap that might not be real. Capped at 3 results —
+// this is a heads-up, not a report.
+export type KnockoutRisk = { type: string; jdRequirement: string; yourProfile: string };
+
+const KO_YOE_RE = /(?:minimum|at least|min\.?)\s+(?:of\s+)?(\d{1,2})\+?\s+years?|(\d{1,2})\+\s+years?\s*(?:'\s*)?(?:of\s+)?(?:experience|exp\.?)/i;
+const KO_SPONSORSHIP_RE = /\b(?:no|not|unable to|does not|will not|cannot|won'?t)\b[\s\S]{0,25}\b(?:sponsor|sponsorship)\b|\bmust be (?:currently )?authorized to work[\s\S]{0,40}\bwithout (?:the need for )?(?:visa )?sponsorship\b|\bwe (?:do not|don'?t) (?:offer|provide) (?:visa )?sponsorship\b|\bnot eligible for (?:visa |immigration )?sponsorship\b/i;
+const KO_DEGREE_RE = /\b(bachelor'?s|master'?s|ph\.?d\.?|doctorate)\s+degree\b[\s\S]{0,60}?(?<!not )(?<!isn't )required\b|\brequires? a\s+(bachelor'?s|master'?s|ph\.?d\.?|doctorate)\s+degree\b|\bmust have a\s+(bachelor'?s|master'?s|ph\.?d\.?|doctorate)\s+degree\b/i;
+const KO_DEGREE_HEDGE_RE = /or equivalent (?:experience|work experience)|or equivalent practical experience/i;
+const KO_EDUCATION_RANK: Record<string, number> = { "high school": 0, "associate's": 1, "bachelor's": 2, "master's": 3, "phd": 4 };
+
+function koDegreeRank(level: string): number {
+  const k = level.toLowerCase().trim().replace(/^ph\.?d\.?$/i, "phd");
+  return KO_EDUCATION_RANK[k] ?? -1;
+}
+
+export function detectKnockoutRisks(
+  jdText: string,
+  profile: { derived?: { total_yoe?: number; education_level?: string }; work_auth?: { needs_sponsorship_now?: boolean; needs_sponsorship_future?: boolean } } | null,
+): KnockoutRisk[] {
+  const risks: KnockoutRisk[] = [];
+  if (!profile || !jdText) return risks;
+
+  const yoeMatch = jdText.match(KO_YOE_RE);
+  if (yoeMatch) {
+    const required = Number(yoeMatch[1] || yoeMatch[2]);
+    const actual = profile.derived?.total_yoe;
+    if (required && typeof actual === "number" && actual < required) {
+      risks.push({
+        type: "years_of_experience",
+        jdRequirement: `Asks for ${required}+ years of experience`,
+        yourProfile: `Your profile shows about ${actual} year${actual === 1 ? "" : "s"}`,
+      });
+    }
+  }
+
+  if (KO_SPONSORSHIP_RE.test(jdText) && (profile.work_auth?.needs_sponsorship_now || profile.work_auth?.needs_sponsorship_future)) {
+    risks.push({
+      type: "visa_sponsorship",
+      jdRequirement: "States it cannot sponsor a visa",
+      yourProfile: "Your profile says you'll need sponsorship",
+    });
+  }
+
+  const degreeMatch = jdText.match(KO_DEGREE_RE);
+  if (degreeMatch && !KO_DEGREE_HEDGE_RE.test(jdText)) {
+    const requiredLevel = degreeMatch[1] || degreeMatch[2] || degreeMatch[3];
+    const requiredRank = koDegreeRank(requiredLevel);
+    const actualRank = koDegreeRank(profile.derived?.education_level || "");
+    if (requiredRank >= 0 && actualRank >= 0 && actualRank < requiredRank) {
+      risks.push({
+        type: "education",
+        jdRequirement: `States a ${requiredLevel} degree is required, with no "or equivalent experience" option`,
+        yourProfile: `Your profile shows ${profile.derived?.education_level}`,
+      });
+    }
+  }
+
+  return risks.slice(0, 3);
 }
 
 // v3.149.0 — asked directly for something more systematic than the browse
@@ -968,7 +1044,7 @@ export const WRITE_BANNED_PHRASES = [
   "vital for", "vital to",
 ];
 
-export interface WriteViolation { kind: "figure" | "banned_phrase" | "pronoun" | "dash" | "generic_summary" | "gap_claim" | "keyword_gap"; detail: string }
+export interface WriteViolation { kind: "figure" | "invented_figure" | "banned_phrase" | "pronoun" | "dash" | "generic_summary" | "gap_claim" | "keyword_gap"; detail: string }
 
 // v3.159.0 — found live: tailor's own rule 5 ("echo 2-3 key phrases from the
 // job description") and rule 7 ("stay silent where no related experience
@@ -1045,6 +1121,7 @@ export function verifyWriteQuality(inputText: string, outputResume: unknown, mis
   const violations: WriteViolation[] = [];
   const outputStr = JSON.stringify(outputResume ?? "");
   for (const f of droppedFigures(inputText, outputStr)) violations.push({ kind: "figure", detail: f });
+  for (const f of inventedFigures(inputText, outputStr)) violations.push({ kind: "invented_figure", detail: f });
 
   const prose = extractProse(outputResume);
   const lowerProse = prose.toLowerCase();
@@ -1069,20 +1146,38 @@ export function verifyWriteQuality(inputText: string, outputResume: unknown, mis
 // background) — this can never pressure the model toward the "missing"
 // bucket, so it carries zero fabrication risk. This is re-labeling an
 // already-possessed skill with the employer's own term, not inventing one.
+/** Document evidence only. Kept under its existing exported name for callers;
+ * never blend canonical profile facts or serialize hidden metadata as evidence. */
 export function flattenResumeSkillsAndProse(resume: unknown): string {
   const r = (resume || {}) as Record<string, unknown>;
   const basics = (r.basics || {}) as Record<string, unknown>;
   const parts: string[] = [];
-  if (typeof basics.summary === "string") parts.push(basics.summary);
-  const skills = Array.isArray(r.skills) ? (r.skills as unknown[]).filter((s): s is string => typeof s === "string") : [];
-  parts.push(...skills);
+  const add = (...values: unknown[]) => {
+    for (const value of values) if (typeof value === "string" && value.trim()) parts.push(value);
+  };
+  add(basics.name, basics.title, basics.email, basics.phone, basics.location, basics.summary);
+  if (Array.isArray(basics.links)) for (const link of basics.links) add(link?.url);
+  // The downloaded document renders skillGroups instead of the flat skills
+  // array when groups exist. An omitted, hidden flat skill is not evidence.
+  if (Array.isArray(r.skillGroups) && r.skillGroups.length) {
+    for (const group of r.skillGroups) {
+      add(group?.category);
+      if (Array.isArray(group?.skills)) add(...group.skills);
+    }
+  }
+  // Export also prints flat skills missing from stale presentation groups.
+  if (Array.isArray(r.skills)) add(...r.skills);
   const work = Array.isArray(r.work) ? (r.work as Array<Record<string, unknown>>) : [];
   for (const w of work) {
+    add(w?.title, w?.company, w?.location, w?.start, w?.end || "Present");
     const bullets = Array.isArray(w?.bullets) ? (w.bullets as unknown[]) : [];
     for (const b of bullets) if (typeof b === "string") parts.push(b);
   }
-  const projects = Array.isArray(r.projects) ? (r.projects as Array<Record<string, unknown>>) : [];
-  for (const p of projects) if (typeof p?.description === "string") parts.push(p.description as string);
+  if (Array.isArray(r.certifications)) add(...r.certifications);
+  if (Array.isArray(r.education)) for (const e of r.education) {
+    add(e?.degree, e?.field, e?.school, e?.start, e?.end);
+  }
+  if (Array.isArray(r.projects)) for (const p of r.projects) add(p?.name, p?.url, p?.description);
   return parts.join(" \n ");
 }
 
@@ -1108,11 +1203,37 @@ export function verifyKeywordAlignment(gap: GapAnalysis, outputResume: unknown):
   const hasTermInOutput = (t: string) => {
     const n = norm(t);
     if (!n) return false;
-    return outputText.includes(n.length >= 4 ? n : ` ${n} `);
+    return containsMatchingTerm(outputText, n);
   };
   const gaps: string[] = [];
   for (const req of gap.matched) {
+    // Qualification coverage must not turn a degree/date clause into a skill.
+    if (QUALIFICATION.test(req.text)) continue;
     if (terms(req.text, 1).length > 4) continue;
+    // v3.337.0 — real, live bug: found by actually calling `tailor` end to
+    // end and reading the output resume, not just reading this code. A
+    // requirement like "Experience with Python for building data
+    // pipelines" is a full sentence, but three of its seven words
+    // ("experience", "with", "for") are in STOP, so it reduces to exactly
+    // 4 real terms — right at the >4 cutoff above, so it wasn't skipped,
+    // and this function's whole job downstream (index.ts's own tailorObj.
+    // skills = [...skills, ...toGuarantee]) is to append whatever survives
+    // here VERBATIM into the resume's skills array. The result: a skills
+    // section entry reading as a run-on JD sentence, not an atomic term —
+    // exactly the shape of thing that reads badly to a human reviewer and
+    // to any ATS parser expecting a skills LIST, not prose. The stopword-
+    // filtered term count was never meant to be a proxy for "is this a
+    // full sentence" on its own — a raw length floor catches what it
+    // misses. Every real short atomic term this function exists to
+    // guarantee (PostgreSQL, Kubernetes, CI/CD pipeline, distributed
+    // systems design) comfortably clears real use under 35 characters;
+    // nothing is lost by skipping longer ones here, since the underlying
+    // short skill (e.g. "Python") already exists in skills independently
+    // whenever this fallback would otherwise have fired — this function
+    // only guarantees the LITERAL matched requirement text, never the
+    // short term extracted from it, so a long one was never safe to
+    // guarantee verbatim in the first place.
+    if (req.text.length > 35) continue;
     if (!hasTermInOutput(req.text)) gaps.push(req.text);
   }
   return gaps.slice(0, 8);
@@ -1186,6 +1307,7 @@ export function verifyProseQuality(text: string, checkPronouns = true, missingRe
 /** One retry note covering every violation found, so a single retry call
  * can fix all of them at once rather than one round trip per rule. */
 export function violationsToRetryNote(violations: WriteViolation[]): string {
+  const invented = violations.filter(v => v.kind === 'invented_figure').map(v => v.detail);
   const figures = violations.filter((v) => v.kind === "figure").map((v) => v.detail);
   const phrases = Array.from(new Set(violations.filter((v) => v.kind === "banned_phrase").map((v) => v.detail)));
   const hasPronoun = violations.some((v) => v.kind === "pronoun");
@@ -1194,6 +1316,7 @@ export function violationsToRetryNote(violations: WriteViolation[]): string {
   const gapClaims = Array.from(new Set(violations.filter((v) => v.kind === "gap_claim").map((v) => v.detail)));
   const keywordGaps = Array.from(new Set(violations.filter((v) => v.kind === "keyword_gap").map((v) => v.detail)));
   const notes: string[] = [];
+  if (invented.length) notes.push(`- Added unsupported figures: ${invented.join(', ')}. Remove them; use only figures in the supplied candidate evidence.`);
   if (figures.length) notes.push(`- Dropped or altered these figures: ${figures.slice(0, 30).join(", ")}. Include every one of them, unchanged, in the bullet it belongs to.`);
   if (phrases.length) notes.push(`- Used a banned phrase: "${phrases.join('", "')}". Rewrite that line without it.`);
   if (hasPronoun) notes.push(`- Used a first-person pronoun ("I", "me", "my", or "we"). Rewrite in implied third person.`);

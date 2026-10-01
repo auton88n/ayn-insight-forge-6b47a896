@@ -14,7 +14,7 @@ interface SEOProps {
 }
 
 const SITE_URL = 'https://ayn.careers';
-const DEFAULT_IMAGE = 'https://ayn.careers/og-image.png?v=2';
+const DEFAULT_IMAGE = 'https://ayn.careers/og-image.jpg';
 
 export const SEO = ({
   title,

@@ -1,0 +1,25 @@
+-- v3.361.0 -- security pass finding, reproduced live before this migration
+-- was written: reveal_update_own_candidate let a candidate directly PATCH
+-- their own reveal_requests row via raw PostgREST, with no column
+-- restriction. Confirmed exploitable: a real throwaway account granted
+-- itself two_way_enabled = true and candidate_blocked = false on a row
+-- seeded with the opposite values, completely bypassing the employer-only
+-- inbox_set_two_way / inbox_block_candidate actions (both correctly gated
+-- on assertOrgMember in resume-hub/index.ts) -- letting a candidate open
+-- messaging to themselves and un-block themselves at will, and (a related,
+-- lower-severity variant of the same root cause) rewrite org_id to point
+-- their own proposal at a different, arbitrary org.
+--
+-- Checked before dropping, not assumed safe: grepped every frontend call
+-- site for a direct `.from('reveal_requests').update(...)` -- zero results.
+-- Every real candidate-driven write (reveal_decide's own status/decided_at
+-- update) already goes through resume-hub's service-role client, which
+-- bypasses RLS entirely and enforces its own correct ownership check
+-- (`.eq("candidate_user_id", userId)`) in code. This policy had no
+-- legitimate caller left; it existed purely as an exploitable bypass
+-- around the edge function's own authorization.
+--
+-- reveal_select_own_candidate (SELECT) is untouched -- a candidate reading
+-- their own proposal row is legitimate and was never the vulnerability.
+
+drop policy if exists reveal_update_own_candidate on public.reveal_requests;

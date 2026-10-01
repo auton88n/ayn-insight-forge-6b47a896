@@ -8,13 +8,14 @@
  * static claim on a document and nothing more — a real, ongoing checklist
  * of what to actually go learn before an interview happens.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, GraduationCap, CheckCircle2, Circle, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { companyAvatar } from "./BrowseJobs";
+import { companyAvatar } from "@/lib/jobPostingFormat";
 
 type Row = {
   id: string;
@@ -26,25 +27,47 @@ type Row = {
   learned_at: string | null;
 };
 
+// v3.316.0 — asked directly: when a skill is missing, show a real
+// suggestion for a course that could help. Never a specific invented
+// course title or provider (see BrowseJobs.tsx's own resolveLogoUrl
+// history — this app's standing rule is code decides facts, never a
+// guess dressed up as a real thing), so this is a plain, always-valid
+// search link for the exact skill name already on the row, not a claim
+// that any particular course exists.
+function courseSearchUrl(skill: string): string {
+  return `https://www.coursera.org/search?query=${encodeURIComponent(skill)}`;
+}
+
 type Group = { key: string; job_title: string | null; company: string | null; rows: Row[] };
 
 export default function SkillsToLearnTab({ userId, onOpenJob }: { userId: string; onOpenJob?: (jobId: string) => void }) {
   const { toast } = useToast();
-  const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState<Record<string, boolean>>({});
 
-  const load = useCallback(async () => {
-    const { data } = await supabase
-      .from("skills_to_learn")
-      .select("id, job_id, job_title, company, skill, added_at, learned_at")
-      .eq("user_id", userId)
-      .order("added_at", { ascending: false });
-    setRows((data as Row[]) || []);
-    setLoading(false);
-  }, [userId]);
-
-  useEffect(() => { load(); }, [load]);
+  // Reported directly: switching tabs and coming back feels slow, every
+  // time, on every tab. Confirmed live: this whole file re-fetched from
+  // scratch on every remount, with nothing remembered -- leave this tab,
+  // come back a moment later, same loading flash, same round trip, even
+  // though nothing changed. Same fix across every account tab: read
+  // through the app's own query cache (already proven correct for public
+  // job browsing) instead of a raw useEffect + local state with no memory.
+  // A remount within the cache's freshness window now renders the last
+  // known rows instantly, no spinner, while a genuinely first visit (or
+  // one past the freshness window) still fetches for real.
+  const queryKey = ["skills-to-learn", userId] as const;
+  const { data: rows = [], isLoading: loading } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("skills_to_learn")
+        .select("id, job_id, job_title, company, skill, added_at, learned_at")
+        .eq("user_id", userId)
+        .order("added_at", { ascending: false });
+      if (error) throw error;
+      return (data as Row[]) || [];
+    },
+  });
 
   const toggleLearned = async (row: Row) => {
     setBusy(b => ({ ...b, [row.id]: true }));
@@ -53,7 +76,9 @@ export default function SkillsToLearnTab({ userId, onOpenJob }: { userId: string
     if (error) {
       toast({ title: "Couldn't update that", description: error.message, variant: "destructive" });
     } else {
-      setRows(prev => prev.map(r => r.id === row.id ? { ...r, learned_at: nextLearnedAt } : r));
+      queryClient.setQueryData<Row[]>(queryKey, (prev) =>
+        (prev ?? []).map(r => (r.id === row.id ? { ...r, learned_at: nextLearnedAt } : r))
+      );
     }
     setBusy(b => ({ ...b, [row.id]: false }));
   };
@@ -124,24 +149,42 @@ export default function SkillsToLearnTab({ userId, onOpenJob }: { userId: string
           </div>
           <div className="space-y-1.5">
             {g.rows.map(r => (
-              <button
+              <div
                 key={r.id}
-                type="button"
-                disabled={busy[r.id]}
-                onClick={() => toggleLearned(r)}
-                className="w-full flex items-center gap-2.5 text-left rounded-lg px-2.5 py-2 transition-colors"
+                className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors"
                 style={{ background: r.learned_at ? "transparent" : "var(--rh-tint)" }}
               >
-                {r.learned_at
-                  ? <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "var(--rh-trust, #0f9d6b)" }} />
-                  : <Circle className="w-4 h-4 shrink-0" style={{ color: "var(--rh-muted)" }} />}
-                <span
-                  className="text-sm flex-1"
-                  style={r.learned_at ? { color: "var(--rh-muted)", textDecoration: "line-through" } : undefined}
+                <button
+                  type="button"
+                  disabled={busy[r.id]}
+                  onClick={() => toggleLearned(r)}
+                  className="flex items-center gap-2.5 text-left flex-1 min-w-0"
                 >
-                  {r.skill}
-                </span>
-              </button>
+                  {r.learned_at
+                    ? <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "var(--rh-trust, #0f9d6b)" }} />
+                    : <Circle className="w-4 h-4 shrink-0" style={{ color: "var(--rh-muted)" }} />}
+                  <span
+                    className="text-sm truncate"
+                    style={r.learned_at ? { color: "var(--rh-muted)", textDecoration: "line-through" } : undefined}
+                  >
+                    {r.skill}
+                  </span>
+                </button>
+                {/* v3.316.0 — a real, always-valid search link, not a claim
+                    a specific course exists. Only shown while the skill is
+                    still unlearned; nothing left to suggest once it's checked off. */}
+                {!r.learned_at && (
+                  <a
+                    href={courseSearchUrl(r.skill)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs shrink-0 whitespace-nowrap"
+                    style={{ color: "var(--rh-accent-2)" }}
+                  >
+                    Find a course <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
             ))}
           </div>
         </Card>

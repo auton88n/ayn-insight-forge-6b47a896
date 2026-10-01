@@ -34,12 +34,32 @@ const OFF_PLATFORM_PHRASES = [
   "message me on", "add me on", "find me on",
 ];
 
-const PHONE_RE = /(?:\+?\d[\s.-]?){9,15}/;
+// v3.361.0 — both tightened after a real security pass found live,
+// natural-phrasing bypasses of the original patterns, verified in a
+// synthetic test before and after: "(555) 123-4567" (parens as a
+// separator, an ordinary way to write a US number) and "555.123.4567"
+// both slipped through the old `[\s.-]?` (one optional separator char)
+// since a run of two separator characters in a row — ") " between the
+// area code and the rest — broke the digit run below the 9-digit floor.
+// `[\s.()-]{0,2}` allows up to two separator characters per digit,
+// enough for "(555) " without opening this up to false-positive on
+// ordinary prose containing scattered digits (checked directly: "12
+// regions... 45%... 6 teams" style sentences still pass clean, since a
+// letter anywhere between two digit groups still breaks the run).
+const PHONE_RE = /(?:\+?\d[\s.()-]{0,2}){9,15}/;
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 // http(s) URLs and bare domain-shaped tokens (e.g. "meet.google.com" typed
 // without a scheme) — both get the same allowlist check.
 const URL_RE = /\bhttps?:\/\/[^\s]+/gi;
-const BARE_DOMAIN_RE = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)+\.[a-z]{2,}\b/gi;
+// v3.361.0 — was `(?:\.[a-z0-9-]+)+` (required 2+ dots), which meant an
+// ordinary two-part domain typed with no scheme at all — "calendly.com",
+// "bit.ly", "zoom.us" — was never checked as a domain in the first place,
+// the single most damaging gap found, since it defeated this file's own
+// stated "block every link outright" design on completely ordinary
+// phrasing, not an obscure attack. `*` (zero or more) instead of `+`
+// lowers the minimum shape to word.tld; verified this doesn't newly
+// flag "e.g.", "Ph.D", "v2.0", or a decimal like "3.5x" as a domain.
+const BARE_DOMAIN_RE = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/gi;
 
 export interface ScreeningResult {
   ok: boolean;

@@ -1,0 +1,31 @@
+-- v3.361.0 -- CRITICAL, found in the same security pass as the
+-- reveal_requests fix, same root cause, worse blast radius. Reproduced
+-- live before this migration was written: "employer updates own account
+-- non-status" let an employer PATCH ANY column on their own
+-- employer_accounts row directly via PostgREST, including status itself
+-- -- the policy's own name promised a restriction ("non-status") that was
+-- never actually enforced anywhere, not by this policy, not by a trigger.
+--
+-- Confirmed live, full chain: signed up a genuine, brand-new employer
+-- account (real starting status: pending_approval, never touched by an
+-- admin), PATCHed status to 'approved' directly, then called the real
+-- employer_org_create action and it succeeded -- a completely unvetted
+-- account created a real org and would, from that point on, search the
+-- real candidate pool and send real proposals. This is a full, live
+-- bypass of the admin approval queue, the one gate this app's own
+-- history treats as the single most load-bearing check on the employer
+-- side ("Approve is the only gate into the pool"). The v3.130.0 fix
+-- (isApprovedEmployer() added to assertOrgMember/employer_org_create)
+-- only ever closed the edge-function-level path -- it reads this exact
+-- status column, so tampering with the column directly satisfies that
+-- check rather than needing to bypass it.
+--
+-- Checked before dropping, not assumed safe: grepped every frontend call
+-- site for a direct `.from('employer_accounts').update(...)` -- zero
+-- results, only .select() calls (EmployerPending.tsx, useUserRole.ts).
+-- The one real write path (admin_employer_approve/decline) already goes
+-- through resume-hub's service-role client, which bypasses RLS entirely
+-- and is completely unaffected by dropping this policy. Nothing
+-- legitimate used it.
+
+drop policy if exists "employer updates own account non-status" on public.employer_accounts;

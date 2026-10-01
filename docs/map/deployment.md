@@ -1,6 +1,28 @@
 # Deployment & VPS operations
 
+## September release status
+
+The implemented batch shipped on 25 September 2026 as `f1abd5bb`, after both migrations below were applied transactionally. Production checkout and deployed-revision marker match. Live checker HTML/new bundle and a synthetic public API request passed; edge container healthy. Backup: `/root/ayn-release-backup.5BOuUe`, containing `app-before.tgz` (old `dist`, `resume-hub`, `_shared`, `resend-inbound-webhook`) and `schema-before.sql`. Prior revision: `1d40e5eb`. Restore archive entries to their respective frontend/functions roots, not a common directory. Additive SQL functions need not be dropped for code rollback. No production account was charged by smoke checks.
+
+CI browser tests initially failed because no `.env` is present on GitHub; `playwright.local.config.ts` now injects a synthetic key and `.invalid` backend URL while all external requests remain blocked/mocked. This is test configuration, not production configuration. Full signup/payment staging verification and the unchecked workboard scope remain outstanding. The following paragraphs record original release prerequisites, now applied for this batch.
+
+Apply both `20260923090000_atomic_primary_resume_save.sql` and `20260925090000_atomic_paid_base_resume.sql` before deploying the frontend/backend batch. Include `resume-hub/lib/paidBaseResume.ts` in the deployed function directory. The second migration changes billing completion for base generation/optimization; verify in staging that a dropped response leaves a saved version and exactly one debit, and that a retry remains free of additional debit. Local SQL tests use a billing fixture, not the deployed credit function. Do not deploy this dependency partially.
+
+Full scope and release gates are tracked in `docs/release-readiness.md`. The frontend requires `20260923090000_atomic_primary_resume_save.sql` before deployment. Do not ship the frontend first. Current changes remain local; read-only VPS health, webhook-secret presence and schema metadata checks are not deployment verification. Request-scoped AI context also requires a Deno-runtime test before release.
+
+Local verification commands: `npx tsc --noEmit -p tsconfig.app.json`, `npm run test:unit`, `node scripts/check-wiring.mjs`, `npm run build`, and `npx playwright test -c playwright.local.config.ts`. The browser suite blocks external traffic and uses fixtures, so it cannot validate real signup, Stripe test-mode payments or production data isolation. Those require an isolated staging backend and configured payment test environment.
+
+## Dependency security update — 21 September 2026
+
+The npm lockfile updates Vite 6.4.1 to 6.4.3, baseline-browser-mapping 2.10.36 to 2.11.25, browserslist 4.28.2 to 4.29.0, js-yaml 4.3.1 to 4.3.2, and three-stdlib's nested fflate 0.6.10 to 0.6.11. Browserslist's supporting data packages also update to satisfy its new requirements. These compatible updates address the five npm audit findings reported during the Admin cleanup deployment; no major-version upgrade or dependency override is required. The resolved lockfile reports zero known npm audit vulnerabilities. Deploy the lockfile through the official build process below so the VPS uses the patched versions too.
+
 AYN is self-hosted on a Hostinger VPS (Ubuntu, Docker Compose), not Lovable Cloud and not Supabase's own hosted platform. This file is the "how do I actually ship a change" reference — read it before touching the VPS directly. It's a companion to `blueprint.md` (what to touch for a given kind of change), not a replacement for it.
+
+## Visitor tracking and the retired Autofill system
+
+AYN Autofill was fully retired on 19 September 2026. A deploy that contains this retirement must apply `20260919110000_retire_autofill_add_visitor_tracking.sql` and `20260919120000_fix_visitor_tracking_sql_validation.sql`, copy the new `visitor-track/` function into the functions volume, and add it to `/root/auto_deploy.sh`'s explicit function list before the next full deploy. Remove `form-intel-bridge/` and `form-intel-retrain/` from that script and the functions volume; do not leave a callable retired endpoint behind. The Chrome-extension directory and its zip are intentionally absent from the repo.
+
+The replacement is only consented first-party page-view measurement. It is documented in `docs/map/analytics.md`; do not reintroduce a client-side direct INSERT policy on `visitor_analytics`.
 
 ## The box
 

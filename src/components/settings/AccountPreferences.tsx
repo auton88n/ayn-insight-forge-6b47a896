@@ -16,7 +16,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { HOME_TAB_HANDOFF_KEY } from '@/components/landing/HomeTabs';
+import { HOME_TAB_HANDOFF_KEY } from '@/components/landing/homeTabMeta';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
 import { billingApi, type SeekerBilling, type EmployerBilling } from '@/lib/billing';

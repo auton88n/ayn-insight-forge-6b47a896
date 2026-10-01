@@ -1,8 +1,9 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -11,52 +12,25 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 
 import { PageLoader } from "@/components/ui/page-loader";
 // Skeleton layouts removed — using PageLoader for all route fallbacks
-import { ErrorBoundary, isStaleChunkError } from "@/components/shared/ErrorBoundary";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
 import { ScrollToTop } from "@/components/shared/ScrollToTop";
-// v3.34.0 — visitor tracking removed. It posted to an edge function that was
-// deleted in v3.21.0, so every page view was a failed request.
+import { VisitorTracker } from "@/components/shared/VisitorTracker";
+// Eager, not lazy — this component's whole job is stashing a tab name in
+// sessionStorage and immediately <Navigate>-ing to "/". Loading it as its
+// own code-split chunk meant every visit to /pricing, /contact, /help,
+// /about, /support and /resume-hub paid for TWO separate chunk fetches and
+// TWO Suspense-fallback flashes back to back (this chunk, then Index's own)
+// for something that reads as one click to the person doing it. It also
+// doubled the odds of landing on a stale chunk right after a deploy, since
+// there were two separate lazy imports in the chain instead of one. It has
+// no heavy imports of its own (homeTabMeta.ts is a few dozen lines of
+// types), so bundling it eagerly costs nothing real.
+import { HomeTabRedirect } from "@/components/landing/HomeTabRedirect";
 
 import { HelmetProvider } from 'react-helmet-async';
 
-// Warm only the routes used inside the dashboard. Preloading the whole site
-// caused script/network contention and made page-to-page movement feel laggy.
-function PreloadRoutes() {
-  useEffect(() => {
-    // A failed warm-up here used to be a silent, uncaught promise
-    // rejection — it never reaches React's render cycle, so the
-    // ErrorBoundary that recovers from this exact failure on a real
-    // navigation could never see it happen here first. Since a stale
-    // chunk on a background preload means the WHOLE app is running on a
-    // build the server has already moved past (not just this one route),
-    // reload once now — proactively, before the user ever hits it as a
-    // stuck loading screen on a real click.
-    const warm = (mod: () => Promise<unknown>) => {
-      mod().catch((e: unknown) => {
-        const message = e instanceof Error ? e.message : String(e);
-        if (!isStaleChunkError(message)) return;
-        try {
-          if (sessionStorage.getItem('ayn_auto_reload_stale_chunk')) return;
-          sessionStorage.setItem('ayn_auto_reload_stale_chunk', '1');
-          window.location.reload();
-        } catch { /* sessionStorage unavailable — not worth reloading blind */ }
-      });
-    };
-    const preload = () => {
-      // Warm chunks for the routes users actually click between, so
-      // navigations don't flash the Suspense PageLoader.
-      warm(() => import('./pages/Settings'));
-    };
-    const idleId = 'requestIdleCallback' in window
-      ? window.requestIdleCallback(preload, { timeout: 3000 })
-      : globalThis.setTimeout(preload, 3000);
-    return () => {
-      if ('cancelIdleCallback' in window) window.cancelIdleCallback(idleId as number);
-      else globalThis.clearTimeout(idleId as number);
-    };
-  }, []);
-  return null;
-}
+// Load account routes on navigation, not during anonymous page startup.
 
 // Lazy load all route pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
@@ -82,14 +56,12 @@ const SalaryGuidePage = lazy(() => import("./pages/SalaryGuide"));
 // const AutomationApply = lazy(() => import("./pages/services/AutomationApply"));
 // const Ticketing = lazy(() => import("./pages/services/Ticketing"));
 // const TicketingApply = lazy(() => import("./pages/services/TicketingApply"));
-const HomeTabRedirect = lazy(() => import("./components/landing/HomeTabRedirect").then(m => ({ default: m.HomeTabRedirect })));
 const Billing = lazy(() => import("./pages/Billing"));
 const SubscriptionSuccess = lazy(() => import("./pages/SubscriptionSuccess"));
 const SubscriptionCanceled = lazy(() => import("./pages/SubscriptionCanceled"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const DoNotSell = lazy(() => import("./pages/DoNotSell"));
-const Autofill = lazy(() => import("./pages/Autofill"));
 // v3.32.0 — every other legal document is the same renderer with a different slug.
 const LegalIndex = lazy(() => import("./pages/LegalIndex"));
 const LegalDoc = lazy(() => import("./components/legal/LegalPage"));
@@ -111,6 +83,22 @@ const queryClient = new QueryClient({
   },
 });
 
+// The account tabs (Profile, Saved jobs, Proposals, Assessments, Skills to
+// learn) were moved onto this same query cache to stop them refetching
+// from scratch on every tab switch -- see each file's own comment on that.
+// That reintroduces a real, narrow risk this app hasn't had before: the
+// cache is one instance for the whole tab's lifetime, not torn down on
+// sign-out. Six separate places in this app call supabase.auth.signOut()
+// directly (AdminPanel, PrivacySettings, EmployerSidebar, SeekerSidebar,
+// EmployerPending, Billing) -- rather than patch all six, one module-level
+// listener here, registered once for the app's whole lifetime the same way
+// Index.tsx's own auth cache already is, so a same-tab sign-out followed by
+// a different account signing back in can never render a moment of the
+// previous person's cached data before it revalidates.
+supabase.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT') queryClient.clear();
+});
+
 const AnimatedRoutes = () => {
   const location = useLocation();
   
@@ -129,14 +117,14 @@ const AnimatedRoutes = () => {
       <Route path="/dashboard/*" element={<Navigate to="/" replace />} />
       {/* Fast routes - no animation wrapper */}
       <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
-      <Route path="/pricing" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="pricing" /></Suspense>} />
+      <Route path="/pricing" element={<HomeTabRedirect tab="pricing" />} />
 
       <Route path="/billing" element={<Suspense fallback={<PageLoader />}><Billing /></Suspense>} />
       <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>} />
 
 
 
-      <Route path="/contact" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="contact" /></Suspense>} />
+      <Route path="/contact" element={<HomeTabRedirect tab="contact" />} />
       <Route path="/check-resume" element={<Suspense fallback={<PageLoader />}><CheckResumePage /></Suspense>} />
       <Route path="/jobs" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
       <Route path="/jobs/category/:category" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
@@ -152,20 +140,19 @@ const AnimatedRoutes = () => {
           jobs, Proposals, Assessments and Settings are now real tabs inside
           the same sidebar every other page uses (AccountTabs.tsx). Old
           links/bookmarks still work, they just land on the unified page now. */}
-      <Route path="/resume-hub" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="saved-jobs" /></Suspense>} />
-      <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="saved-jobs" /></Suspense>} />
+      <Route path="/resume-hub" element={<HomeTabRedirect tab="saved-jobs" />} />
+      <Route path="/resume-hub/*" element={<HomeTabRedirect tab="saved-jobs" />} />
       <Route path="/employer/pending" element={<Suspense fallback={<PageLoader />}><EmployerPending /></Suspense>} />
       <Route path="/employers" element={<Suspense fallback={<PageLoader />}><Employers /></Suspense>} />
-      <Route path="/help" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="help" /></Suspense>} />
-      <Route path="/support" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="help" /></Suspense>} />
-      <Route path="/about" element={<Suspense fallback={<PageLoader />}><HomeTabRedirect tab="about" /></Suspense>} />
+      <Route path="/help" element={<HomeTabRedirect tab="help" />} />
+      <Route path="/support" element={<HomeTabRedirect tab="help" />} />
+      <Route path="/about" element={<HomeTabRedirect tab="about" />} />
       <Route path="/approval-result" element={<ApprovalResult />} />
       <Route path="/subscription-success" element={<SubscriptionSuccess />} />
       <Route path="/subscription-canceled" element={<SubscriptionCanceled />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/do-not-sell" element={<Suspense fallback={<PageLoader />}><DoNotSell /></Suspense>} />
-      <Route path="/autofill" element={<Suspense fallback={<PageLoader />}><Autofill /></Suspense>} />
       <Route path="/legal" element={<Suspense fallback={<PageLoader />}><LegalIndex /></Suspense>} />
       <Route path="/cookies" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="cookies" /></Suspense>} />
       <Route path="/security" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="security" /></Suspense>} />
@@ -200,9 +187,9 @@ const App = () => {
                     <OfflineBanner />
                     <Toaster />
                     <Sonner />
-                    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                    <BrowserRouter>
                       <ScrollToTop />
-                      <PreloadRoutes />
+                      <VisitorTracker />
                       <ErrorBoundary>
                         <Suspense fallback={<PageLoader />}>
                           <AnimatedRoutes />

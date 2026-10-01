@@ -7,6 +7,31 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 import { json } from "./utils.ts";
 
 // ─────────────────────────────────────────────────────────────
+// Sept 2026 security review — security_logs had exactly one writer
+// (admin-auth-pin) in the whole app; resume-hub, which handles nearly
+// every real action, wrote nothing to it at all. A real-time trigger on
+// that table (notify_security_alert) already exists and already alerts on
+// high/critical rows, so the missing piece was never the alerting
+// mechanism, it was resume-hub never producing rows for it to see. This
+// is the one shared writer every new call site below uses — best effort,
+// same pattern admin-auth-pin's own log() already established, since a
+// logging failure must never break the actual request it's describing.
+export async function logSecurityEvent(
+  admin: SupabaseClient<any, any, any>,
+  userId: string | null,
+  action: string,
+  severity: "low" | "medium" | "high" | "critical",
+  details: Record<string, unknown> = {},
+  ipAddress: string | null = null,
+): Promise<void> {
+  try {
+    await admin.from("security_logs").insert({ user_id: userId, action, severity, details, ip_address: ipAddress });
+  } catch (e) {
+    console.error("security_logs insert failed", (e as Error).message);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // v3.24.0 MAINTENANCE SWITCHES
 // The admin panel writes system_config.feature_flags. Every action that
 // spends money or touches the marketplace asks here first, so turning a
@@ -97,10 +122,6 @@ export const ACTION_CAPABILITY: Record<string, AccountCapability> = {
   tailor: "ai",
   cover_letter: "ai",
   score: "ai",
-  application_answer_match: "ai",
-  auto_apply_extract: "ai",
-  auto_apply_classify_widgets: "ai",
-  auto_apply_fill: "ai",
 };
 
 export const RESTRICTION_MESSAGE: Record<AccountCapability, string> = {
@@ -109,6 +130,21 @@ export const RESTRICTION_MESSAGE: Record<AccountCapability, string> = {
   assessments: "Assessments are switched off for this account by an administrator.",
   ai: "AI features are switched off for this account by an administrator.",
 };
+
+type LegalVersions = { terms_version: string; privacy_version: string };
+let legalVersionsCache: { at: number; versions: LegalVersions | null } | null = null;
+
+async function requiredLegalVersions(admin: SupabaseClient<any, any, any>): Promise<LegalVersions | null> {
+  if (legalVersionsCache && Date.now() - legalVersionsCache.at < 30_000) return legalVersionsCache.versions;
+  const { data, error } = await admin.from("system_config").select("value").eq("key", "legal_versions").maybeSingle();
+  const value = !error ? (data as { value?: unknown } | null)?.value : null;
+  const candidate = value && typeof value === "object" ? value as Partial<LegalVersions> : null;
+  const versions = candidate && typeof candidate.terms_version === "string" && typeof candidate.privacy_version === "string"
+    ? { terms_version: candidate.terms_version, privacy_version: candidate.privacy_version }
+    : null;
+  legalVersionsCache = { at: Date.now(), versions };
+  return versions;
+}
 
 /** True when this person cannot appear in the talent pool. */
 export async function discoveryRestriction(
@@ -136,14 +172,25 @@ export async function accountGate(
   userId: string,
   action: string,
 ): Promise<Response | null> {
-  const [{ data: susp }, { data: restrictions }] = await Promise.all([
+  // This is intentionally allowed through so the only action that records a
+  // new acceptance remains available to a person who is otherwise blocked.
+  if (action === "legal_consent_record") return null;
+
+  const [requiredVersions, { data: susp }, { data: restrictions }, { data: consents }] = await Promise.all([
+    requiredLegalVersions(admin),
     admin.from("account_suspensions")
       .select("reason, until, suspended_at").eq("user_id", userId).eq("active", true).maybeSingle(),
     admin.from("account_restrictions").select("capability, reason").eq("user_id", userId),
+    admin.from("terms_consent_log")
+      .select("terms_version, privacy_version, terms_accepted, privacy_accepted")
+      .eq("user_id", userId)
+      .order("accepted_at", { ascending: false })
+      .limit(1),
   ]);
 
   if (susp) {
     const until = (susp as { until?: string }).until;
+    await logSecurityEvent(admin, userId, "suspended_account_attempt", "medium", { action });
     return json({
       code: "account_suspended",
       error: "account_suspended",
@@ -153,6 +200,25 @@ export async function accountGate(
         ? `This account is suspended until ${new Date(until).toLocaleDateString("en-CA")}. Contact support if you think this is wrong.`
         : "This account is suspended. Contact support if you think this is wrong.",
     }, 403);
+  }
+
+  if (requiredVersions) {
+    const latest = (consents || [])[0] as {
+      terms_version?: string | null; privacy_version?: string | null;
+      terms_accepted?: boolean | null; privacy_accepted?: boolean | null;
+    } | undefined;
+    const current = latest?.terms_accepted === true && latest?.privacy_accepted === true
+      && latest.terms_version === requiredVersions.terms_version
+      && latest.privacy_version === requiredVersions.privacy_version;
+    if (!current) {
+      return json({
+        code: "legal_reaccept_required",
+        error: "legal_reaccept_required",
+        terms_version: requiredVersions.terms_version,
+        privacy_version: requiredVersions.privacy_version,
+        message: "Please review and accept the updated Privacy Policy before continuing.",
+      }, 451);
+    }
   }
 
   const needed = ACTION_CAPABILITY[action];
@@ -168,6 +234,36 @@ export async function accountGate(
   }, 403);
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// Sept 2026 security review, found by the post-push review: a 'high'/
+// 'critical' security_logs row fires a real, immediate email via
+// notify_security_alert with zero cooldown of its own. admin_action_denied
+// and org_member_denied are both reachable by an authenticated caller
+// simply retrying a refused action -- with nothing throttling the
+// escalation itself, that caller could flood the founder's inbox on every
+// single retry, the same alert-fatigue risk already fixed once in
+// admin-pin-alert, one layer removed. Reuses check_api_rate_limit (the
+// same sliding-window limiter rateLimitGate already trusts) as a per
+// (user, reason) throttle on the ESCALATION only, never on the record: the
+// event is always logged at the caller's own fallback severity, only the
+// trigger-firing severity is capped to once per window, so a sustained
+// flood still surfaces at the periodic security-alert-check burst layer
+// even though the immediate email is throttled here.
+export async function shouldEscalate(
+  admin: SupabaseClient<any, any, any>,
+  userId: string,
+  alertKey: string,
+  windowMinutes = 15,
+): Promise<boolean> {
+  const { data, error } = await admin.rpc("check_api_rate_limit", {
+    p_user_id: userId, p_endpoint: `_alert:${alertKey}`, p_max_requests: 1, p_window_minutes: windowMinutes,
+  });
+  // Fails open toward alerting, not toward silence -- a throttle-check
+  // failure must never be the reason a real incident goes unnoticed.
+  if (error || !data || !data[0]) return true;
+  return (data[0] as { allowed: boolean }).allowed;
+}
 
 // ─────────────────────────────────────────────────────────────
 // v3.131.0 RATE LIMITING — closes a real, previously-documented gap
@@ -192,6 +288,7 @@ export async function rateLimitGate(
   if (error || !data || !data[0]) return null;
   const row = data[0] as { allowed: boolean; retry_after_seconds: number };
   if (row.allowed) return null;
+  await logSecurityEvent(admin, userId, "rate_limited", "medium", { endpoint, max_requests: maxRequests, window_minutes: windowMinutes });
   return json({
     code: "rate_limited",
     error: "rate_limited",

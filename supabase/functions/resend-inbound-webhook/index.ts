@@ -44,13 +44,7 @@ Deno.serve(async (req) => {
   try {
     const rawBody = await req.text();
 
-    // Fails closed once configured, fails open (with a loud warning) until
-    // then — disabling inbound email processing outright before the
-    // founder has actually generated a secret in Resend's dashboard would
-    // be a worse regression than the gap this closes. Set
-    // RESEND_WEBHOOK_SECRET (the "Signing Secret" on Resend's Webhooks
-    // page, starts with whsec_) as a Supabase edge function secret to
-    // switch this to real enforcement.
+    // No inbound message can be accepted without a configured signing key.
     const webhookSecret = Deno.env.get("RESEND_WEBHOOK_SECRET");
     if (webhookSecret) {
       const valid = await verifySvixSignature(req, rawBody, webhookSecret);
@@ -62,11 +56,14 @@ Deno.serve(async (req) => {
         });
       }
     } else {
-      console.warn("RESEND_WEBHOOK_SECRET not configured — inbound webhook is UNVERIFIED, anyone with this URL can inject a fake email");
+      console.error("Inbound webhook disabled: signing secret missing");
+      return new Response(JSON.stringify({ error: "Webhook unavailable" }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const payload = JSON.parse(rawBody);
-    console.log('Resend inbound webhook received:', JSON.stringify(payload).slice(0, 500));
+    console.log('Verified Resend inbound webhook received');
 
     // Resend wraps email fields inside payload.data
     const emailData = payload.data || payload;

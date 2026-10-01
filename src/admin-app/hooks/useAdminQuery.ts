@@ -64,6 +64,7 @@ export const adminKeys = {
   emailAudience: () => [...adminKeys.all, 'emailAudience'] as const,
   termsConsent: () => [...adminKeys.all, 'termsConsent'] as const,
   cookieConsent: () => [...adminKeys.all, 'cookieConsent'] as const,
+  visitorAnalytics: () => [...adminKeys.all, 'visitorAnalytics'] as const,
   rateLimits: () => [...adminKeys.all, 'rateLimits'] as const,
   inbox: () => [...adminKeys.all, 'inbox'] as const,
 } as const;
@@ -128,6 +129,15 @@ export function useAdminCookieConsent() {
     queryKey: adminKeys.cookieConsent(),
     queryFn: () => adminRpc('get_admin_cookie_consent'),
     staleTime: ADMIN_STALE_TIME,
+  });
+}
+
+/** Aggregate-only first-party visitor measurement. No visitor identifiers are returned. */
+export function useAdminVisitorAnalytics() {
+  return useQuery({
+    queryKey: adminKeys.visitorAnalytics(),
+    queryFn: () => adminRpc<any>('get_admin_visitor_analytics'),
+    staleTime: FAST_STALE_TIME,
   });
 }
 
@@ -207,10 +217,14 @@ export const adminV2Keys = {
   candidates: ['admin', 'v2', 'candidates'] as const,
   marketplace: ['admin', 'v2', 'marketplace'] as const,
   money: ['admin', 'v2', 'money'] as const,
+  activationFunnel: ['admin', 'v2', 'activation_funnel'] as const,
 };
 
 export function useAdminOverview() {
   return useQuery({ queryKey: adminV2Keys.overview, queryFn: () => adminRpc<any>('get_admin_overview'), staleTime: FAST_STALE_TIME });
+}
+export function useAdminActivationFunnel() {
+  return useQuery({ queryKey: adminV2Keys.activationFunnel, queryFn: () => adminRpc<any>('get_admin_activation_funnel'), staleTime: ADMIN_STALE_TIME });
 }
 export function useAdminEmployers() {
   return useQuery({ queryKey: adminV2Keys.employers, queryFn: () => adminRpc<any>('get_admin_employers'), staleTime: FAST_STALE_TIME });
@@ -257,6 +271,7 @@ export const adminControlKeys = {
   activityLog: ['admin', 'v2', 'activityLog'] as const,
   emailLog: ['admin', 'v2', 'emailLog'] as const,
   plans: ['admin', 'v2', 'plans'] as const,
+  postHogRecordings: ['admin', 'v2', 'postHogRecordings'] as const,
 };
 
 export function useAdminModeration() {
@@ -364,6 +379,25 @@ export function useAdminEmailLog() {
   return useQuery({
     queryKey: adminControlKeys.emailLog,
     queryFn: () => adminRpc<any>('get_admin_email_log', { p_limit: 150 }),
+    staleTime: FAST_STALE_TIME,
+  });
+}
+
+// v3.360.0 — PostHog session replay, read into the admin panel instead of
+// needing a second login on posthog.com. This one isn't a Postgres RPC —
+// the data lives in PostHog's own database — so it calls the edge function
+// proxy directly rather than going through adminRpc(). Returns
+// {connected: false} rather than throwing when no key is configured yet,
+// so the pane can show a real "not connected" state instead of an error.
+export function useAdminPostHogRecordings() {
+  return useQuery({
+    queryKey: adminControlKeys.postHogRecordings,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('admin-posthog-recordings');
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data as { connected: boolean; recordings: any[] };
+    },
     staleTime: FAST_STALE_TIME,
   });
 }
@@ -522,5 +556,3 @@ export function useAccountGovernanceActions(userId: string | null) {
 
   return { setOverride, clearOverride, erase, purge };
 }
-
-

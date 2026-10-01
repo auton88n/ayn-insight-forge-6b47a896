@@ -66,7 +66,6 @@ export const fr: Record<string, string> = {
   'cta.secondary': 'Explorer les fonctionnalités',
 
   // Footer
-  'footer.copyright': `© ${currentYear} AYN Intelligence. Tous droits réservés.`,
   
   // Mode names
   'modes.general': 'Général',
@@ -453,8 +452,8 @@ export const fr: Record<string, string> = {
   'auth.businessEmail': 'Email Professionnel',
   'auth.phoneNumber': 'Numéro de Téléphone',
   'auth.createPassword': 'Créer un mot de passe sécurisé',
-  'auth.registrationSuccess': 'Compte Créé!',
-  'auth.registrationSuccessDesc': 'Veuillez vérifier votre email. Vous pouvez vous connecter après vérification.',
+  'auth.registrationSuccess': 'Vérifiez votre email',
+  'auth.registrationSuccessDesc': 'Si cette adresse est nouvelle, nous vous avons envoyé un lien pour confirmer votre compte. Vous avez déjà un compte ? Connectez-vous, ou utilisez Mot de passe oublié.',
   'auth.registrationError': 'Erreur d\'Inscription',
   'auth.forgotPassword': 'Mot de passe oublié?',
   'auth.forgotPasswordSending': 'Envoi...',

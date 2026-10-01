@@ -1,42 +1,7 @@
 name: CI
 
-# v3.132.0 - this app's first CI pipeline. Runs on every push and PR so a
-# broken change is caught before Lovable ever builds it live, instead of
-# relying on someone remembering to test manually.
-#
-# Deliberately scoped to what's safe and useful to run unattended on every
-# push:
-#   - tsc only ever covers src/ (tsconfig.app.json's own include list) -
-#     supabase/functions/ has never been in its scope, so this catches
-#     frontend type errors, not edge-function ones.
-#   - check-wiring.mjs catches exactly the class of bug this app has hit
-#     more than once: src/lib/resumeHub.ts and the edge function's own
-#     action names drifting out of sync.
-#   - test:unit is the real jsdom/vitest suite under src/. Marked
-#     continue-on-error below: verified live (real Node 22, not this
-#     sandbox's 20.12) that useFileUpload.test.ts has 12 pre-existing
-#     failing assertions (stale dataTransfer.items fixtures, a removeFile
-#     mismatch) unrelated to anything in this pipeline - most likely stale
-#     test fixtures, not a real product bug, since real browsers always
-#     provide dataTransfer.items. Fixed the one bug that was actually
-#     crashing the whole suite before any test could even run (a vi.mock
-#     hoisting bug - mockSupabase was referenced before its own
-#     initializer, see the test file's own comment). Left the other 12
-#     failures for a dedicated pass rather than block CI on unrelated,
-#     pre-existing debt from day one. Still reports (visible in the Actions
-#     log) - just doesn't fail the run.
-#   - vite build catches a real build-time failure before Lovable's own
-#     build does.
-#
-# Deliberately NOT run here: tests/integration/. That suite calls the real
-# deployed backend with real accounts and costs real AI-gateway calls per
-# run (see tests/integration/README.md) - running it on every push would
-# mean real money and real API calls on every commit, and it would need
-# SUPABASE_SERVICE_ROLE_KEY sitting in GitHub Actions secrets. Run it by
-# hand (npm run test:integration) when that coverage is actually wanted.
-#
-# No untrusted input (issue/PR titles, commit messages, etc.) is
-# interpolated into any run: step below - every step is a fixed command.
+# Required gates: real frontend typecheck, unit tests, wiring, build and high-severity audit.
+# Live integration tests require a separate staging environment and test credentials.
 
 on:
   push:
@@ -63,14 +28,13 @@ jobs:
       - run: npm ci
 
       - name: Type check (src/)
-        run: npx tsc --noEmit
+        run: npx tsc --noEmit -p tsconfig.app.json
 
       - name: Wiring check (hub actions in sync)
         run: node scripts/check-wiring.mjs
 
       - name: Unit tests
         run: npm run test:unit
-        continue-on-error: true
 
       - name: Lint
         # continue-on-error for the same reason as unit tests above: real,
@@ -88,17 +52,12 @@ jobs:
       - name: Build
         run: npm run build
 
-      # v3.133.0 - real dependency scanning on every push, not never.
-      # audit-level=high: don't fail CI on low/moderate noise, only on
-      # high/critical. continue-on-error: true because as of this pass
-      # there are two known, deliberately-unforced findings (esbuild/vite
-      # need a major bump of the build tool itself; react-router needs a
-      # major v6->v7 bump with real breaking API changes) - forcing either
-      # blind is a bigger risk than the finding itself. Dependabot (see
-      # .github/dependabot.yml) is what actually proposes upgrades over
-      # time; this step's job is visibility in the Actions log, not a hard
-      # gate, until those two are deliberately scheduled. No github.event.*
-      # or other untrusted input anywhere in this step - fixed command only.
+      - name: Install browser for local-only smoke tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Local customer journey smoke tests (no production calls)
+        run: npx playwright test -c playwright.local.config.ts
+
+      # High-severity dependency findings block release.
       - name: Dependency vulnerability scan
         run: npm audit --audit-level=high
-        continue-on-error: true

@@ -8,14 +8,15 @@
  * no endpoint on this lane that could return one.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Timer, CheckCircle2, Type } from "lucide-react";
+import { Loader2, Timer, CheckCircle2, Type, ClipboardList } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { assessmentApi, type SeekerAssessment, type StartedAssessment } from "@/lib/assessments";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
-import { companyAvatar } from "./BrowseJobs";
+import { companyAvatar } from "@/lib/jobPostingFormat";
 
 // v3.172.0 — checked assessments against real research on what candidates
 // say about skills tests: a good one "feels collaborative and real," a bad
@@ -159,8 +160,7 @@ function CanvasQuestionText({ text, sampleClassName }: { text: string; sampleCla
 
 export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: number) => void }) {
   const { toast } = useToast();
-  const [rows, setRows] = useState<SeekerAssessment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [active, setActive] = useState<StartedAssessment | null>(null);
   const [idx, setIdx] = useState(0);
   const [draft, setDraft] = useState("");
@@ -173,18 +173,26 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
   // it stays on for the rest of this assessment, not re-asked per question.
   const [accessibleText, setAccessibleText] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
+  // Reported directly, same fix as every other account tab: leaving this
+  // tab and coming back re-fetched every time. Read through the shared
+  // query cache instead. load() used to be called imperatively too, from
+  // inside submit/start/saveAndNext -- those now invalidate the query
+  // instead of calling a bespoke fetch function, same real effect (a
+  // fresh read from the server), consistent with the cache.
+  const queryKey = ["assessments"] as const;
+  const { data: rows = [], isLoading: loading } = useQuery({
+    queryKey,
+    queryFn: async () => {
       const r = await assessmentApi.list();
-      const list = r.assessments || [];
-      setRows(list);
-      onChanged?.(list.filter(a => a.status === "sent" || a.status === "started").length);
-    } catch { setRows([]); }
-    finally { setLoading(false); }
-  }, [onChanged]);
+      return r.assessments || [];
+    },
+  });
+  const refreshRows = useCallback(() => queryClient.invalidateQueries({ queryKey }), [queryClient]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    onChanged?.(rows.filter(a => a.status === "sent" || a.status === "started").length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   const submit = useCallback(async (auto: boolean) => {
     // v3.41.0 — the 1-second countdown tick calls submit(true) again on every
@@ -198,17 +206,17 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
       const r = await assessmentApi.submit(active.id);
       setDone(r.org_name);
       setActive(null);
-      await load();
+      await refreshRows();
       if (auto) toast({ title: "Time is up", description: "Your answers were submitted." });
     } catch (e) {
       toast({ title: "Could not submit", description: (e as Error).message, variant: "destructive" });
       setActive(null);
-      await load();
+      await refreshRows();
     } finally { setBusy(false); }
-  }, [active, busy, load, toast]);
+  }, [active, busy, refreshRows, toast]);
 
   // Server enforced deadline. This countdown is only the visible half of it:
-  // the edge function rejects and auto submits any answer past the deadline.
+  // the edge function rejects any answer submitted after the deadline.
   useEffect(() => {
     if (!active) return;
     const tick = () => {
@@ -238,7 +246,7 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
       setDone(null);
     } catch (e) {
       toast({ title: "Could not open it", description: (e as Error).message, variant: "destructive" });
-      await load();
+      await refreshRows();
     } finally { setBusy(false); }
   };
 
@@ -271,7 +279,7 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
       }
     } catch (e) {
       toast({ title: "Could not save", description: (e as Error).message, variant: "destructive" });
-      await load();
+      await refreshRows();
       setActive(null);
     } finally { setBusy(false); }
   };
@@ -447,10 +455,17 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
       <MaintenanceNotice feature="assessments" />
 
       {loading && <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--rh-faint)" }} />}
+      {/* Brought up to the same shape ProposalsTab/SkillsToLearnTab's own
+          empty states already use (icon, a bold title, a short line on
+          why it's empty and what puts something here) -- this one was a
+          single flat sentence with no icon, visibly lighter-weight than
+          its two siblings on the same nav rail. */}
       {!loading && rows.length === 0 && (
-        <Card className="p-5 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
-          <p className="text-sm" style={{ color: "var(--rh-muted)" }}>
-            Nothing here yet. Assessments arrive from companies that found you in the talent pool.
+        <Card className="p-8 text-center space-y-2 rounded-xl" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+          <ClipboardList className="w-6 h-6 mx-auto" style={{ color: "var(--rh-faint)" }} />
+          <p className="rh-display text-[15px]">No assessments yet</p>
+          <p className="text-xs" style={{ color: "var(--rh-muted)" }}>
+            Assessments arrive from companies that found you in the talent pool, a real way to show what you know, not just claim it.
           </p>
         </Card>
       )}

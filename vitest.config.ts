@@ -12,11 +12,6 @@ export default defineConfig({
     testTimeout: 5000,
     hookTimeout: 5000,
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: false
-      }
-    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

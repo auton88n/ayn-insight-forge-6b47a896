@@ -1,0 +1,13 @@
+.resume-check-page .lp-shell { max-width: 1080px; }
+.resume-check-page h1 { max-width: 21ch; line-height: 1.12; }
+.resume-check-page p { max-width: 72ch; }
+.resume-check-page textarea { background: white; line-height: 1.65; border-color: hsl(var(--lp-border)); }
+.resume-check-page .lp-btn-primary { color: hsl(var(--lp-fg)); }
+.resume-check-review, .resume-check-next { padding-block: 28px; border-top: 1px solid hsl(var(--lp-border)); }
+.resume-check-findings { list-style: none; padding: 0; margin-top: 24px; }
+.resume-check-findings li { padding-block: 20px; border-bottom: 1px solid hsl(var(--lp-border-soft)); }
+.resume-check-findings blockquote { margin: 12px 0; padding-left: 16px; border-left: 3px solid hsl(var(--lp-ember)); overflow-wrap: anywhere; }
+.resume-check-findings p, .resume-check-next p { color: hsl(var(--lp-muted)); line-height: 1.65; }
+.resume-check-next input { margin-top: 5px; accent-color: hsl(var(--lp-fg)); flex-shrink: 0; }
+.resume-check-next button:focus-visible, .resume-check-next input:focus-visible { outline: 2px solid hsl(var(--lp-fg)); outline-offset: 4px; }
+@media (max-width: 640px) { .resume-check-next .lp-btn { width: 100%; white-space: normal; } }
