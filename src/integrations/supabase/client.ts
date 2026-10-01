@@ -10,6 +10,63 @@ import { brokeredPreviewStorage } from './previewAuthStorage';
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 
+// The checked-in generated schema predates these migrations. Keep the client
+// typed without weakening it to `any` until it can be regenerated from the
+// user-managed database. Each addition below mirrors the migration's fields.
+type PublicSchema = Database['public'];
+type Tables = PublicSchema['Tables'];
+type Functions = PublicSchema['Functions'];
+type ExtendTable<T, R, I, U> = Omit<T, 'Row' | 'Insert' | 'Update'> & {
+  Row: T extends { Row: infer V } ? V & R : R;
+  Insert: T extends { Insert: infer V } ? V & I : I;
+  Update: T extends { Update: infer V } ? V & U : U;
+};
+type PostingExtras = {
+  category: string | null; city: string | null; closure_status: string | null;
+  employment_type: string | null; mass_posting_count: number | null;
+  salary_currency: string | null; salary_max: number | null; salary_min: number | null;
+  scam_reason: string | null; scam_suspected: boolean | null;
+  seniority: string | null; skills: string[] | null; work_mode: string | null;
+};
+type JobExtras = { application_status: string; application_status_changed_at: string };
+type VersionExtras = { match_pct: number | null; still_missing: Database['public']['Tables']['resumes']['Row']['content'] };
+type Seen = {
+  Row: { user_id: string; job_posting_id: string; seen_at: string };
+  Insert: { user_id: string; job_posting_id: string; seen_at?: string };
+  Update: { user_id?: string; job_posting_id?: string; seen_at?: string };
+  Relationships: [];
+};
+type SkillToLearn = {
+  Row: { id: string; user_id: string; job_id: string | null; job_title: string | null; company: string | null; skill: string; added_at: string; learned_at: string | null };
+  Insert: { id?: string; user_id: string; job_id?: string | null; job_title?: string | null; company?: string | null; skill: string; added_at?: string; learned_at?: string | null };
+  Update: { id?: string; user_id?: string; job_id?: string | null; job_title?: string | null; company?: string | null; skill?: string; added_at?: string; learned_at?: string | null };
+  Relationships: [];
+};
+type InboxMessage = {
+  Row: { id: string; reveal_request_id: string; sender_role: string; sender_user_id: string | null; kind: string; body: string | null; call_url: string | null; call_scheduled_at: string | null; status: string; block_reason: string | null; read_at: string | null; created_at: string };
+  Insert: { id?: string; reveal_request_id: string; sender_role: string; sender_user_id?: string | null; kind?: string; body?: string | null; call_url?: string | null; call_scheduled_at?: string | null; status?: string; block_reason?: string | null; read_at?: string | null; created_at?: string };
+  Update: { id?: string; reveal_request_id?: string; sender_role?: string; sender_user_id?: string | null; kind?: string; body?: string | null; call_url?: string | null; call_scheduled_at?: string | null; status?: string; block_reason?: string | null; read_at?: string | null; created_at?: string };
+  Relationships: [];
+};
+type CurrentDatabase = Omit<Database, 'public'> & {
+  public: Omit<PublicSchema, 'Tables' | 'Functions'> & {
+    Tables: Omit<Tables, 'job_postings' | 'jobs' | 'resume_versions'> & {
+      job_postings: ExtendTable<Tables['job_postings'], PostingExtras, Partial<PostingExtras>, Partial<PostingExtras>>;
+      jobs: ExtendTable<Tables['jobs'], JobExtras, Partial<JobExtras>, Partial<JobExtras>>;
+      resume_versions: ExtendTable<Tables['resume_versions'], VersionExtras, Partial<VersionExtras>, Partial<VersionExtras>>;
+      job_postings_seen: Seen;
+      skills_to_learn: SkillToLearn;
+      inbox_messages: InboxMessage;
+    };
+    Functions: Functions & {
+      company_hiring_status: { Args: { p_company_slug: string }; Returns: string | null };
+      company_hiring_status_batch: { Args: { p_company_slugs: string[] }; Returns: { company_slug: string; status: string | null }[] };
+      save_primary_resume: { Args: { p_id: string; p_title: string; p_content: Database['public']['Tables']['resumes']['Row']['content']; p_ats_score: number | null; p_ats_issues: Database['public']['Tables']['resumes']['Row']['content'] | null }; Returns: string };
+      job_market_snapshot: { Args: never; Returns: Database['public']['Tables']['resumes']['Row']['content'] };
+    };
+  };
+};
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
@@ -43,7 +100,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 // stale token), the original 401 is returned unchanged, so a real
 // "please sign in again" case still surfaces normally rather than
 // silently retrying forever.
-let clientRef: ReturnType<typeof createClient<Database>> | null = null;
+let clientRef: ReturnType<typeof createClient<CurrentDatabase>> | null = null;
 
 async function fetchWithAuthRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const res = await fetch(input, init);
@@ -68,7 +125,7 @@ async function fetchWithAuthRetry(input: RequestInfo | URL, init?: RequestInit):
   return fetch(input, { ...init, headers });
 }
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+export const supabase = createClient<CurrentDatabase>(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: brokeredPreviewStorage(),
     persistSession: true,
