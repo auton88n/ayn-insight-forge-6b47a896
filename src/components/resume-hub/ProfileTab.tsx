@@ -482,7 +482,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       // Free, silent — so a score is already sitting there next time this
       // person opens the tab, no extra click needed for a fresh upload.
       if (insertedId) {
-        resumeHubApi.diagnose(resume, insertedId)
+        resumeHubApi.diagnose(resume, insertedId ?? undefined)
           .then(d => setPrimaryResume(p => p ? { ...p, ats_score: d.ats_score, ats_issues: d.issues } : p))
           .catch(() => { /* best effort — the manual "Check my resume" button still works */ });
       }
