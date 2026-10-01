@@ -1,27 +1,22 @@
-# Fix the social media share preview
+# Fix what people see when an AYN link is shared
 
-## What is actually wrong
+## What's wrong today
+When someone shares an AYN link (WhatsApp, LinkedIn, Slack, X), the card shows the AYN logo image plus a headline and a short line of text underneath. That text still describes the retired Chrome extension:
 
-The share-preview image (`og-image.png`, 1200x630) is already the AYN brand icon, and both live domains serve the exact same correct file today. The tags in `index.html` and `SEO.tsx` already point at it.
+- Headline: "Stop sending the same resume to every job"
+- Line under it: "Open a posting, hit AYN, and get a one page resume and cover letter written for that role from your own history. Free to start."
 
-So the image is not the problem. What keeps showing an old preview:
+"Open a posting, hit AYN" was the extension flow, which no longer exists. The image itself has no text on it, so only these two lines need changing.
 
-1. **Crawler cache.** WhatsApp, LinkedIn, X, Slack, iMessage store the first preview they ever fetched for a URL and keep showing it until the image URL itself changes.
-2. **Publish state.** The live URL serves the last published build. If the icon-based share image has not been published since it was made, the live page still serves whatever came before it.
+## New text (proposed, editable)
+- Headline: "AYN: real jobs, and a resume tailored to each one"
+- Line under it: "Browse jobs straight from company career pages, no ghost listings. See how well you match, then get a resume and cover letter written for that role from your real history. Free to start."
 
-## The fix (small, frontend only)
+No dashes, matching the site's writing rule.
 
-1. In `index.html`: change the `og:image` and `twitter:image` URLs from `?v=3` to a fresh cache-buster `?v=4`.
-2. In `src/components/shared/SEO.tsx`: change `DEFAULT_IMAGE` from `?v=3` to `?v=4` the same way, so every page's share tags pick it up.
-3. No image regeneration, no new asset: the existing icon image is correct and verified.
+## What changes
+- `index.html`: replace `og:title`, `twitter:title`, `og:description`, `twitter:description` with the new text, and bump the image cache tag (`?v=3` to `?v=4`) so platforms refetch the card.
+- `src/components/shared/SEO.tsx`: bump the same `?v=3` default image tag to `?v=4` so per-page previews stay in step.
 
-## After the code change
-
-- The change reaches the live URL only on the next **publish**. Nothing changes at the shared link until then.
-- After publishing, platforms may still show their cached copy for a while. Force a fresh scrape with each platform's own link-preview debugger (LinkedIn Post Inspector, X Card Validator, or re-pasting in WhatsApp) to see the icon immediately.
-
-## Verification
-
-- Confirm the served image at the new `?v=4` URL is the icon image (HTTP 200, 1200x630).
-- Confirm no duplicate og:image tags in the built page head.
-- Publish is required for the live link preview to update; that step is the user's one click.
+## After it ships
+The live link only picks this up on the next publish. Platforms that already cached the old card (LinkedIn, WhatsApp, Facebook) keep showing it until they re-scrape; LinkedIn's Post Inspector and Facebook's Sharing Debugger force a refresh.
