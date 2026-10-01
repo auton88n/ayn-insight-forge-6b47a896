@@ -39,7 +39,7 @@ export const TrustBento = memo(() => {
       // Never block the page on this -- "1,000+" (the initial state) is
       // already a real, true-as-of-today figure, so a failed fetch just
       // means the tile stays at that honest default, silently.
-      .catch(() => {});
+      , () => {});
     return () => { cancelled = true; };
   }, []);
 
