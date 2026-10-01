@@ -10,22 +10,10 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
-      job_postings_seen: {
-        Row: { user_id: string; job_posting_id: string; seen_at: string }
-        Insert: { user_id: string; job_posting_id: string; seen_at?: string }
-        Update: { user_id?: string; job_posting_id?: string; seen_at?: string }
-        Relationships: []
-      }
-      inbox_messages: {
-        Row: { id: string; reveal_request_id: string; sender_role: string; sender_user_id: string | null; kind: string; body: string | null; call_url: string | null; call_scheduled_at: string | null; status: string; block_reason: string | null; read_at: string | null; created_at: string }
-        Insert: { id?: string; reveal_request_id: string; sender_role: string; sender_user_id?: string | null; kind?: string; body?: string | null; call_url?: string | null; call_scheduled_at?: string | null; status?: string; block_reason?: string | null; read_at?: string | null; created_at?: string }
-        Update: { id?: string; reveal_request_id?: string; sender_role?: string; sender_user_id?: string | null; kind?: string; body?: string | null; call_url?: string | null; call_scheduled_at?: string | null; status?: string; block_reason?: string | null; read_at?: string | null; created_at?: string }
-        Relationships: []
-      }
       access_grants: {
         Row: {
           auth_method: string | null
@@ -772,6 +760,93 @@ export type Database = {
           id?: string
           updated_at?: string
           version?: number
+        }
+        Relationships: []
+      }
+      autofill_runs: {
+        Row: {
+          ai_answered: number | null
+          ai_resolved_count: number
+          ai_values: Json | null
+          ats: string | null
+          company: string | null
+          completed_at: string | null
+          created_at: string
+          ext_version: string | null
+          failed: number | null
+          failure_classes: Json
+          fields_scanned: Json | null
+          fields_total: number | null
+          filled: number | null
+          human_typed_count: number
+          human_typing_used: boolean
+          id: string
+          inject_results: Json | null
+          job_title: string | null
+          memory_exact_count: number
+          memory_fuzzy_count: number
+          meta: Json | null
+          resolved_by: Json
+          retry_count: number
+          skipped: Json | null
+          url: string | null
+          user_id: string | null
+        }
+        Insert: {
+          ai_answered?: number | null
+          ai_resolved_count?: number
+          ai_values?: Json | null
+          ats?: string | null
+          company?: string | null
+          completed_at?: string | null
+          created_at?: string
+          ext_version?: string | null
+          failed?: number | null
+          failure_classes?: Json
+          fields_scanned?: Json | null
+          fields_total?: number | null
+          filled?: number | null
+          human_typed_count?: number
+          human_typing_used?: boolean
+          id?: string
+          inject_results?: Json | null
+          job_title?: string | null
+          memory_exact_count?: number
+          memory_fuzzy_count?: number
+          meta?: Json | null
+          resolved_by?: Json
+          retry_count?: number
+          skipped?: Json | null
+          url?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          ai_answered?: number | null
+          ai_resolved_count?: number
+          ai_values?: Json | null
+          ats?: string | null
+          company?: string | null
+          completed_at?: string | null
+          created_at?: string
+          ext_version?: string | null
+          failed?: number | null
+          failure_classes?: Json
+          fields_scanned?: Json | null
+          fields_total?: number | null
+          filled?: number | null
+          human_typed_count?: number
+          human_typing_used?: boolean
+          id?: string
+          inject_results?: Json | null
+          job_title?: string | null
+          memory_exact_count?: number
+          memory_fuzzy_count?: number
+          meta?: Json | null
+          resolved_by?: Json
+          retry_count?: number
+          skipped?: Json | null
+          url?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -1764,6 +1839,105 @@ export type Database = {
         }
         Relationships: []
       }
+      ext_ask_messages: {
+        Row: {
+          content: string
+          context: Json | null
+          created_at: string
+          id: string
+          role: string
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          context?: Json | null
+          created_at?: string
+          id?: string
+          role: string
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          context?: Json | null
+          created_at?: string
+          id?: string
+          role?: string
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      extension_link_codes: {
+        Row: {
+          approved_at: string | null
+          code: string
+          created_at: string
+          device_label: string
+          expires_at: string
+          id: string
+          status: string
+          token: string | null
+          user_id: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          code: string
+          created_at?: string
+          device_label?: string
+          expires_at?: string
+          id?: string
+          status?: string
+          token?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          code?: string
+          created_at?: string
+          device_label?: string
+          expires_at?: string
+          id?: string
+          status?: string
+          token?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      extension_tokens: {
+        Row: {
+          created_at: string
+          device_label: string | null
+          id: string
+          last_used_at: string | null
+          revoked_at: string | null
+          token_hash: string
+          token_prefix: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_label?: string | null
+          id?: string
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash: string
+          token_prefix: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_label?: string | null
+          id?: string
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+          token_prefix?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       faq_items: {
         Row: {
           answer: string
@@ -2051,45 +2225,8 @@ export type Database = {
         }
         Relationships: []
       }
-      skills_to_learn: {
-        Row: {
-          added_at: string
-          company: string | null
-          id: string
-          job_id: string | null
-          job_title: string | null
-          learned_at: string | null
-          skill: string
-          user_id: string
-        }
-        Insert: {
-          added_at?: string
-          company?: string | null
-          id?: string
-          job_id?: string | null
-          job_title?: string | null
-          learned_at?: string | null
-          skill: string
-          user_id: string
-        }
-        Update: {
-          added_at?: string
-          company?: string | null
-          id?: string
-          job_id?: string | null
-          job_title?: string | null
-          learned_at?: string | null
-          skill?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       job_postings: {
         Row: {
-          category: string | null
-          employment_type: string | null
-          seniority: string | null
-          city: string | null
           apply_url: string
           company: string
           company_logo_url: string | null
@@ -2104,10 +2241,6 @@ export type Database = {
           title: string
         }
         Insert: {
-          category?: string | null
-          employment_type?: string | null
-          seniority?: string | null
-          city?: string | null
           apply_url: string
           company: string
           company_logo_url?: string | null
@@ -2122,10 +2255,6 @@ export type Database = {
           title: string
         }
         Update: {
-          category?: string | null
-          employment_type?: string | null
-          seniority?: string | null
-          city?: string | null
           apply_url?: string
           company?: string
           company_logo_url?: string | null
@@ -2143,8 +2272,6 @@ export type Database = {
       }
       jobs: {
         Row: {
-          application_status: string
-          application_status_changed_at: string
           captured_at: string
           company: string | null
           created_at: string
@@ -2165,8 +2292,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          application_status?: string
-          application_status_changed_at?: string
           captured_at?: string
           company?: string | null
           created_at?: string
@@ -2187,8 +2312,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          application_status?: string
-          application_status_changed_at?: string
           captured_at?: string
           company?: string | null
           created_at?: string
@@ -2754,8 +2877,6 @@ export type Database = {
       }
       resume_versions: {
         Row: {
-          match_pct: number | null
-          still_missing: Json
           content: Json
           created_at: string
           created_for_job_id: string | null
@@ -2765,8 +2886,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          match_pct?: number | null
-          still_missing?: Json
           content: Json
           created_at?: string
           created_for_job_id?: string | null
@@ -2776,8 +2895,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          match_pct?: number | null
-          still_missing?: Json
           content?: Json
           created_at?: string
           created_for_job_id?: string | null
@@ -4125,17 +4242,6 @@ export type Database = {
       }
     }
     Functions: {
-      complete_paid_base_resume: {
-        Args: { p_user_id: string; p_id: string; p_action: string; p_result: Json; p_cost: number }
-        Returns: Json
-      }
-      company_hiring_status: { Args: { p_company_slug: string }; Returns: string }
-      company_hiring_status_batch: { Args: { p_company_slugs: string[] }; Returns: { company_slug: string; status: string }[] }
-      job_market_snapshot: { Args: Record<PropertyKey, never>; Returns: Json }
-      save_primary_resume: {
-        Args: { p_id: string; p_title: string; p_content: Json; p_ats_score: number | null; p_ats_issues: Json }
-        Returns: string
-      }
       admin_adjust_credits: {
         Args: { p_amount: number; p_reason: string; p_user_id: string }
         Returns: Json
@@ -4296,6 +4402,10 @@ export type Database = {
       }
       check_user_exists_by_email: {
         Args: { p_email: string }
+        Returns: boolean
+      }
+      check_visitor_analytics_rate_limit: {
+        Args: { _visitor_id: string }
         Returns: boolean
       }
       cleanup_location_data: { Args: never; Returns: undefined }
@@ -4609,12 +4719,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4638,11 +4748,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4663,11 +4773,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4688,11 +4798,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4705,11 +4815,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
