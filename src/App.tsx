@@ -50,6 +50,8 @@ const Employers = lazy(() => import("./pages/Employers"));
 const CheckResumePage = lazy(() => import("./pages/CheckResume"));
 const PublicJobsPage = lazy(() => import("./pages/PublicJobs"));
 const SalaryGuidePage = lazy(() => import("./pages/SalaryGuide"));
+const InsightsPage = lazy(() => import("./pages/Insights"));
+const InsightsArticlePage = lazy(() => import("./pages/InsightsArticle"));
 // const AIAgents = lazy(() => import("./pages/services/AIAgents"));
 // const AIAgentsApply = lazy(() => import("./pages/services/AIAgentsApply"));
 // const Automation = lazy(() => import("./pages/services/Automation"));
@@ -131,6 +133,8 @@ const AnimatedRoutes = () => {
       <Route path="/jobs/location/:location" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
       <Route path="/jobs/:id" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
       <Route path="/salary-guide" element={<Suspense fallback={<PageLoader />}><SalaryGuidePage /></Suspense>} />
+      <Route path="/insights" element={<Suspense fallback={<PageLoader />}><InsightsPage /></Suspense>} />
+      <Route path="/insights/:slug" element={<Suspense fallback={<PageLoader />}><InsightsArticlePage /></Suspense>} />
       {/* v3.216.0 -- /features, /how-it-works, /why-ayn, /real-ai,
           /get-discovered, /messaging, /sourcing, /proof and /faq are gone.
           That content now lives as tabs on Home itself (SeekerSidebar +

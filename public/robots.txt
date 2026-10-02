@@ -22,3 +22,4 @@ Disallow: /subscription-canceled
 # Sitemap location
 Sitemap: https://ayn.careers/sitemap.xml
 Sitemap: https://ayn.careers/sitemap-jobs.xml
+Sitemap: https://ayn.careers/sitemap-insights.xml

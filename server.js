@@ -3,6 +3,7 @@ import compression from 'compression';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { marked } from 'marked';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -182,18 +183,224 @@ app.get('/sitemap-jobs.xml', async (req, res) => {
   }
 });
 
+// v3.X — SEO/AEO articles (/insights). The one real gap this closes: every
+// other page on this site is a client-rendered SPA shell, confirmed by
+// reading this whole file -- indexHtml is sent byte-identical for every
+// route, and the real <title>/meta/JSON-LD only ever get set client side,
+// after JS runs (src/components/shared/SEO.tsx). GPTBot, ClaudeBot, and
+// PerplexityBot all fetch a page but never execute its JavaScript, so a
+// client-rendered SPA is structurally invisible to them -- confirmed
+// against SEOMonster's own ai_citation_readiness tool, whose single
+// leading check is exactly this render-blindness problem. An /insights
+// article therefore gets real, complete HTML at the first byte -- the
+// actual article text, not a shell -- same live-fetch-then-cache shape
+// the sitemap-jobs.xml route above already uses. Once JS loads, React
+// Router mounts the identical client route over the same #root and the
+// page becomes the normal interactive site; createRoot (not hydrateRoot,
+// confirmed in src/main.tsx) replaces the server-rendered markup cleanly
+// rather than trying to match it node for node.
+import { JSDOM } from 'jsdom';
+import createDOMPurify from 'dompurify';
+const purify = createDOMPurify(new JSDOM('').window);
+
+const insightsCache = new Map(); // slug -> { html, at }
+let insightsIndexCache = { html: null, at: 0 };
+const INSIGHTS_CACHE_MS = 10 * 60 * 1000;
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Real, targeted swaps on the already-loaded, build-current indexHtml --
+// never a hand-reconstructed document, so the content-hashed asset tags
+// Vite injected at build time are never duplicated or gone stale.
+//
+// Every .replace() below uses a FUNCTION as the second argument, never a
+// plain template string. Found live, on the very first real render: a
+// plain string second argument is special-cased by JS itself -- "$1"
+// means "capture group 1", "$$" means a literal "$", etc. -- and real
+// generated content is full of real dollar figures ("$160,000"), so
+// "...is $160,000..." silently became "...is <div id="root"...>60,000..."
+// the instant it hit a replacement string with a capturing group. A
+// replacer function's return value is inserted completely literally, no
+// special-pattern parsing at all, which is what every call here needs.
+function swapMeta(html, { title, description, canonical }) {
+  return html
+    .replace(/<title>[^<]*<\/title>/, () => `<title>${escapeHtml(title)}</title>`)
+    .replace(/<link rel="canonical" href="[^"]*"\s*\/?>/, () => `<link rel="canonical" href="${escapeHtml(canonical)}" />`)
+    .replace(/<meta name="description" content="[^"]*"\s*\/?>/, () => `<meta name="description" content="${escapeHtml(description)}">`)
+    .replace(/<meta property="og:title" content="[^"]*"\s*\/?>/, () => `<meta property="og:title" content="${escapeHtml(title)}" />`)
+    .replace(/<meta name="twitter:title" content="[^"]*"\s*\/?>/, () => `<meta name="twitter:title" content="${escapeHtml(title)}" />`)
+    .replace(/<meta property="og:description" content="[^"]*"\s*\/?>/, () => `<meta property="og:description" content="${escapeHtml(description)}" />`)
+    .replace(/<meta name="twitter:description" content="[^"]*"\s*\/?>/, () => `<meta name="twitter:description" content="${escapeHtml(description)}" />`)
+    .replace(/<meta property="og:url" content="[^"]*"\s*\/?>/, () => `<meta property="og:url" content="${escapeHtml(canonical)}" />`);
+}
+
+function injectHead(html, extraHeadHtml) {
+  return html.replace('</head>', () => `${extraHeadHtml}\n  </head>`);
+}
+
+function injectRoot(html, rootInnerHtml) {
+  return html.replace(/(<div id="root"[^>]*>)<\/div>/, (_m, openTag) => `${openTag}${rootInnerHtml}</div>`);
+}
+
+function articleJsonLd(article) {
+  const url = `https://ayn.careers/insights/${article.slug}`;
+  const blocks = [{
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: article.title,
+    description: article.meta_description,
+    datePublished: article.published_at,
+    dateModified: article.refreshed_at || article.published_at,
+    url,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+    author: { '@type': 'Organization', name: 'AYN', url: 'https://ayn.careers' },
+    publisher: { '@type': 'Organization', name: 'AYN', url: 'https://ayn.careers', logo: { '@type': 'ImageObject', url: 'https://ayn.careers/favicon.png' } },
+  }];
+  // FAQPage schema only when the article genuinely has real, distinct Q&A
+  // content -- never force-added. SEOMonster's own ai_citation_readiness
+  // research is explicit that schema like this isn't a measured citation
+  // driver in 2026; it's here because it's honestly true of the content
+  // when present, not as an SEO trick.
+  if (Array.isArray(article.faq) && article.faq.length) {
+    blocks.push({
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: article.faq.map((f) => ({
+        '@type': 'Question',
+        name: f.question,
+        acceptedAnswer: { '@type': 'Answer', text: f.answer },
+      })),
+    });
+  }
+  return blocks.map((b) => `<script type="application/ld+json">\n${JSON.stringify(b)}\n</script>`).join('\n');
+}
+
+function renderArticleBody(article) {
+  const rawHtml = marked.parse(article.body_md || '');
+  const safeHtml = purify.sanitize(rawHtml);
+  const faqHtml = Array.isArray(article.faq) && article.faq.length
+    ? `<section><h2>Questions</h2>${article.faq.map((f) => `<h3>${escapeHtml(f.question)}</h3><p>${escapeHtml(f.answer)}</p>`).join('')}</section>`
+    : '';
+  const dateStr = new Date(article.refreshed_at || article.published_at).toISOString().slice(0, 10);
+  return (
+    `<article>`
+    + `<h1>${escapeHtml(article.title)}</h1>`
+    + `<p>${escapeHtml(article.dek)}</p>`
+    + safeHtml
+    + faqHtml
+    + `<p><small>Built from AYN's own live job catalog, last updated ${dateStr}.</small></p>`
+    + `</article>`
+  );
+}
+
+async function fetchJson(pathAndQuery) {
+  const SUPABASE_ANON_KEY = requireSupabaseAnonKey();
+  const r = await fetch(`${SUPABASE_ORIGIN}/rest/v1/${pathAndQuery}`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+  });
+  if (!r.ok) throw new Error(`fetch failed: ${r.status}`);
+  return r.json();
+}
+
+app.get('/insights/:slug', async (req, res, next) => {
+  if (indexHtml === null) { res.status(503).send('Service temporarily unavailable, please retry.'); return; }
+  const { slug } = req.params;
+  const now = Date.now();
+  const cached = insightsCache.get(slug);
+  if (cached && now - cached.at < INSIGHTS_CACHE_MS) {
+    res.type('html').send(cached.html);
+    return;
+  }
+  try {
+    const rows = await fetchJson(`articles?slug=eq.${encodeURIComponent(slug)}&status=eq.published&select=*&limit=1`);
+    const article = rows[0];
+    if (!article) {
+      next(); // falls through to the catch-all SPA handler, same as a missing /jobs/:id
+      return;
+    }
+    const canonical = `https://ayn.careers/insights/${article.slug}`;
+    let html = swapMeta(indexHtml, { title: `${article.title} | AYN`, description: article.meta_description, canonical });
+    html = injectHead(html, articleJsonLd(article));
+    html = injectRoot(html, renderArticleBody(article));
+    insightsCache.set(slug, { html, at: now });
+    res.type('html').send(html);
+  } catch (err) {
+    console.error('/insights/:slug failed:', err.message);
+    next();
+  }
+});
+
+app.get('/insights', async (req, res) => {
+  if (indexHtml === null) { res.status(503).send('Service temporarily unavailable, please retry.'); return; }
+  const now = Date.now();
+  if (insightsIndexCache.html && now - insightsIndexCache.at < INSIGHTS_CACHE_MS) {
+    res.type('html').send(insightsIndexCache.html);
+    return;
+  }
+  try {
+    const rows = await fetchJson(`articles?status=eq.published&select=slug,title,dek,category,city,published_at&order=published_at.desc&limit=200`);
+    const listHtml = rows.map((a) => (
+      `<li><a href="/insights/${escapeHtml(a.slug)}">${escapeHtml(a.title)}</a><p>${escapeHtml(a.dek)}</p></li>`
+    )).join('');
+    const title = 'Real hiring data, from AYN’s own job catalog | AYN';
+    const description = 'Salary and hiring-trend reports built from AYN’s own live, company-sourced job postings. Every number is traceable back to a real posting, never estimated.';
+    const canonical = 'https://ayn.careers/insights';
+    let html = swapMeta(indexHtml, { title, description, canonical });
+    html = injectRoot(html, `<main><h1>Real hiring data</h1><p>${escapeHtml(description)}</p><ul>${listHtml}</ul></main>`);
+    insightsIndexCache = { html, at: now };
+    res.type('html').send(html);
+  } catch (err) {
+    console.error('/insights index failed:', err.message);
+    res.type('html').send(indexHtml);
+  }
+});
+
+let insightsSitemapCache = { xml: null, at: 0 };
+app.get('/sitemap-insights.xml', async (req, res) => {
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  const now = Date.now();
+  if (insightsSitemapCache.xml && now - insightsSitemapCache.at < INSIGHTS_CACHE_MS) {
+    res.send(insightsSitemapCache.xml);
+    return;
+  }
+  try {
+    const rows = await fetchJson(`articles?status=eq.published&select=slug,refreshed_at,published_at&order=published_at.desc&limit=5000`);
+    const urls = rows.map((a) => (
+      `  <url>\n`
+      + `    <loc>https://ayn.careers/insights/${escapeXml(a.slug)}</loc>\n`
+      + `    <lastmod>${new Date(a.refreshed_at || a.published_at).toISOString().slice(0, 10)}</lastmod>\n`
+      + `    <changefreq>weekly</changefreq>\n`
+      + `    <priority>0.7</priority>\n`
+      + `  </url>`
+    )).join('\n');
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+    insightsSitemapCache = { xml, at: now };
+    res.send(xml);
+  } catch (err) {
+    console.error('sitemap-insights.xml failed:', err.message);
+    res.send('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n');
+  }
+});
+
 // Every real route in src/App.tsx. Anything not in here is a genuine 404,
 // so we still serve the SPA shell but with a 404 status, otherwise Google
 // indexes every junk path as a live page.
 const ROUTES = [
-  '/', '/pricing', '/resume-hub', '/contact', '/support', '/help', '/about', '/check-resume', '/jobs', '/salary-guide',
+  '/', '/pricing', '/resume-hub', '/contact', '/support', '/help', '/about', '/check-resume', '/jobs', '/salary-guide', '/insights',
   '/terms', '/privacy', '/legal', '/cookies', '/security', '/subprocessors', '/dpa', '/sla', '/copyright', '/do-not-sell',
   '/settings', '/billing',
   '/employer/pending', '/employers', '/reset-password',
   '/approval-result', '/subscription-success', '/subscription-canceled',
   '/dashboard', '/admin',
 ];
-const PREFIXES = ['/resume-hub/', '/dashboard/', '/admin/', '/manage-', '/jobs/'];
+const PREFIXES = ['/resume-hub/', '/dashboard/', '/admin/', '/manage-', '/jobs/', '/insights/'];
 
 function isKnownRoute(pathname) {
   if (ROUTES.includes(pathname)) return true;

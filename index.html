@@ -110,6 +110,36 @@
         "contactType": "customer support",
         "url": "https://ayn.careers/support",
         "availableLanguage": ["English"]
+      },
+      "sameAs": [
+        "https://x.com/AYNN_AI",
+        "https://discord.gg/y2DcBegbC7"
+      ]
+    }
+    </script>
+
+    <!-- v3.X -- a real WebSite + SearchAction block, pointed at the real
+         Browse Jobs search (JobsBrowser.tsx reads ?q= off the URL, see
+         CLAUDE.md's own v3.207.0 history). This is the schema Google's
+         own documentation names for the sitelinks search box it sometimes
+         shows under a brand's search result -- correct and honest to add
+         since the search genuinely exists and genuinely works this way,
+         but it is Google's own algorithmic call whether to ever show it,
+         same as every other rich-result element, never something a page
+         can force into appearing. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "AYN",
+      "url": "https://ayn.careers",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://ayn.careers/jobs?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
       }
     }
     </script>

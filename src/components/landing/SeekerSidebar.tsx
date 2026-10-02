@@ -81,7 +81,7 @@ export function SeekerSidebar({ activeTab, onSelectTab }: Props) {
           {TAB_META.map(item => <button key={item.id} type="button" aria-current={isActive(item.id) ? 'page' : undefined} onClick={() => selectTab(item.id)}>{item.label}</button>)}
           <button type="button" onClick={() => selectTab('about')}>About us</button>
           <button type="button" onClick={() => selectTab('contact')}>Contact</button>
-          <Link to="/salary-guide">Salary guide</Link><Link to="/legal">Legal & privacy</Link>
+          <Link to="/salary-guide">Salary guide</Link><Link to="/insights">Insights</Link><Link to="/legal">Legal & privacy</Link>
         </div>}
         <Link to="/employers" className="lp-sidebar-link" title="For employers"><Building2 size={18} className="lp-sidebar-link-icon" /><span className="lp-sidebar-link-label">For employers</span></Link>
       </div>

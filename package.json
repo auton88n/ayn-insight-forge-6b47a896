@@ -58,6 +58,7 @@
     "jsdom": "^27.2.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.462.0",
+    "marked": "^15.0.12",
     "next-themes": "^0.3.0",
     "posthog-js": "^1.428.1",
     "react": "^18.3.1",

@@ -571,6 +571,66 @@ export type Database = {
           },
         ]
       }
+      articles: {
+        Row: {
+          body_md: string
+          category: string
+          city: string | null
+          created_at: string
+          dek: string
+          faq: Json | null
+          generation_cost_cents: number
+          id: string
+          kind: string
+          meta_description: string
+          published_at: string
+          refreshed_at: string | null
+          slug: string
+          source_data: Json
+          status: string
+          title: string
+          word_count: number
+        }
+        Insert: {
+          body_md: string
+          category: string
+          city?: string | null
+          created_at?: string
+          dek: string
+          faq?: Json | null
+          generation_cost_cents?: number
+          id?: string
+          kind: string
+          meta_description: string
+          published_at?: string
+          refreshed_at?: string | null
+          slug: string
+          source_data: Json
+          status?: string
+          title: string
+          word_count: number
+        }
+        Update: {
+          body_md?: string
+          category?: string
+          city?: string | null
+          created_at?: string
+          dek?: string
+          faq?: Json | null
+          generation_cost_cents?: number
+          id?: string
+          kind?: string
+          meta_description?: string
+          published_at?: string
+          refreshed_at?: string | null
+          slug?: string
+          source_data?: Json
+          status?: string
+          title?: string
+          word_count?: number
+        }
+        Relationships: []
+      }
       applications: {
         Row: {
           applied_at: string | null

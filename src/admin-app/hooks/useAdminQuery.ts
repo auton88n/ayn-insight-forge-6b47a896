@@ -218,6 +218,7 @@ export const adminV2Keys = {
   marketplace: ['admin', 'v2', 'marketplace'] as const,
   money: ['admin', 'v2', 'money'] as const,
   activationFunnel: ['admin', 'v2', 'activation_funnel'] as const,
+  articles: ['admin', 'v2', 'articles'] as const,
 };
 
 export function useAdminOverview() {
@@ -250,6 +251,34 @@ export function useEmployerAction() {
       toast.success('Done');
     },
     onError: (e: Error) => toast.error(e.message || 'Action failed'),
+  });
+}
+
+export function useAdminArticles() {
+  return useQuery({ queryKey: adminV2Keys.articles, queryFn: () => adminRpc<any>('get_admin_articles'), staleTime: FAST_STALE_TIME });
+}
+export function useArticleAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { fn: 'admin_article_archive' | 'admin_article_restore'; id: string }) =>
+      adminRpc(v.fn, { p_id: v.id }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminV2Keys.articles });
+      toast.success('Done');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Action failed'),
+  });
+}
+export function useArticleConfigAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { articlesPerRun: number; schedule: string }) =>
+      adminRpc('admin_article_set_config', { p_articles_per_run: v.articlesPerRun, p_schedule: v.schedule }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminV2Keys.articles });
+      toast.success('Cadence updated');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not update cadence'),
   });
 }
 
