@@ -36,6 +36,9 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
+      - name: SEO monitor unit tests
+        run: npm run test:seo
+
       - name: Lint
         # continue-on-error for the same reason as unit tests above: real,
         # pre-existing debt (330 problems as of this pass, almost entirely

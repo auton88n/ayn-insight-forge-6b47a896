@@ -75,7 +75,7 @@ describe('rewrite billing', () => {
     const { result, spend } = await runRewrite(true);
     expect(spend).not.toHaveBeenCalled();
     expect(result.credits).toEqual({ spent: 0, balance: 40 });
-    expect(result.suggestions[0]).toContain('nothing needed to change');
+    expect(result.suggestions[0].toLowerCase()).toContain('nothing needed to change');
   });
 
   it('charges a changed resume with the existing request reference', async () => {

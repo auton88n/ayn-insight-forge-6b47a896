@@ -47,7 +47,7 @@ const Insights = () => {
     <>
       <SEO
         title="Real hiring data, from AYN's own job catalog"
-        description="Salary and hiring-trend reports built from AYN's own live, company-sourced job postings. Every number is traceable back to a real posting, never estimated."
+        description="Salary and hiring-trend reports based on AYN's job catalog, with counts and salary figures computed from current listings."
         canonical="/insights"
       />
       <div className="lp lp-shell-with-sidebar contact-surface">
@@ -60,7 +60,7 @@ const Insights = () => {
                 Real hiring data, not opinions
               </h1>
               <p className="mt-4 text-lg text-muted-foreground max-w-2xl">
-                Salary and hiring-trend reports built entirely from AYN's own live job catalog. Every number traces back to a real, open posting, computed fresh, never estimated or invented.
+                Salary and hiring-trend reports based on AYN's current job catalog. Counts and salary figures are computed from listings, with sample sizes shown in each report.
               </p>
 
               {error && (

@@ -26,6 +26,7 @@ type ArticleRow = {
   meta_description: string;
   body_md: string;
   faq: { question: string; answer: string }[] | null;
+  source_data: { open_roles?: number; salary_sample_size?: number } | null;
   published_at: string;
   refreshed_at: string | null;
 };
@@ -39,7 +40,7 @@ const InsightsArticle = () => {
     setArticle(undefined);
     supabase
       .from('articles')
-      .select('slug,kind,category,city,title,dek,meta_description,body_md,faq,published_at,refreshed_at')
+      .select('slug,kind,category,city,title,dek,meta_description,body_md,faq,source_data,published_at,refreshed_at')
       .eq('slug', slug)
       .eq('status', 'published')
       .maybeSingle()
@@ -132,6 +133,18 @@ const InsightsArticle = () => {
                         </div>
                       </section>
                     )}
+
+                    <section className="mt-10 rounded-xl border border-border/60 p-5">
+                      <h2 className="font-semibold">About this data</h2>
+                      {Number.isFinite(Number(article.source_data?.open_roles)) && article.source_data?.open_roles != null && (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Snapshot: {article.source_data.open_roles} current listings
+                          {Number(article.source_data.salary_sample_size) > 0 && `; ${article.source_data.salary_sample_size} listings with comparable USD salary data`}.
+                          {' '}These are AYN catalog samples, not the entire job market.
+                        </p>
+                      )}
+                      <p className="mt-2 text-sm text-muted-foreground">Figures come from AYN's current job listings and can change as listings expire or new ones appear.</p>
+                    </section>
 
                     <p className="mt-10 text-xs text-muted-foreground flex items-center gap-1.5">
                       <ShieldCheck className="w-3.5 h-3.5 shrink-0" />

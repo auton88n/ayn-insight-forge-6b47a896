@@ -205,7 +205,8 @@ const purify = createDOMPurify(new JSDOM('').window);
 
 const insightsCache = new Map(); // slug -> { html, at }
 let insightsIndexCache = { html: null, at: 0 };
-const INSIGHTS_CACHE_MS = 10 * 60 * 1000;
+// Short TTL keeps admin archives from remaining publicly visible for long.
+const INSIGHTS_CACHE_MS = 60 * 1000;
 
 function escapeHtml(s) {
   return String(s)
@@ -256,7 +257,6 @@ function articleJsonLd(article) {
     '@type': 'Article',
     headline: article.title,
     description: article.meta_description,
-    image: 'https://ayn.careers/og-image.png',
     datePublished: article.published_at,
     dateModified: article.refreshed_at || article.published_at,
     url,
@@ -280,7 +280,9 @@ function articleJsonLd(article) {
       })),
     });
   }
-  return blocks.map((b) => `<script type="application/ld+json">\n${JSON.stringify(b)}\n</script>`).join('\n');
+  // JSON.stringify alone leaves a literal </script> in text fields. Escape
+  // '<' so an AI-produced title or FAQ cannot terminate this script element.
+  return blocks.map((b) => `<script type="application/ld+json">\n${JSON.stringify(b).replace(/</g, '\\u003c')}\n</script>`).join('\n');
 }
 
 function renderArticleBody(article) {
@@ -290,13 +292,20 @@ function renderArticleBody(article) {
     ? `<section><h2>Questions</h2>${article.faq.map((f) => `<h3>${escapeHtml(f.question)}</h3><p>${escapeHtml(f.answer)}</p>`).join('')}</section>`
     : '';
   const dateStr = new Date(article.refreshed_at || article.published_at).toISOString().slice(0, 10);
+  const source = article.source_data || {};
+  const openRoles = Number(source.open_roles);
+  const salarySample = Number(source.salary_sample_size);
+  const sampleNote = Number.isFinite(openRoles) && openRoles >= 0
+    ? `<p>Snapshot: ${openRoles} current listings${Number.isFinite(salarySample) && salarySample > 0 ? `; ${salarySample} listings with comparable USD salary data` : ''}. These are AYN catalog samples, not the entire job market.</p>`
+    : '';
   return (
     `<article>`
     + `<h1>${escapeHtml(article.title)}</h1>`
     + `<p>${escapeHtml(article.dek)}</p>`
     + safeHtml
     + faqHtml
-    + `<p><small>Built from AYN's own live job catalog, last updated ${dateStr}.</small></p>`
+    + `<section><h2>About this data</h2>${sampleNote}<p>Figures come from AYN's current job listings and can change as listings expire or new ones appear. Last updated ${dateStr}.</p></section>`
+    + `<nav aria-label="Related pages"><a href="/jobs/category/${encodeURIComponent(article.category)}">Browse related jobs</a> · <a href="/salary-guide">Salary guide</a> · <a href="/insights">All insights</a></nav>`
     + `</article>`
   );
 }
@@ -310,7 +319,7 @@ async function fetchJson(pathAndQuery) {
   return r.json();
 }
 
-app.get('/insights/:slug', async (req, res, next) => {
+app.get('/insights/:slug', async (req, res) => {
   if (indexHtml === null) { res.status(503).send('Service temporarily unavailable, please retry.'); return; }
   const { slug } = req.params;
   const now = Date.now();
@@ -323,7 +332,8 @@ app.get('/insights/:slug', async (req, res, next) => {
     const rows = await fetchJson(`articles?slug=eq.${encodeURIComponent(slug)}&status=eq.published&select=*&limit=1`);
     const article = rows[0];
     if (!article) {
-      next(); // falls through to the catch-all SPA handler, same as a missing /jobs/:id
+      // Archived or unknown articles must not be a crawler-visible soft 404.
+      res.status(404).type('html').send(indexHtml);
       return;
     }
     const canonical = `https://ayn.careers/insights/${article.slug}`;
@@ -334,7 +344,8 @@ app.get('/insights/:slug', async (req, res, next) => {
     res.type('html').send(html);
   } catch (err) {
     console.error('/insights/:slug failed:', err.message);
-    next();
+    // A backend outage is transient, not a successful empty article page.
+    res.status(503).type('html').send(indexHtml);
   }
 });
 
@@ -351,7 +362,7 @@ app.get('/insights', async (req, res) => {
       `<li><a href="/insights/${escapeHtml(a.slug)}">${escapeHtml(a.title)}</a><p>${escapeHtml(a.dek)}</p></li>`
     )).join('');
     const title = 'Real hiring data, from AYN’s own job catalog | AYN';
-    const description = 'Salary and hiring-trend reports built from AYN’s own live, company-sourced job postings. Every number is traceable back to a real posting, never estimated.';
+    const description = 'Salary and hiring-trend reports based on AYN’s job catalog, with counts and salary figures computed from current listings.';
     const canonical = 'https://ayn.careers/insights';
     let html = swapMeta(indexHtml, { title, description, canonical });
     html = injectRoot(html, `<main><h1>Real hiring data</h1><p>${escapeHtml(description)}</p><ul>${listHtml}</ul></main>`);

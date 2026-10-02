@@ -24,6 +24,30 @@ const SCHEDULE_OPTIONS: { value: string; label: string }[] = [
   { value: '0 14 * * *', label: 'Every day' },
 ];
 
+type AdminArticle = {
+  id: string;
+  slug: string;
+  kind: 'salary_report' | 'hiring_trend';
+  category: string;
+  city: string | null;
+  title: string;
+  status: 'published' | 'archived';
+  word_count: number;
+  generation_cost_cents: number;
+  published_at: string;
+  refreshed_at: string | null;
+};
+
+type AdminArticlesData = {
+  articles?: AdminArticle[];
+  published_total?: number;
+  published_this_week?: number;
+  total_cost_cents?: number;
+  articles_per_run?: number;
+  schedule?: string;
+  schedule_active?: boolean;
+};
+
 export default function ArticlesSection() {
   const q = useAdminArticles();
   const act = useArticleAction();
@@ -31,24 +55,24 @@ export default function ArticlesSection() {
   const [perRun, setPerRun] = useState('2');
   const [schedule, setSchedule] = useState('0 14 * * 2,5');
 
-  const d = (q.data || {}) as any;
+  const d = (q.data || {}) as AdminArticlesData;
   // Seed the editable controls from the real, current server value the
   // first time it loads -- never stomp an in-progress edit on a refetch.
   useEffect(() => {
     if (d.articles_per_run != null) setPerRun(String(d.articles_per_run));
     if (d.schedule) setSchedule(d.schedule);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d.articles_per_run, d.schedule]);
 
   if (q.isLoading) return <LoadingBlock />;
   if (q.isError) return <ErrorBlock error={q.error} onRetry={() => q.refetch()} />;
-  const articles: any[] = d.articles || [];
+  const articles = d.articles || [];
   const dirty = String(d.articles_per_run) !== perRun || d.schedule !== schedule;
-  const weeklyEstimate = (SCHEDULE_OPTIONS.find((s) => s.value === schedule)?.value.split(' ')[4]?.split(',').length || 0) * Number(perRun || 0);
+  const runDays = schedule === '0 14 * * *' ? 7 : (schedule.split(' ')[4]?.split(',').length || 0);
+  const weeklyEstimate = runDays * Number(perRun || 0);
 
   return (
     <div>
-      <SectionHeader title="Articles" subtitle="content-engine auto-publishes real, data-grounded reports on the schedule below. Nothing here was reviewed before going live -- every figure traces back to a SQL query, never the model's own invention." />
+      <SectionHeader title="Articles" subtitle="Reports publish automatically on the schedule below. Numeric figures are checked against query results, but wording and interpretation still need editorial monitoring." />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <Stat label="Published" value={d.published_total ?? 0} />
@@ -84,7 +108,7 @@ export default function ArticlesSection() {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            About {weeklyEstimate} new {weeklyEstimate === 1 ? 'article' : 'articles'} a week at this setting.
+            About {weeklyEstimate} {weeklyEstimate === 1 ? 'report' : 'reports'} generated or refreshed each week at this setting.
             {d.schedule_active === false && <span className="text-destructive"> The scheduled job itself is currently paused.</span>}
           </p>
           <Button
@@ -102,6 +126,7 @@ export default function ArticlesSection() {
           <CardTitle className="text-base">All articles</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">Archived reports stop being selected for future publishing runs. Public pages and the sitemap can take up to one minute to update.</p>
           {articles.length === 0 ? <EmptyRow>Nothing published yet.</EmptyRow> : articles.map((a) => (
             <div key={a.id} className="rounded-xl border border-border/60 p-4 flex items-start justify-between gap-4 flex-wrap">
               <div className="min-w-0">

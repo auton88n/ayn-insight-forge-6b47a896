@@ -5,19 +5,19 @@
 // service-role-bearer-token auth pattern as job-board-sync. Not a public
 // endpoint.
 //
-// The one rule everything else here answers to: an article can only state
-// a number that a SQL query already computed. article_topic_candidates()
+// Numeric claims are checked against SQL-computed source data. This does
+// not establish that every interpretation or company claim is correct:
+// unsupervised publishing still needs content-quality monitoring. The
+// topic and data functions article_topic_candidates()
 // and article_source_data() (supabase/migrations/20261002090000_*.sql) do
 // every real calculation — sample-size floors, salary percentiles, the
 // same plausibility filter job_market_snapshot() already proved live.
-// This function's only job is picking up that already-computed jsonb and
-// asking the model to write well about it, then checking afterward (see
-// invalidFigures below) that the model didn't add a figure that wasn't in
-// what it was handed. That's what makes fully-automatic, no-review
-// publishing safe to actually run unsupervised — the risk is bounded to
-// "is the prose any good," never "did it invent a fact."
+// This function asks the model to phrase that JSON, then checks every
+// numeric token in the generated fields against the source and enforces a
+// minimum length before writing it to the public articles table.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { invalidFigures } from "./grounding.ts";
 
 // ───────────────────────── AI relay (self-contained) ─────────────────────────
 // Deliberately a second, minimal caller rather than importing resume-hub's
@@ -90,42 +90,6 @@ async function callAI(opts: {
   throw new Error(lastErr || "AI request failed");
 }
 
-// ───────────────────────── Figure-grounding check ─────────────────────────
-// Mirrors _shared/tailoring.ts's extractFigures/inventedFigures (dollar
-// amounts, percentages, years, bare counts) rather than importing it —
-// same reasoning as the AI caller above. Every figure the model wrote has
-// to appear, verbatim after whitespace-normalizing, inside the exact
-// source_data jsonb it was handed; anything that doesn't is a fabricated
-// number and fails the article outright.
-const FIGURE_RE = /(?:[$€£¥]\s?\d[\d,.]*\s?(?:k|m|b|bn|million|billion)?|\d[\d,.]*\s?%|\b(?:19|20)\d{2}\b|\b\d[\d,.]*\s?(?:k|m|x|\+)?\b)/gi;
-
-// The model naturally writes a grounded number as prose: "$160,000." (a
-// thousands comma, a sentence-ending period) or "$150,000, and $197,500"
-// (a comma before "and" in a range). source_data is plain JSON -- bare
-// integers, no commas, no currency symbol, no trailing punctuation. A
-// token has to be normalized the same way on extraction, or a perfectly
-// real, grounded figure fails this check purely on formatting. Found
-// live, on the very first real invocation, not assumed: the exact numbers
-// already confirmed via a direct SQL query (160000/150000/197500) were
-// flagged as "invented" only because of this mismatch.
-function extractFigures(text: string): string[] {
-  const raw = String(text || "").match(FIGURE_RE) || [];
-  const out = new Set<string>();
-  for (const f of raw) {
-    let t = f.trim().toLowerCase().replace(/\s+/g, "");
-    t = t.replace(/^[$€£¥]/, "");   // currency symbol never appears in the JSON
-    t = t.replace(/[.,]+$/, "");    // sentence-ending period / pre-"and" comma
-    t = t.replace(/(?<=\d),(?=\d)/g, ""); // thousands separators, never in JSON
-    if (!t || /^\d$/.test(t) || /^[.,]+$/.test(t)) continue;
-    out.add(t);
-  }
-  return Array.from(out);
-}
-function invalidFigures(generatedText: string, sourceData: unknown): string[] {
-  const srcNorm = JSON.stringify(sourceData).toLowerCase().replace(/\s+/g, "");
-  return extractFigures(generatedText).filter((f) => !srcNorm.includes(f));
-}
-
 // ───────────────────────── Article generation ─────────────────────────
 const ARTICLE_SCHEMA = {
   type: "object",
@@ -142,6 +106,7 @@ const ARTICLE_SCHEMA = {
   },
   required: ["title", "dek", "meta_description", "body_md"],
 };
+const MIN_ARTICLE_WORDS = 450;
 
 function slugify(s: string): string {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -171,11 +136,15 @@ async function generateOne(
 ): Promise<{ title: string; dek: string; meta_description: string; body_md: string; faq: unknown; costCents: number }> {
   const { system, user } = buildPrompt(kind, category, city, sourceData);
   let { structured, costCents } = await callAI({ system, user, toolName: "emit_article", toolSchema: ARTICLE_SCHEMA });
-  let bad = invalidFigures(String(structured.body_md || ""), sourceData);
-  if (structured.faq) bad = bad.concat(invalidFigures(JSON.stringify(structured.faq), sourceData));
+  const unsupportedFigures = (draft: Record<string, unknown>) => invalidFigures(
+    [draft.title, draft.dek, draft.meta_description, draft.body_md, JSON.stringify(draft.faq || "")]
+      .map((field) => String(field || "")).join("\n"),
+    sourceData,
+  );
+  let bad = unsupportedFigures(structured);
   let wc = String(structured.body_md || "").split(/\s+/).filter(Boolean).length;
 
-  if (bad.length || wc < 350) {
+  if (bad.length || wc < MIN_ARTICLE_WORDS) {
     // One combined retry -- naming the exact offending figures (same shape
     // as the rest of this codebase's write-quality retry pattern,
     // verifyWriteQuality in _shared/tailoring.ts) and, found live on the
@@ -185,16 +154,15 @@ async function generateOne(
     // covers both problems in the same extra call rather than two.
     const notes: string[] = [];
     if (bad.length) notes.push(`Your previous draft stated these figures, which do NOT appear anywhere in the data above: ${bad.join(", ")}. Every figure must come from the data only.`);
-    if (wc < 350) notes.push(`Your previous draft was only ${wc} words. It must be at least 450, ideally 500-700. Expand the interpretation in each section, do not just repeat the same facts in fewer words.`);
+    if (wc < MIN_ARTICLE_WORDS) notes.push(`Your previous draft was only ${wc} words. It must be at least 450, ideally 500-700. Expand the interpretation in each section, do not just repeat the same facts in fewer words.`);
     const retryUser = `${user}\n\n${notes.join(" ")}\n\nRewrite it from scratch with both of these fixed.`;
     const retry = await callAI({ system, user: retryUser, toolName: "emit_article", toolSchema: ARTICLE_SCHEMA });
     structured = retry.structured;
     costCents += retry.costCents;
-    bad = invalidFigures(String(structured.body_md || ""), sourceData);
-    if (structured.faq) bad = bad.concat(invalidFigures(JSON.stringify(structured.faq), sourceData));
+    bad = unsupportedFigures(structured);
     wc = String(structured.body_md || "").split(/\s+/).filter(Boolean).length;
     if (bad.length) throw new Error(`Grounding check failed twice, still contains unsupported figures: ${bad.join(", ")}`);
-    if (wc < 300) throw new Error(`Still too short after retry: ${wc} words.`);
+    if (wc < MIN_ARTICLE_WORDS) throw new Error(`Still too short after retry: ${wc} words.`);
   }
 
   return {
