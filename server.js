@@ -256,6 +256,7 @@ function articleJsonLd(article) {
     '@type': 'Article',
     headline: article.title,
     description: article.meta_description,
+    image: 'https://ayn.careers/og-image.png',
     datePublished: article.published_at,
     dateModified: article.refreshed_at || article.published_at,
     url,
