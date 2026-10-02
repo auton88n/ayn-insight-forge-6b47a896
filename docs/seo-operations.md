@@ -13,6 +13,9 @@ proof of indexing, ranking, AI citation, signup, or a paid subscriber.
 2. Under Sitemaps, submit `sitemap.xml`, `sitemap-jobs.xml`, and
    `sitemap-insights.xml`. Check the resulting status in Search Console;
    the live XML files alone do not establish submission.
+   All three were submitted on 2 October 2026. The jobs sitemap succeeded;
+   the main and Insights sitemaps initially showed “Couldn't fetch” and need
+   another status check. Both public endpoints currently return valid XML.
 3. For automated, read-only performance measurement, enable the Search Console
    API in a Google Cloud project, create a dedicated service account, and add
    its email as a user on that exact Search Console property. Run
