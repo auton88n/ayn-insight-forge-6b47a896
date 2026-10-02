@@ -99,7 +99,7 @@ function formatSalary(min: number | null | undefined, max: number | null | undef
   if (min == null && max == null) return null;
   const cur = currency || "USD";
   const fmt = (n: number) => n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
-  if (min != null && max != null) return `${cur} ${fmt(min)}–${fmt(max)}`;
+  if (min != null && max != null) return `${cur} ${fmt(min)} to ${fmt(max)}`;
   return `${cur} ${fmt((min ?? max)!)}+`;
 }
 
@@ -175,7 +175,7 @@ export function resolveSalary(job: JobPosting): { text: string; fromListingText:
   if (!extracted) return null;
   const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
   const suffix = extracted.period === "hourly" ? "/hr" : "";
-  return { text: `USD ${fmt(extracted.min)}–${fmt(extracted.max)}${suffix}`, fromListingText: true };
+  return { text: `USD ${fmt(extracted.min)} to ${fmt(extracted.max)}${suffix}`, fromListingText: true };
 }
 
 // v3.171.0 — was a flat pastel fill (bg-blue-100/text-blue-700, etc.), the

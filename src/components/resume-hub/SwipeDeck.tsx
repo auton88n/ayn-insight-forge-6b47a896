@@ -224,7 +224,7 @@ export function SwipeDeck({
             )}
           </div>
           <p className="text-[13px] leading-relaxed flex-1 overflow-hidden" style={{ color: "var(--rh-muted)" }}>
-            {desc ? `${desc.slice(0, 200)}${desc.length > 200 ? "…" : ""}` : "No description on file for this one — open it to see more on the company's own site."}
+            {desc ? `${desc.slice(0, 200)}${desc.length > 200 ? "…" : ""}` : "No description on file for this one. Open it to see more on the company's own site."}
           </p>
           <div className="flex items-center justify-between pt-3 mt-2 border-t" style={{ borderColor: "var(--rh-hair)" }}>
             {score != null

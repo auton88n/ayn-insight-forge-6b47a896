@@ -167,7 +167,7 @@ const HERO: Record<Audience, {
     emphasis: 'Not a resume pile.',
     lead: 'AYN matches your role against candidates who chose to be found. Every one is verified before you see a name.',
     cta: 'Request employer access',
-    note: 'Every company is reviewed by hand. Contact stays private until the candidate accepts.',
+    note: 'Every company is reviewed by hand. Contact stays private until the candidate accepts. Employer accounts are currently US and Canada only.',
     art: <CandidateCardMockup />,
   },
 };
@@ -637,14 +637,15 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
                   <p className="lp-eyebrow">Once they say yes</p>
                   <h2 className="lp-display lp-h2">Talk to them without leaving AYN. <em>Screened both ways.</em></h2>
                   <p className="lp-lead">
-                    A real inbox opens on every proposal, no personal email or phone number ever exchanged. It stays
-                    one way until you choose to open it up, and every message either side sends, yours and theirs,
-                    is screened before it's delivered: no links, no phone numbers, nothing routed off the platform.
+                    A real inbox opens on every proposal. It stays one way until you choose to open it up, and every
+                    message either side sends, yours and theirs, is screened before it's delivered: no links, no
+                    contact info typed into a message, nothing routed off the platform. Email and phone are only ever
+                    shared through the formal accept step, never slipped into a chat message.
                   </p>
                   <div className="lp-chips" style={{ marginTop: 22 }}>
                     <span className="lp-chip"><Eye size={14} />You control two-way replies</span>
                     <span className="lp-chip"><ShieldCheck size={14} />Every message screened</span>
-                    <span className="lp-chip"><Ban size={14} />No links or contact info, ever</span>
+                    <span className="lp-chip"><Ban size={14} />No links or contact info in messages</span>
                   </div>
                 </div>
                 <div className="lp-art lp-art-plain">

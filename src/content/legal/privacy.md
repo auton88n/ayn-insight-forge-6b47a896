@@ -181,9 +181,9 @@ We honour Global Privacy Control signals where technically feasible.
 
 We will post any change here with a new version number and date. For changes materially affecting your rights we will notify you in the Platform before they take effect and, where required, seek your consent again.
 
-**Version 2.0 (18 August 2026):** AYN narrowed its operating scope to the United States and Canada only, and stopped targeting users in the European Union, United Kingdom, or Middle East. This version also corrects prior descriptions of where account data is stored — it has always been on servers we operate ourselves, and this version accurately describes that infrastructure as US-based rather than referencing a third-party UK-based database provider.
+**Version 2.0 (18 August 2026):** AYN narrowed its operating scope to the United States and Canada only, and stopped targeting users in the European Union, United Kingdom, or Middle East. This version also corrects prior descriptions of where account data is stored; it has always been on servers we operate ourselves, and this version accurately describes that infrastructure as US-based rather than referencing a third-party UK-based database provider.
 
-**Version 2.2 (7 September 2026):** Added PostHog to the service provider table: opt-in, masked session recordings that let us see what went wrong when something breaks, never what was typed or shown on screen. This version also corrects the Cookies section — sign-in has always used your browser's local storage, not a cookie, and this version states that plainly instead of grouping it with the actual analytics cookie Google Analytics sets.
+**Version 2.2 (7 September 2026):** Added PostHog to the service provider table: opt-in, masked session recordings that let us see what went wrong when something breaks, never what was typed or shown on screen. This version also corrects the Cookies section; sign-in has always used your browser's local storage, not a cookie, and this version states that plainly instead of grouping it with the actual analytics cookie Google Analytics sets.
 
 **Version 2.3 (10 September 2026):** Corrected our geographic-scope description to match the live job catalogue, which covers North America, Europe, the Middle East, and Australia. Employer accounts remain available in the United States and Canada.
 

@@ -147,7 +147,7 @@ EDUCATION vs CERTIFICATIONS: education is degree-granting programs only (Bachelo
   });
 
   const noContentMsg = isPdf
-    ? "Couldn't read this PDF — it may be scanned/image-based, blank, or corrupted. Paste your resume text instead."
+    ? "Couldn't read this PDF. It may be scanned/image-based, blank, or corrupted. Paste your resume text instead."
     : "AI couldn't extract resume data. Paste your resume text instead.";
   if (r.status === 429) return json({ error: "AI rate limit. Try again in a minute." }, 429);
   if (r.status === 402) return json({ error: "AI credits exhausted." }, 402);
@@ -307,7 +307,7 @@ export async function handleRewrite(ctx: BaseCtx): Promise<Response> {
   return json(await completePaidBaseResume(adminRewrite, user.id, action, rewriteRequestId, rewriteCost, {
     resume: rewritten.resume,
     suggestions: noRealChange
-      ? ["Your resume already met AYN's writing rules — nothing needed to change."]
+      ? ["Your resume already met AYN's writing rules. Nothing needed to change."]
       : [...(rewritten.suggestions ?? []), ...writeViolations.map(v => `Still needs review: ${v.detail}`)],
     ats_score: scored.ats_score,
     verdict: scored.verdict,

@@ -6,6 +6,7 @@ import { AYNLoader, DashboardLoader } from '@/components/ui/page-loader';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useFeature } from '@/hooks/useFeatureFlags';
 import { PlatformMaintenanceScreen } from '@/components/shared/MaintenanceNotice';
+import { LegalConsentGate } from '@/components/auth/LegalConsentGate';
 import LandingPage from '@/components/LandingPage';
 
 const EmployerHub = lazy(() => import('@/pages/EmployerHub'));
@@ -50,11 +51,24 @@ const EmployersAuthedShell = ({ user }: { user: User }) => {
   if (loading) return <AYNLoader />;
   if (platform.loaded && !platform.enabled) return <PlatformMaintenanceScreen />;
   if (role === 'employer') {
-    if (employerStatus !== 'approved') return <Navigate to="/employer/pending" replace />;
+    // Found live: a signed-in employer needing to re-accept an updated
+    // terms/privacy version landed here (this page, not Index.tsx, is
+    // every employer's real home) and had no way to know why -- the
+    // backend correctly refused with 451 legal_reaccept_required on
+    // employer_org_create, but nothing in this page's own tree ever
+    // showed the reacceptance dialog Index.tsx already has for seekers.
+    // "Continue" just silently did nothing, for an account that may be
+    // new and have no other page to try instead.
     return (
-      <Suspense fallback={<DashboardLoader />}>
-        <EmployerHub companyName={companyName} />
-      </Suspense>
+      <LegalConsentGate userId={user.id}>
+        {employerStatus !== 'approved'
+          ? <Navigate to="/employer/pending" replace />
+          : (
+            <Suspense fallback={<DashboardLoader />}>
+              <EmployerHub companyName={companyName} />
+            </Suspense>
+          )}
+      </LegalConsentGate>
     );
   }
   // Signed in as a job seeker, landed on the employer marketing page --

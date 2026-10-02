@@ -225,8 +225,8 @@ const BREACH_STEPS: { title: string; body: string; when?: string }[] = [
     body: 'A qualifying event is caught by the error-alert-check cron (fires on any critical error-log row or a burst of 3+ errors), by reviewing the errors below directly, or by direct discovery. Whichever happens first is the actual start of the 72-hour clock.',
   },
   {
-    title: '2. Triage — is this actually a personal data breach',
-    body: 'Unauthorized access, disclosure, alteration, or loss of personal data. Confirm which table(s) and how many real accounts are affected by querying the database directly — never assume scope from a log line alone.',
+    title: '2. Triage: is this actually a personal data breach',
+    body: 'Unauthorized access, disclosure, alteration, or loss of personal data. Confirm which table(s) and how many real accounts are affected by querying the database directly. Never assume scope from a log line alone.',
     when: 'within hours of detection',
   },
   {
@@ -235,7 +235,7 @@ const BREACH_STEPS: { title: string; body: string; when?: string }[] = [
   },
   {
     title: '4. Notify the supervisory authority',
-    body: 'AYN has no EU establishment today, so there is no single default authority — notification goes to the supervisory authority of the affected people’s own country, or to whichever authority a future EU representative is designated with.',
+    body: 'AYN has no EU establishment today, so there is no single default authority. Notification goes to the supervisory authority of the affected people’s own country, or to whichever authority a future EU representative is designated with.',
     when: 'within 72 hours of awareness',
   },
   {
@@ -258,7 +258,7 @@ function BreachProcedureReference() {
           <div>
             <p className="text-base font-medium">If this is a real data breach</p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              The actual 72-hour procedure, not a link to a document. AYN is solo-founder run today — every step below is
+              The actual 72-hour procedure, not a link to a document. AYN is solo-founder run today, every step below is
               something you personally do, not a handoff to a team.
             </p>
           </div>
@@ -506,11 +506,11 @@ export function SessionReplayPane() {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Stat label="Recordings" value={recordings.length} hint="Most recent 50" />
         <Stat label="With console errors" value={withErrors} accent={withErrors > 0} />
-        <Stat label="Identified visitors" value={recordings.filter(r => r.personEmail).length} hint="Almost always 0 — sessions are anonymous by design" />
+        <Stat label="Identified visitors" value={recordings.filter(r => r.personEmail).length} hint="Almost always 0. Sessions are anonymous by design" />
       </div>
 
       <Table head={['When', 'Page', 'Duration', 'Clicks', 'Errors', 'Who', '']}>
-        {recordings.length === 0 && <tr><td colSpan={7}><EmptyRow>No recordings yet — nobody has accepted the cookie banner and browsed since it went live.</EmptyRow></td></tr>}
+        {recordings.length === 0 && <tr><td colSpan={7}><EmptyRow>No recordings yet. Nobody has accepted the cookie banner and browsed since it went live.</EmptyRow></td></tr>}
         {recordings.map(r => (
           <Row key={r.id}>
             <Cell>{when(r.startTime)}</Cell>

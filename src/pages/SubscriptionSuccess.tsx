@@ -96,7 +96,10 @@ const SubscriptionSuccess = () => {
                     <h3 className="font-medium mb-2">Your new benefits:</h3>
                     <ul className="text-sm text-muted-foreground space-y-1">
                       {planBenefits(plan).map((feature) => (
-                        <li key={feature}>✓ {feature}</li>
+                        <li key={feature} className="flex items-center gap-1.5">
+                          <CheckCircle className="w-3.5 h-3.5 text-primary shrink-0" />
+                          {feature}
+                        </li>
                       ))}
                     </ul>
                   </div>

@@ -68,7 +68,7 @@ export default function EmployersSection() {
                       {e.verification.address && <p className="text-muted-foreground">Address: {e.verification.address}</p>}
                       {e.verification.country && <p className="text-muted-foreground">Country: {e.verification.country === 'US' ? 'United States' : e.verification.country === 'CA' ? 'Canada' : e.verification.country}</p>}
                       {!e.verification.position && !e.verification.phone && (
-                        <p className="text-muted-foreground italic">No verification data — account predates the verification requirement.</p>
+                        <p className="text-muted-foreground italic">No verification data. Account predates the verification requirement.</p>
                       )}
                     </div>
                   )}

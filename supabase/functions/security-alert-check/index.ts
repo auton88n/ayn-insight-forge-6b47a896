@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
       const notifyEmail = Deno.env.get("NOTIFICATION_EMAIL");
       if (notifyEmail) {
         const criticalHtml = critical.slice(0, 5).map((r) => para(
-          `<strong>${escapeHtml(r.action)}</strong> — critical${r.ip_address ? ` from ${escapeHtml(r.ip_address)}` : ""}`,
+          `<strong>${escapeHtml(r.action)}</strong>: critical${r.ip_address ? ` from ${escapeHtml(r.ip_address)}` : ""}`,
         )).join("");
 
         const burstHtml = bursts.slice(0, 10).sort((a, b) => b.count - a.count).map((b) => para(

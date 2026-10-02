@@ -120,7 +120,7 @@ export default function SkillsToLearnTab({ userId, onOpenJob }: { userId: string
           <p className="rh-display text-[15px]">No skills tracked yet</p>
           <p className="text-xs" style={{ color: "var(--rh-muted)" }}>
             When you tailor a resume and confirm adding a skill a job wants that you don't have yet, it shows up
-            here — a real reminder of what to actually go learn, not just a line on a document.
+            here, a real reminder of what to actually go learn, not just a line on a document.
           </p>
         </Card>
       )}

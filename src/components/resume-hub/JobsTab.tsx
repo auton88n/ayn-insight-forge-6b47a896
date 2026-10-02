@@ -112,6 +112,72 @@ function scoreBadgeStyle(score: number): CSSProperties {
   return { background: "var(--rh-raised)", color: "var(--rh-muted)" };
 }
 
+// Reported directly and reproduced live: clicking "Add" on a gap
+// suggestion wrote the literal raw requirement SENTENCE onto the
+// person's resume -- "Experience with containerization and
+// orchestration (Docker, Kubernetes)." sitting in the skills array
+// right next to "Python", "PostgreSQL", as if it were one atomic
+// skill, and the identical broken string landed on Skills to learn too.
+// gapAnalysis.missing is the same coverage list the Score view uses,
+// which deliberately keeps degree/years-of-experience/soft-skill
+// requirements in it for scoring purposes (see _shared/tailoring.ts's
+// own QUALIFICATION/GENERIC_QUAL comment: "a requirement even when it
+// cannot be added as a skill") -- correct there, never meant to double
+// as "here is a skill to add to your resume." This cleans that same
+// list down to what is genuinely addable before it ever reaches
+// gapSuggestions: a degree, certification or years-of-experience line
+// is dropped outright (clicking a button cannot add someone a degree),
+// a generic soft-skill phrase is dropped too ("leadership and
+// mentorship skills" is not a course someone goes and takes), and a
+// bundled "description (Tech1, Tech2)" line is split into Tech1 and
+// Tech2 as their own separate, clean suggestions instead of the whole
+// sentence landing on a real document. A requirement with real
+// technologies named but no parenthetical to split (a plain "such as
+// Jenkins, GitLab CI, or similar" list) is a known, disclosed gap --
+// dropped rather than offered half-cleaned, the same "say nothing
+// rather than something wrong" rule this app applies everywhere else.
+//
+// A second, related bug caught live verifying the first fix: the whole
+// bundled sentence -- "Strong scripting and programming skills (Python,
+// Bash, Go, etc.)." -- can land in gapAnalysis.missing even when one of
+// its own parenthetical items is a skill the resume ALREADY has,
+// because the deterministic coverage check scores the sentence as a
+// whole, not item by item. Splitting it correctly surfaced "Python" as
+// a suggestion to add, right after a real resume that already listed
+// Python. existingSkills is read from the resume this suggestion would
+// actually be written onto, so anything already there (case
+// insensitively) is dropped before it's ever offered.
+const SKILL_SUGGESTION_EXCLUDE =
+  /\b(degree|bachelor'?s?|master'?s?|doctorate|phd|licen[cs]e|certification|\d+\+?\s+years?|communication\s+skills?|team\s*player|problem[- ]solving|self[- ]starter|fast[- ]paced|detail[- ]oriented|work(ing)?\s+independently|interpersonal\s+skills?|time\s+management|organi[sz]ational\s+skills?|leadership(\s+(and|&)\s+mentorship)?\s+skills?|mentorship\s+skills?|analytical\s+skills?|people\s+skills?|multi[- ]?task|collaboration\s+skills?|complex\s+projects?|multiple\s+priorities)\b/i;
+
+function cleanSkillSuggestions(missing: string[], existingSkills: string[]): { text: string; value: string }[] {
+  const seen = new Set<string>(existingSkills.map(s => s.trim().toLowerCase()));
+  const out: { text: string; value: string }[] = [];
+  const add = (key: string, value: string) => {
+    const v = value.trim();
+    const k = v.toLowerCase();
+    if (!v || seen.has(k)) return;
+    seen.add(k);
+    out.push({ text: key, value: v });
+  };
+  for (const text of missing) {
+    if (SKILL_SUGGESTION_EXCLUDE.test(text)) continue;
+    const parens = Array.from(text.matchAll(/\(([^()]+)\)/g));
+    if (parens.length) {
+      for (const [, group] of parens) {
+        const items = group.split(/,|\bor\b|\band\b/i).map(s => s.trim())
+          .filter(s => s && !/^etc\.?$/i.test(s));
+        items.forEach((item, i) => add(`${text}::${group}:${i}`, item));
+      }
+      continue;
+    }
+    // No parenthetical to extract from -- only offer it as-is when it
+    // already reads like a short, atomic skill, not a full sentence.
+    if (text.length <= 40 && !/[.!?]$/.test(text)) add(text, text);
+  }
+  return out;
+}
+
 export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBackToBrowse }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -247,16 +313,23 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
 
   /** Documents generated for this job, newest first. */
   const loadDocs = async (jobId: string) => {
-    const [{ data: v }, { data: c }] = await Promise.all([
-      supabase.from("resume_versions").select("id, created_at, content, match_pct, still_missing")
-        .eq("user_id", userId).eq("created_for_job_id", jobId)
-        .order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      supabase.from("cover_letters").select("id, created_at, body")
-        .eq("user_id", userId).eq("job_id", jobId)
-        .order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    ]);
-    setTailored((v as unknown as TailoredRow) ?? null);
-    setCover((c as unknown as CoverRow) ?? null);
+    // Found live, not guessed at: firing these two queries together via
+    // Promise.all silently dropped the second one's result (cover_letters
+    // came back empty even though the exact same query, replayed as a
+    // standalone request, returns the real row cleanly). Reproduced and
+    // confirmed the fix: run them one after another instead -- a real
+    // concurrency issue somewhere under the Supabase client/fetch layer
+    // when two requests go out in the same tick, not an RLS or data
+    // problem. Costs one extra small round trip; correctness over the
+    // few milliseconds saved by the parallel version.
+    const vRes = await supabase.from("resume_versions").select("id, created_at, content, match_pct, still_missing")
+      .eq("user_id", userId).eq("created_for_job_id", jobId)
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const cRes = await supabase.from("cover_letters").select("id, created_at, body")
+      .eq("user_id", userId).eq("job_id", jobId)
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    setTailored((vRes.data as unknown as TailoredRow) ?? null);
+    setCover((cRes.data as unknown as CoverRow) ?? null);
   };
 
   const openJob = async (j: JobRow) => {
@@ -305,7 +378,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       });
       if (error) throw error;
       await loadDocs(selected.id);
-      setGapSuggestions((gapAnalysis?.missing ?? []).map(text => ({ text, value: text })));
+      setGapSuggestions(cleanSkillSuggestions(gapAnalysis?.missing ?? [], resume?.skills ?? []));
       onCreditsChanged?.();
       toast({ title: "Tailored resume ready", description: "Download it below." });
     } catch (e) {
@@ -348,7 +421,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       user_id: userId, job_id: selected.id, job_title: selected.title, company: selected.company, skill,
     });
     if (error) {
-      toast({ title: "Added to your resume", description: "Couldn't add it to Skills to learn — try again from there.", variant: "destructive" });
+      toast({ title: "Added to your resume", description: "Couldn't add it to Skills to learn. Try again from there.", variant: "destructive" });
     } else {
       toast({ title: "Added", description: `"${skill}" is on your resume and on your Skills to learn page.` });
     }
@@ -549,7 +622,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
           <Card className="p-4 rounded-xl flex items-start justify-between gap-3 shadow-none hover:shadow-none" style={{ background: "var(--rh-tint)", borderColor: "#e85d3a33" }}>
             <p className="text-sm leading-relaxed" style={{ color: "var(--rh-ink)" }}>
               It's been <span className="font-semibold">{daysSince(selected.application_status_changed_at)} days</span> since you applied to{" "}
-              <span className="font-semibold">{selected.company}</span> for {selected.title} — still no word? Most replies land faster than
+              <span className="font-semibold">{selected.company}</span> for {selected.title}. Still no word? Most replies land faster than
               this, so it's fair to look for another way in: a warm intro, a direct follow-up, or just refocusing your energy while you wait.
             </p>
             <Button
@@ -705,7 +778,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                   <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2.5">
                     <p className="text-xs text-muted-foreground">
                       This role also asks for a few things you don't have on your resume yet. Add one only if
-                      you're genuinely willing to learn it before an interview — it goes on your resume and on
+                      you're genuinely willing to learn it before an interview. It goes on your resume and on
                       your Skills to learn page, so you have a real reason to actually pick it up.
                     </p>
                     {gapSuggestions.map((s, idx) => (

@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
         const distinct = Array.from(byKey.values()).sort((a, b) => b.count - a.count).slice(0, 10);
 
         const rowsHtml = distinct.map(d => para(
-          `<strong>${escapeHtml(d.endpoint)}</strong>${d.count > 1 ? ` (${d.count}×)` : ""} — ${escapeHtml(d.message.slice(0, 200))}`,
+          `<strong>${escapeHtml(d.endpoint)}</strong>${d.count > 1 ? ` (${d.count}×)` : ""}: ${escapeHtml(d.message.slice(0, 200))}`,
           { muted: d.severity !== "critical" },
         )).join("");
 

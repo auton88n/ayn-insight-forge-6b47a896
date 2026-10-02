@@ -137,7 +137,19 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
     </form>
     <div className="ayn-results-toolbar">
       <p role="status">{listings.isPending ? 'Finding jobs…' : listings.isError ? 'Search unavailable' : total > 999 ? '1,000+ roles to explore' : total + (total === 1 ? ' role found' : ' roles found')}</p>
-      <div><select aria-label="Job category" value={categorySlug || ''} onChange={event => navigate(event.target.value ? '/jobs/category/' + event.target.value : '/jobs')}><option value="">All categories</option>{BROWSE_CATEGORIES.map(value => <option key={value} value={value}>{humanizeCategory(value)}</option>)}</select><LinkLike onClick={() => navigate('/salary-guide')}>Salary guide</LinkLike></div>
+      <div><select aria-label="Job category" value={categorySlug || ''} onChange={event => {
+        // A category change used to drop whatever search/location was
+        // already typed -- selecting a category after searching "Dubai"
+        // silently lost the location and returned a global result set.
+        // The target path still has to change (category is a route
+        // segment, not a query param), but q/where ride along as the
+        // same query string updateSearch() already knows how to build.
+        const next = new URLSearchParams(params);
+        next.delete('job');
+        const base = event.target.value ? '/jobs/category/' + event.target.value : '/jobs';
+        const qs = next.toString();
+        navigate(qs ? base + '?' + qs : base);
+      }}><option value="">All categories</option>{BROWSE_CATEGORIES.map(value => <option key={value} value={value}>{humanizeCategory(value)}</option>)}</select><LinkLike onClick={() => navigate('/salary-guide')}>Salary guide</LinkLike></div>
     </div>
     <div className="lp-browser-grid">
       <div className="lp-browser-list" aria-label="Job results" aria-busy={listings.isFetching}>
@@ -151,7 +163,12 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
           const salary = resolveSalary({ ...job, description: '' });
           return (
         <button id={'job-result-' + job.id} key={job.id} type="button" onClick={() => openJob(job)} aria-pressed={selectedId === job.id} className={'lp-browser-card ' + (selectedId === job.id ? 'is-active' : '')}>
-          <div className="lp-browser-card-row">{logo(job)}<div className="lp-browser-card-text"><div className="lp-browser-card-company">{job.company}</div><div className="lp-browser-card-title">{job.title}</div><div className="lp-browser-card-meta">{job.location || 'Location not listed'}{job.work_mode && ' · ' + job.work_mode.charAt(0).toUpperCase() + job.work_mode.slice(1)}</div><div className="ayn-job-meta-bottom"><span>{employmentTypeLabel(job.employment_type) || 'View posting'}</span>{salary && <span className="ayn-job-salary" title={salary.fromListingText ? "Read directly from this posting's own text." : undefined}>{salary.text}</span>}<span className="ayn-job-posted">{postedAge(job.posted_at)}</span></div></div></div>
+          <div className="lp-browser-card-row">{logo(job)}<div className="lp-browser-card-text"><div className="lp-browser-card-company">{job.company}</div><div className="lp-browser-card-title">{job.title}</div><div className="lp-browser-card-meta">{job.location || 'Location not listed'}{job.work_mode && ' · ' + job.work_mode.charAt(0).toUpperCase() + job.work_mode.slice(1)}</div><div className="ayn-job-meta-bottom">{/* "View posting" used to fill this slot when the source never
+                  stated an employment type, reading as a second, unrelated
+                  action sitting where "Full-time"/"Contract" belongs. An
+                  unknown type is now just omitted, not papered over with a
+                  confusing fallback label that isn't about employment type. */}
+                  {employmentTypeLabel(job.employment_type) && <span>{employmentTypeLabel(job.employment_type)}</span>}{salary && <span className="ayn-job-salary" title={salary.fromListingText ? "Read directly from this posting's own text." : undefined}>{salary.text}</span>}<span className="ayn-job-posted" title="The last time AYN confirmed this posting was still live, not its original publish date.">Confirmed live {postedAge(job.posted_at)}</span></div></div></div>
         </button>
           );
         })}
@@ -161,7 +178,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
       <div className="lp-browser-detail" ref={pane} aria-label="Selected job">
         {narrow && explicitId && <button type="button" className="ayn-back-results" onClick={backToResults}><ArrowLeft size={18} /> Back to results</button>}
         {selectedId && detail.isPending ? <div className="ayn-inline-state" role="status"><Loader2 size={20} className="animate-spin" /><p>Loading the full posting…</p></div> : detail.isError ? <div className="ayn-inline-state" role="alert"><h3>This posting could not load</h3><button className="lp-btn lp-btn-ghost" onClick={() => detail.refetch()}>Try again</button></div> : selected ? <article className="lp-browser-detail-card">
-          <div className="lp-browser-detail-head">{logo(selected, true)}<div><p className="lp-browser-detail-company">{selected.company}</p><p className="ayn-source-note">Posted {postedDate(selected.posted_at)}</p></div></div>
+          <div className="lp-browser-detail-head">{logo(selected, true)}<div><p className="lp-browser-detail-company">{selected.company}</p><p className="ayn-source-note" title="The last time AYN confirmed this posting was still live, not its original publish date.">Confirmed live {postedDate(selected.posted_at)}</p></div></div>
           <h2 ref={headingRef} tabIndex={-1} className="ayn-job-title">{selected.title}</h2>
           <div className="lp-browser-pill-row">{selected.location && <span><MapPin size={15} />{selected.location}</span>}{selected.employment_type && <span>{employmentTypeLabel(selected.employment_type)}</span>}{selected.seniority && <span>{seniorityLabel(selected.seniority)}</span>}{resolveSalary(selected) && <span>{resolveSalary(selected)!.text}</span>}</div>
           <div className="lp-browser-actions"><a href={/^https?:\/\//i.test(selected.apply_url) ? selected.apply_url : undefined} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-primary">Open application <ExternalLink size={16} /></a><button className="lp-btn lp-btn-ghost" onClick={() => { try { sessionStorage.setItem('ayn_check_jd', selected.description); } catch { /* checker remains usable */ } navigate('/check-resume'); }}>Check my fit</button></div>

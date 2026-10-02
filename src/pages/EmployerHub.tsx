@@ -459,7 +459,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               the two things genuinely specific to the dashboard itself --
               usage this period, and the company's own logo. */}
           <div className="rh-app-topbar">
-            <h1 className="sr-only">{org.name} — AYN for employers</h1>
+            <h1 className="sr-only">{org.name}, AYN for employers</h1>
             {/* v3.35.0 — the same usage numbers Billing already shows, right
                 where searches, proposals and assessments actually get spent.
                 v3.190.0 — actually matched to the seeker credit pill's real

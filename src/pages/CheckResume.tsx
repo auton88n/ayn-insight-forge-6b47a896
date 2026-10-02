@@ -147,12 +147,15 @@ const CheckResume = () => {
               </section>
               {result.matchPct !== null && (
                 <div className="rounded-xl border p-5" style={{ background: 'var(--accent, #fdf3ee)' }}>
-                  <div className="text-sm font-semibold text-muted-foreground">Literal keyword match</div>
+                  <div className="text-sm font-semibold text-muted-foreground">Wording match</div>
                   <div className="text-4xl font-bold mt-1" style={{ color: '#e85d3a' }}>{result.matchPct}%</div>
                   <p className="text-sm text-muted-foreground mt-1">
-                    AYN’s text-based requirement check. Different wording may hide relevant experience; this is not your likelihood of being hired.
+                    Checks how much of each requirement's full wording shows up in your resume, not just whether a
+                    single skill name appears. A requirement can list your real skill and still read as unmatched
+                    here if your resume phrases the surrounding sentence differently. This is not your likelihood of
+                    being hired.
                   </p>
-                  <p className="text-sm mt-2">{result.matchedCount} of {result.requirementCount} extracted requirements have matching text. The percentage uses the full check; this free preview shows up to three improvement opportunities.</p>
+                  <p className="text-sm mt-2">{result.matchedCount} of {result.requirementCount} extracted requirements have closely matching wording. The percentage uses the full check; this free preview shows up to three improvement opportunities.</p>
                 </div>
               )}
 

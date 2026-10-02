@@ -78,7 +78,7 @@ export function screenMessageBody(body: string): ScreeningResult {
   const urlMatches = text.match(URL_RE) || [];
   const bareMatches = text.match(BARE_DOMAIN_RE) || [];
   if (urlMatches.length || bareMatches.length) {
-    return { ok: false, reason: "Links can't be shared in messages. Use \"Schedule a call\" for a real, verified call link — the company's website and the job posting are already shown on this conversation." };
+    return { ok: false, reason: "Links can't be shared in messages. Use \"Schedule a call\" for a real, verified call link. The company's website and the job posting are already shown on this conversation." };
   }
 
   if (PHONE_RE.test(text)) {

@@ -130,7 +130,7 @@ const SalaryGuide = () => {
                 </div>
                 <div className="rounded-xl border p-5">
                   <div className="text-3xl font-bold tabular-nums">{snap.posted_last_24h.toLocaleString('en-US')}</div>
-                  <div className="text-sm text-muted-foreground mt-1">posted in the last 24 hours</div>
+                  <div className="text-sm text-muted-foreground mt-1" title="AYN re-confirms a posting is still live every sync cycle; this counts roles confirmed live in the last 24 hours, not roles newly published.">confirmed live in the last 24 hours</div>
                 </div>
                 <div className="rounded-xl border p-5">
                   <div className="text-3xl font-bold tabular-nums">{pct(snap.work_mode.remote || 0)}%</div>
@@ -146,7 +146,7 @@ const SalaryGuide = () => {
               <div className="mt-14">
                 <SectionHeading>Median salary by role, ranked by how many are open</SectionHeading>
                 <p className="text-sm text-muted-foreground mb-5 max-w-2xl">
-                  A category only shows a salary figure when enough real postings state one. A role with a small sample still shows how many openings exist, honestly, with no invented number attached.
+                  A category only shows a salary figure when enough real postings state one. A role with a small sample still shows how many openings exist, honestly, with no invented number attached. Figures reflect USD-denominated postings only; AYN never converts or guesses an exchange rate.
                 </p>
                 <div className="rounded-xl border overflow-x-auto">
                   <table className="w-full text-sm">

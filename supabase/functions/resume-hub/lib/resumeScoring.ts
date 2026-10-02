@@ -155,7 +155,7 @@ export function deterministicDeductions(resume: unknown): { points: number; issu
   const repeated = mostRepeatedOpeningWord(work);
   if (repeated) {
     points += POINTS.repeated_opening_word;
-    issues.push(`"${repeated.word}" opens ${repeated.count} different bullets — try varying the verbs so the resume doesn't read repetitively.`);
+    issues.push(`"${repeated.word}" opens ${repeated.count} different bullets. Try varying the verbs so the resume doesn't read repetitively.`);
   }
 
   const now = new Date();
@@ -170,7 +170,7 @@ export function deterministicDeductions(resume: unknown): { points: number; issu
     if (startIdx !== null && startIdx > todayIdx) {
       points += POINTS.date_format_inconsistent; // reuses the existing "date problem" point value, not a new category
       const company = typeof wr.company === "string" && wr.company ? ` at ${wr.company}` : "";
-      issues.push(`The role${company} has a start date that is genuinely after today — check it's not a typo.`);
+      issues.push(`The role${company} has a start date that is genuinely after today. Check it's not a typo.`);
     }
   }
 

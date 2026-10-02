@@ -126,7 +126,7 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
           <p className="rh-display text-[15px]">No proposals yet</p>
           <p className="text-xs" style={{ color: "var(--rh-muted)" }}>
             {poolOptedIn
-              ? "You're discoverable — a proposal will show up here the moment an employer sends one."
+              ? "You're discoverable. A proposal will show up here the moment an employer sends one."
               : "Turn on discovery so employers hiring for roles like yours can reach you."}
           </p>
         </Card>

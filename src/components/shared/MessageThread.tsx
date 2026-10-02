@@ -15,7 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Send, ShieldCheck, Ban } from "lucide-react";
+import { Loader2, Send, ShieldCheck, Ban, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { employerApi, inboxMessages, type InboxMessage } from "@/lib/employer";
 
@@ -124,7 +124,7 @@ export default function MessageThread({
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/50 bg-muted/20 px-3 py-2 text-xs">
           <div className="flex items-center gap-2">
             <Switch checked={twoWayEnabled} disabled={busyControl} onCheckedChange={toggleTwoWay} />
-            <span>{twoWayEnabled ? "Candidate can reply" : "One-way — candidate can't reply"}</span>
+            <span>{twoWayEnabled ? "Candidate can reply" : "One-way: candidate can't reply"}</span>
           </div>
           <Button
             size="sm" variant={candidateBlocked ? "destructive" : "outline"}
@@ -148,7 +148,7 @@ export default function MessageThread({
               <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${mine ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                 {m.kind === "call_invite" ? (
                   <div className="space-y-1">
-                    <p className="font-medium">📞 Call scheduled</p>
+                    <p className="font-medium flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Call scheduled</p>
                     {m.call_scheduled_at && <p className="text-xs opacity-80">{new Date(m.call_scheduled_at).toLocaleString()}</p>}
                     {m.call_url && (
                       <a href={m.call_url} target="_blank" rel="noreferrer" className="underline text-xs">Join call</a>

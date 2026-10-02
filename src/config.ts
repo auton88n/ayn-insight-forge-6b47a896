@@ -17,7 +17,7 @@ export const SUPABASE_URL =
 const rawAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY as string | undefined;
 if (!rawAnonKey) {
   throw new Error(
-    'VITE_SUPABASE_ANON_KEY is not set. Add it to your .env (see .env.example) — ' +
+    'VITE_SUPABASE_ANON_KEY is not set. Add it to your .env (see .env.example), ' +
     'get it from Supabase Dashboard → Project Settings → API.'
   );
 }

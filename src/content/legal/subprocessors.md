@@ -13,7 +13,7 @@ AYN sources and displays job listings across North America, Europe, the Middle E
 
 | Subprocessor | What it does | Data it can reach | Processing location |
 |---|---|---|---|
-| Hostinger | Infrastructure hosting for the servers we run our own database and application software on | All account data, profiles, resumes, job records, proposals, assessments — as infrastructure, not as an operator with its own access | United States |
+| Hostinger | Infrastructure hosting for the servers we run our own database and application software on | All account data, profiles, resumes, job records, proposals, assessments, as infrastructure, not as an operator with its own access | United States |
 | Lovable | AI gateway routing our model requests | Content sent for generation or evaluation, in transit | United States |
 | Google | Language models used for fit assessment, document generation, candidate ordering, and assessment evaluation, reached through the gateway above | Content sent for generation or evaluation | United States and globally |
 | OpenAI | Text embedding model used to represent profiles for matching | Profile text sent for embedding, which excludes name, email, telephone, address, and links | United States and globally |
@@ -24,7 +24,7 @@ AYN sources and displays job listings across North America, Europe, the Middle E
 
 ## What each one can actually see
 
-**Hostinger** provides the physical servers and network our database and application run on. Unlike a managed database provider, Hostinger does not operate the database software itself or have its own access to query it — we administer that ourselves. It is listed here because it is the infrastructure the data physically sits on.
+**Hostinger** provides the physical servers and network our database and application run on. Unlike a managed database provider, Hostinger does not operate the database software itself or have its own access to query it; we administer that ourselves. It is listed here because it is the infrastructure the data physically sits on.
 
 **Lovable** sits in the path between our servers and the model providers. Content passes through it in transit rather than being stored by us there.
 
@@ -32,7 +32,7 @@ AYN sources and displays job listings across North America, Europe, the Middle E
 
 **Stripe** never gives us your full card number and we never store one.
 
-**Resend** only receives what's needed to deliver a specific email — your address and that message's content.
+**Resend** only receives what's needed to deliver a specific email: your address and that message's content.
 
 **Google Analytics** only runs where a visitor has accepted analytics cookies. Reject, or a Global Privacy Control signal, means it does not load.
 

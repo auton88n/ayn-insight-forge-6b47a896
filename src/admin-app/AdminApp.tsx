@@ -57,7 +57,7 @@ function CodeBoxes({ digits, onChange, onSubmit, disabled, error }: {
           }}
           disabled={disabled}
           className={`w-10 h-14 text-center text-xl font-bold bg-white border rounded-xl text-foreground shadow-sm focus:outline-none transition-all disabled:opacity-50 ${
-            error ? 'border-destructive/60 bg-destructive/5' : digit ? 'border-[#f97316]' : 'border-black/10 focus:border-[#f97316]'}`} />
+            error ? 'border-destructive/60 bg-destructive/5' : digit ? 'border-[#e85d3a]' : 'border-black/10 focus:border-[#e85d3a]'}`} />
       ))}
     </div>
   );
@@ -317,14 +317,14 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
                   onKeyDown={e => handleKey(i, e)}
                   disabled={checking}
                   className={`w-10 h-14 text-center text-xl font-bold bg-white border rounded-xl text-foreground shadow-sm focus:outline-none transition-all disabled:opacity-50 ${
-                    error ? 'border-destructive/60 bg-destructive/5' : digit ? 'border-[#f97316]' : 'border-black/10 focus:border-[#f97316]'}`} />
+                    error ? 'border-destructive/60 bg-destructive/5' : digit ? 'border-[#e85d3a]' : 'border-black/10 focus:border-[#e85d3a]'}`} />
               ))}
             </div>
             {/* A PIN shorter than MAX_PIN_DIGITS needs an explicit submit —
                 there's no box count to auto-detect "done" from. */}
             {enteredCount < MAX_PIN_DIGITS && (
               <button onClick={() => canSubmit && checkPin(pin.slice(0, enteredCount).join(''))} disabled={!canSubmit}
-                className="text-xs font-medium text-[#f97316] disabled:text-muted-foreground disabled:opacity-50 mb-2">
+                className="text-xs font-medium text-[#e85d3a] disabled:text-muted-foreground disabled:opacity-50 mb-2">
                 Unlock
               </button>
             )}
@@ -364,12 +364,12 @@ function LoginScreen({ onSuccess }: { onSuccess: (s: Session) => void }) {
         </div>
         <form onSubmit={handleLogin} className="space-y-3">
           <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
-            className="w-full bg-white border border-black/10 rounded-xl px-4 py-3 text-foreground shadow-sm placeholder-muted-foreground focus:outline-none focus:border-[#f97316] text-sm" required />
+            className="w-full bg-white border border-black/10 rounded-xl px-4 py-3 text-foreground shadow-sm placeholder-muted-foreground focus:outline-none focus:border-[#e85d3a] text-sm" required />
           <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
-            className="w-full bg-white border border-black/10 rounded-xl px-4 py-3 text-foreground shadow-sm placeholder-muted-foreground focus:outline-none focus:border-[#f97316] text-sm" required />
+            className="w-full bg-white border border-black/10 rounded-xl px-4 py-3 text-foreground shadow-sm placeholder-muted-foreground focus:outline-none focus:border-[#e85d3a] text-sm" required />
           {error && <p className="text-destructive text-xs">{error}</p>}
           <button type="submit" disabled={loading}
-            className="w-full bg-[#f97316] text-white rounded-xl py-3 text-sm font-medium hover:bg-[#ea580c] disabled:opacity-50">
+            className="w-full bg-[#e85d3a] text-white rounded-xl py-3 text-sm font-medium hover:bg-[#e54b24] disabled:opacity-50">
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
