@@ -4,7 +4,7 @@
 // never fetched at all.
 import { supabase } from '@/integrations/supabase/client';
 
-export const GA_MEASUREMENT_ID = 'G-6ZYH0N7G6M';
+export const GA_MEASUREMENT_ID = 'G-C16RYZCYPJ';
 
 // v3.359.0 — PostHog session replay, added for the same reason this app's
 // own history keeps citing: a bug report today is a screenshot and a guess
