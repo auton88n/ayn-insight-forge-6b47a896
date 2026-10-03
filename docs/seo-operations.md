@@ -14,8 +14,10 @@ proof of indexing, ranking, AI citation, signup, or a paid subscriber.
    `sitemap-insights.xml`. Check the resulting status in Search Console;
    the live XML files alone do not establish submission.
    All three were submitted on 2 October 2026. The jobs sitemap succeeded;
-   the main and Insights sitemaps initially showed “Couldn't fetch” and need
-   another status check. Both public endpoints currently return valid XML.
+   the main and Insights sitemaps initially showed “Couldn't fetch”. On 3 October
+   Search Console showed Success for all three (38, 4 and 5,919 discovered
+   pages; the Insights count predates later articles and updates on Google's
+   next read).
 3. For automated, read-only performance measurement, enable the Search Console
    API in a Google Cloud project, create a dedicated service account, and add
    its email as a user on that exact Search Console property. Run
