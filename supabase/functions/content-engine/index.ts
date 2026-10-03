@@ -126,6 +126,7 @@ function buildPrompt(kind: string, category: string, city: string | null, source
     "4. No em dashes, no en dashes, anywhere. Use a period, a comma, or the word 'to' for a range.",
     "5. No AI-cliche phrasing: no 'leverage', 'seamless', 'unlock', 'dive into', 'in today's fast-paced'. Write like a specific, careful analyst, not a generic blog.",
     "6. Write real markdown with 2-3 short ## sections. Open with the single most useful real number, not a throat-clearing intro paragraph.",
+    "7. Say 'median', never '50th percentile'. You may say '25th percentile' and '75th percentile' for p25_salary and p75_salary, nothing else. Never state an average, total, difference, ratio, share, or percentage you worked out yourself, and never write a figure like '50 percent' or 'half'. Compare numbers in words ('well above', 'about double' is NOT allowed, 'higher than') without stating a computed number.",
   ].join(" ");
   const user = `Write ${topic}. Here is the complete, real data to ground every claim in -- nothing outside this object is true for this report:\n\n${JSON.stringify(sourceData)}`;
   return { system, user };
