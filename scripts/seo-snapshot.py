@@ -10,7 +10,7 @@ Run with SEOMonster's own Python so google-auth is available:
   uv tool run --no-build --python 3.12 --from seo-monster python scripts/seo-snapshot.py \
     | ssh root@2.25.109.213 "docker exec -i supabase-db psql -U postgres -d postgres"
 """
-import json, os, sys, datetime, urllib.request, urllib.parse
+import json, os, sys, datetime, secrets, urllib.request, urllib.parse
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 
@@ -51,7 +51,17 @@ gsc = {
                   'errors': int(m.get('errors', 0)), 'warnings': int(m.get('warnings', 0)), 'last_downloaded': m.get('lastDownloaded')} for m in sitemaps],
     'indexing': indexing,
 }
-out = ["insert into public.seo_snapshots (source, data) values ('search_console', $j$%s$j$::jsonb);" % json.dumps(gsc)]
+def insert_sql(source, payload):
+    """Build one INSERT. The JSON contains text from third parties (search
+    queries typed by strangers), so it is quoted with a random dollar-quote
+    tag chosen per call, and refused if that tag somehow appears in it."""
+    body = json.dumps(payload)
+    tag = 'j' + secrets.token_hex(12)
+    if '$' + tag + '$' in body:
+        sys.exit('refusing to emit SQL: quote tag collided with the data')
+    return "insert into public.seo_snapshots (source, data) values ('%s', $%s$%s$%s$::jsonb);" % (source, tag, body, tag)
+
+out = [insert_sql('search_console', gsc)]
 
 key = os.environ.get('PSI_API_KEY')
 if not key:
@@ -68,5 +78,5 @@ if key:
         pages.append({'url': u, 'score': round(lh['categories']['performance']['score'] * 100),
                       'fcp': a['first-contentful-paint']['displayValue'], 'lcp': a['largest-contentful-paint']['displayValue'],
                       'tbt': a['total-blocking-time']['displayValue'], 'cls': a['cumulative-layout-shift']['displayValue']})
-    out.append("insert into public.seo_snapshots (source, data) values ('pagespeed', $j$%s$j$::jsonb);" % json.dumps({'strategy': 'mobile', 'pages': pages}))
+    out.append(insert_sql('pagespeed', {'strategy': 'mobile', 'pages': pages}))
 print('\n'.join(out))
