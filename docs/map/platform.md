@@ -1,5 +1,15 @@
 # 2 October 2026: Insights content engine handoff and archive safety
 
+SEO reliability follow-up: `scripts/seo-snapshot.py` now fails visibly rather
+than turning Google API errors into zero metrics, emits sources independently,
+retries transient errors with a bound, and preserves last-good payloads and
+their collection timestamps on failure. Admin SEO renders failure/staleness
+warnings. The private VPS collector uses the tracked systemd service/timer and
+shell runner (daily 05:00 UTC plus jitter, 20-minute limit, overlap lock), with
+private credentials outside git in `/opt/ayn-seo/`. No article cadence, Google
+write API, schema, RLS or RPC grant changes. Deployment, rollback, credential
+scope caveats and diagnostics are in `docs/seo-operations.md`.
+
 Sitemap availability follow-up (3 October): the production deploy rebuilds the live-mounted `dist` directory. An isolated test of the real Express server reproduced `/sitemap.xml` changing from XML 200 to an HTML 404 when that directory disappears. `server.js` now loads the tracked `public/sitemap.xml` into memory at startup and serves an explicit route before static middleware; updates take effect on restart. Missing source fails startup instead of silently serving HTML. The regression test covers rebuild availability, HEAD, conditional 304, and log privacy and is included in `test:seo`. All three sitemap paths emit bounded-field `sitemap_response` JSON logs (status, duration, completion, content type, method and unverified agent classification), excluding query strings, IPs, cookies and raw user agents. This fixes a reproduced availability defect, not proof of the cause of Google's historical error or successful sitemap processing.
 
 The read-only SEO monitor in `scripts/seo-health.mjs` checks robots, all three sitemap endpoints, and up to ten published article pages daily via `.github/workflows/seo-health.yml`. It reports canonical, description, visible article text, and Article JSON-LD findings as a CI artifact; critical crawl failures fail the workflow. It never writes content or crawls outside `ayn.careers`. `npm run seo:health` runs it locally and `npm run test:seo` tests the checker. This is **not** Search Console data: impressions, clicks, indexing outcomes, and AI citations require separate authorized integrations. The Article JSON-LD no longer claims the generic site social image as an article-specific image.

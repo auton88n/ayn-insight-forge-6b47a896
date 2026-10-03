@@ -39,6 +39,9 @@ jobs:
       - name: SEO monitor unit tests
         run: npm run test:seo
 
+      - name: SEO collector failure handling
+        run: python3 -m unittest discover -s tests -p 'test_seo_snapshot.py'
+
       - name: Lint
         # continue-on-error for the same reason as unit tests above: real,
         # pre-existing debt (330 problems as of this pass, almost entirely

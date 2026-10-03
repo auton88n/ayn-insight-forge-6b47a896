@@ -32,8 +32,46 @@ Actions artifacts here. If the key is absent, `npm run seo:gsc` explicitly
 says it is unconfigured. The Search Console API provides *page-level* trends
 after Google's reporting delay, not full index-coverage proof. GitHub Actions
 schedules may run late, and only run once the workflow is on the default
-branch. A future private VPS timer can run this command once the dedicated
-credential and a root-only output location are set up.
+branch. The service-account comparison remains optional; the separate daily
+VPS snapshot collector below now uses the existing OAuth authorization.
+
+## Private VPS collection (October reliability follow-up)
+
+`scripts/seo-snapshot.py` collects each source independently, retries transient
+HTTP/network failures at most three times, and emits sanitized error snapshots
+instead of fabricated zero traffic. Failed snapshots retain the prior payload
+and `collected_at`; `taken_at` is the attempt timestamp. The admin SEO view
+warns on failures or readings older than 48 hours. No tables or RPC grants change.
+
+Deploy the script and `seo-collector-run.sh` to `/opt/ayn-seo/`, and the supplied
+`ayn-seo-collector.service` / `.timer` units to `/etc/systemd/system/`. The timer
+runs daily at 05:00 UTC (09:00 Dubai), with up to ten minutes of jitter and
+missed-run catchup. The service has a 20-minute timeout and a non-overlap lock.
+It uses the isolated SEO Monster Python environment, writes only SEO snapshots
+through local Docker/psql, and never changes articles or calls Google write APIs.
+It runs as root because the existing local Docker database interface requires
+that privilege; hardening does not make Docker access a least-privilege boundary.
+
+Google token `/opt/ayn-seo/token.json` and optional PageSpeed key
+`/opt/ayn-seo/psi-key` are private 0600 files inside a 0700 directory, never in
+git or public CI. Missing optional PageSpeed configuration records a visible
+failure without dropping Search Console results. Refreshes replace the token
+atomically. The existing consent has broader scopes than this collector uses;
+reauthorize separately to narrow them. Testing-mode OAuth can require renewed
+consent; a service account restricted to the property is a future alternative.
+
+Check `systemctl status ayn-seo-collector.service`, `systemctl list-timers
+ayn-seo-collector.timer`, and `journalctl -u ayn-seo-collector.service` for
+operational status. A failed run exits nonzero; failures are visible in Admin
+SEO when the database is reachable. Total service/database outages surface via
+stale-data warnings, not a fabricated success. There is no email/SMS alert wired
+to this service. To pause only collection: `systemctl disable --now
+ayn-seo-collector.timer`. Article publishing cadence is independent and unchanged.
+
+After collector code changes, copy the tracked scripts into `/opt/ayn-seo/`;
+the existing app deployment script does not update this private directory.
+Run Python unit tests with `python3 -m unittest discover -s tests -p
+'test_seo_snapshot.py'`; they run in CI without real credentials.
 
 ## Weekly decision rule
 

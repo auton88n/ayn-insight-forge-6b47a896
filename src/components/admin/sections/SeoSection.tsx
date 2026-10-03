@@ -61,6 +61,18 @@ function TopTable({ title, rows }: { title: string; rows: Row[] }) {
   );
 }
 
+function CollectionHealth({ snapshot }: { snapshot?: { taken_at: string; data: { collection_status?: string; collected_at?: string; attempted_at?: string } } }) {
+  if (!snapshot) return null;
+  const data = snapshot.data;
+  const readAt = data.collected_at || (data.collection_status !== 'error' ? snapshot.taken_at : null);
+  const stale = !readAt || Date.now() - Date.parse(readAt) > 48 * 60 * 60 * 1000;
+  if (data.collection_status !== 'error' && !stale) return null;
+  return <p role="status" className="text-sm text-destructive mb-3">
+    {data.collection_status === 'error' ? 'The latest collection failed. ' : 'This reading is over 48 hours old. '}
+    {readAt ? `Showing the last successful reading from ${when(readAt)}.` : 'No successful reading is available yet.'}
+  </p>;
+}
+
 export default function SeoSection() {
   const q = useSeoAction();
   const seo = useAdminSeo();
@@ -75,8 +87,8 @@ export default function SeoSection() {
   const nextUp: Topic[] = d.next_up || [];
   const blocks: Block[] = d.blocks || [];
   const runs: { started_at: string; status: string }[] = d.recent_runs || [];
-  const gsc = d.search_console?.data;
-  const psi = d.pagespeed?.data;
+  const gsc = d.search_console?.data?.start ? d.search_console.data : undefined;
+  const psi = d.pagespeed?.data?.pages ? d.pagespeed.data : undefined;
   const next = nextRun(engine.schedule);
   const sampled: { url: string; verdict: string; coverage: string }[] = gsc?.indexing || [];
   const indexed = sampled.filter((x) => x.verdict === 'PASS').length;
@@ -92,7 +104,7 @@ export default function SeoSection() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Stat label="Pages in sitemaps" value={fmt((gsc?.sitemaps || []).reduce((n: number, s: { submitted: number }) => n + s.submitted, 0))} hint="As Google last read them" />
+        <Stat label="Pages in sitemaps" value={gsc ? fmt((gsc.sitemaps || []).reduce((n: number, s: { submitted: number }) => n + s.submitted, 0)) : '—'} hint="As Google last read them" />
         <Stat label="Indexed (sample)" value={sampled.length ? `${indexed} of ${sampled.length}` : '—'} hint="Key pages Google has indexed" accent />
         <Stat label="Search clicks, 28 days" value={gsc ? fmt(gsc.clicks) : '—'} hint={gsc ? `${fmt(gsc.impressions)} impressions` : 'No reading yet'} />
         <Stat label="Mobile speed, homepage" value={psi?.pages?.[0] ? `${psi.pages[0].score}/100` : '—'} hint={psi?.pages?.[0] ? `Main content in ${psi.pages[0].lcp}` : 'No reading yet'} />
@@ -209,10 +221,11 @@ export default function SeoSection() {
           <CardTitle className="text-base flex items-center gap-2"><Search className="w-4 h-4 text-primary" /> Google Search Console</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
-          {!gsc ? <EmptyRow>No reading stored yet. Run scripts/seo-snapshot.py to store one.</EmptyRow> : (
+          <CollectionHealth snapshot={d.search_console} />
+          {!gsc ? <EmptyRow>No successful reading stored yet. Check the scheduled SEO collector.</EmptyRow> : (
             <>
               <p className="text-xs text-muted-foreground">
-                Reading taken {when(d.search_console.taken_at)}, covering {gsc.start} to {gsc.end}. Average position {gsc.position || '—'}, click rate {gsc.ctr}%.
+                Reading taken {when(gsc.collected_at || d.search_console.taken_at)}, covering {gsc.start} to {gsc.end}. Average position {gsc.position || '—'}, click rate {gsc.ctr}%.
               </p>
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium mb-2">Sitemaps</p>
@@ -252,9 +265,10 @@ export default function SeoSection() {
           <CardTitle className="text-base flex items-center gap-2"><Gauge className="w-4 h-4 text-primary" /> Page speed, mobile</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
+          <CollectionHealth snapshot={d.pagespeed} />
           {!psi ? <EmptyRow>No reading stored yet.</EmptyRow> : (
             <>
-              <p className="text-xs text-muted-foreground">Reading taken {when(d.pagespeed.taken_at)}. Google wants the main content shown in under 2.5 seconds.</p>
+              <p className="text-xs text-muted-foreground">Reading taken {when(psi.collected_at || d.pagespeed.taken_at)}. Google wants the main content shown in under 2.5 seconds.</p>
               {psi.pages.map((p: { url: string; score: number; fcp: string; lcp: string; tbt: string; cls: string }) => (
                 <div key={p.url} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 px-3 py-2 text-sm">
                   <span className="flex items-center gap-2 min-w-0"><Globe className="w-3.5 h-3.5 shrink-0 text-muted-foreground" /><span className="truncate">{p.url.replace('https://ayn.careers', '') || '/'}</span></span>

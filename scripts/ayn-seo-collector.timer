@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily AYN SEO readings
+
+[Timer]
+OnCalendar=*-*-* 05:00:00 UTC
+RandomizedDelaySec=600
+Persistent=true
+Unit=ayn-seo-collector.service
+
+[Install]
+WantedBy=timers.target

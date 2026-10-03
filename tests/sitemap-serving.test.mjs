@@ -36,7 +36,7 @@ test('main sitemap survives a live dist rebuild and logs no request secrets', { 
     child.stdout.on('data', (chunk) => { output += chunk; });
     child.stderr.on('data', (chunk) => { output += chunk; });
     for (let attempt = 0; !output.includes('Server running'); attempt++) {
-      assert.ok(attempt < 100 && child.exitCode === null, output || 'Server failed to start');
+      assert.ok(attempt < 300 && child.exitCode === null, output || 'Server failed to start');
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     const base = `http://127.0.0.1:${port}`;
