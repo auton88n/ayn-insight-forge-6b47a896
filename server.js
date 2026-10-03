@@ -440,6 +440,83 @@ app.get('/sitemap-insights.xml', async (req, res) => {
   }
 });
 
+
+// Individual job pages. The sitemap lists every /jobs/<id>, but a client
+// that does not run JavaScript used to get the homepage's tags for each of
+// them. Render the real posting at the first byte, with the same
+// JobPosting schema the client adds, using the same public scam-excluded
+// read /jobs itself uses. A posting that was pruned or flagged is a 404.
+const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const jobPageCache = new Map(); // id -> { html, at }
+const JOB_PAGE_CACHE_MS = 5 * 60 * 1000;
+const JOB_PAGE_CACHE_MAX = 500;
+
+function jobPostingJsonLd(j) {
+  const postedMs = Date.parse(j.posted_at);
+  const validThrough = Number.isNaN(postedMs) ? undefined : new Date(postedMs + 3 * 24 * 60 * 60 * 1000).toISOString();
+  const ld = {
+    '@context': 'https://schema.org/',
+    '@type': 'JobPosting',
+    title: j.title,
+    description: j.description,
+    datePosted: j.posted_at,
+    ...(validThrough ? { validThrough } : {}),
+    hiringOrganization: { '@type': 'Organization', name: j.company },
+    identifier: { '@type': 'PropertyValue', name: 'AYN', value: j.id },
+    directApply: false,
+    ...(j.work_mode === 'remote' ? {
+      jobLocationType: 'TELECOMMUTE',
+      applicantLocationRequirements: [{ '@type': 'Country', name: 'US' }, { '@type': 'Country', name: 'CA' }],
+    } : {}),
+    ...(j.location ? { jobLocation: { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: j.location } } } : {}),
+    ...(j.employment_type ? { employmentType: String(j.employment_type).toUpperCase() } : {}),
+    ...(j.salary_min && j.salary_max ? {
+      baseSalary: {
+        '@type': 'MonetaryAmount',
+        currency: j.salary_currency || 'USD',
+        value: { '@type': 'QuantitativeValue', minValue: j.salary_min, maxValue: j.salary_max, unitText: 'YEAR' },
+      },
+    } : {}),
+  };
+  return `<script type="application/ld+json">\n${JSON.stringify(ld).replace(/</g, '\\u003c')}\n</script>`;
+}
+
+function renderJobBody(j) {
+  const paras = String(j.description || '').slice(0, 8000).split(/\n{1,}/).map((t) => t.trim()).filter(Boolean);
+  const where = [j.location, j.work_mode].filter(Boolean).join(' · ');
+  const salary = j.salary_min && j.salary_max ? `${j.salary_currency || 'USD'} ${Number(j.salary_min).toLocaleString('en-US')} to ${Number(j.salary_max).toLocaleString('en-US')} a year` : '';
+  const apply = /^https?:\/\//i.test(j.apply_url || '') ? `<p><a href="${escapeHtml(j.apply_url)}" rel="nofollow noopener">Apply on the employer’s site</a></p>` : '';
+  return `<main><article><h1>${escapeHtml(j.title)}</h1><p>${escapeHtml(j.company)}${where ? ` · ${escapeHtml(where)}` : ''}</p>${salary ? `<p>${escapeHtml(salary)}</p>` : ''}${paras.map((t) => `<p>${escapeHtml(t)}</p>`).join('')}${apply}<nav><a href="/jobs">Browse all jobs</a> · <a href="/check-resume">Check my resume</a></nav></article></main>`;
+}
+
+app.get('/jobs/:id', async (req, res, next) => {
+  const { id } = req.params;
+  if (!JOB_ID_RE.test(id)) { next(); return; }
+  if (indexHtml === null) { res.status(503).send('Service temporarily unavailable, please retry.'); return; }
+  const now = Date.now();
+  const cached = jobPageCache.get(id);
+  if (cached && now - cached.at < JOB_PAGE_CACHE_MS) { res.type('html').send(cached.html); return; }
+  try {
+    const rows = await fetchJson(`job_postings?id=eq.${encodeURIComponent(id)}&or=(scam_suspected.is.null,scam_suspected.eq.false)&select=*&limit=1`);
+    const j = rows[0];
+    if (!j) { res.status(404).type('html').send(indexHtml); return; }
+    const where = j.location ? `, ${j.location}` : '';
+    let html = swapMeta(indexHtml, {
+      title: `${j.title} at ${j.company} | AYN`,
+      description: `${j.title} at ${j.company}${where}. Sourced directly from the company's own career page.`.slice(0, 300),
+      canonical: `${SITE}/jobs/${j.id}`,
+    });
+    html = injectHead(html, jobPostingJsonLd(j));
+    html = injectRoot(html, renderJobBody(j));
+    if (jobPageCache.size >= JOB_PAGE_CACHE_MAX) jobPageCache.delete(jobPageCache.keys().next().value);
+    jobPageCache.set(id, { html, at: now });
+    res.type('html').send(html);
+  } catch (err) {
+    console.error('/jobs/:id failed:', err.message);
+    res.status(503).type('html').send(indexHtml);
+  }
+});
+
 // Every real route in src/App.tsx. Anything not in here is a genuine 404,
 // so we still serve the SPA shell but with a 404 status, otherwise Google
 // indexes every junk path as a live page.
