@@ -1,10 +1,10 @@
 // v3.20.0 — six sections, nothing else. Icon rail in the AYN language.
-import { LayoutDashboard, Building2, Users, Handshake, DollarSign, Settings, ChevronLeft, ChevronsRight, Newspaper } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, Handshake, DollarSign, Settings, ChevronLeft, ChevronsRight, Newspaper, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-export type AdminTabId = 'overview' | 'employers' | 'candidates' | 'marketplace' | 'articles' | 'money' | 'system';
+export type AdminTabId = 'overview' | 'employers' | 'candidates' | 'marketplace' | 'articles' | 'seo' | 'money' | 'system';
 
 const ITEMS: { id: AdminTabId; title: string; hint: string; icon: React.ElementType }[] = [
   { id: 'overview',    title: 'Overview',    hint: 'Is the product alive',        icon: LayoutDashboard },
@@ -12,6 +12,7 @@ const ITEMS: { id: AdminTabId; title: string; hint: string; icon: React.ElementT
   { id: 'candidates',  title: 'Candidates',  hint: 'Talent pool health',          icon: Users },
   { id: 'marketplace', title: 'Marketplace', hint: 'Proposals and assessments',   icon: Handshake },
   { id: 'articles',    title: 'Articles',    hint: 'SEO/AEO content engine',      icon: Newspaper },
+  { id: 'seo',         title: 'SEO',         hint: 'Search visibility and controls', icon: Search },
   { id: 'money',       title: 'Money',       hint: 'Subscriptions and credits',   icon: DollarSign },
   { id: 'system',      title: 'System',      hint: 'Accounts, errors, settings',  icon: Settings },
 ];

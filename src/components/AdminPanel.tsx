@@ -18,6 +18,7 @@ const EmployersSection = lazy(() => import('@/components/admin/sections/Employer
 const CandidatesSection = lazy(() => import('@/components/admin/sections/CandidatesSection'));
 const MarketplaceSection = lazy(() => import('@/components/admin/sections/MarketplaceSection'));
 const ArticlesSection = lazy(() => import('@/components/admin/sections/ArticlesSection'));
+const SeoSection = lazy(() => import('@/components/admin/sections/SeoSection'));
 const MoneySection = lazy(() => import('@/components/admin/sections/MoneySection'));
 const SystemSection = lazy(() => import('@/components/admin/sections/SystemSection'));
 
@@ -109,6 +110,7 @@ export const AdminPanel = (_props: AdminPanelProps) => {
                 {activeTab === 'candidates' && <CandidatesSection />}
                 {activeTab === 'marketplace' && <MarketplaceSection />}
                 {activeTab === 'articles' && <ArticlesSection />}
+                {activeTab === 'seo' && <SeoSection />}
                 {activeTab === 'money' && <MoneySection />}
                 {activeTab === 'system' && <SystemSection />}
               </Suspense>

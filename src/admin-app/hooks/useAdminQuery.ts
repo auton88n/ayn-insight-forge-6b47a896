@@ -219,6 +219,7 @@ export const adminV2Keys = {
   money: ['admin', 'v2', 'money'] as const,
   activationFunnel: ['admin', 'v2', 'activation_funnel'] as const,
   articles: ['admin', 'v2', 'articles'] as const,
+  seo: ['admin', 'v2', 'seo'] as const,
 };
 
 export function useAdminOverview() {
@@ -279,6 +280,26 @@ export function useArticleConfigAction() {
       toast.success('Cadence updated');
     },
     onError: (e: Error) => toast.error(e.message || 'Could not update cadence'),
+  });
+}
+
+export function useAdminSeo() {
+  return useQuery({ queryKey: adminV2Keys.seo, queryFn: () => adminRpc<any>('get_admin_seo'), staleTime: FAST_STALE_TIME });
+}
+// One mutation for every SEO control; each is a single admin-gated RPC.
+export function useSeoAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { fn: string; args?: Record<string, unknown>; success?: string }) => {
+      await adminRpc(v.fn, v.args || {});
+      return v.success || 'Done';
+    },
+    onSuccess: (message: string) => {
+      qc.invalidateQueries({ queryKey: adminV2Keys.seo });
+      qc.invalidateQueries({ queryKey: adminV2Keys.articles });
+      toast.success(message);
+    },
+    onError: (e: Error) => toast.error(e.message || 'Action failed'),
   });
 }
 
