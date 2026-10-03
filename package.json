@@ -13,7 +13,7 @@
     "validate:pdf": "node scripts/validate-pdf.mjs",
     "seo:health": "node scripts/seo-health.mjs",
     "seo:gsc": "node scripts/gsc-performance.mjs",
-    "test:seo": "node --test tests/seo-health.test.mjs tests/gsc-performance.test.mjs",
+    "test:seo": "node --test tests/seo-health.test.mjs tests/gsc-performance.test.mjs tests/sitemap-serving.test.mjs",
     "test:unit": "vitest run",
     "test:integration": "vitest run -c vitest.integration.config.ts",
     "test": "npm run test:unit && npm run test:integration"

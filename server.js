@@ -86,6 +86,42 @@ app.use((req, res, next) => {
   next();
 });
 
+// Log only crawler endpoints, never query strings, IPs, cookies or raw agents.
+// Agent labels are unverified claims, not authenticated Google requests.
+const sitemapPaths = new Set(['/sitemap.xml', '/sitemap-jobs.xml', '/sitemap-insights.xml']);
+app.use((req, res, next) => {
+  if (!sitemapPaths.has(req.path)) return next();
+  const started = performance.now();
+  const pathname = req.path;
+  const ua = req.get('user-agent') || '';
+  const agentClaim = /Google-InspectionTool/i.test(ua) ? 'google-inspection'
+    : /Googlebot/i.test(ua) ? 'googlebot' : 'other';
+  let recorded = false;
+  const record = (completed) => {
+    if (recorded) return;
+    recorded = true;
+    console.log(JSON.stringify({
+      event: 'sitemap_response', time: new Date().toISOString(),
+      path: pathname, method: req.method, agentClaim,
+      status: res.statusCode, completed,
+      contentType: res.getHeader('content-type') || null,
+      durationMs: Math.round(performance.now() - started),
+    }));
+  };
+  res.once('finish', () => record(true));
+  res.once('close', () => record(res.writableFinished));
+  next();
+});
+
+// Vite empties the live-mounted dist folder during deployment. Hold the
+// tracked sitemap in memory, as we already do for the SPA shell, rather
+// than allowing a transient missing dist file to fall through to HTML 404.
+const mainSitemap = fs.readFileSync(path.join(__dirname, 'public/sitemap.xml'), 'utf8');
+app.get('/sitemap.xml', (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+  res.type('application/xml').send(mainSitemap);
+});
+
 // Serve static files with proper caching:
 // - /assets/* are content-hashed by Vite — cache forever
 // - /frames/* are the hero animation frames (~22 MB total) — cache 7 days
