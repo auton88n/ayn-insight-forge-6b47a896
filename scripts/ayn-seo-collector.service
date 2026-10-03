@@ -5,6 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+Environment=SEO_GOOGLE_SERVICE_ACCOUNT_FILE=/opt/ayn-seo/service-account.json
 ExecStart=/bin/bash /opt/ayn-seo/seo-collector-run.sh
 TimeoutStartSec=20min
 UMask=0077
@@ -13,4 +14,3 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/opt/ayn-seo
-

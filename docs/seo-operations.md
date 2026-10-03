@@ -33,7 +33,7 @@ says it is unconfigured. The Search Console API provides *page-level* trends
 after Google's reporting delay, not full index-coverage proof. GitHub Actions
 schedules may run late, and only run once the workflow is on the default
 branch. The service-account comparison remains optional; the separate daily
-VPS snapshot collector below now uses the existing OAuth authorization.
+VPS snapshot collector below uses a dedicated restricted service account.
 
 ## Private VPS collection (October reliability follow-up)
 
@@ -58,7 +58,20 @@ git or public CI. Missing optional PageSpeed configuration records a visible
 failure without dropping Search Console results. Refreshes replace the token
 atomically. The existing consent has broader scopes than this collector uses;
 reauthorize separately to narrow them. Testing-mode OAuth can require renewed
-consent; a service account restricted to the property is a future alternative.
+consent; it is retained for local analyst use/rollback, not scheduled collection.
+
+Service-account migration support (4 October): set
+`SEO_GOOGLE_SERVICE_ACCOUNT_FILE=/opt/ayn-seo/service-account.json` in the
+systemd service environment (included in the tracked unit). Install the key
+privately with mode 0600 before deploying this unit. The code requests only `webmasters.readonly`, and
+does not fall back to personal OAuth if the configured service identity fails.
+`ayn-seo-reader@ayn-seo.iam.gserviceaccount.com` has Restricted access on the
+AYN property and no project IAM roles. Live testing with this identity passed
+all collection endpoints, including three sitemaps and six URL inspections.
+The key lives only outside the repo. To roll back authentication, remove the
+service-account Environment line from the installed unit and daemon-reload;
+the existing private OAuth token remains available. A bad configured key never
+silently restores the broader identity.
 
 Check `systemctl status ayn-seo-collector.service`, `systemctl list-timers
 ayn-seo-collector.timer`, and `journalctl -u ayn-seo-collector.service` for

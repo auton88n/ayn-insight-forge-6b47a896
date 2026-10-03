@@ -1,5 +1,14 @@
 # 2 October 2026: Insights content engine handoff and archive safety
 
+4 October credential follow-up: `seo-snapshot.py` supports an explicit
+`SEO_GOOGLE_SERVICE_ACCOUNT_FILE` using only `webmasters.readonly`. Invalid
+service-account credentials fail visibly, never falling back to broader
+personal OAuth. Without this variable, existing OAuth remains supported.
+The `ayn-seo-reader` Google identity has Restricted property access; its live
+test passed all collection endpoints (three sitemaps, six URL inspections).
+The tracked service unit selects its private key in `/opt/ayn-seo/`, outside
+git; personal OAuth remains supported only when that variable is absent.
+
 SEO reliability follow-up: `scripts/seo-snapshot.py` now fails visibly rather
 than turning Google API errors into zero metrics, emits sources independently,
 retries transient errors with a bound, and preserves last-good payloads and

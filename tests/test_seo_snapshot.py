@@ -2,7 +2,7 @@ import importlib.util
 import io
 import pathlib
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import urllib.error
 
 spec = importlib.util.spec_from_file_location('snapshot', pathlib.Path(__file__).parents[1] / 'scripts/seo-snapshot.py')
@@ -11,6 +11,38 @@ spec.loader.exec_module(module)
 
 
 class SnapshotTests(unittest.TestCase):
+    def test_service_account_uses_only_readonly_scope(self):
+        service = MagicMock()
+        oauth = MagicMock()
+        request = MagicMock()
+        modules = {'google': MagicMock(), 'google.oauth2': MagicMock(),
+                   'google.oauth2.service_account': service,
+                   'google.oauth2.credentials': oauth,
+                   'google.auth': MagicMock(), 'google.auth.transport': MagicMock(),
+                   'google.auth.transport.requests': request}
+        with patch.dict('sys.modules', modules), patch.dict(module.os.environ, {'SEO_GOOGLE_SERVICE_ACCOUNT_FILE': '/private/reader.json'}):
+            token = module.google_token()
+        service.Credentials.from_service_account_file.assert_called_once_with(
+            '/private/reader.json', scopes=['https://www.googleapis.com/auth/webmasters.readonly'])
+        creds = service.Credentials.from_service_account_file.return_value
+        creds.refresh.assert_called_once_with(request.Request.return_value)
+        self.assertEqual(token, creds.token)
+        oauth.Credentials.from_authorized_user_file.assert_not_called()
+
+    def test_broken_service_account_never_falls_back_to_personal_oauth(self):
+        service = MagicMock()
+        oauth = MagicMock()
+        service.Credentials.from_service_account_file.side_effect = ValueError('invalid key')
+        modules = {'google': MagicMock(), 'google.oauth2': MagicMock(),
+                   'google.oauth2.service_account': service,
+                   'google.oauth2.credentials': oauth,
+                   'google.auth': MagicMock(), 'google.auth.transport': MagicMock(),
+                   'google.auth.transport.requests': MagicMock()}
+        with patch.dict('sys.modules', modules), patch.dict(module.os.environ, {'SEO_GOOGLE_SERVICE_ACCOUNT_FILE': '/private/reader.json'}):
+            with self.assertRaises(ValueError):
+                module.google_token()
+        oauth.Credentials.from_authorized_user_file.assert_not_called()
+
     def test_successful_empty_google_response_is_zero(self):
         def call(url, body=None):
             if 'urlInspection' in url:

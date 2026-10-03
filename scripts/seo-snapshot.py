@@ -46,8 +46,17 @@ def request_json(url, body=None, token=None, timeout=30):
 
 
 def google_token():
-    from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
+    # Explicit service-account configuration fails closed: never silently use
+    # the broader personal OAuth identity if this credential is broken.
+    service_file = os.environ.get('SEO_GOOGLE_SERVICE_ACCOUNT_FILE')
+    if service_file:
+        from google.oauth2.service_account import Credentials
+        creds = Credentials.from_service_account_file(
+            service_file, scopes=['https://www.googleapis.com/auth/webmasters.readonly'])
+        creds.refresh(Request())
+        return creds.token
+    from google.oauth2.credentials import Credentials
     filename = os.path.expanduser(os.environ.get('SEO_MCP_GOOGLE_TOKEN', '~/.config/seo-monster/token.json'))
     creds = Credentials.from_authorized_user_file(filename)
     if not creds.valid:
