@@ -170,12 +170,19 @@ begin
   if not has_role((select auth.uid()), 'admin'::app_role) then
     raise exception 'Admin access required';
   end if;
+  -- Serialize concurrent calls: the second waits here until the first has
+  -- committed its timestamp, then sees it and is refused.
+  perform pg_advisory_xact_lock(hashtext('content_engine_run_now'));
   select value::timestamptz into last_run from app_settings where key = 'content_engine_last_manual_run';
   if last_run is not null and last_run > now() - interval '10 minutes' then
     raise exception 'A run was started less than ten minutes ago. Wait for it to finish.';
   end if;
   select command into cmd from cron.job where jobname = 'content-engine';
   if cmd is null then raise exception 'Scheduled job not found'; end if;
+  -- Only ever run the schedule's own call to the content-engine function.
+  if cmd !~ '^\s*select\s+net\.http_post\(\s*url\s*:=\s*''https://ayn\.careers/functions/v1/content-engine''' then
+    raise exception 'Scheduled job is not the content-engine call';
+  end if;
   execute cmd;
   insert into app_settings (key, value) values ('content_engine_last_manual_run', now()::text)
     on conflict (key) do update set value = excluded.value, updated_at = now();
