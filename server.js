@@ -126,6 +126,8 @@ app.get('/sitemap.xml', (_req, res) => {
 // - /assets/* are content-hashed by Vite — cache forever
 // - /frames/* are the hero animation frames (~22 MB total) — cache 7 days
 app.use(express.static(DIST, {
+  // The homepage is rendered by the SPA fallback below so it can carry real text.
+  index: false,
   setHeaders: (res, filePath) => {
     if (filePath.includes(`${path.sep}assets${path.sep}`)) {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
@@ -275,7 +277,8 @@ function swapMeta(html, { title, description, canonical }) {
     .replace(/<meta name="twitter:title" content="[^"]*"\s*\/?>/, () => `<meta name="twitter:title" content="${escapeHtml(title)}" />`)
     .replace(/<meta property="og:description" content="[^"]*"\s*\/?>/, () => `<meta property="og:description" content="${escapeHtml(description)}" />`)
     .replace(/<meta name="twitter:description" content="[^"]*"\s*\/?>/, () => `<meta name="twitter:description" content="${escapeHtml(description)}" />`)
-    .replace(/<meta property="og:url" content="[^"]*"\s*\/?>/, () => `<meta property="og:url" content="${escapeHtml(canonical)}" />`);
+    .replace(/<meta property="og:url" content="[^"]*"\s*\/?>/, () => `<meta property="og:url" content="${escapeHtml(canonical)}" />`)
+    .replace(/<link rel="alternate" hreflang="(en|x-default)" href="[^"]*"\s*\/?>/g, (_m, lang) => `<link rel="alternate" hreflang="${lang}" href="${escapeHtml(canonical)}" />`);
 }
 
 function injectHead(html, extraHeadHtml) {
@@ -486,6 +489,112 @@ function isKnownRoute(pathname) {
 // again after the one read below.
 let indexHtml = null;
 
+// Public pages that are plain React routes. A crawler that does not run
+// JavaScript (GPTBot, ClaudeBot, PerplexityBot) used to receive the
+// homepage's title, canonical and almost no text for every one of these.
+// Each entry gives that page its own title, description, canonical and a
+// short block of real, visible text; React replaces it on mount, the same
+// way the /insights pages work.
+const SITE = 'https://ayn.careers';
+const PAGE_META = {
+  '/': {
+    h1: 'A resume tailored to every job you apply to',
+    body: [
+      'AYN finds real jobs on company career pages, never LinkedIn or Indeed, so you never waste an application on a ghost job.',
+      'Score how well you match a job, then get a tailored resume and cover letter built only from your real work history. Nothing is invented.',
+    ],
+  },
+  '/jobs': {
+    title: 'Browse real jobs from company career pages | AYN',
+    description: 'Search current jobs sourced straight from company career pages. No ghost listings, no account needed to browse.',
+    h1: 'Browse real jobs',
+    body: [
+      'Every listing on AYN comes from a company’s own career page and is removed shortly after it stops being confirmed live.',
+      'Search by title, city or remote, filter by category, then check how well your resume matches before you apply.',
+    ],
+    links: [['/salary-guide', 'Salary guide'], ['/insights', 'Hiring reports'], ['/check-resume', 'Check my resume']],
+  },
+  '/salary-guide': {
+    title: 'Salary guide from real job listings | AYN',
+    description: 'Median salaries, open roles and work-mode splits by category, computed from AYN’s current job listings.',
+    h1: 'Salary guide',
+    body: [
+      'Median salary, number of open roles and the remote, hybrid and onsite split for each job category, computed from listings currently in AYN’s catalog.',
+      'Only listings with a plausible USD salary are counted, and a category only appears once it has enough listings to be meaningful.',
+    ],
+    links: [['/insights', 'Hiring reports'], ['/jobs', 'Browse jobs']],
+  },
+  '/check-resume': {
+    title: 'Check your resume against a job description | AYN',
+    description: 'Paste your resume and a job description to see which requirements you match and which you are missing. Free, no account needed.',
+    h1: 'Check my resume',
+    body: [
+      'Paste your resume and a job description to see which stated requirements your resume covers by wording, and which it does not.',
+      'This is a free keyword check that needs no account. Sign up for the deeper match that understands meaning, not just matching words.',
+    ],
+  },
+  '/pricing': {
+    title: 'Pricing | AYN',
+    description: 'AYN has a free plan for job seekers and paid plans with credits for tailored resumes and cover letters. Employers get a free first month.',
+    h1: 'Pricing',
+    body: [
+      'Browsing jobs and scoring a match is free. Tailored resumes and cover letters use credits, and paid plans include more of them.',
+      'Employers start with a free month, then choose a plan by how many searches, proposals and assessments they need.',
+    ],
+  },
+  '/about': {
+    title: 'About AYN',
+    description: 'Why AYN exists: replace application volume with evidence, so being seen depends on what you have done.',
+    h1: 'About AYN',
+    body: [
+      'AI made applying effortless, so everyone did. Hiring managers now open hundreds of applications and read none of them properly.',
+      'AYN replaces volume with evidence: real jobs, matches grounded in your real history, and candidates who choose to be found.',
+    ],
+  },
+  '/help': {
+    title: 'Help Center | AYN',
+    description: 'Answers about credits, tailored resumes, job matching, discoverability, accounts and billing.',
+    h1: 'Help Center',
+    body: ['Search answers about credits and billing, tailoring a resume, how job matching works, getting discovered by employers, and your account.'],
+  },
+  '/contact': {
+    title: 'Contact AYN',
+    description: 'Send AYN a message about an issue, a question, privacy, or employer access.',
+    h1: 'Contact us',
+    body: ['Use the form to tell us what is not working, ask a question, or raise a privacy or employer-access request.'],
+  },
+  '/employers': {
+    title: 'AYN for employers: three real candidates, not a resume pile',
+    description: 'Describe a role once and AYN returns the three strongest opted-in candidates with the evidence behind each. Every company is reviewed by hand.',
+    h1: 'Three real people to read. Not a resume pile.',
+    body: [
+      'Every company is reviewed by hand before it can search. Describe the role once and AYN matches it against candidates who chose to be found.',
+      'Each match shows the evidence behind it. Contact details are shared only when the candidate accepts.',
+    ],
+  },
+  '/legal': { title: 'Legal | AYN', description: 'AYN’s terms, privacy policy and other legal documents.', h1: 'Legal', body: ['Terms of Service, Privacy Policy, Cookie Policy, Security Overview, Subprocessors, Data Processing Agreement, Service Level Agreement and Copyright Policy.'] },
+  '/terms': { title: 'Terms of Service | AYN', description: 'The terms that apply when you use AYN.', h1: 'Terms of Service', body: ['The terms that apply when you use AYN.'] },
+  '/privacy': { title: 'Privacy Policy | AYN', description: 'What personal information AYN collects, why, and the choices you have.', h1: 'Privacy Policy', body: ['What personal information AYN collects, why, and the choices you have.'] },
+  '/cookies': { title: 'Cookie Policy | AYN', description: 'How AYN uses cookies and how to change your choice.', h1: 'Cookie Policy', body: ['How AYN uses cookies and how to change your choice.'] },
+  '/security': { title: 'Security Overview | AYN', description: 'How AYN protects your data.', h1: 'Security Overview', body: ['How AYN protects your data.'] },
+  '/subprocessors': { title: 'Subprocessors | AYN', description: 'The third parties AYN uses to process data.', h1: 'Subprocessors', body: ['The third parties AYN uses to process data.'] },
+  '/dpa': { title: 'Data Processing Agreement | AYN', description: 'AYN’s data processing agreement for business customers.', h1: 'Data Processing Agreement', body: ['AYN’s data processing agreement for business customers.'] },
+  '/sla': { title: 'Service Level Agreement | AYN', description: 'AYN’s service commitments for employer plans.', h1: 'Service Level Agreement', body: ['AYN’s service commitments for employer plans.'] },
+  '/copyright': { title: 'Copyright Policy | AYN', description: 'How to report copyright infringement on AYN.', h1: 'Copyright Policy', body: ['How to report copyright infringement on AYN.'] },
+  '/do-not-sell': { title: 'Do Not Sell or Share My Information | AYN', description: 'AYN does not sell personal information. How California residents exercise their rights.', h1: 'Do Not Sell or Share My Information', body: ['AYN does not sell personal information and does not share it for cross-context behavioural advertising.'] },
+};
+
+function renderPublicPage(pathname) {
+  const meta = PAGE_META[pathname];
+  if (!meta || indexHtml === null) return null;
+  const canonical = pathname === '/' ? `${SITE}/` : `${SITE}${pathname}`;
+  // The homepage keeps the title and description already in index.html.
+  let html = indexHtml;
+  if (meta.title) html = swapMeta(html, { title: meta.title, description: meta.description, canonical });
+  const links = (meta.links || []).map(([href, label]) => `<a href="${href}">${escapeHtml(label)}</a>`).join(' · ');
+  return injectRoot(html, `<main><h1>${escapeHtml(meta.h1)}</h1>${meta.body.map((t) => `<p>${escapeHtml(t)}</p>`).join('')}${links ? `<nav>${links}</nav>` : ''}</main>`);
+}
+
 app.get('/{*path}', (req, res) => {
   const status = isKnownRoute(req.path) ? 200 : 404;
   if (indexHtml === null) {
@@ -495,7 +604,7 @@ app.get('/{*path}', (req, res) => {
     res.status(503).send('Service temporarily unavailable, please retry.');
     return;
   }
-  res.status(status).type('html').send(indexHtml);
+  res.status(status).type('html').send((status === 200 && renderPublicPage(req.path)) || indexHtml);
 });
 
 function startWhenBuilt(attemptsLeft = 30) {
