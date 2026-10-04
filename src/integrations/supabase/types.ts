@@ -4302,6 +4302,7 @@ export type Database = {
       }
     }
     Functions: {
+      get_admin_seo_collection_history: { Args: never; Returns: Json }
       admin_adjust_credits: {
         Args: { p_amount: number; p_reason: string; p_user_id: string }
         Returns: Json

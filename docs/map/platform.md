@@ -1,5 +1,15 @@
 # 2 October 2026: Insights content engine handoff and archive safety
 
+4 October admin monitoring: `SeoCollectorMonitor` in Admin SEO shows per-source
+fresh/failed/stale/unknown states, attempt and last-success times, and the last
+20 source attempts via the admin-only `get_admin_seo_collection_history()` RPC.
+Deploy `20261004010000_admin_seo_collection_history.sql` before the UI. No new
+table or writer permissions; no credentials are returned. Queries refresh each
+minute while visible; manual Refresh status reads snapshots, not a new scan.
+The daily window is the configured timer schedule, not live systemd telemetry.
+The panel distinguishes the collector, analyst tool, and article publisher;
+enabled article schedules are no longer incorrectly labeled as running jobs.
+
 4 October credential follow-up: `seo-snapshot.py` supports an explicit
 `SEO_GOOGLE_SERVICE_ACCOUNT_FILE` using only `webmasters.readonly`. Invalid
 service-account credentials fail visibly, never falling back to broader

@@ -88,6 +88,15 @@ Run Python unit tests with `python3 -m unittest discover -s tests -p
 
 ## Weekly decision rule
 
+In Admin → SEO, the collection monitor displays the latest source attempts,
+last successful readings, failures, and stale readings (older than 48 hours).
+Expand Recent collection attempts for the latest 20 recorded source outcomes.
+The screen refreshes every minute while visible; Refresh status does not start
+a paid article run or Google scan. There is no live systemd process indicator:
+an interrupted run with no snapshot is detected by stale-data warnings.
+Article scheduling controls remain separate. The new history RPC requires
+the `20261004010000_admin_seo_collection_history.sql` migration before rollout.
+
 - Fix critical HTTP, sitemap, canonical, or server-rendered content failures
   first. The public monitor fails its workflow on these.
 - Review each `thin_article` warning manually. The 450-word number is AYN's own

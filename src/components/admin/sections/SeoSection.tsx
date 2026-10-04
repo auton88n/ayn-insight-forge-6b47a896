@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Gauge, FileText, Play, Pause, Ban, Undo2, ListOrdered, Globe } from 'lucide-react';
 import { humanizeCategory } from '@/lib/jobPostingFormat';
 import { SectionHeader, Stat, LoadingBlock, ErrorBlock, EmptyRow, when } from './ui';
+import SeoCollectorMonitor from './SeoCollectorMonitor';
 
 type Topic = { kind: 'salary_report' | 'hiring_trend'; category: string; city: string | null; sample_size?: number };
 type Block = Topic & { id: string; reason: string | null };
@@ -77,7 +78,7 @@ export default function SeoSection() {
   const q = useSeoAction();
   const seo = useAdminSeo();
   if (seo.isLoading) return <LoadingBlock />;
-  if (seo.isError) return <ErrorBlock error={seo.error} onRetry={() => seo.refetch()} />;
+  if (seo.isError && !seo.data) return <ErrorBlock error={seo.error} onRetry={() => seo.refetch()} />;
 
   const d = seo.data || {};
   const engine = d.engine || {};
@@ -103,6 +104,9 @@ export default function SeoSection() {
         subtitle="How the site shows up in search, what the article engine is doing, and the controls over it."
       />
 
+      {seo.isRefetchError && <p role="alert" className="text-sm text-destructive mb-4">Status refresh failed. Displayed readings may be out of date.</p>}
+      <SeoCollectorMonitor google={d.search_console} speed={d.pagespeed} refresh={() => { void seo.refetch(); }} refreshing={seo.isFetching} />
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Stat label="Pages in sitemaps" value={gsc ? fmt((gsc.sitemaps || []).reduce((n: number, s: { submitted: number }) => n + s.submitted, 0)) : '—'} hint="As Google last read them" />
         <Stat label="Indexed (sample)" value={sampled.length ? `${indexed} of ${sampled.length}` : '—'} hint="Key pages Google has indexed" accent />
@@ -116,7 +120,7 @@ export default function SeoSection() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-3 flex-wrap">
-            <Badge variant={engine.active ? 'default' : 'outline'}>{engine.active ? 'Running' : 'Paused'}</Badge>
+            <Badge variant={engine.active ? 'default' : 'outline'}>{engine.active ? 'Schedule enabled' : 'Paused'}</Badge>
             <p className="text-sm text-muted-foreground">
               {engine.articles_per_run} per run, {describeSchedule(engine.schedule)}.
               {engine.active && next ? ` Next run ${next.toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' })}.` : ''}

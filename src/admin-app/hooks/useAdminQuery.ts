@@ -284,7 +284,18 @@ export function useArticleConfigAction() {
 }
 
 export function useAdminSeo() {
-  return useQuery({ queryKey: adminV2Keys.seo, queryFn: () => adminRpc<any>('get_admin_seo'), staleTime: FAST_STALE_TIME });
+  return useQuery({ queryKey: adminV2Keys.seo, queryFn: () => adminRpc<any>('get_admin_seo'), staleTime: FAST_STALE_TIME, refetchInterval: FAST_STALE_TIME });
+}
+export type SeoCollectionAttempt = {
+  id: string; source: string; attempted_at: string; status: string;
+  collected_at: string | null; error: string | null;
+};
+export function useAdminSeoCollectionHistory() {
+  return useQuery({
+    queryKey: [...adminV2Keys.seo, 'collection-history'],
+    queryFn: () => adminRpc<SeoCollectionAttempt[]>('get_admin_seo_collection_history'),
+    staleTime: FAST_STALE_TIME, refetchInterval: FAST_STALE_TIME,
+  });
 }
 // One mutation for every SEO control; each is a single admin-gated RPC.
 export function useSeoAction() {
