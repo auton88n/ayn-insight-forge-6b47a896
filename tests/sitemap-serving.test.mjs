@@ -44,8 +44,9 @@ test('main sitemap survives a live dist rebuild and logs no request secrets', { 
       const response = await fetch(base + route);
       const html = await response.text();
       assert.equal(response.status, 200);
-      assert.match(html, /class="ayn-server-preview"/);
-      assert.match(html, /\.ayn-server-preview\{box-sizing/);
+      // Crawler text is present but visually hidden, so people never see a flash.
+      assert.match(html, /data-prerender style="position:absolute/);
+      assert.match(html, /<h1>/);
       assert.match(html, /aria-label="Main navigation"/);
       assert.doesNotMatch(html, /display:\s*none|visibility:\s*hidden/);
       if (route === '/pricing') assert.match(html, /canonical" href="https:\/\/ayn.careers\/pricing"/);
