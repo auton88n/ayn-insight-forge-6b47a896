@@ -10,6 +10,18 @@ import { Search, ExternalLink, Loader2, MapPin, ArrowLeft, ArrowRight, RefreshCw
 const PAGE_SIZE = 25;
 export const PUBLIC_JOB_SUMMARY_COLUMNS = 'id,source,company,company_slug,company_logo_url,title,location,apply_url,posted_at,employment_type,seniority,salary_min,salary_max,salary_currency,category,work_mode,city';
 type JobSummary = Omit<JobPosting, 'description'>;
+// The server puts the first page of jobs, and the first job's full posting, in the
+// HTML itself (see getJobsBootstrap in server.js), so the page can show jobs without
+// waiting for two sequential requests. Used only for the plain, unfiltered list, and
+// treated as stale (and refetched) once it is older than the query's staleTime.
+type JobsBootstrap = { rows: JobSummary[]; total: number; detail: JobPosting | null; at: number };
+const jobsBootstrap: JobsBootstrap | null = (() => {
+  try {
+    const el = document.getElementById('ayn-jobs-bootstrap');
+    const data = el ? JSON.parse(el.textContent || 'null') : null;
+    return data && Array.isArray(data.rows) && data.rows.length && typeof data.at === 'number' ? data as JobsBootstrap : null;
+  } catch { return null; }
+})();
 export const BROWSE_CATEGORIES = ['software_engineering', 'sales', 'marketing', 'design', 'data_analytics', 'product', 'operations', 'finance', 'customer_success', 'devops'];
 export const BROWSE_CITIES = ['New York City', 'San Francisco', 'Austin', 'Toronto', 'Boston', 'Chicago', 'Los Angeles', 'Seattle'];
 export function slugifyCity(city: string): string { return city.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
@@ -59,6 +71,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, []);
+  const useBootstrap = !query && !where && !categorySlug && !city;
   const listings = useInfiniteQuery({
     queryKey: ['public-job-summaries', query, where, categorySlug, city],
     initialPageParam: 0,
@@ -76,6 +89,10 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
     },
     getNextPageParam: page => page.rows.length && page.offset + page.rows.length < page.total ? page.offset + page.rows.length : undefined,
     staleTime: 60_000,
+    ...(useBootstrap && jobsBootstrap ? {
+      initialData: { pages: [{ rows: jobsBootstrap.rows, total: jobsBootstrap.total, offset: 0 }], pageParams: [0] },
+      initialDataUpdatedAt: jobsBootstrap.at,
+    } : {}),
   });
   const jobs = listings.data?.pages.flatMap(page => page.rows) ?? [];
   const selectedId = explicitId || (!narrow ? jobs[0]?.id : undefined);
@@ -89,6 +106,10 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
       return data as unknown as JobPosting | null;
     },
     staleTime: 60_000,
+    ...(useBootstrap && jobsBootstrap?.detail && jobsBootstrap.detail.id === selectedId ? {
+      initialData: jobsBootstrap.detail,
+      initialDataUpdatedAt: jobsBootstrap.at,
+    } : {}),
   });
   const selected = detail.data;
   const total = listings.data?.pages[0]?.total ?? 0;

@@ -54,6 +54,9 @@ const PublicJobs = () => {
   // mount and a real in-app click, so the SEO tags stay correct either way.
 
   useEffect(() => {
+    // The count only decides whether a category or city page is thin enough to hide
+    // from search engines. The plain /jobs page never needs it.
+    if (!categorySlug && !cityFilter) { setTotal(null); setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
     let q = supabase.from('job_postings').select('id', { count: 'exact', head: true })

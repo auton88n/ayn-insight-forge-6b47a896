@@ -507,6 +507,13 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       });
   }, []);
 
+  // The first-page query used to run twice on every visit: once at mount, and again
+  // when Profile's desired locations finished loading (null to []), even though they
+  // only matter when "Match me" is on. Key on what actually changes the query.
+  const desiredKey = matchMode && desiredLocations ? desiredLocations.join("|") : "";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const queryLocations = useMemo(() => (matchMode ? desiredLocations : null), [desiredKey, matchMode]);
+
   const buildQuery = useCallback((withCount: boolean) => {
     let q = supabase
       .from("job_postings")
@@ -522,8 +529,8 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       .or("scam_suspected.is.null,scam_suspected.eq.false");
     const term = safeLike(query);
     if (term) q = q.or(`title.ilike.%${term}%,company.ilike.%${term}%`);
-    if (matchMode && desiredLocations && desiredLocations.length > 0) {
-      q = q.or(desiredLocations.map((l) => `location.ilike.%${safeLike(l)}%`).join(","));
+    if (matchMode && queryLocations && queryLocations.length > 0) {
+      q = q.or(queryLocations.map((l) => `location.ilike.%${safeLike(l)}%`).join(","));
     } else {
       if (location) q = q.eq("location", location);
       if (remoteOnly) q = q.ilike("location", "%remote%");
@@ -536,7 +543,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       q = q.gte("posted_at", cutoff);
     }
     return q;
-  }, [query, location, remoteOnly, matchMode, desiredLocations, employmentType, seniority, category, postedWithin]);
+  }, [query, location, remoteOnly, matchMode, queryLocations, employmentType, seniority, category, postedWithin]);
 
   // v3.142.0 — the underlying query still sorts by recency (that's what
   // keeps pagination and the total count honest); once a page's quick

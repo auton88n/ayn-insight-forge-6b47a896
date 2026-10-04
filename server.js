@@ -682,7 +682,55 @@ function renderPublicPage(pathname) {
   return injectRoot(html, `<main><h1>${escapeHtml(meta.h1)}</h1>${meta.body.map((t) => `<p>${escapeHtml(t)}</p>`).join('')}${links ? `<nav>${links}</nav>` : ''}</main>`);
 }
 
-app.get('/{*path}', (req, res) => {
+// First page of jobs (and the first job's full posting) for the home and /jobs
+// pages. Without this the browser loads the page, then the app, then asks for
+// the list, then asks for the first job's details: two server round trips, in
+// sequence, before anything shows. With it the data arrives inside the HTML.
+// Must match PUBLIC_JOB_SUMMARY_COLUMNS, page size and ordering in
+// src/components/landing/JobsBrowser.tsx. Served stale while it refreshes in
+// the background, so a slow backend can never hold up the page.
+const JOB_SUMMARY_COLUMNS = 'id,source,company,company_slug,company_logo_url,title,location,apply_url,posted_at,employment_type,seniority,salary_min,salary_max,salary_currency,category,work_mode,city';
+const JOBS_BOOT_FRESH_MS = 60 * 1000;
+let jobsBoot = { data: null, at: 0, refreshing: null };
+
+async function loadJobsBootstrap() {
+  const key = requireSupabaseAnonKey();
+  const headers = { apikey: key, Authorization: `Bearer ${key}` };
+  const base = `${SUPABASE_ORIGIN}/rest/v1/job_postings`;
+  const filter = 'or=(scam_suspected.is.null,scam_suspected.eq.false)';
+  const listRes = await fetch(`${base}?select=${JOB_SUMMARY_COLUMNS}&${filter}&order=posted_at.desc,id.asc`, {
+    headers: { ...headers, Prefer: 'count=exact', 'Range-Unit': 'items', Range: '0-24' },
+    signal: AbortSignal.timeout(2500),
+  });
+  if (!listRes.ok) throw new Error(`jobs bootstrap list ${listRes.status}`);
+  const rows = await listRes.json();
+  const total = Number((listRes.headers.get('content-range') || '').split('/')[1]);
+  if (!Array.isArray(rows) || !rows.length || !Number.isFinite(total)) throw new Error('jobs bootstrap empty');
+  let detail = null;
+  try {
+    const dRes = await fetch(`${base}?select=${JOB_SUMMARY_COLUMNS},description,skills&id=eq.${encodeURIComponent(rows[0].id)}&${filter}&limit=1`, {
+      headers, signal: AbortSignal.timeout(2500),
+    });
+    if (dRes.ok) detail = (await dRes.json())[0] || null;
+  } catch { /* the page falls back to fetching it */ }
+  return { rows, total, detail, at: Date.now() };
+}
+
+async function getJobsBootstrap() {
+  const age = Date.now() - jobsBoot.at;
+  if (jobsBoot.data && age < JOBS_BOOT_FRESH_MS) return jobsBoot.data;
+  if (!jobsBoot.refreshing) {
+    jobsBoot.refreshing = loadJobsBootstrap()
+      .then((data) => { jobsBoot.data = data; jobsBoot.at = Date.now(); })
+      .catch((err) => { console.error('jobs bootstrap failed:', err.message); })
+      .finally(() => { jobsBoot.refreshing = null; });
+  }
+  if (jobsBoot.data) return jobsBoot.data;       // stale is fine; refresh runs behind it
+  await jobsBoot.refreshing;                      // first request only
+  return jobsBoot.data;
+}
+
+app.get('/{*path}', async (req, res) => {
   const status = isKnownRoute(req.path) ? 200 : 404;
   if (indexHtml === null) {
     // Only reachable if startWhenBuilt gave up after its own retries and
@@ -691,7 +739,17 @@ app.get('/{*path}', (req, res) => {
     res.status(503).send('Service temporarily unavailable, please retry.');
     return;
   }
-  res.status(status).type('html').send((status === 200 && renderPublicPage(req.path)) || indexHtml);
+  let html = (status === 200 && renderPublicPage(req.path)) || indexHtml;
+  // Only the plain, unfiltered job list: any search term or filter in the URL is a different query.
+  if (status === 200 && (req.path === '/' || req.path === '/jobs') && Object.keys(req.query).length === 0) {
+    try {
+      const boot = await getJobsBootstrap();
+      if (boot) {
+        html = injectHead(html, `<script type="application/json" id="ayn-jobs-bootstrap">${JSON.stringify(boot).replace(/</g, '\\u003c')}</script>`);
+      }
+    } catch { /* serve the page without it */ }
+  }
+  res.status(status).type('html').send(html);
 });
 
 function startWhenBuilt(attemptsLeft = 30) {
