@@ -40,6 +40,16 @@ test('main sitemap survives a live dist rebuild and logs no request secrets', { 
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     const base = `http://127.0.0.1:${port}`;
+    for (const route of ['/', '/pricing', '/salary-guide']) {
+      const response = await fetch(base + route);
+      const html = await response.text();
+      assert.equal(response.status, 200);
+      assert.match(html, /class="ayn-server-preview"/);
+      assert.match(html, /\.ayn-server-preview\{box-sizing/);
+      assert.match(html, /aria-label="Main navigation"/);
+      assert.doesNotMatch(html, /display:\s*none|visibility:\s*hidden/);
+      if (route === '/pricing') assert.match(html, /canonical" href="https:\/\/ayn.careers\/pricing"/);
+    }
     const initial = await fetch(`${base}/sitemap.xml`);
     assert.equal(initial.status, 200);
     assert.equal(await initial.text(), expected);

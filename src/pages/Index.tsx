@@ -90,7 +90,9 @@ const Index = () => {
   }, []);
 
   if (!isInitialized) {
-    return <AYNLoader />;
+    // Public content does not need to wait for session restoration.
+    // Authenticated actions retain their own auth/legal gates.
+    return <LandingPage />;
   }
 
   if (user && session) {

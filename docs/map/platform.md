@@ -1,5 +1,14 @@
 # 2 October 2026: Insights content engine handoff and archive safety
 
+4 October first-paint/pricing correction: server-injected public content now
+has critical scoped styling and real navigation before app assets load; it
+remains visible without JS and identical for visitors/crawlers. Homepage Index
+is eager and renders public LandingPage during session restoration, avoiding
+the route-chunk and anonymous-auth spinner sequence (protected actions retain
+their gates). `/pricing` renders LandingPage's pricing tab directly, keeps its
+URL and canonical, and sidebar selections navigate back to home tabs. This
+is a styled server preview, not full React hydration or a promise of indexing.
+
 4 October admin monitoring: `SeoCollectorMonitor` in Admin SEO shows per-source
 fresh/failed/stale/unknown states, attempt and last-success times, and the last
 20 source attempts via the admin-only `get_admin_seo_collection_history()` RPC.

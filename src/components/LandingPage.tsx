@@ -97,9 +97,11 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
   const [{ tab: entryTab, fromHandoff }] = useState(readHandoffTab);
   const handoffApplied = useRef(false);
   const hashTab = location.hash.slice(1) as HomeTabId;
-  const activeTab = ALL_TAB_IDS.has(hashTab) ? hashTab : entryTab;
+  const activeTab = location.pathname === '/pricing' ? 'pricing' : ALL_TAB_IDS.has(hashTab) ? hashTab : entryTab;
   const setActiveTab = (tab: HomeTabId) => {
-    if (tab !== activeTab) navigate({ pathname: location.pathname, search: location.search, hash: tab });
+    if (tab === activeTab) return;
+    if (tab === 'pricing') navigate('/pricing');
+    else navigate({ pathname: location.pathname === '/pricing' ? '/' : location.pathname, search: location.search, hash: tab });
   };
   // Convert a real cross-page handoff into a bookmarkable route state.
   // Later selections use router navigation so Back and refresh work too.
@@ -107,7 +109,7 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
   // ?job=<id>, which already carries its own meaningful search string)
   // is left exactly as it arrived -- there is nothing here to "convert."
   useEffect(() => {
-    if (handoffApplied.current || !fromHandoff) return;
+    if (handoffApplied.current || !fromHandoff || location.pathname === '/pricing') return;
     handoffApplied.current = true;
     navigate({ pathname: location.pathname, search: location.search, hash: entryTab }, { replace: true });
   }, [entryTab, fromHandoff, navigate]);
@@ -127,7 +129,10 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
     };
   }, []);
 
-  const copy = COPY[forcedAudience];
+  const copy = activeTab === 'pricing' ? {
+    ...COPY[forcedAudience], title: 'Pricing | AYN', canonical: '/pricing',
+    description: 'AYN has a free plan for job seekers and paid plans with credits for tailored resumes and cover letters. Employers get a free first month.',
+  } : COPY[forcedAudience];
   const faqSchema = forcedAudience === 'employer' ? EMPLOYER_FAQ : SEEKER_FAQ;
 
   return (

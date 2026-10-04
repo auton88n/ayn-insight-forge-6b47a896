@@ -288,7 +288,24 @@ function injectHead(html, extraHeadHtml) {
 }
 
 function injectRoot(html, rootInnerHtml) {
-  return html.replace(/(<div id="root"[^>]*>)<\/div>/, (_m, openTag) => `${openTag}${rootInnerHtml}</div>`);
+  // Critical styles travel with the HTML, so the first paint is readable and
+  // branded even before the React stylesheet arrives. Same content for bots
+  // and people; no hiding, UA branching, or dependency on JavaScript.
+  const styled = injectHead(html, `<style>
+    .ayn-server-preview{box-sizing:border-box;min-height:100vh;background:#faf8f3;color:#242321;font-family:Arial,sans-serif;padding:32px clamp(20px,6vw,96px)}
+    .ayn-server-preview *{box-sizing:border-box}
+    .ayn-server-preview header{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;padding-bottom:28px;border-bottom:1px solid #dedbd5}
+    .ayn-server-preview header img{width:44px;height:44px}
+    .ayn-server-preview a{color:inherit;text-underline-offset:4px}
+    .ayn-server-preview header nav{display:flex;gap:24px;flex-wrap:wrap}
+    .ayn-server-preview main,.ayn-server-preview article{max-width:1000px;margin:48px auto;line-height:1.7;overflow-wrap:anywhere}
+    .ayn-server-preview h1{font-size:clamp(28px,4vw,52px);line-height:1.12;letter-spacing:-.035em;margin:0 0 24px;font-weight:700}
+    .ayn-server-preview p{max-width:72ch;font-size:17px;margin:16px 0}
+    .ayn-server-preview h2{font-size:24px;margin-top:32px}
+    .ayn-server-preview img{max-width:100%}
+  </style>`);
+  const content = `<div class="ayn-server-preview"><header><a href="/" aria-label="AYN home"><img src="/ayn-mark.svg" alt="AYN" width="44" height="44"></a><nav aria-label="Main navigation"><a href="/jobs">Jobs</a><a href="/salary-guide">Salary guide</a><a href="/insights">Insights</a><a href="/pricing">Pricing</a></nav></header>${rootInnerHtml}</div>`;
+  return styled.replace(/(<div id="root"[^>]*>)<\/div>/, (_m, openTag) => `${openTag}${content}</div>`);
 }
 
 function articleJsonLd(article) {

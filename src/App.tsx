@@ -33,7 +33,8 @@ import { HelmetProvider } from 'react-helmet-async';
 // Load account routes on navigation, not during anonymous page startup.
 
 // Lazy load all route pages for code splitting
-const Index = lazy(() => import("./pages/Index"));
+import Index from './pages/Index';
+import LandingPage from '@/components/LandingPage';
 const Settings = lazy(() => import("./pages/Settings"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -119,7 +120,7 @@ const AnimatedRoutes = () => {
       <Route path="/dashboard/*" element={<Navigate to="/" replace />} />
       {/* Fast routes - no animation wrapper */}
       <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
-      <Route path="/pricing" element={<HomeTabRedirect tab="pricing" />} />
+      <Route path="/pricing" element={<LandingPage />} />
 
       <Route path="/billing" element={<Suspense fallback={<PageLoader />}><Billing /></Suspense>} />
       <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>} />
