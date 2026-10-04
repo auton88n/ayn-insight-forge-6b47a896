@@ -68,7 +68,9 @@ export function EmployerOAuthClaim() {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) skip(); }}>
-      <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
+      {/* Outside clicks must not close this: the cookie banner sits outside the dialog, and answering it
+          would otherwise throw away a half-filled form. Closing is only the X, Escape, or the skip button. */}
+      <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Tell us about your company</DialogTitle>
           <DialogDescription>
