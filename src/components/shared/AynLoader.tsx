@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+
+const EMBER = '#e85d3a';
 
 const AYN_MARK = '/ayn-mark.svg';
 
@@ -31,12 +34,14 @@ export function AynLoader({
         {/* ember glow */}
         <span
           aria-hidden
-          className="absolute inset-0 rounded-full bg-primary/20 blur-2xl ayn-loader-glow"
+          className="absolute inset-0 rounded-full blur-2xl ayn-loader-glow"
+          style={{ background: 'rgba(232, 93, 58, 0.2)' }}
         />
         {/* rotating arc */}
         <span
           aria-hidden
-          className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary border-r-primary/40 ayn-loader-arc"
+          className="absolute inset-0 rounded-full border-2 border-transparent ayn-loader-arc"
+          style={{ borderTopColor: EMBER, borderRightColor: 'rgba(232, 93, 58, 0.4)' }}
         />
         {/* the mark */}
         <img
@@ -56,11 +61,24 @@ export function AynLoader({
   );
 }
 
-/** Full viewport version, used for route level suspense fallbacks. */
-export function AynLoaderScreen({ label = 'Loading' }: { label?: string }) {
+/**
+ * Full viewport version, used for route level suspense fallbacks. It adds no
+ * background of its own (the page canvas is already painted by the theme
+ * script, so there is no white or dark flash) and stays invisible for the
+ * first moment: most routes finish loading inside that window, and a spinner
+ * that blinks on and off for a fraction of a second reads as a flicker.
+ */
+export function AynLoaderScreen({ label = 'Loading', delayMs = 350 }: { label?: string; delayMs?: number }) {
+  const [show, setShow] = useState(delayMs <= 0);
+  useEffect(() => {
+    if (delayMs <= 0) return;
+    const t = window.setTimeout(() => setShow(true), delayMs);
+    return () => window.clearTimeout(t);
+  }, [delayMs]);
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <AynLoader size="lg" label={label} />
+    <div className="min-h-screen flex items-center justify-center" role="status" aria-live="polite">
+      {show ? <AynLoader size="lg" label={label} /> : <span className="sr-only">Loading</span>}
     </div>
   );
 }

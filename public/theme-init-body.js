@@ -3,7 +3,7 @@
 // <script> (v3.132.0 security-headers pass), same reasoning as
 // theme-init-head.js.
 (function () {
-  var isLanding = window.location.pathname === '/' || window.location.pathname === '';
+  var isLanding = !/^\/(resume-hub|settings|billing|dashboard|employer\/|admin|manage-)/.test(window.location.pathname);
   if (isLanding) {
     document.body.style.backgroundColor = '#faf8f3';
   } else {

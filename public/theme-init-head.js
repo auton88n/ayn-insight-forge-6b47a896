@@ -5,7 +5,10 @@
 (function () {
   try {
     // Landing page owns its own warm paper canvas
-    var isLanding = window.location.pathname === '/' || window.location.pathname === '';
+    // Public marketing pages (/, /jobs, /pricing, /insights ...) all render on
+    // the warm paper canvas. Only the signed-in app surfaces can be dark, so
+    // everything else starts light and never flashes dark first.
+    var isLanding = !/^\/(resume-hub|settings|billing|dashboard|employer\/|admin|manage-)/.test(window.location.pathname);
     if (isLanding) {
       document.documentElement.classList.add('light');
       document.documentElement.style.colorScheme = 'light';
