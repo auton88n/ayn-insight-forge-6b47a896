@@ -178,7 +178,15 @@
 
   <body>
     <script src="/theme-init-body.js" defer></script>
-    <div id="root" class="ayn-root-min-h"></div>
+    <div id="root" class="ayn-root-min-h"><!-- First paint skeleton. Keep its shape in step with ContentSkeleton/ShellSkeleton in src/components/shared/AynLoader.tsx. React replaces everything inside #root when the app mounts. -->
+      <div id="ayn-boot" class="lp lp-shell-with-sidebar" aria-hidden="true">
+        <aside class="lp-sidebar"><div class="lp-sidebar-top"><span class="ayn-skel" style="width:64px;height:24px;border-radius:8px"></span></div><div style="padding:8px 14px;display:grid;gap:14px"><span class="ayn-skel" style="width:70%;height:18px;border-radius:8px"></span><span class="ayn-skel" style="width:86%;height:18px;border-radius:8px"></span><span class="ayn-skel" style="width:86%;height:18px;border-radius:8px"></span><span class="ayn-skel" style="width:70%;height:18px;border-radius:8px"></span><span class="ayn-skel" style="width:86%;height:18px;border-radius:8px"></span><span class="ayn-skel" style="width:86%;height:18px;border-radius:8px"></span><span class="ayn-skel" style="width:70%;height:18px;border-radius:8px"></span><span class="ayn-skel" style="width:86%;height:18px;border-radius:8px"></span></div></aside>
+        <div class="lp-sidebar-mobile-bar"><span class="ayn-skel" style="width:64px;height:22px;border-radius:8px"></span><span class="ayn-skel" style="width:28px;height:22px;border-radius:8px"></span></div>
+        <main class="lp-sidebar-main"><section class="lp-section" style="min-height:100vh"><div class="lp-shell">
+          <span class="ayn-skel" style="width:96px;height:26px;border-radius:999px"></span><div style="height:18px"></div><span class="ayn-skel" style="width:58%;height:44px;border-radius:12px"></span><div style="height:22px"></div><span class="ayn-skel" style="width:80%;height:16px;border-radius:10px"></span><div style="height:10px"></div><span class="ayn-skel" style="width:64%;height:16px;border-radius:10px"></span>
+          <div class="ayn-skel-cards"><span class="ayn-skel" style="width:100%;height:150px;border-radius:20px"></span><span class="ayn-skel" style="width:100%;height:150px;border-radius:20px"></span><span class="ayn-skel" style="width:100%;height:150px;border-radius:20px"></span></div><div class="ayn-skel-rows"><span class="ayn-skel" style="width:100%;height:64px;border-radius:16px"></span><span class="ayn-skel" style="width:100%;height:64px;border-radius:16px"></span><span class="ayn-skel" style="width:100%;height:64px;border-radius:16px"></span><span class="ayn-skel" style="width:100%;height:64px;border-radius:16px"></span></div>
+        </div></section></main>
+      </div><!--/ayn-boot--></div>
     <noscript>
       <a href="https://ayn.careers/privacy">Privacy Policy</a> |
       <a href="https://ayn.careers/terms">Terms of Service</a>

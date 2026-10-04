@@ -295,7 +295,8 @@ function injectHead(html, extraHeadHtml) {
 const PRERENDER_STYLE = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
 function injectRoot(html, rootInnerHtml) {
   const content = `<div data-prerender style="${PRERENDER_STYLE}"><header><a href="/">AYN</a><nav aria-label="Main navigation"><a href="/jobs">Jobs</a><a href="/salary-guide">Salary guide</a><a href="/insights">Insights</a><a href="/pricing">Pricing</a></nav></header>${rootInnerHtml}</div>`;
-  return html.replace(/(<div id="root"[^>]*>)<\/div>/, (_m, openTag) => `${openTag}${content}</div>`);
+  // The first-paint skeleton (#ayn-boot) stays; the crawler text goes right after it.
+  return html.replace('<!--/ayn-boot-->', () => `<!--/ayn-boot-->${content}`);
 }
 
 function articleJsonLd(article) {
