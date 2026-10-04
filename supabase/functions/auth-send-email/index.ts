@@ -287,12 +287,24 @@ Deno.serve(async (req) => {
       throw sendError;
     }
 
+    // The Resend SDK reports a rejected send as { error } rather than throwing, so a
+    // bad address or a domain problem used to be logged here as "sent".
+    const sendFailure = (emailResult as { error?: { message?: string } | null })?.error;
+    if (sendFailure) {
+      await admin.from('email_logs').insert({
+        email_type: email_data.email_action_type, recipient_email: user.email,
+        status: 'failed', error_message: String(sendFailure.message || 'send rejected').slice(0, 400),
+      }).then(({ error }) => { if (error) console.error('[auth-send-email] email_logs insert failed', error.message); });
+      throw new Error(sendFailure.message || 'send rejected');
+    }
+    const resendId = (emailResult as { data?: { id?: string } | null })?.data?.id ?? null;
+
     console.log(`[auth-send-email] Email sent successfully:`, emailResult);
 
     // v3.47.0 — best effort, never blocks the response Supabase is waiting on.
     await admin.from('email_logs').insert({
       email_type: email_data.email_action_type, recipient_email: user.email,
-      status: 'sent',
+      status: 'sent', metadata: { resend_id: resendId },
     }).then(({ error }) => { if (error) console.error('[auth-send-email] email_logs insert failed', error.message); });
 
     // Return success - Supabase expects empty object on success

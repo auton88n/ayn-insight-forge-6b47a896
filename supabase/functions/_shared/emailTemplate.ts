@@ -116,7 +116,7 @@ export async function sendBrandedEmail(
   to: string,
   subject: string,
   html: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; id?: string }> {
   const key = Deno.env.get("RESEND_API_KEY");
   if (!key) return { ok: false, error: "RESEND_API_KEY not configured" };
   if (!to) return { ok: false, error: "no recipient email" };
@@ -137,7 +137,10 @@ export async function sendBrandedEmail(
       const text = await res.text();
       return { ok: false, error: `${res.status}: ${text.slice(0, 300)}` };
     }
-    return { ok: true };
+    // Resend answers with the message id; delivery webhooks refer to it.
+    let id: string | undefined;
+    try { id = ((await res.json()) as { id?: string }).id; } catch { /* the send itself succeeded */ }
+    return { ok: true, id };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }

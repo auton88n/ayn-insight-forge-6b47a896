@@ -63,6 +63,34 @@ Deno.serve(async (req) => {
     }
 
     const payload = JSON.parse(rawBody);
+
+    // Delivery events (sent, delivered, bounced, complained...) arrive at this same
+    // endpoint when they are enabled on the webhook in Resend. They update the
+    // delivery status of the matching email; they are not inbound mail.
+    const eventType = String(payload.type || '');
+    if (eventType.startsWith('email.') && eventType !== 'email.received') {
+      const DELIVERY: Record<string, string> = {
+        'email.delivered': 'delivered', 'email.bounced': 'bounced', 'email.complained': 'complained',
+        'email.delivery_delayed': 'delayed', 'email.failed': 'failed',
+      };
+      const status = DELIVERY[eventType];
+      const messageId = payload.data?.email_id;
+      if (status && messageId) {
+        const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+        const detail = String(payload.data?.bounce?.message || payload.data?.reason || '').slice(0, 300) || null;
+        const { data: rows } = await db.from('email_logs').select('id, metadata').eq('metadata->>resend_id', messageId);
+        for (const row of (rows || []) as { id: string; metadata: Record<string, unknown> | null }[]) {
+          await db.from('email_logs').update({
+            metadata: { ...(row.metadata || {}), delivery_status: status, delivery_at: new Date().toISOString(), delivery_detail: detail },
+          }).eq('id', row.id);
+        }
+        await db.from('welcome_emails').update({ delivery_status: status }).eq('resend_id', messageId);
+      }
+      return new Response(JSON.stringify({ success: true, handled: eventType }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.log('Verified Resend inbound webhook received');
 
     // Resend wraps email fields inside payload.data
