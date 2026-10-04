@@ -18,14 +18,14 @@ import {
   useAdminEmailAudience,
   useAdminTermsConsent,
   useAdminCookieConsent,
-  useAdminActivityLog,
   useAdminEmailLog,
+  useAdminSiteActivity,
   useAdminInbox,
   useMarkInboxRead,
   useAdminVisitorAnalytics,
   useAdminPostHogRecordings,
 } from '@/admin-app/hooks/useAdminQuery';
-import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when, ProviderBadge, WelcomeBadge, providerLabel } from '../ui';
+import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when, whenTime, ProviderBadge, WelcomeBadge, providerLabel } from '../ui';
 
 const Table = ({ head, children }: { head: string[]; children: React.ReactNode }) => (
   <Card className="border border-border/60 bg-card overflow-hidden">
@@ -383,49 +383,84 @@ const ACTIVITY_LABELS: Record<string, string> = {
   admin_user_snapshot: 'Looked up an account snapshot',
 };
 
-function summarizeActivityDetails(d: any): string {
-  if (!d || typeof d !== 'object') return '';
-  const bits: string[] = [];
-  if (d.target_email) bits.push(String(d.target_email));
-  else if (d.email) bits.push(String(d.email));
-  if (d.plan_key) bits.push(`plan ${d.plan_key}`);
-  if (d.key && typeof d.enabled === 'boolean') bits.push(`${d.key} → ${d.enabled ? 'on' : 'off'}`);
-  if (d.capability) bits.push(String(d.capability));
-  if (typeof d.grant === 'boolean') bits.push(d.grant ? 'granted' : 'removed');
-  if (d.reason) bits.push(`"${d.reason}"`);
-  if (bits.length) return bits.join(' · ');
-  try { return JSON.stringify(d).slice(0, 160); } catch { return ''; }
-}
 
+const ACTIVITY_KINDS: Array<{ key: string; label: string }> = [
+  { key: 'all', label: 'Everything' },
+  { key: 'signup', label: 'Signups' },
+  { key: 'login', label: 'Sign-ins' },
+  { key: 'email', label: 'Emails' },
+  { key: 'credits', label: 'Credits' },
+  { key: 'content', label: 'Resumes and jobs' },
+  { key: 'marketplace', label: 'Employers and proposals' },
+  { key: 'legal', label: 'Terms accepted' },
+  { key: 'support', label: 'Support and errors' },
+  { key: 'admin', label: 'Admin actions' },
+];
+
+// Every record the site keeps, in one stream: signups, sign-ins, emails, credits, resumes,
+// saved jobs, employer applications, proposals, assessments, support tickets, errors and admin actions.
 export function ActivityPane() {
-  const query = useAdminActivityLog();
+  const [kind, setKind] = useState('all');
+  const [search, setSearch] = useState('');
+  const [q, setQ] = useState('');
+  const query = useAdminSiteActivity(kind, q);
   if (query.isLoading) return <LoadingBlock />;
   if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
 
-  const rows: any[] = (query.data as any) || [];
-  const last24 = rows.filter(r => Date.now() - new Date(r.created_at).getTime() < 86400000).length;
+  const pages = query.data?.pages || [];
+  const rows: any[] = pages.flatMap((p: any) => p.rows || []);
+  const counts: Record<string, number> = pages[0]?.counts_24h || {};
+  const total24 = Object.values(counts).reduce((n, v) => n + Number(v), 0);
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <Stat label="Actions logged" value={rows.length} hint="Most recent 150" />
-        <Stat label="Last 24 hours" value={last24} accent />
-        <Stat label="High severity" value={rows.filter(r => r.severity === 'high').length} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Stat label="Events, last 24 hours" value={total24} accent />
+        <Stat label="Signups" value={counts.signup ?? 0} hint="Last 24 hours" />
+        <Stat label="Sign-ins" value={counts.login ?? 0} hint="Last 24 hours" />
+        <Stat label="Errors and tickets" value={counts.support ?? 0} hint="Last 24 hours" />
       </div>
-      <Table head={['Who', 'What', 'Details', 'When']}>
-        {rows.length === 0 && <tr><td colSpan={4}><EmptyRow>Nothing recorded yet.</EmptyRow></td></tr>}
-        {rows.map(r => (
-          <Row key={r.id}>
-            <Cell>{r.actor_email || <span className="text-muted-foreground">System</span>}</Cell>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        {ACTIVITY_KINDS.map(k => (
+          <button
+            key={k.key}
+            type="button"
+            onClick={() => setKind(k.key)}
+            className={`px-3 py-1 rounded-full text-xs border transition-colors ${kind === k.key ? 'bg-primary text-primary-foreground border-transparent' : 'bg-card text-muted-foreground border-border/60 hover:text-foreground'}`}
+          >
+            {k.label}{k.key !== 'all' && counts[k.key] ? ` · ${counts[k.key]}` : ''}
+          </button>
+        ))}
+      </div>
+
+      <form className="flex gap-2" onSubmit={e => { e.preventDefault(); setQ(search.trim()); }}>
+        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by email or what happened" className="max-w-sm" />
+        <Button type="submit" variant="outline">Search</Button>
+        {q && <Button type="button" variant="ghost" onClick={() => { setSearch(''); setQ(''); }}>Clear</Button>}
+      </form>
+
+      <Table head={['When', 'Who', 'What', 'Details']}>
+        {rows.length === 0 && <tr><td colSpan={4}><EmptyRow>Nothing matches.</EmptyRow></td></tr>}
+        {rows.map((r, i) => (
+          <Row key={`${r.at}-${i}`}>
+            <Cell><span className="whitespace-nowrap">{whenTime(r.at)}</span></Cell>
+            <Cell>{r.email || <span className="text-muted-foreground">System</span>}</Cell>
             <Cell>
-              <span>{ACTIVITY_LABELS[r.action] || r.action}</span>
-              {r.severity === 'high' && <Badge variant="destructive" className="text-[10px] ml-2">high</Badge>}
+              <span>{r.kind === 'admin' ? (ACTIVITY_LABELS[r.title] || r.title) : r.title}</span>
+              <Badge variant="outline" className="text-[10px] ml-2">{(ACTIVITY_KINDS.find(k => k.key === r.kind)?.label) || r.kind}</Badge>
             </Cell>
-            <Cell><span className="text-xs text-muted-foreground">{summarizeActivityDetails(r.details)}</span></Cell>
-            <Cell>{when(r.created_at)}</Cell>
+            <Cell><span className="text-xs text-muted-foreground break-words">{r.detail || ''}</span></Cell>
           </Row>
         ))}
       </Table>
+      {query.hasNextPage && (
+        <div className="flex justify-center">
+          <Button variant="outline" disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()}>
+            {query.isFetchingNextPage ? 'Loading' : 'Load older'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

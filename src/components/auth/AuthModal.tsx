@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
+import { SIGNUP_INTENT_KEY } from './EmployerOAuthClaim';
 import { supabase } from '@/integrations/supabase/client';
 import { consentSignupMetadata, attachConsentIp, LEGAL } from '@/lib/legal';
 import { Loader2, Building, User, KeyRound, CheckCircle2, ArrowLeft, Mail } from 'lucide-react';
@@ -212,7 +213,14 @@ export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthM
     setResetSentToEmail('');
   };
 
-  const handleGoogleSignIn = async () => {
+  // intent 'employer' is remembered across the Google redirect; when the person is back, signed in,
+  // EmployerOAuthClaim asks for the company details (Google cannot carry them) and still sends the
+  // application for approval. Anything else clears it.
+  const handleGoogleSignIn = async (intent: 'employer' | 'none' = 'none') => {
+    try {
+      if (intent === 'employer') localStorage.setItem(SIGNUP_INTENT_KEY, 'employer');
+      else localStorage.removeItem(SIGNUP_INTENT_KEY);
+    } catch { /* storage unavailable: the person simply continues as a job seeker */ }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -528,7 +536,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthM
               type="button"
               variant="outline"
               className="ayn-auth-google w-full font-medium"
-              onClick={handleGoogleSignIn}
+              onClick={() => handleGoogleSignIn('none')}
             >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
@@ -600,13 +608,13 @@ export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthM
 
           <TabsContent value="signup" className="space-y-4 mt-6">
             <MaintenanceNotice feature="signups" />
-            {signupRole === 'job_seeker' ? (
+            {(
             <>
             <Button
               type="button"
               variant="outline"
               className="ayn-auth-google w-full font-medium"
-              onClick={handleGoogleSignIn}
+              onClick={() => handleGoogleSignIn(signupRole === 'employer' ? 'employer' : 'none')}
             >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
@@ -625,11 +633,12 @@ export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthM
                 <span className="bg-background px-2 text-muted-foreground">{t('auth.orDivider')}</span>
               </div>
             </div>
-            </>
-            ) : (
-              <p className="text-xs text-muted-foreground rounded-lg border border-border/60 bg-muted/40 p-3">
-                Employers sign up with a work email, so we can check that you belong to the company. Google sign-up is for job seekers.
+            {signupRole === 'employer' && (
+              <p className="text-xs text-muted-foreground -mt-2">
+                With Google we will ask for your company details next. Use your business Google account: a personal Gmail address cannot be matched to a company.
               </p>
+            )}
+            </>
             )}
 
             <div className="text-center text-sm text-muted-foreground mb-4">

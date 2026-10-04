@@ -15,6 +15,7 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
 import { ScrollToTop } from "@/components/shared/ScrollToTop";
+import { EmployerOAuthClaim } from "@/components/auth/EmployerOAuthClaim";
 import { VisitorTracker } from "@/components/shared/VisitorTracker";
 // Eager, not lazy — this component's whole job is stashing a tab name in
 // sessionStorage and immediately <Navigate>-ing to "/". Loading it as its
@@ -194,6 +195,7 @@ const App = () => {
                     <Sonner />
                     <BrowserRouter>
                       <ScrollToTop />
+                      <EmployerOAuthClaim />
                       <VisitorTracker />
                       <ErrorBoundary>
                         <Suspense fallback={<PageLoader />}>

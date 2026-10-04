@@ -10,7 +10,7 @@
  * - Skeleton loading states (isLoading only on first fetch)
  * - invalidateQueries replaces refreshKey unmount hack
  */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { adminSupabase as supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../adminSupabase';
 import { toast } from 'sonner';
 
@@ -442,6 +442,20 @@ export function useAdminEmailLog(days: number | null = null, hideTest = false) {
   return useQuery({
     queryKey: [...adminControlKeys.emailLog, days, hideTest] as const,
     queryFn: () => adminRpc<any>('get_admin_email_log', { p_limit: 300, p_days: days, p_hide_test: hideTest }),
+    staleTime: FAST_STALE_TIME,
+  });
+}
+
+// Everything happening across the site, newest first, 100 at a time. pageParam is the time of the
+// oldest row already shown; kind and search filter on the server.
+export function useAdminSiteActivity(kind: string, search: string) {
+  return useInfiniteQuery({
+    queryKey: ['admin', 'v2', 'siteActivity', kind, search] as const,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => adminRpc<any>('get_admin_site_activity', {
+      p_limit: 100, p_before: pageParam, p_kind: kind === 'all' ? null : kind, p_search: search || null,
+    }),
+    getNextPageParam: (last) => ((last?.rows || []).length >= 100 ? last.rows[last.rows.length - 1].at : undefined),
     staleTime: FAST_STALE_TIME,
   });
 }
