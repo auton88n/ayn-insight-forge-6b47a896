@@ -160,6 +160,7 @@ begin
     ), filtered as (
       select * from ev
       where at is not null
+        and coalesce(email, '') not like 'erased+%@erased.invalid'
         and (p_before is null or at < p_before)
         and (p_kind is null or p_kind = 'all' or kind = p_kind)
         and (p_search is null or p_search = '' or email ilike '%' || p_search || '%' or title ilike '%' || p_search || '%' or detail ilike '%' || p_search || '%')

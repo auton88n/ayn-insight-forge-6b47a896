@@ -31,6 +31,7 @@ alter table public.welcome_emails enable row level security;
 insert into public.welcome_emails (user_id, status, skipped_reason)
 select u.id, 'skipped', 'existing account before welcome emails'
 from auth.users u
+where u.created_at < timestamptz '2026-10-04 21:00:00+00'   -- only accounts that existed before this shipped; makes a re-run safe
 on conflict (user_id) do nothing;
 
 create or replace function public.signup_welcome_insert()
@@ -616,11 +617,11 @@ begin
     raise exception 'Admin access required';
   end if;
   return jsonb_build_object(
-    'signups_7d', (select count(*) from auth.users where email is not null and created_at >= now() - interval '7 days'),
-    'unverified_7d', (select count(*) from auth.users where email is not null and email_confirmed_at is null and created_at >= now() - interval '7 days'),
+    'signups_7d', (select count(*) from auth.users where email is not null and email not like 'erased+%@erased.invalid' and created_at >= now() - interval '7 days'),
+    'unverified_7d', (select count(*) from auth.users where email is not null and email not like 'erased+%@erased.invalid' and email_confirmed_at is null and created_at >= now() - interval '7 days'),
     'by_provider_7d', coalesce((select jsonb_object_agg(provider, n) from (
         select coalesce(raw_app_meta_data ->> 'provider', 'email') as provider, count(*) as n
-        from auth.users where email is not null and created_at >= now() - interval '7 days' group by 1) b), '{}'::jsonb),
+        from auth.users where email is not null and email not like 'erased+%@erased.invalid' and created_at >= now() - interval '7 days' group by 1) b), '{}'::jsonb),
     'welcome', jsonb_build_object(
       'pending', (select count(*) from welcome_emails where status in ('pending', 'sending')),
       'failed', (select count(*) from welcome_emails where status = 'failed'),
@@ -637,7 +638,7 @@ begin
       from auth.users u
       left join employer_accounts ea on ea.user_id = u.id
       left join welcome_emails w on w.user_id = u.id
-      where u.email is not null and u.banned_until is null
+      where u.email is not null and u.email not like 'erased+%@erased.invalid' and u.banned_until is null
       order by u.created_at desc limit 10) r), '[]'::jsonb)
   );
 end;
