@@ -1,5 +1,17 @@
 # Deployment & VPS operations
 
+## Google sign-in — configured October 2026
+
+Google Cloud project `amazing-craft-510613-b8` (AYN Sign-in) is separate from SEO Monster. Web client `465015103449-9o5f7c9naq4l4qksg3l7ajnirm8umnti.apps.googleusercontent.com` uses origin `https://ayn.careers` and callback `https://ayn.careers/auth/v1/callback`. Audience is External/In production. Google verified and published the AYN name and existing `public/ayn-icon-128.png` logo. Support/developer contact is `crossmint7@gmail.com`.
+
+On the VPS, `/root/supabase/docker/.env` supplies `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, and `GOOGLE_SECRET`; the auth service's four `GOTRUE_EXTERNAL_GOOGLE_*` mappings are uncommented in `docker-compose.yml`. `API_EXTERNAL_URL` already includes `/auth/v1`, so the mapped `/callback` suffix is correct. Secrets remain outside git. Only `auth` was recreated, using `--no-deps`. Rollback copies of `.env` and compose are in `/root/ayn-google-backup-sbtdndkh`; restore those files and recreate auth to revert this configuration.
+
+Verified live: auth healthy, settings report both `google:true` and `email:true`, and the authorization endpoint reaches Google's AYN-branded account chooser requesting only `email profile`. Actual account selection and callback/session completion remain to be tested by the user; this is not yet proof of a completed new-user signup or existing-account login. No frontend, role, consent, or account-linking rules were changed.
+
+## Welcome email worker (5 October 2026)
+
+Edge function `welcome-email-worker` is copied by `/root/auto_deploy.sh` (line added after `content-engine`; VPS-only file, not in git). pg_cron job `welcome-email-worker` (`* * * * *`) was created live by copying the `content-engine` job's `net.http_post` command with the function name swapped, so it carries the same service-role bearer. To recreate: `select cron.schedule('welcome-email-worker','* * * * *', replace((select command from cron.job where jobname='content-engine'),'content-engine','welcome-email-worker'));`. The Resend webhook (`a9bbd200-...`, endpoint `resend-inbound-webhook`) is subscribed to `email.received` plus the delivery events listed in platform.md. Testing without a real inbox: Resend's `delivered+anything@resend.dev` addresses accept mail and report delivery; `@example.com` is rejected with a 422, which exercises the permanent-failure path.
+
 ## September release status
 
 The implemented batch shipped on 25 September 2026 as `f1abd5bb`, after both migrations below were applied transactionally. Production checkout and deployed-revision marker match. Live checker HTML/new bundle and a synthetic public API request passed; edge container healthy. Backup: `/root/ayn-release-backup.5BOuUe`, containing `app-before.tgz` (old `dist`, `resume-hub`, `_shared`, `resend-inbound-webhook`) and `schema-before.sql`. Prior revision: `1d40e5eb`. Restore archive entries to their respective frontend/functions roots, not a common directory. Additive SQL functions need not be dropped for code rollback. No production account was charged by smoke checks.

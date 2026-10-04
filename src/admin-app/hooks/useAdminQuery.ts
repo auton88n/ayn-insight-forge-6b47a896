@@ -436,11 +436,54 @@ export function useAdminActivityLog() {
 
 // v3.47.0 — whether the automatic system emails (and admin broadcasts)
 // actually sent, not just that the code ran.
-export function useAdminEmailLog() {
+// days: only attempts from the last N days (null = all). hideTest: leave out
+// example.com, test and retired-domain recipients so old tests do not read as live failures.
+export function useAdminEmailLog(days: number | null = null, hideTest = false) {
   return useQuery({
-    queryKey: adminControlKeys.emailLog,
-    queryFn: () => adminRpc<any>('get_admin_email_log', { p_limit: 150 }),
+    queryKey: [...adminControlKeys.emailLog, days, hideTest] as const,
+    queryFn: () => adminRpc<any>('get_admin_email_log', { p_limit: 300, p_days: days, p_hide_test: hideTest }),
     staleTime: FAST_STALE_TIME,
+  });
+}
+
+export function useAdminSignupHealth() {
+  return useQuery({
+    queryKey: ['admin', 'v2', 'signupHealth'] as const,
+    queryFn: () => adminRpc<any>('get_admin_signup_health'),
+    staleTime: FAST_STALE_TIME,
+    refetchInterval: 60_000,
+  });
+}
+
+// Every job seeker, not only the opted-in talent pool.
+export function useAdminJobSeekers(search = '') {
+  return useQuery({
+    queryKey: ['admin', 'v2', 'jobSeekers', search] as const,
+    queryFn: () => adminRpc<any>('get_admin_job_seekers', { p_search: search || null }),
+    staleTime: FAST_STALE_TIME,
+  });
+}
+
+// One account's history (sign-up, sign-ins, consent, emails, credits, admin actions).
+export function useAdminAccountTimeline(userId: string | null) {
+  return useQuery({
+    queryKey: ['admin', 'v2', 'accountTimeline', userId || 'none'] as const,
+    queryFn: () => adminRpc<any>('get_admin_account_timeline', { p_user_id: userId }),
+    enabled: !!userId,
+    staleTime: FAST_STALE_TIME,
+  });
+}
+
+export function useWelcomeEmailRequeue(userId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => adminRpc('admin_welcome_email_requeue', { p_user_id: userId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'v2', 'accountTimeline', userId || 'none'] });
+      qc.invalidateQueries({ queryKey: adminKeys.all });
+      toast.success('Welcome email queued. It sends within a minute.');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not queue the email'),
   });
 }
 

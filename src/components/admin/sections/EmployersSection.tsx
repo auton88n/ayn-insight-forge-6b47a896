@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Building2, ExternalLink } from 'lucide-react';
-import { SectionHeader, LoadingBlock, ErrorBlock, EmptyRow, when } from './ui';
+import { SectionHeader, LoadingBlock, ErrorBlock, EmptyRow, when, ProviderBadge, WelcomeBadge } from './ui';
 
 export default function EmployersSection() {
   const q = useAdminEmployers();
@@ -47,6 +47,10 @@ export default function EmployersSection() {
                     {e.company_name || 'Unnamed company'}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">{e.requester_email} · asked {when(e.requested_at)}</p>
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    <ProviderBadge provider={e.provider} last={e.last_sign_in_method} />
+                    <WelcomeBadge status={e.welcome_status} delivery={e.welcome_delivery} />
+                  </div>
                   <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
                     {e.industry && <p>Industry: {e.industry}</p>}
                     {e.headquarters && <p>Headquarters: {e.headquarters}</p>}
@@ -96,13 +100,35 @@ export default function EmployersSection() {
                   {e.company_name || 'Unnamed company'}
                   <Badge variant="secondary" className="text-[10px] uppercase">{e.status}</Badge>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">{e.requester_email} · approved {when(e.approved_at)}</p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {e.plan_name || e.plan_key} · proposals {e.proposals_used ?? 0}/{e.proposals_limit ?? '∞'} · assessments {e.assessments_used ?? 0}/{e.assessments_limit ?? '∞'} · searches {e.searches_used ?? 0}/{e.searches_limit ?? '∞'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {e.trial_ends_at ? `Free month ends ${when(e.trial_ends_at)}` : `Period ends ${when(e.current_period_end)}`}
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">{e.requester_email}</p>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <ProviderBadge provider={e.provider} last={e.last_sign_in_method} />
+                  <WelcomeBadge status={e.welcome_status} delivery={e.welcome_delivery} />
+                </div>
+                <div className="mt-3 space-y-0.5 text-xs">
+                  <p>
+                    <span className="uppercase tracking-wide text-muted-foreground">Access</span>{' '}
+                    {e.status === 'approved' ? `Approved ${when(e.approved_at)}` : e.status === 'declined' ? 'Declined' : 'Suspended'}
+                    <span className="text-muted-foreground"> · last sign-in {when(e.last_sign_in_at)}</span>
+                  </p>
+                  <p>
+                    <span className="uppercase tracking-wide text-muted-foreground">Subscription</span>{' '}
+                    {(() => {
+                      const now = Date.now();
+                      const trialEnd = e.trial_ends_at ? new Date(e.trial_ends_at).getTime() : null;
+                      if (e.sub_status === 'trialing' && trialEnd) {
+                        return trialEnd < now
+                          ? <span className="text-destructive">Free trial ended {when(e.trial_ends_at)}. Still approved; they have not moved to a paid plan.</span>
+                          : `Free trial until ${when(e.trial_ends_at)}`;
+                      }
+                      if (e.sub_status === 'active') return `${e.plan_name || e.plan_key}, renews ${when(e.current_period_end)}`;
+                      return `${e.plan_name || e.plan_key}${e.sub_status ? ` (${e.sub_status})` : ''}, period ends ${when(e.current_period_end)}`;
+                    })()}
+                  </p>
+                  <p className="text-muted-foreground">
+                    This period: proposals {e.proposals_used ?? 0}/{e.proposals_limit ?? '∞'} · assessments {e.assessments_used ?? 0}/{e.assessments_limit ?? '∞'} · searches {e.searches_used ?? 0}/{e.searches_limit ?? '∞'}
+                  </p>
+                </div>
                 {e.internal_note && <p className="text-xs text-muted-foreground mt-2 italic">Note: {e.internal_note}</p>}
               </div>
               <div className="flex gap-2 shrink-0">

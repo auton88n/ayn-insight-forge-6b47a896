@@ -2,6 +2,7 @@
 import { ReactNode } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 import { AlertTriangle } from 'lucide-react';
 
 export function SectionHeader({ title, subtitle, right }: { title: string; subtitle?: string; right?: ReactNode }) {
@@ -55,4 +56,26 @@ export function EmptyRow({ children }: { children: ReactNode }) {
 }
 
 export const money = (cents: number) => `$${(Number(cents || 0) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+export const whenTime = (v?: string | null) => (v ? new Date(v).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
 export const when = (v?: string | null) => (v ? new Date(v).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+
+/* How someone signed up, and what became of their welcome email. */
+const PROVIDER_LABEL: Record<string, string> = { email: 'Email', google: 'Google' };
+export const providerLabel = (p?: string | null) => (p ? (PROVIDER_LABEL[p] || p) : 'Unknown');
+
+export function ProviderBadge({ provider, last }: { provider?: string | null; last?: string | null }) {
+  return (
+    <div className="space-y-0.5">
+      <Badge variant={provider === 'google' ? 'default' : 'secondary'} className="text-[10px]">{providerLabel(provider)}</Badge>
+      {last && last !== provider && <div className="text-[10px] text-muted-foreground">last sign-in: {providerLabel(last)}</div>}
+    </div>
+  );
+}
+
+export function WelcomeBadge({ status, delivery }: { status?: string | null; delivery?: string | null }) {
+  if (!status) return <span className="text-xs text-muted-foreground">None</span>;
+  const label = status === 'skipped' ? 'Before welcome emails' : status === 'sent' ? (delivery ? `Sent, ${delivery}` : 'Sent') : status === 'sending' ? 'Sending' : status[0].toUpperCase() + status.slice(1);
+  const bad = status === 'failed' || delivery === 'bounced' || delivery === 'complained';
+  return <Badge variant={bad ? 'destructive' : status === 'sent' ? 'secondary' : 'outline'} className="text-[10px]">{label}</Badge>;
+}
+

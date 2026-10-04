@@ -1,8 +1,8 @@
 // v3.20.0 OVERVIEW — the one screen that answers "is the product alive".
-import { useAdminOverview, useAdminActivationFunnel } from '@/admin-app/hooks/useAdminQuery';
+import { useAdminOverview, useAdminActivationFunnel, useAdminSignupHealth } from '@/admin-app/hooks/useAdminQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { SectionHeader, Stat, LoadingBlock, ErrorBlock, EmptyRow } from './ui';
+import { SectionHeader, Stat, LoadingBlock, ErrorBlock, EmptyRow, when, ProviderBadge, WelcomeBadge, providerLabel } from './ui';
 
 // Real activation funnel, added directly in response to the founder asking
 // whether this was worth building at all -- checked first, not assumed: it
@@ -17,6 +17,60 @@ const FUNNEL_STAGES: { key: 'signed_up' | 'built_resume' | 'took_paid_action' | 
   { key: 'took_paid_action', label: 'Scored or tailored a job' },
   { key: 'came_back', label: 'Came back later' },
 ];
+
+// How people are signing up, and whether welcome emails are keeping up. Turns red when something needs a look.
+function SignupHealthCard() {
+  const q = useAdminSignupHealth();
+  if (q.isLoading) return <Card className="border border-border/60 bg-card mt-6"><CardContent className="pt-6"><LoadingBlock /></CardContent></Card>;
+  if (q.isError) return <Card className="border border-border/60 bg-card mt-6"><CardContent className="pt-6"><ErrorBlock error={q.error} onRetry={() => q.refetch()} /></CardContent></Card>;
+  const h = (q.data || {}) as any;
+  const w = h.welcome || {};
+  const stuck = Number(w.oldest_pending_minutes || 0) >= 10;
+  const problems: string[] = [];
+  if (Number(w.failed) > 0) problems.push(`${w.failed} welcome email${w.failed === 1 ? '' : 's'} failed to send`);
+  if (stuck) problems.push(`a welcome email has been waiting ${w.oldest_pending_minutes} minutes`);
+  if (Number(w.bounced_7d) > 0) problems.push(`${w.bounced_7d} bounced or marked as spam this week`);
+  const methods = Object.entries(h.by_provider_7d || {});
+
+  return (
+    <Card className="border border-border/60 bg-card mt-6">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          Signups and welcome emails
+          {problems.length > 0 ? <Badge variant="destructive" className="text-[10px]">Needs a look</Badge> : <Badge variant="secondary" className="text-[10px]">All fine</Badge>}
+        </CardTitle>
+        {problems.length > 0 && <p className="text-xs text-destructive mt-1">{problems.join('. ')}. Open the account to resend, or see Email in System.</p>}
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Stat label="Signups, 7 days" value={h.signups_7d ?? 0} hint={methods.map(([k, n]) => `${providerLabel(k)} ${n}`).join(' · ') || undefined} />
+          <Stat label="Not verified yet" value={h.unverified_7d ?? 0} hint="Signed up but have not confirmed" />
+          <Stat label="Welcome emails sent" value={w.sent_7d ?? 0} hint="Last 7 days" accent />
+          <Stat label="Waiting to send" value={w.pending ?? 0} hint={Number(w.pending) > 0 ? 'Sends within a minute' : 'Queue is empty'} />
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium mb-2">Newest accounts</p>
+          {(h.recent || []).length === 0 ? <EmptyRow>No accounts yet.</EmptyRow> : (
+            <div className="divide-y divide-border/60">
+              {(h.recent as any[]).map(r => (
+                <div key={r.user_id} className="py-2 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <p className="text-sm truncate">{r.email} <span className="text-muted-foreground">· {r.is_employer ? 'Employer' : 'Job seeker'}</span></p>
+                    <p className="text-xs text-muted-foreground">{when(r.created_at)}{r.email_confirmed ? '' : ' · email not verified'}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ProviderBadge provider={r.provider} />
+                    <WelcomeBadge status={r.welcome_status} delivery={r.welcome_delivery} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function ActivationFunnelCard() {
   const q = useAdminActivationFunnel();
@@ -131,6 +185,7 @@ export default function OverviewSection({ onGoto }: { onGoto: (id: string) => vo
         </CardContent>
       </Card>
 
+      <SignupHealthCard />
       <ActivationFunnelCard />
     </div>
   );

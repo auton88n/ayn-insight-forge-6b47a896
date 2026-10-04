@@ -361,13 +361,13 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare v_email text;
+declare v_email text; v_events jsonb;
 begin
   if not has_role((select auth.uid()), 'admin'::app_role) then
     raise exception 'Admin access required';
   end if;
   select email into v_email from auth.users where id = p_user_id;
-  return coalesce((
+  v_events := coalesce((
     select jsonb_agg(jsonb_build_object('at', e.at, 'kind', e.kind, 'title', e.title, 'detail', e.detail) order by e.at desc)
     from (
       select u.created_at as at, 'account' as kind,
@@ -405,6 +405,10 @@ begin
     where e.at is not null
     limit 200
   ), '[]'::jsonb);
+  return jsonb_build_object(
+    'welcome', (select to_jsonb(w) - 'user_id' from public.welcome_emails w where w.user_id = p_user_id),
+    'events', v_events
+  );
 end;
 $$;
 
@@ -537,3 +541,106 @@ AS $function$
       'candidate_ref', v_ref, 'files_removed', v_files);
   end;
 $function$;
+
+-- Employers: how each signed up, last sign-in, welcome email status.
+CREATE OR REPLACE FUNCTION public.get_admin_employers()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF NOT has_role((SELECT auth.uid()), 'admin'::app_role) THEN
+    RAISE EXCEPTION 'Admin access required';
+  END IF;
+
+  RETURN jsonb_build_object(
+    'pending', coalesce((SELECT jsonb_agg(row_to_json(p) ORDER BY p.requested_at) FROM (
+      SELECT ea.user_id, ea.company_name, ea.company_size, ea.hiring_need, ea.phone,
+             ea.created_at AS requested_at, ea.internal_note,
+             u.email AS requester_email,
+             coalesce(u.raw_app_meta_data ->> 'provider', 'email') AS provider,
+             (SELECT i.provider FROM auth.identities i WHERE i.user_id = u.id ORDER BY i.last_sign_in_at DESC NULLS LAST LIMIT 1) AS last_sign_in_method,
+             u.last_sign_in_at,
+             (SELECT w.status FROM public.welcome_emails w WHERE w.user_id = u.id) AS welcome_status,
+             (SELECT w.delivery_status FROM public.welcome_emails w WHERE w.user_id = u.id) AS welcome_delivery,
+             o.website, o.industry, o.headquarters, o.about, o.logo_url
+      FROM employer_accounts ea
+      JOIN auth.users u ON u.id = ea.user_id AND u.banned_until IS NULL
+      LEFT JOIN orgs o ON o.created_by = ea.user_id
+      WHERE ea.status = 'pending_approval'
+    ) p), '[]'::jsonb),
+    'active', coalesce((SELECT jsonb_agg(row_to_json(a) ORDER BY a.approved_at DESC NULLS LAST) FROM (
+      SELECT ea.user_id, ea.company_name, ea.status::text AS status, ea.approved_at, ea.internal_note,
+             u.email AS requester_email,
+             coalesce(u.raw_app_meta_data ->> 'provider', 'email') AS provider,
+             (SELECT i.provider FROM auth.identities i WHERE i.user_id = u.id ORDER BY i.last_sign_in_at DESC NULLS LAST LIMIT 1) AS last_sign_in_method,
+             u.last_sign_in_at,
+             (SELECT w.status FROM public.welcome_emails w WHERE w.user_id = u.id) AS welcome_status,
+             (SELECT w.delivery_status FROM public.welcome_emails w WHERE w.user_id = u.id) AS welcome_delivery,
+             o.website, o.industry, o.headquarters,
+             coalesce(s.plan_key, 'employer_trial') AS plan_key,
+             pl.name AS plan_name, pl.proposals_limit, pl.assessments_limit, pl.searches_limit,
+             s.trial_ends_at, s.current_period_start, s.current_period_end, s.status AS sub_status,
+             (SELECT count(*) FROM reveal_requests r WHERE r.org_id = o.id
+               AND r.created_at >= coalesce(s.current_period_start, now() - interval '30 days')) AS proposals_used,
+             (SELECT count(*) FROM assessments x WHERE x.org_id = o.id
+               AND x.created_at >= coalesce(s.current_period_start, now() - interval '30 days')) AS assessments_used,
+             (SELECT count(*) FROM employer_searches es WHERE es.org_id = o.id
+               AND es.created_at >= coalesce(s.current_period_start, now() - interval '30 days')) AS searches_used
+      FROM employer_accounts ea
+      JOIN auth.users u ON u.id = ea.user_id AND u.banned_until IS NULL
+      LEFT JOIN orgs o ON o.created_by = ea.user_id
+      LEFT JOIN subscriptions s ON s.user_id = ea.user_id
+      LEFT JOIN plans pl ON pl.key = coalesce(s.plan_key, 'employer_trial')
+      WHERE ea.status <> 'pending_approval'
+    ) a), '[]'::jsonb),
+    'plans', coalesce((SELECT jsonb_agg(row_to_json(q) ORDER BY q.sort) FROM (
+      SELECT key, name, price_cents, proposals_limit, assessments_limit, searches_limit, sort
+      FROM plans WHERE audience = 'employer' AND active
+    ) q), '[]'::jsonb)
+  );
+END;
+$function$;
+
+-- Signup health in one call: how people are signing up, whether welcome emails are keeping up,
+-- and the newest accounts. Feeds the Overview card.
+create or replace function public.get_admin_signup_health()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not has_role((select auth.uid()), 'admin'::app_role) then
+    raise exception 'Admin access required';
+  end if;
+  return jsonb_build_object(
+    'signups_7d', (select count(*) from auth.users where email is not null and created_at >= now() - interval '7 days'),
+    'unverified_7d', (select count(*) from auth.users where email is not null and email_confirmed_at is null and created_at >= now() - interval '7 days'),
+    'by_provider_7d', coalesce((select jsonb_object_agg(provider, n) from (
+        select coalesce(raw_app_meta_data ->> 'provider', 'email') as provider, count(*) as n
+        from auth.users where email is not null and created_at >= now() - interval '7 days' group by 1) b), '{}'::jsonb),
+    'welcome', jsonb_build_object(
+      'pending', (select count(*) from welcome_emails where status in ('pending', 'sending')),
+      'failed', (select count(*) from welcome_emails where status = 'failed'),
+      'sent_7d', (select count(*) from welcome_emails where status = 'sent' and sent_at >= now() - interval '7 days'),
+      'bounced_7d', (select count(*) from welcome_emails where delivery_status in ('bounced', 'complained') and sent_at >= now() - interval '7 days'),
+      'oldest_pending_minutes', (select floor(extract(epoch from (now() - min(queued_at))) / 60) from welcome_emails where status in ('pending', 'sending'))
+    ),
+    'recent', coalesce((select jsonb_agg(row_to_json(r)) from (
+      select u.id as user_id, u.email, u.created_at,
+             coalesce(u.raw_app_meta_data ->> 'provider', 'email') as provider,
+             (ea.user_id is not null) as is_employer,
+             (u.email_confirmed_at is not null) as email_confirmed,
+             w.status as welcome_status, w.delivery_status as welcome_delivery
+      from auth.users u
+      left join employer_accounts ea on ea.user_id = u.id
+      left join welcome_emails w on w.user_id = u.id
+      where u.email is not null and u.banned_until is null
+      order by u.created_at desc limit 10) r), '[]'::jsonb)
+  );
+end;
+$$;
+revoke all on function public.get_admin_signup_health() from public, anon;
+grant execute on function public.get_admin_signup_health() to authenticated, service_role;

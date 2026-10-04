@@ -25,7 +25,7 @@ import {
   useAdminVisitorAnalytics,
   useAdminPostHogRecordings,
 } from '@/admin-app/hooks/useAdminQuery';
-import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when } from '../ui';
+import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when, ProviderBadge, WelcomeBadge, providerLabel } from '../ui';
 
 const Table = ({ head, children }: { head: string[]; children: React.ReactNode }) => (
   <Card className="border border-border/60 bg-card overflow-hidden">
@@ -60,13 +60,16 @@ export function AccountsPane() {
   const [q, setQ] = useState('');
   // v3.28.0 — a row opens into the detail and moderation view.
   const [openUser, setOpenUser] = useState<string | null>(null);
+  const [providerFilter, setProviderFilter] = useState<string>('all');
   const query = useAdminAccounts(q);
   const d = query.data as any;
 
   if (query.isLoading) return <LoadingBlock />;
   if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
 
-  const rows: any[] = d?.rows || [];
+  const allRows: any[] = d?.rows || [];
+  const rows = providerFilter === 'all' ? allRows : allRows.filter(r => r.provider === providerFilter);
+  const byProvider: Record<string, number> = d?.by_provider || {};
 
   return (
     <div className="space-y-5">
@@ -75,6 +78,20 @@ export function AccountsPane() {
         <Stat label="Job seekers" value={d?.seekers ?? 0} />
         <Stat label="Employers" value={d?.employers ?? 0} accent />
         <Stat label="Admins" value={d?.admins ?? 0} />
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs uppercase tracking-wide text-muted-foreground mr-1">Signed up with</span>
+        {[['all', 'Everyone', d?.total ?? 0], ...Object.entries(byProvider).map(([k, n]) => [k, providerLabel(k), n])].map(([key, label, n]) => (
+          <button
+            key={String(key)}
+            type="button"
+            onClick={() => setProviderFilter(String(key))}
+            className={`px-3 py-1 rounded-full text-xs border transition-colors ${providerFilter === key ? 'bg-primary text-primary-foreground border-transparent' : 'bg-card text-muted-foreground border-border/60 hover:text-foreground'}`}
+          >
+            {label} · {n}
+          </button>
+        ))}
       </div>
 
       <form
@@ -86,9 +103,9 @@ export function AccountsPane() {
         {q && <Button type="button" variant="ghost" onClick={() => { setSearch(''); setQ(''); }}>Clear</Button>}
       </form>
 
-      <Table head={['Person', 'Type', 'Plan', 'Credits', 'Discoverable', 'Joined', 'Last sign in', '']}>
+      <Table head={['Person', 'Type', 'Signed up with', 'Welcome email', 'Plan', 'Credits', 'Discoverable', 'Joined', 'Last sign in', '']}>
         {rows.length === 0 && (
-          <tr><td colSpan={8}><EmptyRow>No accounts match.</EmptyRow></td></tr>
+          <tr><td colSpan={10}><EmptyRow>No accounts match.</EmptyRow></td></tr>
         )}
         {rows.map(r => (
           <Row key={r.user_id}>
@@ -104,6 +121,8 @@ export function AccountsPane() {
               </div>
               {r.company_name && <div className="text-xs text-muted-foreground mt-1">{r.company_name}</div>}
             </Cell>
+            <Cell><ProviderBadge provider={r.provider} last={r.last_sign_in_method} /></Cell>
+            <Cell><WelcomeBadge status={r.welcome_status} delivery={r.welcome_delivery} /></Cell>
             <Cell mono>{r.plan_key}{r.sub_status ? ` / ${r.sub_status}` : ''}</Cell>
             <Cell mono>{r.credits}</Cell>
             <Cell>{r.discoverable ? <span className="text-primary font-medium">Yes</span> : <span className="text-muted-foreground">No</span>}</Cell>
@@ -751,6 +770,7 @@ function SystemEmailsReference() {
 // to email_logs; this is the first screen that reads it back, so a silent
 // send failure is finally visible instead of invisible.
 const EMAIL_TYPE_LABELS: Record<string, string> = {
+  welcome: 'Welcome email',
   signup: 'Account confirmation',
   recovery: 'Password reset',
   email_change: 'Email change confirmation',
@@ -770,12 +790,27 @@ const EMAIL_TYPE_LABELS: Record<string, string> = {
   admin_broadcast_test: 'Broadcast: test',
 };
 
+const EMAIL_WINDOWS: Array<{ label: string; days: number | null }> = [
+  { label: '7 days', days: 7 }, { label: '30 days', days: 30 }, { label: 'All time', days: null },
+];
+
+function DeliveryBadge({ status, delivery }: { status: string; delivery?: string | null }) {
+  if (status === 'failed') return <Badge variant="destructive" className="text-[10px] uppercase shrink-0">Failed to send</Badge>;
+  if (delivery === 'delivered') return <Badge className="text-[10px] uppercase shrink-0">Delivered</Badge>;
+  if (delivery === 'bounced' || delivery === 'complained') return <Badge variant="destructive" className="text-[10px] uppercase shrink-0">{delivery}</Badge>;
+  if (delivery === 'delayed') return <Badge variant="outline" className="text-[10px] uppercase shrink-0">Delayed</Badge>;
+  return <Badge variant="secondary" className="text-[10px] uppercase shrink-0" title="Accepted by the email provider. Delivery is not confirmed.">Sent</Badge>;
+}
+
 function EmailLogSection() {
-  const query = useAdminEmailLog();
+  const [days, setDays] = useState<number | null>(30);
+  const [hideTest, setHideTest] = useState(true);
+  const query = useAdminEmailLog(days, hideTest);
   const [open, setOpen] = useState(false);
   if (query.isLoading || query.error) return null;
-  const rows: any[] = (query.data as any) || [];
-  const failed = rows.filter(r => r.status === 'failed').length;
+  const data = (query.data as any) || {};
+  const rows: any[] = data.rows || [];
+  const sum = data.summary || {};
 
   return (
     <Card className="border border-border/60 bg-card">
@@ -784,31 +819,51 @@ function EmailLogSection() {
           <div>
             <p className="text-base font-medium">Did these emails actually go out?</p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              The last {rows.length} attempts, both automatic and the messages written above.
-              {failed > 0 && <span className="text-destructive"> {failed} failed.</span>}
+              {sum.total ?? 0} attempts: {sum.sent ?? 0} accepted by the email provider, {sum.delivered ?? 0} confirmed delivered
+              {sum.bounced ? `, ${sum.bounced} bounced` : ''}{sum.complained ? `, ${sum.complained} marked as spam` : ''}.
+              {(sum.failed ?? 0) > 0 && <span className="text-destructive"> {sum.failed} failed to send.</span>}
             </p>
           </div>
           <span className="text-sm text-muted-foreground shrink-0 ml-3">{open ? 'Hide' : 'Show'}</span>
         </button>
         {open && (
-          rows.length === 0 ? <EmptyRow>Nothing sent yet.</EmptyRow> : (
-            <div className="divide-y divide-border/60 max-h-[420px] overflow-y-auto">
-              {rows.map(r => (
-                <div key={r.id} className="py-2.5 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm truncate">{EMAIL_TYPE_LABELS[r.email_type] || r.email_type}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {r.recipient_email || 'unknown recipient'} · {when(r.sent_at)}
-                      {r.status === 'failed' && r.error_message && <span className="text-destructive"> · {r.error_message}</span>}
-                    </p>
-                  </div>
-                  <Badge variant={r.status === 'failed' ? 'destructive' : 'secondary'} className="text-[10px] uppercase shrink-0">
-                    {r.status}
-                  </Badge>
-                </div>
+          <>
+            <div className="flex items-center gap-2 flex-wrap">
+              {EMAIL_WINDOWS.map(w => (
+                <button
+                  key={w.label}
+                  type="button"
+                  onClick={() => setDays(w.days)}
+                  className={`px-3 py-1 rounded-full text-xs border transition-colors ${days === w.days ? 'bg-primary text-primary-foreground border-transparent' : 'bg-card text-muted-foreground border-border/60 hover:text-foreground'}`}
+                >
+                  {w.label}
+                </button>
               ))}
+              <label className="flex items-center gap-2 text-xs text-muted-foreground ml-2">
+                <Switch checked={hideTest} onCheckedChange={setHideTest} />
+                Hide test and old-domain addresses
+              </label>
             </div>
-          )
+            <p className="text-xs text-muted-foreground">
+              "Sent" means the email provider accepted it. "Delivered" is confirmed by the provider afterwards, once delivery events are switched on for the webhook in the Resend dashboard.
+            </p>
+            {rows.length === 0 ? <EmptyRow>Nothing in this window.</EmptyRow> : (
+              <div className="divide-y divide-border/60 max-h-[420px] overflow-y-auto">
+                {rows.map(r => (
+                  <div key={r.id} className="py-2.5 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm truncate">{EMAIL_TYPE_LABELS[r.email_type] || r.email_type}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {r.recipient_email || 'unknown recipient'} · {when(r.sent_at)}
+                        {r.status === 'failed' && r.error_message && <span className="text-destructive"> · {r.error_message}</span>}
+                      </p>
+                    </div>
+                    <DeliveryBadge status={r.status} delivery={r.delivery_status} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
@@ -1229,17 +1284,18 @@ function EmailReceivedPane() {
 export function EmailPane() {
   const [tab, setTab] = useState<'received' | 'sent'>('received');
   const inboxQuery = useAdminInbox();
-  const emailLogQuery = useAdminEmailLog();
+  const emailLogQuery = useAdminEmailLog(30, true);
 
   const inbox: any = inboxQuery.data || {};
-  const sentRows: any[] = (emailLogQuery.data as any) || [];
-  const sentFailed = sentRows.filter(r => r.status === 'failed').length;
+  const sentSummary: any = (emailLogQuery.data as any)?.summary || {};
+  const sentTotal: number = sentSummary.total ?? 0;
+  const sentFailed: number = sentSummary.failed ?? 0;
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Received" value={inbox.total ?? '—'} hint={`${inbox.unread ?? 0} unread`} />
-        <Stat label="Sent" value={emailLogQuery.isLoading ? '—' : sentRows.length} accent hint="Automatic + broadcasts + replies" />
+        <Stat label="Sent, last 30 days" value={emailLogQuery.isLoading ? '—' : sentTotal} accent hint={`${sentSummary.delivered ?? 0} confirmed delivered, test addresses hidden`} />
         {sentFailed > 0 && <Stat label="Failed to send" value={sentFailed} />}
         <Stat label="Addresses in use" value={(inbox.addresses || []).length} hint={(inbox.addresses || []).map((a: any) => a.to_email).join(', ') || '—'} />
       </div>

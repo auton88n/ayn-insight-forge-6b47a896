@@ -20,8 +20,9 @@ import { Loader2, ShieldAlert, ShieldCheck, SlidersHorizontal, Trash2 } from 'lu
 import {
   useAdminAccountDetail, useAccountModeration,
   useAccountGovernance, useAccountGovernanceActions,
+  useAdminAccountTimeline, useWelcomeEmailRequeue,
 } from '@/admin-app/hooks/useAdminQuery';
-import { LoadingBlock, ErrorBlock, when } from '../ui';
+import { LoadingBlock, ErrorBlock, when, whenTime, providerLabel } from '../ui';
 
 const CAPABILITIES: Array<{ key: string; label: string; blurb: string }> = [
   { key: 'discovery', label: 'Talent pool discovery', blurb: 'Cannot appear in employer searches.' },
@@ -64,6 +65,8 @@ export function AccountDetailDialog({
   const { suspend, restore, setRestriction } = useAccountModeration(userId);
   const gov = useAccountGovernance(open ? userId : null);
   const { setOverride, clearOverride, erase, purge } = useAccountGovernanceActions(userId);
+  const timelineQuery = useAdminAccountTimeline(open ? userId : null);
+  const requeueWelcome = useWelcomeEmailRequeue(userId);
 
   const [reason, setReason] = useState('');
   const [until, setUntil] = useState('');
@@ -131,12 +134,65 @@ export function AccountDetailDialog({
                 <Card className="border border-border/60">
                   <CardContent className="p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide mb-2">How they signed up</p>
-                    <Field label="Provider" value={d.provider} />
-                    <Field label="All providers" value={(d.providers || []).join(', ') || d.provider} />
+                    <Field label="Signed up with" value={providerLabel(d.provider)} />
+                    <Field label="All sign-in methods" value={(d.providers || []).map(providerLabel).join(', ') || providerLabel(d.provider)} />
                     <Field label="Email confirmed" value={d.email_confirmed_at ? when(d.email_confirmed_at) : 'Not confirmed'} />
                     <Field label="Signed up" value={when(d.signed_up_at)} />
                     <Field label="Last sign in" value={when(d.last_sign_in_at)} />
                     <Field label="Active sessions" value={d.sign_in_count} />
+                  </CardContent>
+                </Card>
+
+                <Card className="border border-border/60">
+                  <CardContent className="p-4 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide mb-2">Welcome email</p>
+                    {(() => {
+                      const w = (timelineQuery.data as any)?.welcome;
+                      if (timelineQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading</p>;
+                      if (!w) return <Field label="Status" value="Never queued" />;
+                      return (
+                        <>
+                          <Field label="Status" value={w.status === 'skipped' ? 'Not sent (account existed before welcome emails)' : w.status} />
+                          {w.delivery_status && <Field label="Delivery" value={w.delivery_status} />}
+                          {w.sent_at && <Field label="Sent" value={when(w.sent_at)} />}
+                          {w.attempts > 0 && <Field label="Attempts" value={w.attempts} />}
+                          {w.last_error && <p className="text-xs text-destructive break-words">{w.last_error}</p>}
+                        </>
+                      );
+                    })()}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={requeueWelcome.isPending || !d.email_confirmed_at}
+                      onClick={() => requeueWelcome.mutate()}
+                    >
+                      {requeueWelcome.isPending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : null}
+                      {(timelineQuery.data as any)?.welcome?.status === 'sent' ? 'Send it again' : 'Send welcome email'}
+                    </Button>
+                    {!d.email_confirmed_at && <p className="text-xs text-muted-foreground">Available once the person has verified their email.</p>}
+                  </CardContent>
+                </Card>
+
+                <Card className="border border-border/60">
+                  <CardContent className="p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide mb-2">History</p>
+                    {timelineQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading</p> : (
+                      (((timelineQuery.data as any)?.events) || []).length === 0
+                        ? <p className="text-sm text-muted-foreground">Nothing recorded.</p>
+                        : (
+                          <div className="max-h-72 overflow-y-auto divide-y divide-border/40">
+                            {((timelineQuery.data as any).events as any[]).map((e, i) => (
+                              <div key={i} className="py-1.5">
+                                <div className="flex items-baseline justify-between gap-3">
+                                  <span className="text-sm">{e.title}</span>
+                                  <span className="text-xs text-muted-foreground shrink-0">{whenTime(e.at)}</span>
+                                </div>
+                                {e.detail && <p className="text-xs text-muted-foreground break-words">{e.detail}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        )
+                    )}
                   </CardContent>
                 </Card>
 

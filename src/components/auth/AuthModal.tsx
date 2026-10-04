@@ -600,6 +600,8 @@ export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthM
 
           <TabsContent value="signup" className="space-y-4 mt-6">
             <MaintenanceNotice feature="signups" />
+            {signupRole === 'job_seeker' ? (
+            <>
             <Button
               type="button"
               variant="outline"
@@ -623,6 +625,12 @@ export const AuthModal = ({ open, onOpenChange, initialRole, initialTab }: AuthM
                 <span className="bg-background px-2 text-muted-foreground">{t('auth.orDivider')}</span>
               </div>
             </div>
+            </>
+            ) : (
+              <p className="text-xs text-muted-foreground rounded-lg border border-border/60 bg-muted/40 p-3">
+                Employers sign up with a work email, so we can check that you belong to the company. Google sign-up is for job seekers.
+              </p>
+            )}
 
             <div className="text-center text-sm text-muted-foreground mb-4">
               {t('auth.signUpDesc')}
