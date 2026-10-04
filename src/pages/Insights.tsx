@@ -70,7 +70,7 @@ const Insights = () => {
               )}
 
               {!error && !rows && (
-                <div className="mt-10 space-y-3">
+                <div className="mt-10 space-y-3" style={{ minHeight: '110vh' }}>
                   <Skeleton className="h-20 w-full rounded-xl" />
                   <Skeleton className="h-20 w-full rounded-xl" />
                   <Skeleton className="h-20 w-full rounded-xl" />

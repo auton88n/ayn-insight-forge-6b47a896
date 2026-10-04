@@ -92,7 +92,7 @@ const InsightsArticle = () => {
                 </Link>
 
                 {!article && (
-                  <div className="mt-8 space-y-3">
+                  <div className="mt-8 space-y-3" style={{ minHeight: '110vh' }}>
                     <Skeleton className="h-8 w-3/4 rounded" />
                     <Skeleton className="h-5 w-1/2 rounded" />
                     <Skeleton className="h-40 w-full rounded-xl mt-6" />

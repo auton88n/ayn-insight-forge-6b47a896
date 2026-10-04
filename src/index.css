@@ -797,7 +797,12 @@ button, a, input, textarea, select {
   transition: flex-basis .18s ease, width .18s ease;
 }
 .lp-sidebar.is-collapsed { flex-basis: 68px; width: 68px; }
-.lp-sidebar-main { flex: 1 1 auto; min-width: 0; }
+.lp-sidebar-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 100vh; }
+/* The footer always sits at the bottom of the screen, so while a page's content
+   is still loading it cannot sit high up and then jump down when content arrives. */
+.lp-page-col { flex: 1 0 auto; display: flex; flex-direction: column; }
+.lp-sidebar-main > .lp-footer, .lp-page-col > .lp-footer { margin-top: auto; }
+@media (max-width: 900px) { .lp-sidebar-main { min-height: 100vh; } }
 .lp-sidebar-top { display: flex; align-items: center; justify-content: space-between; padding: 18px 16px; flex-shrink: 0; }
 /* v3.242.0 -- this is a <button> now, not a <Link>: it's the sidebar's
    open/close control, the standalone .lp-sidebar-toggle it replaced is

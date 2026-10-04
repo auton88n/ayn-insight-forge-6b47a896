@@ -83,4 +83,22 @@ export function AynLoaderScreen({ label = 'Loading', delayMs = 350 }: { label?: 
   );
 }
 
+/**
+ * In-page version, used while a tab's content chunk loads. It reserves a
+ * screenful of height so the footer below it does not sit high and then
+ * jump down when the content arrives, and it waits a moment before showing.
+ */
+export function AynLoaderBlock({ delayMs = 350 }: { delayMs?: number }) {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setShow(true), delayMs);
+    return () => window.clearTimeout(t);
+  }, [delayMs]);
+  return (
+    <div className="flex items-center justify-center" style={{ minHeight: '110vh', alignItems: 'flex-start', paddingTop: '30vh' }} role="status" aria-live="polite">
+      {show ? <AynLoader size="lg" label="Loading" /> : <span className="sr-only">Loading</span>}
+    </div>
+  );
+}
+
 export default AynLoader;

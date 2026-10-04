@@ -20,7 +20,7 @@ import { JobsBrowser } from './JobsBrowser';
 import { LandingFooter } from './LandingFooter';
 import { PAIN, HEAD_TO_HEAD, TRUST, FAQS } from './landingContent';
 import type { HomeTabId } from './homeTabMeta';
-import { AynLoader } from '@/components/shared/AynLoader';
+import { AynLoaderBlock } from '@/components/shared/AynLoader';
 const HomeTabPanel = lazy(() => import('./HomeTabPanel'));
 import { priceLabel } from '@/lib/billing';
 
@@ -326,7 +326,7 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
   );
 
   return (
-    <div className="lp" ref={root}>
+    <div className="lp lp-page-col" ref={root}>
       {/* v3.226.0 -- reported directly: every tab's content started well
           below the top of the page, not at it. This wrapper's own
           paddingBlockStart (up to 72px) was stacking on top of the FIRST
@@ -338,7 +338,7 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
           amount Home itself uses for its own first block. */}
       {showTabContent && (
         <div className="lp-audience" key={`tab-${activeTab}`}>
-          <Suspense fallback={<AynLoader />}>
+          <Suspense fallback={<AynLoaderBlock />}>
           <HomeTabPanel
             tab={activeTab as Exclude<HomeTabId, 'search'>}
             onSelectTab={(id) => onSelectTab?.(id)}
