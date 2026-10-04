@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
+import { AynLoader } from '@/components/shared/AynLoader';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -177,7 +178,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
       </div>
       <div className="lp-browser-detail" ref={pane} aria-label="Selected job">
         {narrow && explicitId && <button type="button" className="ayn-back-results" onClick={backToResults}><ArrowLeft size={18} /> Back to results</button>}
-        {selectedId && detail.isPending ? <div className="ayn-inline-state" role="status"><Loader2 size={20} className="animate-spin" /><p>Loading the full posting…</p></div> : detail.isError ? <div className="ayn-inline-state" role="alert"><h3>This posting could not load</h3><button className="lp-btn lp-btn-ghost" onClick={() => detail.refetch()}>Try again</button></div> : selected ? <article className="lp-browser-detail-card">
+        {selectedId && detail.isPending ? <div className="ayn-inline-state" role="status"><AynLoader size="sm" label="Loading the full posting" /></div> : detail.isError ? <div className="ayn-inline-state" role="alert"><h3>This posting could not load</h3><button className="lp-btn lp-btn-ghost" onClick={() => detail.refetch()}>Try again</button></div> : selected ? <article className="lp-browser-detail-card">
           <div className="lp-browser-detail-head">{logo(selected, true)}<div><p className="lp-browser-detail-company">{selected.company}</p><p className="ayn-source-note" title="The last time AYN confirmed this posting was still live, not its original publish date.">Confirmed live {postedDate(selected.posted_at)}</p></div></div>
           <h2 ref={headingRef} tabIndex={-1} className="ayn-job-title">{selected.title}</h2>
           <div className="lp-browser-pill-row">{selected.location && <span><MapPin size={15} />{selected.location}</span>}{selected.employment_type && <span>{employmentTypeLabel(selected.employment_type)}</span>}{selected.seniority && <span>{seniorityLabel(selected.seniority)}</span>}{resolveSalary(selected) && <span>{resolveSalary(selected)!.text}</span>}</div>

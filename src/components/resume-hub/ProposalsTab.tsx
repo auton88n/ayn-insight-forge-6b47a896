@@ -17,6 +17,7 @@
  * and its own accent border so it reads as the moment it actually is.
  */
 import { useEffect, useState } from "react";
+import { AynLoader } from '@/components/shared/AynLoader';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -105,7 +106,7 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16" style={{ color: "var(--rh-muted)" }}>
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading…
+        <AynLoader size="sm" label="Loading" />
       </div>
     );
   }

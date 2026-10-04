@@ -45,8 +45,9 @@
  * Proposals, Company) got the identical treatment in the same pass.
  */
 import { useRef, useState } from "react";
+import { AynLoader } from '@/components/shared/AynLoader';
 import type { Session } from "@supabase/supabase-js";
-import { Loader2, User, Mail, Shield, Monitor } from "lucide-react";
+import { User, Mail, Shield, Monitor } from "lucide-react";
 import { AccountPreferences } from "@/components/settings/AccountPreferences";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { PrivacySettings } from "@/components/settings/PrivacySettings";
@@ -139,7 +140,7 @@ export default function SettingsPanel({ userId, session }: Props) {
 
       {!session ? (
         <div className="flex items-center justify-center py-10" style={{ color: "hsl(var(--lp-dim))" }}>
-          <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading…
+          <AynLoader size="sm" label="Loading" />
         </div>
       ) : (
         <div

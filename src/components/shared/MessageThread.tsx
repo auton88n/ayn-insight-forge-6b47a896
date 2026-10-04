@@ -12,6 +12,7 @@
  * safety screen actually runs.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AynLoader } from '@/components/shared/AynLoader';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -113,7 +114,7 @@ export default function MessageThread({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading messages…
+        <AynLoader size="sm" label="Loading messages" />
       </div>
     );
   }

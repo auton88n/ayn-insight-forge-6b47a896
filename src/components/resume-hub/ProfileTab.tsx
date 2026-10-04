@@ -17,6 +17,7 @@
  * AUTOSAVE on blur with a small saved indicator. No giant Save button.
  */
 import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { AynLoader } from '@/components/shared/AynLoader';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { poolStatusQueryKey } from "@/lib/queryKeys";
@@ -737,7 +738,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
   );
 
   if (loading) {
-    return <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="w-4 h-4 mr-2 animate-spin" />Loading profile…</div>;
+    return <div className="flex items-center justify-center py-16 text-muted-foreground"><AynLoader size="sm" label="Loading profile" /></div>;
   }
 
   return (

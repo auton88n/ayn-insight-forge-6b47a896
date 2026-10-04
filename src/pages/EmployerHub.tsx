@@ -11,6 +11,7 @@
  * appear in the Sent list, and only after the candidate accepted.
  */
 import { useCallback, useEffect, useState } from "react";
+import { AynLoader } from '@/components/shared/AynLoader';
 import { useNavigate } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -684,7 +685,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                   <h3 className="lp-display" style={{ fontSize: 15 }}>Plans</h3>
                   {plans === null ? (
                     <div className="flex items-center gap-2 text-sm" style={{ color: "hsl(var(--lp-muted))" }}>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading plans…
+                      <AynLoader size="sm" label="Loading plans" />
                     </div>
                   ) : (
                     <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
@@ -759,7 +760,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               session
                 ? <SettingsPanel userId={session.user.id} session={session} />
                 : <div className="flex items-center justify-center py-10" style={{ color: "var(--rh-faint)" }}>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading…
+                    <AynLoader size="sm" label="Loading" />
                   </div>
             )}
             </section>
