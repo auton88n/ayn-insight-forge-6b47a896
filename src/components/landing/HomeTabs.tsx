@@ -343,6 +343,7 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
   const [signedIn, setSignedIn] = useState(false);
   const [billing, setBilling] = useState<SeekerBilling | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -357,11 +358,14 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
     if (!signedIn) { onStartFree(); return; }
     if (key === 'seeker_free') return;
     setBusy(key);
+    setCheckoutError(null);
     try {
       const url = await billingApi.checkout(key);
       window.location.href = url;
     } catch (e) {
-      toast.error((e as Error).message);
+      const msg = (e as Error).message || 'Checkout could not start. Please try again.';
+      setCheckoutError(msg);
+      toast.error(msg);
       setBusy(null);
     }
   };
@@ -439,6 +443,11 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
             );
           })}
         </div>
+        {checkoutError && (
+          <p role="alert" style={{ marginTop: 16, color: '#b42318', fontWeight: 600 }}>
+            {checkoutError}
+          </p>
+        )}
 
         <div className="lp-reveal" style={{ marginTop: 40 }}>
           <h3 className="lp-display" style={{ fontSize: 18 }}>Free on every plan, including Free</h3>

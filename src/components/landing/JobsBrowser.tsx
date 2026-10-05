@@ -4,8 +4,9 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { JobPosting } from '@/lib/resumeHub';
-import { companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike, JobDescriptionBody, employmentTypeLabel, seniorityLabel, humanizeCategory } from '@/lib/jobPostingFormat';
-import { Search, ExternalLink, Loader2, MapPin, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
+import { companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike, JobDescriptionBody, employmentTypeLabel, seniorityLabel, humanizeCategory, formatLocation, locationSearchPatterns } from '@/lib/jobPostingFormat';
+import { Search, ExternalLink, Loader2, MapPin, ArrowLeft, ArrowRight, RefreshCw, Link2 } from 'lucide-react';
+import { cleanApplyUrl } from '@/lib/applyUrl';
 
 const PAGE_SIZE = 25;
 export const PUBLIC_JOB_SUMMARY_COLUMNS = 'id,source,company,company_slug,company_logo_url,title,location,apply_url,posted_at,employment_type,seniority,salary_min,salary_max,salary_currency,category,work_mode,city';
@@ -34,6 +35,15 @@ type Props = {
 
 export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery = '', initialWhere = '', showHeading = true, asH1 = false, onJobsLoaded, onSelectedChange, onStartFree }: Props) {
   const navigate = useNavigate();
+  // A signed-in visitor must never be shown the sign-up dialog: "Open my
+  // workspace" takes them to their Saved jobs instead.
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    let live = true;
+    supabase.auth.getSession().then(({ data }) => { if (live) setSignedIn(!!data.session); });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => { if (live) setSignedIn(!!session); });
+    return () => { live = false; sub.subscription.unsubscribe(); };
+  }, []);
   const location = useLocation();
   const [params] = useSearchParams();
   // Sept 2026 -- same fix as ProfileTab.tsx, same day, same root cause:
@@ -82,7 +92,10 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
       if (city) request = request.ilike('city', city);
       const term = safeLike(query), place = safeLike(where);
       if (term) request = request.or('title.ilike.%' + term + '%,company.ilike.%' + term + '%,location.ilike.%' + term + '%');
-      if (place) request = request.ilike('location', '%' + place + '%');
+      if (place) {
+        const patterns = locationSearchPatterns(place);
+        request = patterns.length > 1 ? request.or(patterns.map((pattern) => 'location.ilike.%' + pattern + '%').join(',')) : request.ilike('location', '%' + place + '%');
+      }
       const { data, error, count } = await request.range(pageParam, pageParam + PAGE_SIZE - 1).abortSignal(signal);
       if (error) throw error;
       return { rows: (data ?? []) as unknown as JobSummary[], total: count ?? 0, offset: pageParam };
@@ -185,7 +198,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
           const salary = resolveSalary({ ...job, description: '' });
           return (
         <button id={'job-result-' + job.id} key={job.id} type="button" onClick={() => openJob(job)} aria-pressed={selectedId === job.id} className={'lp-browser-card ' + (selectedId === job.id ? 'is-active' : '')}>
-          <div className="lp-browser-card-row">{logo(job)}<div className="lp-browser-card-text"><div className="lp-browser-card-company">{job.company}</div><div className="lp-browser-card-title">{job.title}</div><div className="lp-browser-card-meta">{job.location || 'Location not listed'}{job.work_mode && ' · ' + job.work_mode.charAt(0).toUpperCase() + job.work_mode.slice(1)}</div><div className="ayn-job-meta-bottom">{/* "View posting" used to fill this slot when the source never
+          <div className="lp-browser-card-row">{logo(job)}<div className="lp-browser-card-text"><div className="lp-browser-card-company">{job.company}</div><div className="lp-browser-card-title">{job.title}</div><div className="lp-browser-card-meta">{formatLocation(job.location) || 'Location not listed'}{job.work_mode && ' · ' + job.work_mode.charAt(0).toUpperCase() + job.work_mode.slice(1)}</div><div className="ayn-job-meta-bottom">{/* "View posting" used to fill this slot when the source never
                   stated an employment type, reading as a second, unrelated
                   action sitting where "Full-time"/"Contract" belongs. An
                   unknown type is now just omitted, not papered over with a
@@ -202,11 +215,11 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
         {selectedId && detail.isPending ? <div className="ayn-inline-state" role="status"><AynLoader size="sm" label="Loading the full posting" /></div> : detail.isError ? <div className="ayn-inline-state" role="alert"><h3>This posting could not load</h3><button className="lp-btn lp-btn-ghost" onClick={() => detail.refetch()}>Try again</button></div> : selected ? <article className="lp-browser-detail-card">
           <div className="lp-browser-detail-head">{logo(selected, true)}<div><p className="lp-browser-detail-company">{selected.company}</p><p className="ayn-source-note" title="The last time AYN confirmed this posting was still live, not its original publish date.">Confirmed live {postedDate(selected.posted_at)}</p></div></div>
           <h2 ref={headingRef} tabIndex={-1} className="ayn-job-title">{selected.title}</h2>
-          <div className="lp-browser-pill-row">{selected.location && <span><MapPin size={15} />{selected.location}</span>}{selected.employment_type && <span>{employmentTypeLabel(selected.employment_type)}</span>}{selected.seniority && <span>{seniorityLabel(selected.seniority)}</span>}{resolveSalary(selected) && <span>{resolveSalary(selected)!.text}</span>}</div>
-          <div className="lp-browser-actions"><a href={/^https?:\/\//i.test(selected.apply_url) ? selected.apply_url : undefined} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-primary">Open application <ExternalLink size={16} /></a><button className="lp-btn lp-btn-ghost" onClick={() => { try { sessionStorage.setItem('ayn_check_jd', selected.description); } catch { /* checker remains usable */ } navigate('/check-resume'); }}>Check my fit</button></div>
+          <div className="lp-browser-pill-row">{selected.location && <span><MapPin size={15} />{formatLocation(selected.location)}</span>}{selected.employment_type && <span>{employmentTypeLabel(selected.employment_type)}</span>}{selected.seniority && <span>{seniorityLabel(selected.seniority)}</span>}{resolveSalary(selected) && <span>{resolveSalary(selected)!.text}</span>}</div>
+          <div className="lp-browser-actions"><a href={/^https?:\/\//i.test(selected.apply_url) ? cleanApplyUrl(selected.apply_url) : undefined} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-primary">Open application <ExternalLink size={16} /></a><button className="lp-btn lp-btn-ghost" onClick={() => { try { sessionStorage.setItem('ayn_check_jd', selected.description); } catch { /* checker remains usable */ } navigate('/check-resume'); }}>Check my fit</button><button className="lp-btn lp-btn-ghost" onClick={() => { try { void navigator.clipboard.writeText(`${window.location.origin}/jobs/${selected.id}`); } catch { /* clipboard unavailable */ } }}><Link2 size={16} /> Copy link</button></div>
           <p className="ayn-source-note">You apply on the employer’s own site.</p>
           <div className="lp-browser-jd"><h3>About this role</h3><JobDescriptionBody text={selected.description} /></div>
-          {onStartFree && <div className="ayn-job-next"><h3>Make this application yours.</h3><p>Use your AYN profile to prepare a resume and cover letter for this role.</p><button className="lp-btn lp-btn-ghost" onClick={onStartFree}>Open my workspace <ArrowRight size={16} /></button></div>}
+          {onStartFree && <div className="ayn-job-next"><h3>Make this application yours.</h3><p>Use your AYN profile to prepare a resume and cover letter for this role.</p><button className="lp-btn lp-btn-ghost" onClick={() => (signedIn ? navigate('/resume-hub') : onStartFree())}>Open my workspace <ArrowRight size={16} /></button></div>}
         </article> : <div className="lp-browser-detail-empty">{selectedId ? 'This posting is no longer available. Choose another role from the results.' : 'Choose a role to read its requirements and prepare your application.'}</div>}
       </div>
     </div>

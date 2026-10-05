@@ -111,7 +111,12 @@ export function EligibilityFields({ workAuth, countries, toggleCountry, nonCitiz
         label="Citizenship"
         value={workAuth.citizenship || ""}
         onChange={v => setWA("citizenship", v)}
-        onBlur={queueSave}
+        onBlur={() => {
+          // "canada" -> "Canada"; a name already typed with capitals is left as is.
+          const typed = workAuth.citizenship;
+          if (typed && typed === typed.toLowerCase()) setWA("citizenship", typed.trim().replace(/\b([a-z])/g, (m) => m.toUpperCase()));
+          queueSave();
+        }}
         placeholder="e.g. Canada"
       />
       {nonCitizenCountries.length > 0 && (

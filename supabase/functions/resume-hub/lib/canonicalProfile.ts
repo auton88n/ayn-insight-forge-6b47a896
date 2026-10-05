@@ -3,6 +3,7 @@
 // resume + intake answers. Pure code movement, zero logic changes.
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 import { callAI, QUALITY_MODEL } from "./ai.ts";
+import { guardExtractedProfile } from "../../_shared/canonicalGuards.ts";
 
 export type CanonicalProfile = {
   // v3.5.0 — skills carry level and recency because a bare name is unmatchable.
@@ -222,13 +223,17 @@ RULES:
   });
   const out = r.structured as CanonicalProfile | undefined;
   if (!out) throw new Error("Canonical extraction returned no structured output");
+  const guarded = guardExtractedProfile(
+    { work_auth: out.work_auth || {}, preferences: out.preferences || {} },
+    `${JSON.stringify(opts.resumeContent ?? "")}\n${opts.resumeText || ""}\n${JSON.stringify(opts.profileExtras ?? "")}`,
+  );
   return {
     skills: out.skills || [],
     experiences: out.experiences || [],
     education: out.education || [],
     certifications: out.certifications || [],
-    work_auth: out.work_auth || {},
-    preferences: out.preferences || {},
+    work_auth: guarded.work_auth,
+    preferences: guarded.preferences,
     derived: out.derived || {},
   };
 }

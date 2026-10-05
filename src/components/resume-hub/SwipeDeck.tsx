@@ -7,9 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Flame, Heart, Layers, Loader2, X } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
-import {
-  SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl,
-} from "@/lib/jobPostingFormat";
+import { SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, formatLocation } from "@/lib/jobPostingFormat";
 import { HOT_WINDOW_MS } from "./browseJobsHelpers";
 import { ScoreGauge } from "./ScoreGauge";
 
@@ -204,7 +202,7 @@ export function SwipeDeck({
           </div>
           <p className="rh-display text-[18px] leading-snug mb-1">{current.title}</p>
           <p className="text-[13px] mb-3" style={{ color: "var(--rh-muted)" }}>
-            {current.company}{current.location ? ` · ${current.location}` : ""}
+            {current.company}{current.location ? ` · ${formatLocation(current.location)}` : ""}
           </p>
           <div className="flex flex-wrap gap-1.5 mb-3">
             {salary && (

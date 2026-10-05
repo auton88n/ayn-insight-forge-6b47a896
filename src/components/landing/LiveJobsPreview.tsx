@@ -25,7 +25,7 @@
 import { memo, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { companyAvatar } from '@/lib/jobPostingFormat';
+import { companyAvatar, formatLocation } from '@/lib/jobPostingFormat';
 
 const HOT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const PREVIEW_SIZE = 4;
@@ -69,7 +69,7 @@ export const LiveJobsPreview = memo(() => {
             <span style={{ minWidth: 0, flex: 1 }}>
               <span className="lp-hero-result-title" style={{ display: 'block' }}>{job.title}</span>
               <span className="lp-hero-result-meta" style={{ display: 'block' }}>
-                {job.company}{job.location ? ` · ${job.location}` : ''}
+                {job.company}{job.location ? ` · ${formatLocation(job.location)}` : ''}
               </span>
             </span>
             {isNew && <span className="lp-hero-result-new">NEW</span>}

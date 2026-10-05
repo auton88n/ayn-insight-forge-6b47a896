@@ -56,6 +56,7 @@ import { savedJobsQueryKey } from "@/lib/queryKeys";
 // movement, zero logic changes -- see each file's own header comment.
 import { groupByRegion } from "@/lib/locationRegion";
 import { SwipeDeck } from "./SwipeDeck";
+import { cleanApplyUrl } from "@/lib/applyUrl";
 import { JobListRow } from "./JobListRow";
 import { JobDetailPane } from "./JobDetailPane";
 import { BrowseToolbar } from "./BrowseToolbar";
@@ -446,7 +447,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     let cancelled = false;
     supabase.from("jobs").select("source_url").eq("user_id", userId).not("source_url", "is", null).then(({ data }) => {
       if (cancelled || !data) return;
-      setSavedUrls(new Set((data as { source_url: string | null }[]).map((r) => r.source_url).filter((u): u is string => !!u)));
+      setSavedUrls(new Set((data as { source_url: string | null }[]).map((r) => cleanApplyUrl(r.source_url)).filter((u): u is string => !!u)));
     });
     return () => { cancelled = true; };
   }, [userId]);
@@ -738,9 +739,9 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     setAddingId(job.id);
     try {
       const { data: existing } = await supabase.from("jobs")
-        .select("id").eq("user_id", userId).eq("source_url", job.apply_url).maybeSingle();
+        .select("id").eq("user_id", userId).in("source_url", [job.apply_url, cleanApplyUrl(job.apply_url)]).limit(1).maybeSingle();
       if (existing) {
-        setSavedUrls((prev) => new Set(prev).add(job.apply_url));
+        setSavedUrls((prev) => new Set(prev).add(cleanApplyUrl(job.apply_url)));
         if (navigate) onAdded((existing as { id: string }).id);
         else toast({ title: "Already saved", description: "Find it on the Saved jobs page whenever you're ready." });
         return;
@@ -748,21 +749,21 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       const { data, error } = await supabase.from("jobs").insert({
         user_id: userId,
         source: "job_board",
-        source_url: job.apply_url,
+        source_url: cleanApplyUrl(job.apply_url),
         jd_text: job.description,
         company: job.company,
         title: job.title,
         location: job.location,
       }).select("id").single();
       if (error) throw error;
-      setSavedUrls((prev) => new Set(prev).add(job.apply_url));
+      setSavedUrls((prev) => new Set(prev).add(cleanApplyUrl(job.apply_url)));
       // Saved jobs (JobsTab.tsx) reads this same "jobs" table through its
       // own cached query -- a genuinely new row here would otherwise sit
       // hidden behind that cache until it naturally expired (up to 60s),
       // silently missing from a page whose whole job is showing it.
       queryClient.invalidateQueries({ queryKey: savedJobsQueryKey(userId) });
       if (navigate) {
-        toast({ title: "Job added", description: "Scoring and tailoring are ready on the Jobs page." });
+        toast({ title: "Saved to your jobs", description: "Check your fit and tailor your resume from the Jobs page." });
         onAdded((data as { id: string }).id);
       } else {
         toast({ title: "Saved", description: "Find it anytime on the Saved jobs page." });
@@ -784,9 +785,9 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     setAddingId(job.id);
     try {
       const { error } = await supabase.from("jobs")
-        .delete().eq("user_id", userId).eq("source_url", job.apply_url);
+        .delete().eq("user_id", userId).in("source_url", [job.apply_url, cleanApplyUrl(job.apply_url)]);
       if (error) throw error;
-      setSavedUrls((prev) => { const next = new Set(prev); next.delete(job.apply_url); return next; });
+      setSavedUrls((prev) => { const next = new Set(prev); next.delete(cleanApplyUrl(job.apply_url)); return next; });
       queryClient.invalidateQueries({ queryKey: savedJobsQueryKey(userId) });
       toast({ title: "Removed", description: "Taken off your saved jobs." });
     } catch (e) {
@@ -1016,7 +1017,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
                     key={j.id}
                     job={j}
                     active={selected?.id === j.id}
-                    isSaved={savedUrls.has(j.apply_url)}
+                    isSaved={savedUrls.has(cleanApplyUrl(j.apply_url))}
                     isSeen={seenIds.has(j.id)}
                     isSaving={addingId === j.id}
                     logoFailed={logoFailed.has(j.id)}

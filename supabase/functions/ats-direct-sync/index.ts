@@ -59,6 +59,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { isInTargetRegion } from "../_shared/geoScope.ts";
 import { isTrendingTechCategory, isTrendingTechTitle } from "../_shared/trendingCategories.ts";
+import { cleanApplyUrl } from "../_shared/applyUrl.ts";
 import { stripHtml } from "../_shared/htmlText.ts";
 import { detectScamSignal, checkApplyUrlTrust } from "../_shared/scamSignals.ts";
 
@@ -237,7 +238,7 @@ async function pollGreenhouse(slug: string, companyInfo: Map<string, { company: 
         title: String(j.title).slice(0, 300),
         description: stripHtml(j.content || "").slice(0, 20000),
         location: j.location?.name ? String(j.location.name).slice(0, 300) : null,
-        apply_url: j.absolute_url,
+        apply_url: cleanApplyUrl(j.absolute_url),
         posted_at: nowIso,
         employment_type: null,
         seniority: null,
@@ -287,7 +288,7 @@ async function pollLever(slug: string, companyInfo: Map<string, { company: strin
         title: String(j.text).slice(0, 300),
         description: stripHtml(combinedDescription).slice(0, 20000),
         location: j.categories?.location ? String(j.categories.location).slice(0, 300) : null,
-        apply_url: j.hostedUrl,
+        apply_url: cleanApplyUrl(j.hostedUrl),
         posted_at: nowIso,
         employment_type: j.categories?.commitment ? toSlug(j.categories.commitment) : null,
         seniority: null,
@@ -560,7 +561,7 @@ async function pollWorkday(
           title: String(batch[j].title).slice(0, 300),
           description,
           location: location ? String(location).slice(0, 300) : null,
-          apply_url: jpi.externalUrl,
+          apply_url: cleanApplyUrl(jpi.externalUrl),
           posted_at: new Date().toISOString(),
           employment_type: null,
           seniority: null,
@@ -628,7 +629,7 @@ async function pollAshby(slug: string, companyInfo: Map<string, { company: strin
         title: String(j.title).slice(0, 300),
         description: stripHtml(j.descriptionPlain || "").slice(0, 20000),
         location: j.location ? String(j.location).slice(0, 300) : null,
-        apply_url: url,
+        apply_url: cleanApplyUrl(url),
         posted_at: nowIso,
         employment_type: j.employmentType ? camelToSlug(j.employmentType) : null,
         seniority: null,
@@ -726,7 +727,7 @@ async function pollAiDevBoard(): Promise<Row[]> {
           title: String(j.title).slice(0, 300),
           description,
           location: j.location ? String(j.location).slice(0, 300) : null,
-          apply_url: j.apply_url,
+          apply_url: cleanApplyUrl(j.apply_url),
           posted_at: nowIso,
           employment_type: j.job_type ? toSlug(j.job_type) : null,
           seniority: j.experience_level ? toSlug(j.experience_level) : null,

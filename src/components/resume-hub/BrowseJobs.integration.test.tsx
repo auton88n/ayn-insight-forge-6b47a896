@@ -129,7 +129,7 @@ describe('BrowseJobs list (real component, mocked backend)', () => {
     fireEvent.click(within(rowByTitle('Role 2')).getByLabelText('Remove from saved'));
     await waitFor(() => expect(screen.queryAllByLabelText('Remove from saved')).toHaveLength(0));
     expect(h.ops.some((o) => o.table === 'jobs' && o.op === 'delete')).toBe(true);
-    expect(h.ops.some((o) => o.table === 'jobs' && o.op === 'eq' && o.args[1] === 'https://example.com/apply/2')).toBe(true);
+    expect(h.ops.some((o) => o.table === 'jobs' && o.op === 'in' && o.args[0] === 'source_url' && (o.args[1] as string[]).includes('https://example.com/apply/2'))).toBe(true);
   });
 
   it('typing in the search box does not re-render unrelated rows', async () => {
@@ -147,7 +147,7 @@ describe('BrowseJobs list (real component, mocked backend)', () => {
     expect(h.rowCalls['Acme 3']).toBe(before['Acme 3']);
   });
 
-  it('detail pane follows the selection, and "Score and tailor" saves that job and hands off', async () => {
+  it('detail pane follows the selection, and "Save and check my fit" saves that job and hands off', async () => {
     const { onAdded } = mount();
     await waitFor(() => expect(rows()).toHaveLength(3));
     // the pane shows the auto-selected first job, then whichever row is opened
@@ -157,7 +157,7 @@ describe('BrowseJobs list (real component, mocked backend)', () => {
     const pane = heading.closest('div.p-5') as HTMLElement;
     expect(within(pane).getByText('Build things')).toBeInTheDocument();
     expect(within(pane).getByText(/Sourced directly from Acme 3/)).toBeInTheDocument();
-    fireEvent.click(within(pane).getByText('Score and tailor'));
+    fireEvent.click(within(pane).getByText('Save and check my fit'));
     await waitFor(() => expect(onAdded).toHaveBeenCalledWith('saved-row-1'));
     const insert = h.ops.find((o) => o.table === 'jobs' && o.op === 'insert')!;
     expect(insert.args[0]).toMatchObject({ source_url: 'https://example.com/apply/3', title: 'Role 3' });

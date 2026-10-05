@@ -99,7 +99,7 @@ describe('saved-job source contracts', () => {
   });
 
   it('does not mutate application status from the original-posting link', () => {
-    const link = source.match(/<a\s+href=\{selected\.source_url\}[\s\S]*?<\/a>/)?.[0];
+    const link = source.match(/<a\s+href=\{(?:cleanApplyUrl\()?selected\.source_url\)?\}[\s\S]*?<\/a>/)?.[0];
     expect(link).toBeDefined();
     expect(link).not.toContain('updateStatus');
     expect(link).not.toContain('onClick');

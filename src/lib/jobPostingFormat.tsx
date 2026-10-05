@@ -83,6 +83,14 @@ export function seniorityLabel(value: string | null | undefined): string | null 
 // knowing "AI" is an acronym -- confirmed live as "Aiinfrastructure
 // Operations," a genuine quirk of one company's own internal naming, not
 // something guessable from the slug alone.
+// Words that stay upper- or mixed-case instead of "Title Case": without this
+// the same category showed as "Devops" in one place and "DevOps" in another.
+const CATEGORY_WORDS: Record<string, string> = {
+  devops: "DevOps", ai: "AI", ml: "ML", qa: "QA", hr: "HR", it: "IT", ux: "UX", ui: "UI",
+  seo: "SEO", sql: "SQL", api: "API", sre: "SRE", cto: "CTO", cfo: "CFO", ceo: "CEO", ios: "iOS",
+  saas: "SaaS", fintech: "Fintech", gtm: "GTM", pr: "PR", b2b: "B2B", b2c: "B2C",
+};
+
 export function humanizeCategory(s: string) {
   return s
     .replace(/_/g, " ")
@@ -91,8 +99,46 @@ export function humanizeCategory(s: string) {
     .replace(/\s+/g, " ")
     .trim()
     .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .map((w) => CATEGORY_WORDS[w.toLowerCase()] ?? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(" ");
+}
+
+// Country codes the job feeds leave in place of a name. Only the unambiguous
+// ones: two-letter "ae" is the UAE, but "sa", "il" and the like are also US
+// states or Australian states, so those are left alone.
+const COUNTRY_CODES: Record<string, string> = {
+  are: "UAE", ae: "UAE", sau: "Saudi Arabia", qat: "Qatar", kwt: "Kuwait", bhr: "Bahrain",
+  omn: "Oman", isr: "Israel", usa: "USA", can: "Canada", gbr: "UK",
+};
+
+/** Tidies a location for display only (never for filtering, which must keep
+ * matching the stored value): "Dubai, ARE" -> "Dubai, UAE", "Dubai - Dubai"
+ * -> "Dubai", "Dubai, Dubai, ae" -> "Dubai, UAE". */
+export function formatLocation(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const parts = raw
+    .split(/\s+[-\u2013\u2014]\s+|\s*,\s*/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => COUNTRY_CODES[p.toLowerCase()] ?? p);
+  const seen = new Set<string>();
+  const unique = parts.filter((p) => {
+    const k = p.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  return unique.join(", ");
+}
+
+const UAE_PLACES = ["united arab emirates", "uae", "emirates", "dubai", "abu dhabi", "sharjah", "ajman", "ras al khaimah", "fujairah", "umm al quwain"];
+
+/** What a typed location should match. "UAE" and "United Arab Emirates" used
+ * to find different jobs from "Dubai" because the feed spells the same place
+ * several ways, so a country-level search matches the whole country. */
+export function locationSearchPatterns(place: string): string[] {
+  const key = place.trim().toLowerCase().replace(/\./g, "");
+  return UAE_PLACES.slice(0, 3).includes(key) ? UAE_PLACES : [place];
 }
 
 function formatSalary(min: number | null | undefined, max: number | null | undefined, currency: string | null | undefined) {
@@ -305,6 +351,34 @@ function collapseBulletGaps(lines: string[]): string[] {
 /** Exported (not just used by JobDescriptionBody below) -- BrowseJobs.tsx's
  * own extractCultureSnippet() needs the same structural parse and stays in
  * that file, since it's account-only and never imported publicly. */
+const blockKey = (b: JdBlock): string =>
+  (b.kind === "bullets" ? b.items.join("\n") : b.text).toLowerCase().replace(/\s+/g, " ").trim();
+
+/** Some postings arrive with the same text twice (a feed that concatenates a
+ * summary and the full description, or a page that repeats itself). Shows
+ * each piece once: if the whole description is one block run repeated, keep
+ * the first run; otherwise drop any long paragraph or bullet list that
+ * already appeared earlier, and any heading left with nothing under it. */
+export function dedupeJdBlocks(blocks: JdBlock[]): JdBlock[] {
+  const half = blocks.length / 2;
+  if (Number.isInteger(half) && half > 0 && blocks.slice(0, half).every((b, i) => blockKey(b) === blockKey(blocks[half + i]))) {
+    return blocks.slice(0, half);
+  }
+  const seen = new Set<string>();
+  const kept: JdBlock[] = [];
+  for (const b of blocks) {
+    if (b.kind !== "heading") {
+      const key = blockKey(b);
+      if (key.length >= 40) {
+        if (seen.has(key)) continue;
+        seen.add(key);
+      }
+    }
+    kept.push(b);
+  }
+  return kept.filter((b, i) => b.kind !== "heading" || (kept[i + 1] !== undefined && kept[i + 1].kind !== "heading"));
+}
+
 export function parseJobDescription(text: string): JdBlock[] {
   const lines = collapseBulletGaps(text.replace(/\r\n/g, "\n").split("\n"));
   const blocks: JdBlock[] = [];
@@ -342,7 +416,7 @@ export function parseJobDescription(text: string): JdBlock[] {
   }
   flushPara();
   flushBullets();
-  return blocks;
+  return dedupeJdBlocks(blocks);
 }
 
 export function JobDescriptionBody({ text }: { text: string }) {

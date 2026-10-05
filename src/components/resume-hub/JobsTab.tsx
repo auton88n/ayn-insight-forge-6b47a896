@@ -35,8 +35,9 @@ import ResumeDiffViewer from "./ResumeDiffViewer";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
-import { companyAvatar } from "@/lib/jobPostingFormat";
+import { companyAvatar, formatLocation } from "@/lib/jobPostingFormat";
 import { savedJobsQueryKey } from "@/lib/queryKeys";
+import { cleanApplyUrl } from "@/lib/applyUrl";
 
 interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile: () => void; onCreditsChanged?: () => void; onBackToBrowse: () => void }
 
@@ -556,10 +557,10 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               </div>
               <div className="min-w-0">
                 <h2 className="rh-display text-xl leading-snug">{selected.title}</h2>
-                <p className="text-sm" style={{ color: "var(--rh-muted)" }}>{selected.company} {selected.location && `• ${selected.location}`}</p>
+                <p className="text-sm" style={{ color: "var(--rh-muted)" }}>{selected.company} {selected.location && `• ${formatLocation(selected.location)}`}</p>
                 {selected.source_url && (
                   <a
-                    href={selected.source_url}
+                    href={cleanApplyUrl(selected.source_url)}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center text-xs mt-1"
@@ -657,7 +658,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                 >
                   {activeAction === "score"
                     ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Scoring…</>
-                    : <><Sparkles className="w-4 h-4 mr-2" />Score this job</>}
+                    : <><Sparkles className="w-4 h-4 mr-2" />Check my fit</>}
                 </Button>
                 <Button onClick={() => setTailorConfirmOpen(true)} disabled={activeAction !== null || !primaryResume || !tailoring.enabled} variant="outline">
                   {activeAction === "tailor"
@@ -1030,7 +1031,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               </div>
               <p className="rh-display text-[18px] leading-snug mb-1">{j.title}</p>
               <p className="text-[13px] mb-3" style={{ color: "var(--rh-muted)" }}>
-                {j.company}{j.location ? ` · ${j.location}` : ""}
+                {j.company}{j.location ? ` · ${formatLocation(j.location)}` : ""}
               </p>
               {snippet && (
                 <p className="text-[13px] leading-relaxed line-clamp-6" style={{ color: "var(--rh-muted)" }}>

@@ -101,7 +101,13 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
   const setActiveTab = (tab: HomeTabId) => {
     if (tab === activeTab) return;
     if (tab === 'pricing') navigate('/pricing');
-    else navigate({ pathname: location.pathname === '/pricing' ? '/' : location.pathname, search: location.search, hash: tab });
+    else {
+      // Tab-specific params (e.g. profileView) must not leak into other tabs.
+      const params = new URLSearchParams(location.search);
+      params.delete('profileView');
+      const search = params.toString();
+      navigate({ pathname: location.pathname === '/pricing' ? '/' : location.pathname, search: search ? `?${search}` : '', hash: tab });
+    }
   };
   // Convert a real cross-page handoff into a bookmarkable route state.
   // Later selections use router navigation so Back and refresh work too.

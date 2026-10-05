@@ -7,12 +7,10 @@ import { memo, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Building2, ExternalLink, Loader2, MapPin, Plus, ShieldCheck, TrendingUp } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
-import {
-  EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary,
-  companyAvatar, resolveLogoUrl, postedAge, postedDate, JobDescriptionBody,
-} from "@/lib/jobPostingFormat";
+import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, JobDescriptionBody, formatLocation } from "@/lib/jobPostingFormat";
 import { extractCultureSnippet } from "./browseJobsHelpers";
 import { ScorePill } from "./ScorePill";
+import { cleanApplyUrl } from "@/lib/applyUrl";
 
 interface JobDetailPaneProps {
   job: JobPosting;
@@ -100,7 +98,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
             </p>
             {job.location && (
               <p className="text-sm flex items-center gap-1.5" style={{ color: "var(--rh-muted)" }}>
-                <MapPin className="w-3.5 h-3.5 shrink-0" />{job.location}
+                <MapPin className="w-3.5 h-3.5 shrink-0" />{formatLocation(job.location)}
               </p>
             )}
           </div>
@@ -166,7 +164,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
             {isAdding
               ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               : <Plus className="w-4 h-4 mr-2" />}
-            Score and tailor
+            Save and check my fit
           </Button>
           {/* v3.148.0 — reported directly against a live screenshot: this
               rendered half-fixed — a plain white/black-bordered button at
@@ -180,7 +178,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
               as a plain dark button next to the ember "Score and tailor"
               primary action, not fighting it for the same accent color. */}
           <Button asChild style={{ background: "#1c1712", borderColor: "#1c1712", color: "#fff" }} className="hover:opacity-90">
-            <a href={job.apply_url} target="_blank" rel="noopener noreferrer">
+            <a href={cleanApplyUrl(job.apply_url)} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="w-4 h-4 mr-2" />Apply on company site
             </a>
           </Button>

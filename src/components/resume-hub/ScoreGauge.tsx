@@ -59,7 +59,7 @@ export function ScoreGauge({ score, size = 28, showLabel = false }: { score: num
       </span>
     </span>
   );
-  const title = "A quick keyword estimate, computed automatically from your title, skills and years of experience. Score and tailor for AYN's full match analysis.";
+  const title = "A quick keyword estimate, computed automatically from your title, skills and years of experience. Save the job and check your fit for AYN's full match analysis.";
   if (!showHint) {
     return (
       <span className="inline-flex items-center gap-2" title={title}>
@@ -75,7 +75,7 @@ export function ScoreGauge({ score, size = 28, showLabel = false }: { score: num
         <span className="text-xs font-medium" style={{ color: tier.text }}>{tier.label}</span>
       </span>
       <span className="text-[11px] text-muted-foreground">
-        Rough estimate. Click Score and tailor for the real match.
+        Rough estimate. Save the job and check your fit for the real match.
       </span>
     </span>
   );
