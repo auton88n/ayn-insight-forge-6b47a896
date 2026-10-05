@@ -23,7 +23,7 @@ const jobsBootstrap: JobsBootstrap | null = (() => {
     return data && Array.isArray(data.rows) && data.rows.length && typeof data.at === 'number' ? data as JobsBootstrap : null;
   } catch { return null; }
 })();
-export const BROWSE_CATEGORIES = ['software_engineering', 'sales', 'marketing', 'design', 'data_analytics', 'product', 'operations', 'finance', 'customer_success', 'devops'];
+export const BROWSE_CATEGORIES = ['software_engineering', 'sales', 'marketing', 'design', 'data_analytics', 'product', 'operations', 'finance', 'customer_success', 'devops', 'healthcare', 'education', 'hr', 'legal', 'retail', 'hospitality', 'administrative', 'construction'];
 export const BROWSE_CITIES = ['New York City', 'San Francisco', 'Austin', 'Toronto', 'Boston', 'Chicago', 'Los Angeles', 'Seattle'];
 export function slugifyCity(city: string): string { return city.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
 export function unslugifyCity(slug: string): string { return slug.replace(/-+/g, ' ').trim().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); }

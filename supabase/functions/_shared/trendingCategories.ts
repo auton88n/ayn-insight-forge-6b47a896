@@ -26,6 +26,11 @@
 // clean (real Product Manager roles); bare "design" sampled dirty (fire
 // alarm/sprinkler designers, industrial design) and is excluded the same
 // way "architecture" and bare "security" are.
+// Broad scope: AYN is for every kind of job, not only tech/engineering.
+// While true, both ingestion paths keep any category (region, scam and
+// freshness filters still apply). Set false to restore the tech-only list.
+export const BROAD_JOB_SCOPE = true;
+
 export const TRENDING_TECH_CATEGORIES = [
   // Software engineering, by discipline
   "software_engineering", "development", "frontend", "backend", "fullstack",
@@ -55,6 +60,7 @@ export const TRENDING_TECH_CATEGORIES = [
 const ASHBY_ADDITIONAL_CLEAN_CATEGORIES = ["engineering"];
 
 export function isTrendingTechCategory(category: string | null | undefined, source?: string | null): boolean {
+  if (BROAD_JOB_SCOPE) return true;
   if (!category) return false;
   const c = category.toLowerCase().trim();
   if (TRENDING_TECH_CATEGORIES.includes(c)) return true;
@@ -92,6 +98,7 @@ const TRENDING_TITLE_RE = new RegExp(
   "i",
 );
 export function isTrendingTechTitle(title: string | null | undefined): boolean {
+  if (BROAD_JOB_SCOPE) return !!title;
   if (!title) return false;
   return TRENDING_TITLE_RE.test(title);
 }

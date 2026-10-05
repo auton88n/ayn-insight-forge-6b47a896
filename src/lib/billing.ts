@@ -197,4 +197,4 @@ export const billingApi = {
 };
 
 export const priceLabel = (cents: number, interval: string) =>
-  cents === 0 ? "Free" : `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)} / ${interval}`;
+  cents === 0 ? "Free" : `US$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)} / ${interval}`;
