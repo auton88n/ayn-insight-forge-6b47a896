@@ -3,7 +3,7 @@ import { ReactNode } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Mail } from 'lucide-react';
 
 export function SectionHeader({ title, subtitle, right }: { title: string; subtitle?: string; right?: ReactNode }) {
   return (
@@ -17,13 +17,14 @@ export function SectionHeader({ title, subtitle, right }: { title: string; subti
   );
 }
 
-export function Stat({ label, value, hint, accent }: { label: string; value: ReactNode; hint?: string; accent?: boolean }) {
+export function Stat({ label, value, hint, accent, extra }: { label: string; value: ReactNode; hint?: string; accent?: boolean; extra?: ReactNode }) {
   return (
     <Card className="border border-border/60 bg-card">
       <CardContent className="p-5">
         <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium">{label}</p>
         <p className={`text-2xl font-bold tracking-tight mt-1.5 ${accent ? 'text-primary' : ''}`}>{value}</p>
         {hint && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
+        {extra && <div className="mt-2">{extra}</div>}
       </CardContent>
     </Card>
   );
@@ -63,10 +64,33 @@ export const when = (v?: string | null) => (v ? new Date(v).toLocaleDateString(u
 const PROVIDER_LABEL: Record<string, string> = { email: 'Email', google: 'Google' };
 export const providerLabel = (p?: string | null) => (p ? (PROVIDER_LABEL[p] || p) : 'Unknown');
 
+/* Two looks, so the way someone signed up reads at a glance: blue "Google", plain "Email". */
+const GOOGLE_STYLE = 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200';
+export function MethodChip({ provider, count }: { provider?: string | null; count?: number }) {
+  const google = provider === 'google';
+  return (
+    <Badge variant="outline" className={`text-[10px] gap-1 font-medium whitespace-nowrap ${google ? GOOGLE_STYLE : 'bg-muted/60 text-foreground'}`}>
+      {google ? <span className="font-bold">G</span> : provider === 'email' ? <Mail className="h-3 w-3" /> : null}
+      {providerLabel(provider)}{count !== undefined ? ` ${count}` : ''}
+    </Badge>
+  );
+}
+
+/* "Google 1  Email 3" under a card number. Shows both even at zero so a missing group is visible. */
+export function MethodSplit({ by }: { by?: Record<string, number> | null }) {
+  const b = by || {};
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <MethodChip provider="google" count={b.google ?? 0} />
+      <MethodChip provider="email" count={b.email ?? 0} />
+    </div>
+  );
+}
+
 export function ProviderBadge({ provider, last }: { provider?: string | null; last?: string | null }) {
   return (
     <div className="space-y-0.5">
-      <Badge variant={provider === 'google' ? 'default' : 'secondary'} className="text-[10px]">{providerLabel(provider)}</Badge>
+      <MethodChip provider={provider} />
       {last && last !== provider && <div className="text-[10px] text-muted-foreground">last sign-in: {providerLabel(last)}</div>}
     </div>
   );

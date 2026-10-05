@@ -2,7 +2,7 @@
 import { useAdminOverview, useAdminActivationFunnel, useAdminSignupHealth } from '@/admin-app/hooks/useAdminQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { SectionHeader, Stat, LoadingBlock, ErrorBlock, EmptyRow, when, ProviderBadge, WelcomeBadge, providerLabel } from './ui';
+import { SectionHeader, Stat, LoadingBlock, ErrorBlock, EmptyRow, when, ProviderBadge, WelcomeBadge, providerLabel, MethodSplit } from './ui';
 
 // Real activation funnel, added directly in response to the founder asking
 // whether this was worth building at all -- checked first, not assumed: it
@@ -143,9 +143,9 @@ export default function OverviewSection({ onGoto }: { onGoto: (id: string) => vo
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <Stat label="Job seekers" value={d.seekers_total ?? 0} hint={`${d.seekers_new_month ?? 0} new this month`} />
+        <Stat label="Job seekers" value={d.seekers_total ?? 0} hint={`${d.seekers_new_month ?? 0} new this month`} extra={<MethodSplit by={d.seekers_by_provider} />} />
         <Stat label="Discoverable" value={d.seekers_discoverable ?? 0} hint="Opted into the talent pool" accent />
-        <Stat label="Active employers" value={d.employers_active ?? 0} hint={`${d.employers_pending ?? 0} pending`} />
+        <Stat label="Active employers" value={d.employers_active ?? 0} hint={`${d.employers_pending ?? 0} pending approval`} extra={<MethodSplit by={d.employers_by_provider} />} />
         <Stat label="AI spend" value={`$${Number(d.ai_spend_month || 0).toFixed(2)}`} hint="Month to date" />
       </div>
 

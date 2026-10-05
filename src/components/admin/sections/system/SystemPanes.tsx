@@ -26,7 +26,7 @@ import {
   useAdminVisitorAnalytics,
   useAdminPostHogRecordings,
 } from '@/admin-app/hooks/useAdminQuery';
-import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when, whenTime, ProviderBadge, WelcomeBadge, providerLabel } from '../ui';
+import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when, whenTime, ProviderBadge, WelcomeBadge, providerLabel, MethodChip } from '../ui';
 
 const Table = ({ head, children }: { head: string[]; children: React.ReactNode }) => (
   <Card className="border border-border/60 bg-card overflow-hidden">
@@ -448,7 +448,9 @@ export function ActivityPane() {
             <Cell><span className="whitespace-nowrap">{whenTime(r.at)}</span></Cell>
             <Cell>{r.email || <span className="text-muted-foreground">System</span>}</Cell>
             <Cell>
-              <span>{r.kind === 'admin' ? (ACTIVITY_LABELS[r.title] || r.title) : r.title}</span>
+              {typeof r.title === 'string' && r.title.startsWith('Signed up with ')
+                ? <span className="inline-flex items-center gap-1.5">Signed up with <MethodChip provider={r.title.slice('Signed up with '.length)} /></span>
+                : <span>{r.kind === 'admin' ? (ACTIVITY_LABELS[r.title] || r.title) : r.title}</span>}
               <Badge variant="outline" className="text-[10px] ml-2">{(ACTIVITY_KINDS.find(k => k.key === r.kind)?.label) || r.kind}</Badge>
             </Cell>
             <Cell><span className="text-xs text-muted-foreground break-words">{r.detail || ''}</span></Cell>
