@@ -78,13 +78,25 @@ Deno.serve(async (req) => {
       if (status && messageId) {
         const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
         const detail = String(payload.data?.bounce?.message || payload.data?.reason || '').slice(0, 300) || null;
-        const { data: rows } = await db.from('email_logs').select('id, metadata').eq('metadata->>resend_id', messageId);
+        const { data: rows, error: readError } = await db.from('email_logs').select('id, metadata').eq('metadata->>resend_id', messageId);
+        if (readError) throw readError;
+        // The provider can notify us before the sender commits its log.
+        // A non-2xx response asks it to retry rather than lose that event.
+        if (!rows?.length) throw new Error('Delivery event arrived before its email log');
         for (const row of (rows || []) as { id: string; metadata: Record<string, unknown> | null }[]) {
-          await db.from('email_logs').update({
+          const { error: updateError } = await db.from('email_logs').update({
             metadata: { ...(row.metadata || {}), delivery_status: status, delivery_at: new Date().toISOString(), delivery_detail: detail },
           }).eq('id', row.id);
+          if (updateError) throw updateError;
         }
-        await db.from('welcome_emails').update({ delivery_status: status }).eq('resend_id', messageId);
+        const { data: welcomeRows, error: welcomeError } = await db.from('welcome_emails').update({ delivery_status: status }).eq('resend_id', messageId).select('user_id');
+        if (welcomeError) throw welcomeError;
+        if (!welcomeRows?.length) {
+          const { data: pending, error: pendingError } = await db.from('email_logs')
+            .select('id').eq('metadata->>resend_id', messageId).eq('email_type', 'welcome');
+          if (pendingError) throw pendingError;
+          if (pending?.length) throw new Error('Welcome send still being committed');
+        }
       }
       return new Response(JSON.stringify({ success: true, handled: eventType }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },

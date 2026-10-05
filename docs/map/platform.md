@@ -1,5 +1,7 @@
 # 2 October 2026: Insights content engine handoff and archive safety
 
+5 October reliability correction: welcome sends persist their exact payload and UUID send key before contacting Resend, reuse both on retries, and stop after 23 hours rather than retry outside its 24-hour deduplication window. The payload remains server-only under existing queue RLS and is deleted with the queue on account erasure. Explicit terminal-state admin requeues generate a new send key. Apply `20261005140000_welcome_retry_payload.sql` before deploying the worker. HTTP 408/409/425/429 are retryable; database/auth lookup errors no longer silently mark sends successful or accounts missing. Delivery webhook database errors and events arriving before send persistence return non-2xx for provider retry. Google employer eligibility failures keep signup intent and expose Retry; form submission always releases its loading state. Missing Switch and duplicate AynLoader imports are corrected.
+
 4 October first-paint/pricing correction: server-injected public content now
 has critical scoped styling and real navigation before app assets load; it
 remains visible without JS and identical for visitors/crawlers. Homepage Index

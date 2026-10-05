@@ -29,23 +29,31 @@ export function EmployerOAuthClaim() {
   const [country, setCountry] = useState<'US' | 'CA' | ''>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [eligibilityError, setEligibilityError] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let alive = true;
     const check = async (session: { user?: { email?: string | null } } | null) => {
       if (!session?.user || readIntent() !== 'employer') return;
-      const { data, error: rpcError } = await supabase.rpc('employer_claim_available' as never);
-      if (!alive) return;
-      if (rpcError || data !== true) { clearIntent(); return; }
-      setEmail(session.user.email || '');
-      setOpen(true);
+      try {
+        const { data, error: rpcError } = await supabase.rpc('employer_claim_available' as never);
+        if (!alive) return;
+        if (rpcError) throw rpcError;
+        if (data !== true) { clearIntent(); setOpen(false); return; }
+        setEligibilityError(false);
+        setEmail(session.user.email || '');
+        setOpen(true);
+      } catch {
+        if (alive) { setEligibilityError(true); setOpen(true); }
+      }
     };
     void supabase.auth.getSession().then(({ data }) => check(data.session));
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN') void check(session);
     });
     return () => { alive = false; sub.subscription.unsubscribe(); };
-  }, []);
+  }, [retry]);
 
   const skip = () => { clearIntent(); setOpen(false); };
 
@@ -54,16 +62,19 @@ export function EmployerOAuthClaim() {
     if (saving) return;
     setSaving(true);
     setError('');
-    const { error: rpcError } = await supabase.rpc('employer_claim_after_oauth' as never, {
+    try {
+      const { error: rpcError } = await supabase.rpc('employer_claim_after_oauth' as never, {
       p_company_name: company, p_company_website: website, p_position_title: position,
       p_phone: phone, p_company_address: address, p_company_country: country,
     } as never);
-    setSaving(false);
-    if (rpcError) { setError(rpcError.message); return; }
+      if (rpcError) throw rpcError;
     clearIntent();
     setOpen(false);
     toast({ title: 'Application received', description: 'Our team reviews every company by hand. We will email you once it is done.' });
     window.location.assign('/employers');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (e as { message?: string })?.message || 'Could not submit. Please try again.');
+    } finally { setSaving(false); }
   };
 
   return (
@@ -74,10 +85,10 @@ export function EmployerOAuthClaim() {
         <DialogHeader>
           <DialogTitle>Tell us about your company</DialogTitle>
           <DialogDescription>
-            You signed in with Google as {email}. We review every company by hand, and your email must match your company website.
+            {eligibilityError ? 'We could not check your account. Your employer choice has been kept.' : `You signed in with Google as ${email}. We review every company by hand, and your email must match your company website.`}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={submit} className="space-y-3">
+        {eligibilityError ? <Button onClick={() => setRetry(n => n + 1)}>Retry account check</Button> : <form onSubmit={submit} className="space-y-3">
           <div className="space-y-1.5"><Label htmlFor="oc-company">Company name *</Label><Input id="oc-company" value={company} onChange={(e) => setCompany(e.target.value)} required /></div>
           <div className="space-y-1.5"><Label htmlFor="oc-website">Company website *</Label><Input id="oc-website" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://yourcompany.com" required /></div>
           <div className="space-y-1.5"><Label htmlFor="oc-position">Your position *</Label><Input id="oc-position" value={position} onChange={(e) => setPosition(e.target.value)} required /></div>
@@ -103,7 +114,7 @@ export function EmployerOAuthClaim() {
             <Button type="button" variant="ghost" onClick={skip}>Continue as a job seeker instead</Button>
             <Button type="submit" disabled={saving || !country}>{saving ? 'Sending' : 'Submit application'}</Button>
           </div>
-        </form>
+        </form>}
       </DialogContent>
     </Dialog>
   );

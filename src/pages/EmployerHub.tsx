@@ -11,7 +11,6 @@
  * appear in the Sent list, and only after the candidate accepted.
  */
 import { useCallback, useEffect, useState } from "react";
-import { AynLoader } from '@/components/shared/AynLoader';
 import { useNavigate } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";

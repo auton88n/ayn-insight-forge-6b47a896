@@ -116,6 +116,7 @@ export async function sendBrandedEmail(
   to: string,
   subject: string,
   html: string,
+  idempotencyKey?: string,
 ): Promise<{ ok: boolean; error?: string; id?: string }> {
   const key = Deno.env.get("RESEND_API_KEY");
   if (!key) return { ok: false, error: "RESEND_API_KEY not configured" };
@@ -123,7 +124,9 @@ export async function sendBrandedEmail(
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}) },
+      signal: AbortSignal.timeout(20_000),
       // v3.160.0 — self-hosted's Resend account only has support.ayn.careers
       // verified as a domain (the plan's 1-domain limit); ayn.careers itself
       // was never registered there, so this send-from moved to the
