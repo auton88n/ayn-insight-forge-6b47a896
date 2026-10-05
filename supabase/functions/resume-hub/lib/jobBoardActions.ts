@@ -11,6 +11,7 @@ import { loadCanonical } from "./canonicalProfile.ts";
 import { mapConcurrent } from "../../_shared/concurrency.ts";
 import type { BaseCtx } from "./actionCtx.ts";
 import { publicResumeReview } from "../../_shared/publicResumeReview.ts";
+import { embedText, FALLBACK_EMBED_MODEL } from "./embeddings.ts";
 
 // ---------------- job_board_score (free) ----------------
 // v3.134.0 — the point of storing real, clean JD text from job_postings
@@ -50,27 +51,101 @@ export async function handleJobBoardScore(ctx: BaseCtx): Promise<Response> {
   if (!document) {
     return json({ scores: capped.map((j) => ({ id: j.id, match_pct: null })) });
   }
-  // Flattened once, reused for every job below -- evaluateResumeText
-  // does the identical computeGap match/tailor/job_fit_advice now share,
-  // just against pre-flattened text so a 50-job page doesn't re-flatten
-  // the same resume 50 times. A browse-list score and a clicked-into
-  // score can no longer disagree about what's genuinely matched.
   const documentText = flattenResumeSkillsAndProse(document);
   const sectionHash = (await sha256b(documentText)).slice(0, 16);
+
+  // v3.372.0 — "Match me" was inaccurate: the old score was only "what share of this job's listed
+  // requirements appear, worded the same, in the resume". On a real profile 2,421 of 2,477 scorable
+  // jobs landed between 0 and 19 percent, so the ranking was close to noise, and it knew nothing
+  // about whether a job is even in the person's field. The score now compares meaning: the
+  // person's background and the job are both turned into semantic vectors (job vectors are stored
+  // by job-embed-worker), and closeness is blended with title fit and the years the posting asks
+  // for. Wording coverage (the old method) remains only as a fallback for a job that has no vector
+  // yet, and as the "what is missing" detail when a job is opened.
+  const profileVec = await profileVector(adminScore, user.id, sectionHash, identity, documentText);
+  const ids = capped.map((j) => j.id).filter(Boolean);
+  const vectors = new Map<string, number[]>();
+  if (profileVec && ids.length) {
+    const { data: vecRows } = await adminScore.from("job_postings")
+      .select("id, embedding, embedding_model").in("id", ids).not("embedding", "is", null);
+    for (const r of (vecRows || []) as Array<{ id: string; embedding: unknown; embedding_model: string | null }>) {
+      if (r.embedding_model !== profileVec.model) continue; // never compare two different models
+      const v = parseVector(r.embedding);
+      if (v) vectors.set(r.id, v);
+    }
+  }
+  const quickProfile = {
+    skills: [] as string[],
+    title: identity?.current_title.value || "",
+    yearsExperience: identity?.computed_years_experience.value || 0,
+  };
+
   const scores = await mapConcurrent(capped, 2, async (j) => {
     const jdText = String(j.description || "");
+    const jobVec = vectors.get(j.id);
+    if (profileVec && jobVec) {
+      const q = computeQuickScore(jdText, String(j.title || ""), quickProfile);
+      return { id: j.id, match_pct: blendMatch(cosine(profileVec.vector, jobVec), q.titlePct / 100, q.experiencePct / 100), method: "semantic" };
+    }
     if (!jdText.trim()) return { id: j.id, match_pct: null };
     const jdHash = (await sha256b(jdText)).slice(0, 24);
     const cacheKey = `boardscore:${RESUME_EVALUATION_VERSION}:${user.id}:${sectionHash}:${jdHash}`;
     const cached = await cacheGet<{ match_pct: number }>(adminScore, cacheKey);
-    if (cached) return { id: j.id, match_pct: cached.match_pct };
-
+    if (cached) return { id: j.id, match_pct: cached.match_pct, method: "wording" };
     const { matchPct: match_pct } = evaluateResumeText(documentText, jdText);
-
     if (match_pct != null) cacheSet(adminScore, cacheKey, user.id, "job_board_score", { match_pct }, 24 * 60 * 60 * 1000);
-    return { id: j.id, match_pct };
+    return { id: j.id, match_pct, method: "wording" };
   });
   return json({ scores });
+}
+
+// Cosine between a person's vector and a job's vector for text-embedding-3-small runs roughly 0.35
+// (unrelated) to 0.70 (a very close fit): measured on a real profile against the live catalog the
+// median job was 0.53, the 90th percentile 0.60 and the best 0.70. These two numbers turn that
+// range into 0 to 1 so a poor fit shows as a low number instead of being stretched to look good.
+const COSINE_FLOOR = 0.45;
+const COSINE_CEIL = 0.72;
+
+export function blendMatch(cos: number, titleFit: number, experienceFit: number): number {
+  const semantic = Math.max(0, Math.min(1, (cos - COSINE_FLOOR) / (COSINE_CEIL - COSINE_FLOOR)));
+  const pct = 100 * (0.7 * semantic + 0.15 * titleFit + 0.15 * experienceFit);
+  return Math.max(0, Math.min(100, Math.round(pct)));
+}
+
+function cosine(a: number[], b: number[]): number {
+  let dot = 0, na = 0, nb = 0;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  return na && nb ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+}
+
+function parseVector(v: unknown): number[] | null {
+  try {
+    const arr = typeof v === "string" ? JSON.parse(v) : v;
+    return Array.isArray(arr) && arr.length ? (arr as number[]) : null;
+  } catch { return null; }
+}
+
+// What gets embedded for a person: current title first, then the resume's skills and prose. Cached
+// per person and per resume content, so it costs one embedding call per resume change, not per page.
+async function profileVector(
+  admin: any,
+  userId: string,
+  sectionHash: string,
+  identity: { current_title: { value: string } } | null,
+  documentText: string,
+): Promise<{ vector: number[]; model: string } | null> {
+  const cacheKey = `profilevec:v1:${userId}:${sectionHash}`;
+  const cached = await cacheGet<{ vector: number[]; model: string }>(admin, cacheKey);
+  if (cached?.vector?.length) return cached;
+  const title = identity?.current_title.value || "";
+  const input = `${title ? `Current role: ${title}\n` : ""}${documentText}`.replace(/\s+/g, " ").trim().slice(0, 3500);
+  if (!input) return null;
+  const { vector, model } = await embedText(input);
+  if (model === FALLBACK_EMBED_MODEL) return null; // hash vectors must never be compared with real ones
+  const value = { vector, model };
+  cacheSet(admin, cacheKey, userId, "job_board_score", value, 7 * 24 * 60 * 60 * 1000);
+  return value;
 }
 
 // ---------------- role_finder (free) ----------------
