@@ -54,8 +54,14 @@ interface ReportErrorInput {
   source: ClientErrorSource;
 }
 
+// Only the real site reports errors. Local development, Lovable previews and test
+// browsers used to write into the production error log, which made it impossible to
+// tell a real visitor's crash from a developer's experiment.
+const REPORTING_HOSTS = new Set(['ayn.careers', 'www.ayn.careers']);
+
 export async function reportClientError(input: ReportErrorInput): Promise<void> {
   try {
+    if (typeof window === 'undefined' || !REPORTING_HOSTS.has(window.location.hostname)) return;
     const message = (input.message || 'Unknown error').slice(0, 1000);
     if (!message) return;
     const firstStackLine = (input.stack || '').split('\n')[1] || '';
