@@ -7,7 +7,7 @@ import { memo, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Building2, ExternalLink, Loader2, MapPin, Plus, ShieldCheck, TrendingUp } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
-import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, JobDescriptionBody, formatLocation } from "@/lib/jobPostingFormat";
+import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, JobDescriptionBody, formatLocation, tidyTitle, tidyCompany } from "@/lib/jobPostingFormat";
 import { extractCultureSnippet } from "./browseJobsHelpers";
 import { ScorePill } from "./ScorePill";
 import { cleanApplyUrl } from "@/lib/applyUrl";
@@ -92,9 +92,9 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
             </div>
           )}
           <div className="min-w-0">
-            <h2 className="rh-display text-[24px] leading-snug">{job.title}</h2>
+            <h2 className="rh-display text-[24px] leading-snug">{tidyTitle(job.title)}</h2>
             <p className="text-sm flex items-center gap-1.5 mt-0.5" style={{ color: "var(--rh-muted)" }}>
-              <Building2 className="w-3.5 h-3.5 shrink-0" />{job.company}
+              <Building2 className="w-3.5 h-3.5 shrink-0" />{tidyCompany(job.company, job.company_slug)}
             </p>
             {job.location && (
               <p className="text-sm flex items-center gap-1.5" style={{ color: "var(--rh-muted)" }}>

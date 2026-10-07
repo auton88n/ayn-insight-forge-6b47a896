@@ -344,7 +344,9 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         return Array.from(set).sort((a, b) => a.localeCompare(b));
       };
       setCategories(dedupe(cat.data as { category: string | null }[], "category"));
-      setEmploymentTypes(dedupe(et.data as { employment_type: string | null }[], "employment_type"));
+      // The sampled rows can miss the common types, so the core ones are always offered.
+      const baseTypes = ["full_time", "part_time", "contract", "internship"];
+      setEmploymentTypes(Array.from(new Set([...baseTypes, ...dedupe(et.data as { employment_type: string | null }[], "employment_type")])));
       setSeniorities(dedupe(sen.data as { seniority: string | null }[], "seniority"));
     });
     return () => { cancelled = true; };

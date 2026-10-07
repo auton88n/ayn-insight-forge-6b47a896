@@ -181,12 +181,14 @@ export async function handleRoleFinder(ctx: BaseCtx): Promise<Response> {
     .from("job_postings")
     .select("id, title, company, description, posted_at, skills")
     .order("posted_at", { ascending: false })
-    .limit(6000);
+    .limit(1000);
   if (postingsErr) return json({ error: postingsErr.message }, 500);
 
   type Bucket = { title: string; sumScore: number; count: number; companies: Set<string>; bestId: string; bestScore: number };
   const buckets = new Map<string, Bucket>();
+  const deadline = Date.now() + 4000; // keep the whole call well inside the function time limit
   for (const row of (postings || []) as Array<{ id: string; title: string | null; company: string | null; description: string | null; skills: string[] | null }>) {
+    if (Date.now() > deadline) break;
     const title = String(row.title || "").trim();
     if (!title) continue;
     const q = computeQuickScore(String(row.description || ""), title, profile, row.skills || undefined);

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Flame, Heart, Layers, Loader2, X } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
-import { SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, formatLocation } from "@/lib/jobPostingFormat";
+import { SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, formatLocation, tidyTitle, tidyCompany } from "@/lib/jobPostingFormat";
 import { HOT_WINDOW_MS } from "./browseJobsHelpers";
 import { ScoreGauge } from "./ScoreGauge";
 
@@ -28,8 +28,8 @@ function SwipeCardPeek({ job, style }: { job: JobPosting; style: React.CSSProper
       ) : (
         <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold shrink-0 ${avatar.className}`}>{avatar.initial}</div>
       )}
-      <p className="rh-display text-[15px] leading-snug truncate">{job.title}</p>
-      <p className="text-[12px] truncate" style={{ color: "var(--rh-muted)" }}>{job.company}</p>
+      <p className="rh-display text-[15px] leading-snug truncate">{tidyTitle(job.title)}</p>
+      <p className="text-[12px] truncate" style={{ color: "var(--rh-muted)" }}>{tidyCompany(job.company, job.company_slug)}</p>
     </div>
   );
 }
@@ -200,9 +200,9 @@ export function SwipeDeck({
               </Badge>
             )}
           </div>
-          <p className="rh-display text-[18px] leading-snug mb-1">{current.title}</p>
+          <p className="rh-display text-[18px] leading-snug mb-1">{tidyTitle(current.title)}</p>
           <p className="text-[13px] mb-3" style={{ color: "var(--rh-muted)" }}>
-            {current.company}{current.location ? ` · ${formatLocation(current.location)}` : ""}
+            {tidyCompany(current.company, current.company_slug)}{current.location ? ` · ${formatLocation(current.location)}` : ""}
           </p>
           <div className="flex flex-wrap gap-1.5 mb-3">
             {salary && (

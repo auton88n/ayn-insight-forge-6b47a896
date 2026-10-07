@@ -103,6 +103,55 @@ export function humanizeCategory(s: string) {
     .join(" ");
 }
 
+
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", mdash: "-", ndash: "-", rsquo: "'", lsquo: "'", ldquo: '"', rdquo: '"', hellip: "...", bull: "•",
+};
+
+/** Job feeds sometimes hand over HTML-escaped text ("&#13;", "&amp;"), twice over
+ * in some cases. Turn it into plain text; runs twice for the double-escaped case. */
+export function decodeEntities(input: string | null | undefined): string {
+  let out = input || "";
+  for (let i = 0; i < 2; i++) {
+    out = out.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
+      if (e[0] === "#") {
+        const code = e[1].toLowerCase() === "x" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+        if (!Number.isFinite(code) || code > 0x10ffff) return m;
+        return code === 13 ? "" : String.fromCodePoint(code);
+      }
+      return NAMED_ENTITIES[e.toLowerCase()] ?? m;
+    });
+  }
+  return out;
+}
+
+const TITLE_ACRONYMS = new Set(["cdp", "crm", "erp", "sap", "hr", "qa", "it", "ai", "ml", "sql", "aws", "sre", "ui", "ux", "api", "seo", "ehr", "hvac", "cnc", "cad", "bi", "etl", "sdr", "bdr", "cpa", "rn", "lpn", "pr", "gtm", "pmo", "sdet", "iot", "gcp", "vp", "cfo", "ceo", "cto", "coo"]);
+
+/** Display-only tidy for a job title: decodes entities, trims, collapses spaces and
+ * restores common acronyms that Title Case flattened ("Intern Cdp" -> "Intern CDP"). */
+export function tidyTitle(raw: string | null | undefined): string {
+  const t = decodeEntities(raw).replace(/\s+/g, " ").trim();
+  return t.replace(/\b([A-Za-z]{2,5})\b/g, (w) => {
+    const l = w.toLowerCase();
+    if (!TITLE_ACRONYMS.has(l)) return w;
+    return w === w.toUpperCase() || w === l || w === l[0].toUpperCase() + l.slice(1) ? l.toUpperCase() : w;
+  });
+}
+
+const ATS_HOST_RE = /\.(teamtailor|greenhouse|lever|ashbyhq|workable|recruitee|bamboohr|breezy|smartrecruiters|myworkdayjobs|icims|jobvite)\.[a-z.]+$/i;
+
+/** Display-only tidy for a company name: decodes entities, hides a raw ATS
+ * hostname behind a readable name, and capitalizes an all-lowercase single word. */
+export function tidyCompany(raw: string | null | undefined, slug?: string | null): string {
+  let c = decodeEntities(raw).replace(/\s+/g, " ").trim();
+  if (ATS_HOST_RE.test(c) || /^[a-z0-9-]+-\d{6,}\./i.test(c)) {
+    const base = (slug || c.split(".")[0]).replace(/-\d{6,}$/, "").replace(/[-_]+/g, " ").trim();
+    c = base ? base.replace(/\b\w/g, (m) => m.toUpperCase()) : c;
+  }
+  if (c && c === c.toLowerCase() && !/[\s.]/.test(c) && /^[a-z]/.test(c)) c = c[0].toUpperCase() + c.slice(1);
+  return c;
+}
+
 // Country codes the job feeds leave in place of a name. Only the unambiguous
 // ones: two-letter "ae" is the UAE, but "sa", "il" and the like are also US
 // states or Australian states, so those are left alone.
@@ -116,11 +165,11 @@ const COUNTRY_CODES: Record<string, string> = {
  * -> "Dubai", "Dubai, Dubai, ae" -> "Dubai, UAE". */
 export function formatLocation(raw: string | null | undefined): string {
   if (!raw) return "";
-  const parts = raw
+  const parts = decodeEntities(raw)
     .split(/\s+[-\u2013\u2014]\s+|\s*,\s*/)
     .map((p) => p.trim())
     .filter(Boolean)
-    .map((p) => COUNTRY_CODES[p.toLowerCase()] ?? p);
+    .map((p) => COUNTRY_CODES[p.toLowerCase()] ?? (/^[A-Z]{2}[a-z]+/.test(p) ? p[0] + p.slice(1).toLowerCase() : p));
   const seen = new Set<string>();
   const unique = parts.filter((p) => {
     const k = p.toLowerCase();
@@ -145,7 +194,7 @@ function formatSalary(min: number | null | undefined, max: number | null | undef
   if (min == null && max == null) return null;
   const cur = currency || "USD";
   const fmt = (n: number) => n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
-  if (min != null && max != null) return `${cur} ${fmt(min)} to ${fmt(max)}`;
+  if (min != null && max != null) return fmt(min) === fmt(max) ? `${cur} ${fmt(min)}` : `${cur} ${fmt(min)} to ${fmt(max)}`;
   return `${cur} ${fmt((min ?? max)!)}+`;
 }
 
@@ -221,7 +270,8 @@ export function resolveSalary(job: JobPosting): { text: string; fromListingText:
   if (!extracted) return null;
   const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
   const suffix = extracted.period === "hourly" ? "/hr" : "";
-  return { text: `USD ${fmt(extracted.min)} to ${fmt(extracted.max)}${suffix}`, fromListingText: true };
+  const range = fmt(extracted.min) === fmt(extracted.max) ? fmt(extracted.min) : `${fmt(extracted.min)} to ${fmt(extracted.max)}`;
+  return { text: `USD ${range}${suffix}`, fromListingText: true };
 }
 
 // v3.171.0 — was a flat pastel fill (bg-blue-100/text-blue-700, etc.), the
@@ -420,7 +470,7 @@ export function parseJobDescription(text: string): JdBlock[] {
 }
 
 export function JobDescriptionBody({ text }: { text: string }) {
-  const blocks = useMemo(() => parseJobDescription(text.trim()), [text]);
+  const blocks = useMemo(() => parseJobDescription(decodeEntities(text).trim()), [text]);
   if (!blocks.length) {
     return (
       <p className="text-sm leading-relaxed text-foreground/90">

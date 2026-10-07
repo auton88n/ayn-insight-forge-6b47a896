@@ -412,7 +412,7 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
 
         <div className="lp-reveal ayn-plan-grid">
           {PLANS.map((p) => {
-            const current = billing?.plan?.key === p.key;
+            const current = billing?.plan?.key === p.key || (signedIn && p.cents === 0 && !billing?.plan);
             const featured = p.key === 'seeker_starter';
             return (
               <div
@@ -437,7 +437,7 @@ export const PricingTab = ({ onStartFree }: TabProps) => {
                   disabled={current || busy === p.key}
                   onClick={() => choose(p.key)}
                 >
-                  {busy === p.key ? <Loader2 size={15} className="animate-spin" /> : current ? 'Current plan' : p.cents === 0 ? 'Start free' : `Choose ${p.name}`}
+                  {busy === p.key ? <Loader2 size={15} className="animate-spin" /> : current ? 'Current plan' : p.cents === 0 ? (signedIn ? 'Free plan' : 'Start free') : `Choose ${p.name}`}
                 </button>
               </div>
             );

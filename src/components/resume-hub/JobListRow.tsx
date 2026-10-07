@@ -10,7 +10,7 @@ import { memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Flame, Bookmark } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
-import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, formatLocation } from "@/lib/jobPostingFormat";
+import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, formatLocation, tidyTitle, tidyCompany } from "@/lib/jobPostingFormat";
 import { HOT_WINDOW_MS } from "./browseJobsHelpers";
 import { ScorePill } from "./ScorePill";
 import { cleanApplyUrl } from "@/lib/applyUrl";
@@ -68,9 +68,9 @@ function JobListRowImpl({
           </div>
         )}
         <div className="min-w-0 flex-1 space-y-1">
-          <p className="rh-display text-[15.5px] leading-snug">{j.title}</p>
+          <p className="rh-display text-[15.5px] leading-snug">{tidyTitle(j.title)}</p>
           <p className="text-[13px] truncate" style={{ color: "var(--rh-muted)" }}>
-            {j.company}{j.location ? ` • ${formatLocation(j.location)}` : ""}
+            {tidyCompany(j.company, j.company_slug)}{j.location ? ` • ${formatLocation(j.location)}` : ""}
           </p>
           <div className="flex items-center gap-2 flex-wrap pt-0.5">
             <ScorePill score={score} hasScored={hasScored} />
