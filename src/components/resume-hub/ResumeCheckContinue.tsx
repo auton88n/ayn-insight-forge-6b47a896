@@ -6,12 +6,6 @@ import { createPendingResumeOperation } from '@/lib/pendingResumeOperation';
 import { HOME_TAB_HANDOFF_KEY } from '@/components/landing/homeTabMeta';
 import type { Json } from '@/integrations/supabase/types';
 
-// A readable title from the pasted job text: the first line that isn't an ID or a label.
-function titleFromJd(jd: string): string {
-  const line = jd.split(/\r?\n/).map((l) => l.trim()).find((l) => l.length >= 4 && l.length <= 90 && !/(requisition|req\.?\s*id|job\s*id|posting\s*id|^\W*\d+\W*$|:\s*\d+$)/i.test(l));
-  return line || 'Job from resume check';
-}
-
 export function ResumeCheckContinue({ resumeText, jdText, onSignIn }: {
   resumeText: string; jdText: string; onSignIn: () => void;
 }) {
@@ -47,7 +41,7 @@ export function ResumeCheckContinue({ resumeText, jdText, onSignIn }: {
         // Save the JD first. Both steps are idempotent; a partial failure
         // leaves useful owned data and never deletes the previous resume.
         const { error: jobError } = await supabase.from('jobs').upsert({
-          id, user_id: userId, source: 'manual', title: titleFromJd(jdText), jd_text: jdText,
+          id, user_id: userId, source: 'manual', title: 'Job from resume check', jd_text: jdText,
         }, { onConflict: 'id' });
         if (jobError) throw jobError;
         savedJobId = id;

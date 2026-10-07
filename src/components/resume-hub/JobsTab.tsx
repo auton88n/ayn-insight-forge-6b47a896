@@ -227,8 +227,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // enforced server side (figuresVerified) and stated here so the person
   // knows it's not part of what they're being asked to decide on.
   const [tailorConfirmOpen, setTailorConfirmOpen] = useState(false);
-  const [coverConfirmOpen, setCoverConfirmOpen] = useState(false);
-  const [removeTargetId, setRemoveTargetId] = useState<string | null>(null);
 
   // v3.172.0 — a real filter/status view over the pipeline, not a full
   // drag-and-drop kanban board -- delivers the same "see where everything
@@ -251,21 +249,14 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // own save/unsave actions invalidate this same key (savedJobsQueryKey,
   // src/lib/queryKeys.ts) after writing to the same "jobs" table, so a job
   // added or removed there is never hidden behind a stale cache here.
-  const { data: jobs = [], isLoading: jobsLoading } = useQuery({
+  const { data: jobs = [] } = useQuery({
     queryKey: jobsQueryKey,
     queryFn: async () => {
       const { data, error } = await supabase.from("jobs")
         .select("id, company, title, location, source_url, jd_text, created_at, application_status, application_status_changed_at")
         .eq("user_id", userId).order("created_at", { ascending: false });
       if (error) throw error;
-      // The same posting saved twice (different tabs, a re-save) shows once; newest wins.
-      const seen = new Set<string>();
-      return ((data as JobRow[]) ?? []).filter((j) => {
-        const key = j.source_url ? `u:${cleanApplyUrl(j.source_url)}` : `t:${(j.company || "").toLowerCase()}|${(j.title || "").toLowerCase()}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+      return (data as JobRow[]) ?? [];
     },
   });
 
@@ -494,12 +485,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
 
 
   const removeJob = async (id: string) => {
-    setRemoveTargetId(null);
-    const { error } = await supabase.from("jobs").delete().eq("id", id);
-    if (error) {
-      toast({ title: "Couldn't remove this job", description: error.message, variant: "destructive" });
-      return;
-    }
+    if (!confirm("Remove this job?")) return;
+    await supabase.from("jobs").delete().eq("id", id);
     if (selected?.id === id) setSelected(null);
     queryClient.setQueryData<JobRow[]>(jobsQueryKey, (prev) => (prev ?? []).filter((j) => j.id !== id));
   };
@@ -593,7 +580,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                   {matchData.score}/100
                 </div>
               )}
-              <Button onClick={() => setRemoveTargetId(selected.id)} variant="ghost" size="icon" aria-label="Remove job"><Trash2 className="w-4 h-4" /></Button>
+              <Button onClick={() => removeJob(selected.id)} variant="ghost" size="icon" aria-label="Remove job"><Trash2 className="w-4 h-4" /></Button>
             </div>
           </div>
 
@@ -678,7 +665,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                     ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Tailoring…</>
                     : "Tailor resume"}
                 </Button>
-                <Button onClick={() => setCoverConfirmOpen(true)} disabled={activeAction !== null || !primaryResume || !tailoring.enabled} variant="outline">
+                <Button onClick={writeCover} disabled={activeAction !== null || !primaryResume || !tailoring.enabled} variant="outline">
                   {activeAction === "cover"
                     ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Writing…</>
                     : "Write cover letter"}
@@ -881,40 +868,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        <Dialog open={coverConfirmOpen} onOpenChange={setCoverConfirmOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Write a cover letter?</DialogTitle>
-              <DialogDescription>
-                AYN writes a cover letter for this job from your real profile. It never invents experience you don't have. This uses 1 credit.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setCoverConfirmOpen(false)}>Cancel</Button>
-              <Button
-                onClick={() => { setCoverConfirmOpen(false); writeCover(); }}
-                style={{ background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }}
-                className="hover:opacity-90"
-              >
-                Write cover letter
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={removeTargetId !== null} onOpenChange={(o) => { if (!o) setRemoveTargetId(null); }}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Remove this job?</DialogTitle>
-              <DialogDescription>It leaves your saved jobs. Documents you made for it stay in your history.</DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setRemoveTargetId(null)}>Cancel</Button>
-              <Button variant="destructive" onClick={() => removeTargetId && removeJob(removeTargetId)}>Remove job</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     );
   }
@@ -999,11 +952,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
         </div>
       )}
 
-      {jobsLoading && jobs.length === 0 && (
-        <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--rh-muted)" }} /></div>
-      )}
-
-      {!jobsLoading && jobs.length === 0 && (
+      {jobs.length === 0 && (
         <Card className="p-10 text-center rounded-xl shadow-none hover:shadow-none" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
           <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
           No saved jobs yet. Browse jobs to get started.
