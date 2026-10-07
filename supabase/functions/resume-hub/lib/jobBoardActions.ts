@@ -12,6 +12,7 @@ import { mapConcurrent } from "../../_shared/concurrency.ts";
 import type { BaseCtx } from "./actionCtx.ts";
 import { publicResumeReview } from "../../_shared/publicResumeReview.ts";
 import { embedText, FALLBACK_EMBED_MODEL } from "./embeddings.ts";
+import { jobEmbedInput } from "../../_shared/jobEmbedText.ts";
 
 // ---------------- job_board_score (free) ----------------
 // v3.134.0 — the point of storing real, clean JD text from job_postings
@@ -80,9 +81,22 @@ export async function handleJobBoardScore(ctx: BaseCtx): Promise<Response> {
     yearsExperience: identity?.computed_years_experience.value || 0,
   };
 
-  const scores = await mapConcurrent(capped, 2, async (j) => {
+  const scores = await mapConcurrent(capped, 4, async (j) => {
     const jdText = String(j.description || "");
-    const jobVec = vectors.get(j.id);
+    let jobVec = vectors.get(j.id);
+    // A job the background worker has not reached yet is embedded right here, so one list never
+    // mixes two different scoring methods. The vector is saved so it is only ever paid for once.
+    if (profileVec && !jobVec && jdText.trim()) {
+      try {
+        const { vector, model } = await embedText(jobEmbedInput({ title: j.title, description: jdText }));
+        if (model === profileVec.model) {
+          jobVec = vector;
+          await adminScore.from("job_postings").update({
+            embedding: JSON.stringify(vector), embedding_model: model, embedded_at: new Date().toISOString(),
+          }).eq("id", j.id);
+        }
+      } catch { /* fall through to the wording fallback */ }
+    }
     if (profileVec && jobVec) {
       const q = computeQuickScore(jdText, String(j.title || ""), quickProfile);
       return { id: j.id, match_pct: blendMatch(cosine(profileVec.vector, jobVec), q.titlePct / 100, q.experiencePct / 100), method: "semantic" };

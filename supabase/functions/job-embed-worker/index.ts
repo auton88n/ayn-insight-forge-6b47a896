@@ -10,8 +10,8 @@ import { embedText, FALLBACK_EMBED_MODEL } from "../resume-hub/lib/embeddings.ts
 import { mapConcurrent } from "../_shared/concurrency.ts";
 import { jobEmbedInput } from "../_shared/jobEmbedText.ts";
 
-const BATCH = 120;
-const CONCURRENCY = 4;
+const BATCH = 300;
+const CONCURRENCY = 8;
 const TIME_BUDGET_MS = 90_000;
 
 const json = (body: unknown, status = 200) =>
