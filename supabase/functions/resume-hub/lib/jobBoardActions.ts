@@ -144,7 +144,7 @@ async function profileVector(
   const { vector, model } = await embedText(input);
   if (model === FALLBACK_EMBED_MODEL) return null; // hash vectors must never be compared with real ones
   const value = { vector, model };
-  cacheSet(admin, cacheKey, userId, "job_board_score", value, 7 * 24 * 60 * 60 * 1000);
+  await cacheSet(admin, cacheKey, userId, "job_board_score", value, 7 * 24 * 60 * 60 * 1000);
   return value;
 }
 
