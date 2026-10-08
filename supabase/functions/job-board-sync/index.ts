@@ -352,6 +352,8 @@ async function syncRegion(
           location: j.location ? String(j.location).slice(0, 300) : null,
           apply_url: cleanApplyUrl(j.url!),
           posted_at: j.posted_at!,
+          // The last time this sync saw the posting still listed (independent of the date the feed shows).
+          last_seen_at: new Date().toISOString(),
           scam_suspected: scam.suspected || urlTrust.suspected,
           scam_reason: scam.reason ?? urlTrust.reason,
           // v3.166.0 — freehire's own structured enrichment, captured as-is,
