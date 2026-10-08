@@ -271,6 +271,49 @@ export function resolveLogoUrl(job: JobPosting): string | null {
   return job.company_logo_url || null;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** What AYN knows about how long a listing has really been around, in plain words. Only shown when it adds
+ * something: the date a company or feed shows can be refreshed on a listing that has been open for much longer. */
+export function jobAgeNotes(job: { posted_at: string; first_seen_at?: string | null; repost_count?: number | null }): Array<{ text: string; title: string }> {
+  const notes: Array<{ text: string; title: string }> = [];
+  const now = Date.now();
+  const first = job.first_seen_at ? Date.parse(job.first_seen_at) : NaN;
+  const posted = Date.parse(job.posted_at);
+  if (Number.isFinite(first)) {
+    const firstDays = Math.floor((now - first) / DAY_MS);
+    const postedDays = Number.isFinite(posted) ? Math.floor((now - posted) / DAY_MS) : 0;
+    if (firstDays >= 7 && firstDays - postedDays >= 5) {
+      notes.push({
+        text: `First seen ${firstDays} days ago`,
+        title: `AYN has tracked this listing since ${new Date(first).toLocaleDateString()}. Companies sometimes refresh the date shown on a listing that has been open for longer.`,
+      });
+    }
+  }
+  const reposts = Number(job.repost_count || 0);
+  if (reposts >= 1) {
+    notes.push({
+      text: `Listed ${reposts + 1} times`,
+      title: "AYN saw this same role (same company, title and place) taken down and listed again.",
+    });
+  }
+  return notes;
+}
+
+/** Facts the posting itself states in its text. Left out when the posting is silent. */
+export function jobFactChips(job: { years_required?: number | null; sponsorship?: string | null }): Array<{ key: string; text: string; title: string }> {
+  const chips: Array<{ key: string; text: string; title: string }> = [];
+  if (job.years_required) {
+    chips.push({ key: "years", text: `${job.years_required}+ years asked`, title: "The most years of experience this posting asks for, read from its own text." });
+  }
+  if (job.sponsorship === "not_offered") {
+    chips.push({ key: "visa", text: "No visa sponsorship", title: "The posting says it does not sponsor visas." });
+  } else if (job.sponsorship === "offered") {
+    chips.push({ key: "visa", text: "Visa sponsorship offered", title: "The posting says it offers visa sponsorship." });
+  }
+  return chips;
+}
+
 export function postedAge(iso: string) {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
   if (mins < 60) return `${mins} min ago`;

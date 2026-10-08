@@ -7,7 +7,7 @@ import { memo, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Building2, ExternalLink, Loader2, MapPin, Plus, ShieldCheck, TrendingUp } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
-import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, JobDescriptionBody, formatLocation } from "@/lib/jobPostingFormat";
+import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, JobDescriptionBody, formatLocation, jobAgeNotes, jobFactChips } from "@/lib/jobPostingFormat";
 import { extractCultureSnippet } from "./browseJobsHelpers";
 import { ScorePill } from "./ScorePill";
 import { cleanApplyUrl } from "@/lib/applyUrl";
@@ -54,7 +54,12 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
         // reused here instead of the narrower, wrong capitalize-only fix.
         job.work_mode && { key: "mode", label: "Work mode", value: humanizeSlug(job.work_mode), tone: "trust" as const },
         job.employment_type && { key: "type", label: "Type", value: EMPLOYMENT_TYPE_LABELS[job.employment_type] || humanizeSlug(job.employment_type) },
-      ].filter((c): c is { key: string; label: string; value: string; tone?: "gold" | "trust" } => !!c);
+        // Facts the posting states in its own text (read once, never guessed).
+        ...jobFactChips(job).map((c) => ({
+          key: c.key, label: c.text, value: c.text, title: c.title,
+          tone: c.key === "visa" ? (job.sponsorship === "offered" ? "trust" as const : "gold" as const) : undefined,
+        })),
+      ].filter((c): c is { key: string; label: string; value: string; tone?: "gold" | "trust"; title?: string } => !!c);
 
   // Sept 2026 -- "why still small card not like the other one full and
   // scroll in... i want you to copy exactly how the cards in job search
@@ -107,6 +112,9 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
         <div className="flex items-center gap-2 flex-wrap">
           <ScorePill score={score} hasScored={hasScored} size={44} />
           <span className="text-xs" style={{ color: "var(--rh-faint)" }}>Posted {postedAge(job.posted_at)} · {postedDate(job.posted_at)}</span>
+          {jobAgeNotes(job).map((n) => (
+            <span key={n.text} className="text-xs font-semibold" style={{ color: "var(--rh-gold)" }} title={n.title}>{n.text}</span>
+          ))}
         </div>
 
         {/* v3.169.0 — asked directly to research what job seekers actually
@@ -151,7 +159,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
             {highlightCells.map((c, i) => (
               <span key={c.key} className="inline-flex items-center gap-2">
                 {i > 0 && <span aria-hidden="true" style={{ color: "var(--rh-hair)" }}>·</span>}
-                <span style={{ color: c.tone === "gold" ? "var(--rh-gold)" : c.tone === "trust" ? "var(--rh-trust)" : "var(--rh-muted)" }}>
+                <span title={c.title} style={{ color: c.tone === "gold" ? "var(--rh-gold)" : c.tone === "trust" ? "var(--rh-trust)" : "var(--rh-muted)" }}>
                   {c.value}
                 </span>
               </span>

@@ -689,7 +689,7 @@ function renderPublicPage(pathname) {
 // Must match PUBLIC_JOB_SUMMARY_COLUMNS, page size and ordering in
 // src/components/landing/JobsBrowser.tsx. Served stale while it refreshes in
 // the background, so a slow backend can never hold up the page.
-const JOB_SUMMARY_COLUMNS = 'id,source,company,company_slug,company_logo_url,title,location,apply_url,posted_at,employment_type,seniority,salary_min,salary_max,salary_currency,category,work_mode,city';
+const JOB_SUMMARY_COLUMNS = 'id,source,company,company_slug,company_logo_url,title,location,apply_url,posted_at,employment_type,seniority,salary_min,salary_max,salary_currency,category,work_mode,city,last_seen_at,first_seen_at,repost_count,years_required,sponsorship';
 const JOBS_BOOT_FRESH_MS = 60 * 1000;
 let jobsBoot = { data: null, at: 0, refreshing: null };
 

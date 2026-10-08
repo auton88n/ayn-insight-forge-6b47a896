@@ -277,6 +277,12 @@ export interface JobPosting {
   work_mode?: string | null;
   city?: string | null;
   skills?: string[] | null;
+  // What AYN has observed about the listing's life, and facts the posting states in its own text.
+  first_seen_at?: string | null;
+  last_seen_at?: string | null;
+  repost_count?: number | null;
+  years_required?: number | null;
+  sponsorship?: "offered" | "not_offered" | null;
 }
 
 export interface PoolSkill {

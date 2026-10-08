@@ -23,6 +23,7 @@ type ExtendTable<T, R, I, U> = Omit<T, 'Row' | 'Insert' | 'Update'> & {
 };
 type PostingExtras = {
   category: string | null; city: string | null; closure_status: string | null;
+  first_seen_at: string | null; last_seen_at: string | null; repost_count: number | null; years_required: number | null; sponsorship: string | null;
   employment_type: string | null; mass_posting_count: number | null;
   salary_currency: string | null; salary_max: number | null; salary_min: number | null;
   scam_reason: string | null; scam_suspected: boolean | null;
