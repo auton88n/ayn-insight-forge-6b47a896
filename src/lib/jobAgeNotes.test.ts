@@ -25,3 +25,21 @@ describe("jobFactChips", () => {
     expect(jobFactChips({ sponsorship: "offered" }).map((c) => c.text)).toEqual(["Visa sponsorship offered"]);
   });
 });
+
+describe("jobFactChips: new flags", () => {
+  it("flags an entry level role that asks for several years", () => {
+    const c = jobFactChips({ seniority: "junior", years_required: 5 });
+    expect(c[0]).toMatchObject({ text: "Entry level, but asks 5+ years", tone: "gold" });
+    expect(jobFactChips({ seniority: "senior", years_required: 5 })[0].text).toBe("5+ years asked");
+    expect(jobFactChips({ seniority: "junior", years_required: 1 })[0].text).toBe("1+ years asked");
+  });
+  it("shows where a remote role is limited to", () => {
+    expect(jobFactChips({ remote_region: "United States" }).map((c) => c.text)).toEqual(["Remote, United States only"]);
+  });
+  it("shows an upcoming deadline, marks it closing soon, and hides a passed one", () => {
+    const inDays = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+    expect(jobFactChips({ apply_by: inDays(30) })[0].text).toMatch(/^Apply by /);
+    expect(jobFactChips({ apply_by: inDays(3) })[0].text).toMatch(/^Closing soon: apply by /);
+    expect(jobFactChips({ apply_by: inDays(-5) })).toEqual([]);
+  });
+});

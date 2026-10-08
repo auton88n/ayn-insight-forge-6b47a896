@@ -9,6 +9,8 @@ const COVERAGE_LABELS: Array<[string, string, string]> = [
   ['years_required', 'Years of experience asked', 'Read from the text; blank when the posting does not say'],
   ['sponsorship', 'Visa sponsorship stated', 'Only when the posting says it plainly'],
   ['benefits', 'Benefits named', 'Standard benefits the posting lists'],
+  ['remote_region', 'Remote role limited to a place', 'Only when the posting says where, e.g. United States only'],
+  ['apply_by', 'Application deadline stated', 'Rare: most postings do not give one'],
   ['seniority', 'Seniority', 'From the feed'],
   ['category', 'Category', 'From the feed'],
   ['vectors', 'Meaning vector', 'Used for Match me and Explore roles'],

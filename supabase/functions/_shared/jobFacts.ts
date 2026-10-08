@@ -29,6 +29,10 @@ export interface JobFacts {
   work_mode: WorkModeText | null;
   /** Standard benefits the posting names, in plain labels. */
   benefits: string[];
+  /** Where a remote role is limited to, e.g. "United States", when the text says so. */
+  remote_region: string | null;
+  /** The application deadline the posting states, as YYYY-MM-DD. */
+  apply_by: string | null;
 }
 
 const MAX_YEARS = 25;
@@ -206,13 +210,95 @@ export function extractBenefits(text: string): string[] {
   return found;
 }
 
-export function extractJobFacts(description: string | null | undefined, ctx?: { location?: string | null }): JobFacts {
+// ---------------------------------------------------------------------------------------------
+// Where a remote role is limited to, and when applications close.
+// ---------------------------------------------------------------------------------------------
+const REGION_RULES: Array<[RegExp, string]> = [
+  [/\b(?:U\.?S\.?A?\.?|United States)(?![a-z])/, "United States"],
+  [/\bCanad(?:a|ian)\b/, "Canada"],
+  [/\b(?:U\.?K\.?|United Kingdom|Britain)(?![a-z])/, "United Kingdom"],
+  [/\b(?:EU|European Union|Europe|EMEA|EEA)\b/, "Europe"],
+  [/\bAustralia\b/, "Australia"],
+  [/\bGermany\b/, "Germany"],
+  [/\bIndia\b/, "India"],
+];
+const REGION_ALT = "(?:U\\.?S\\.?A?\\.?|United States|Canad(?:a|ian)|U\\.?K\\.?|United Kingdom|Britain|EU|European Union|Europe|EMEA|EEA|Australia|Germany|India)";
+// "Remote, US", "remote within the United States", "remote in Canada or the US". Case matters here: the
+// region names are capitals ("US"), so the lowercase word "us" never counts. The connector must sit right
+// next to "remote" so "remote-first with team members across the U.S." (where the team is) is not a limit.
+const REMOTE_WORD = "(?:[Rr]emote(?:ly)?|REMOTE)";
+const REGION_LIST = `(${REGION_ALT}(?:\\s*(?:,|/|or|and)\\s*(?:the\\s+)?${REGION_ALT})*)(?![A-Za-z])(?!\\s*(?:,|/|or|and)\\s+(?:the\\s+)?[A-Z])`;   // a longer list with places we do not know is left alone
+const REMOTE_THEN_REGION = new RegExp(`\\b${REMOTE_WORD}\\b[^.\\n]{0,14}?(?:\\s*[-\u2013:,(/]\\s*|\\s+(?:[Ww]ithin|[Ii]n|[Ff]rom|[Oo]nly in)\\s+(?:the\\s+)?)${REGION_LIST}`);
+// "must be located in the US", "must reside in Canada" (only trusted when the role is remote).
+const MUST_BE_IN = new RegExp(`\\b(?:[Mm]ust|[Rr]equired to|[Nn]eed to)\\s+(?:be\\s+(?:located|based|authori[sz]ed to work)|reside|live|work)\\s+(?:in|within|from)\\s+(?:the\\s+)?${REGION_LIST}`);
+
+function regionsIn(fragment: string): string[] {
+  const out: string[] = [];
+  for (const [re, label] of REGION_RULES) if (re.test(fragment) && !out.includes(label)) out.push(label);
+  return out;
+}
+
+export function extractRemoteRegion(text: string, isRemote: boolean): string | null {
+  for (const sentence of sentences(text)) {
+    if (BENEFIT_NEGATIVE_WORDS.test(sentence)) continue;
+    const a = REMOTE_THEN_REGION.exec(sentence);
+    const b = isRemote ? MUST_BE_IN.exec(sentence) : null;
+    const hit = a?.[1] ?? b?.[1];
+    if (!hit) continue;
+    const regions = regionsIn(hit);
+    if (regions.length) return regions.join(" or ");
+  }
+  return null;
+}
+
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+const MONTH_ALT = "(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)";
+const DEADLINE_CUE = "(?:apply by|apply before|applications? (?:will )?(?:close|are due|due|accepted until|are accepted until)|application deadline|closing date|deadline to apply|closes on|accepting applications until|submit (?:your )?application by)";
+const DATE_MD = `${MONTH_ALT}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?`;
+const DATE_DM = `(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?${MONTH_ALT}(?:,?\\s+(\\d{4}))?`;
+const DEADLINE_RE = new RegExp(`\\b${DEADLINE_CUE}[^.\\n]{0,25}?(?:(${MONTH_ALT})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?|(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTH_ALT})(?:,?\\s+(\\d{4}))?|(\\d{4})-(\\d{2})-(\\d{2}))`, "i");
+
+function monthIndex(name: string): number {
+  const key = name.toLowerCase().slice(0, 3);
+  return MONTHS.findIndex((m) => m.startsWith(key));
+}
+
+/** A stated application deadline, or null. Only dates from a month ago to a year ahead are believed. */
+export function extractApplyBy(text: string, now: Date = new Date()): string | null {
+  const m = DEADLINE_RE.exec(text);
+  if (!m) return null;
+  let y: number | null = null, mo: number, d: number;
+  if (m[1]) { mo = monthIndex(m[1]); d = parseInt(m[2], 10); y = m[3] ? parseInt(m[3], 10) : null; }
+  else if (m[5]) { mo = monthIndex(m[5]); d = parseInt(m[4], 10); y = m[6] ? parseInt(m[6], 10) : null; }
+  else { y = parseInt(m[7], 10); mo = parseInt(m[8], 10) - 1; d = parseInt(m[9], 10); }
+  if (mo < 0 || mo > 11 || d < 1 || d > 31) return null;
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  if (y === null) {
+    // No year written: the next time that date comes round.
+    y = now.getUTCFullYear();
+    if (Date.UTC(y, mo, d) < today - 30 * 86_400_000) y += 1;
+  }
+  const t = Date.UTC(y, mo, d);
+  const check = new Date(t);
+  if (check.getUTCMonth() !== mo || check.getUTCDate() !== d) return null;   // 31 February and friends
+  if (t < today - 30 * 86_400_000 || t > today + 365 * 86_400_000) return null;
+  return check.toISOString().slice(0, 10);
+}
+
+export function extractJobFacts(
+  description: string | null | undefined,
+  ctx?: { location?: string | null; workMode?: string | null; now?: Date },
+): JobFacts {
   const text = String(description || "");
+  const mode = extractWorkMode(text);
+  const isRemote = mode === "remote" || String(ctx?.workMode || "").toLowerCase() === "remote";
   return {
     years_required: extractYearsRequired(text),
     sponsorship: extractSponsorship(text),
     salary: extractSalaryFromText(text, ctx?.location),
-    work_mode: extractWorkMode(text),
+    work_mode: mode,
     benefits: extractBenefits(text),
+    remote_region: isRemote ? extractRemoteRegion(text, true) : null,
+    apply_by: extractApplyBy(text, ctx?.now),
   };
 }

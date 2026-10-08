@@ -7,7 +7,7 @@ import { memo, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Building2, ExternalLink, Loader2, MapPin, Plus, ShieldCheck, TrendingUp } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
-import { CompanyHiringSpeedNote } from "@/components/shared/CompanyHiringSpeedNote";
+import { CompanyInsightsNote } from "@/components/shared/CompanyInsightsNote";
 import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, JobDescriptionBody, formatLocation, jobAgeNotes, jobFactChips } from "@/lib/jobPostingFormat";
 import { extractCultureSnippet } from "./browseJobsHelpers";
 import { ScorePill } from "./ScorePill";
@@ -57,8 +57,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
         job.employment_type && { key: "type", label: "Type", value: EMPLOYMENT_TYPE_LABELS[job.employment_type] || humanizeSlug(job.employment_type) },
         // Facts the posting states in its own text (read once, never guessed).
         ...jobFactChips(job).map((c) => ({
-          key: c.key, label: c.text, value: c.text, title: c.title,
-          tone: c.key === "visa" ? (job.sponsorship === "offered" ? "trust" as const : "gold" as const) : undefined,
+          key: c.key, label: c.text, value: c.text, title: c.title, tone: c.tone,
         })),
       ].filter((c): c is { key: string; label: string; value: string; tone?: "gold" | "trust"; title?: string } => !!c);
 
@@ -168,7 +167,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
           </div>
         )}
 
-        <CompanyHiringSpeedNote slug={job.company_slug} company={job.company} className="text-xs" />
+        <CompanyInsightsNote slug={job.company_slug} company={job.company} className="text-xs" />
 
         {job.benefits && job.benefits.length > 0 && (
           <p className="text-xs" style={{ color: "var(--rh-muted)" }} title="Standard benefits this posting names in its own text.">

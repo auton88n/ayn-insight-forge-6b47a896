@@ -287,6 +287,8 @@ export interface JobPosting {
   salary_text_period?: "year" | "month" | "hour" | null;
   work_mode_text?: "remote" | "hybrid" | "onsite" | null;
   benefits?: string[] | null;
+  remote_region?: string | null;
+  apply_by?: string | null;
   repost_count?: number | null;
   years_required?: number | null;
   sponsorship?: "offered" | "not_offered" | null;

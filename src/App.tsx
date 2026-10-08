@@ -52,6 +52,7 @@ const Employers = lazy(() => import("./pages/Employers"));
 const CheckResumePage = lazy(() => import("./pages/CheckResume"));
 const PublicJobsPage = lazy(() => import("./pages/PublicJobs"));
 const SalaryGuidePage = lazy(() => import("./pages/SalaryGuide"));
+const CompanyPageRoute = lazy(() => import("./pages/CompanyPage"));
 const InsightsPage = lazy(() => import("./pages/Insights"));
 const InsightsArticlePage = lazy(() => import("./pages/InsightsArticle"));
 // const AIAgents = lazy(() => import("./pages/services/AIAgents"));
@@ -135,6 +136,7 @@ const AnimatedRoutes = () => {
       <Route path="/jobs/location/:location" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
       <Route path="/jobs/:id" element={<Suspense fallback={<PageLoader />}><PublicJobsPage /></Suspense>} />
       <Route path="/salary-guide" element={<Suspense fallback={<PageLoader />}><SalaryGuidePage /></Suspense>} />
+      <Route path="/companies/:slug" element={<Suspense fallback={<PageLoader />}><CompanyPageRoute /></Suspense>} />
       <Route path="/insights" element={<Suspense fallback={<PageLoader />}><InsightsPage /></Suspense>} />
       <Route path="/insights/:slug" element={<Suspense fallback={<PageLoader />}><InsightsArticlePage /></Suspense>} />
       {/* v3.216.0 -- /features, /how-it-works, /why-ayn, /real-ai,

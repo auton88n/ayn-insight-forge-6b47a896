@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
   const admin = createClient(url, key, { auth: { persistSession: false } });
   const { data: rows, error } = await admin
     .from("job_postings")
-    .select("id, description, location")
+    .select("id, description, location, work_mode")
     .is("facts_extracted_at", null)
     .order("created_at", { ascending: false })
     .limit(BATCH);
@@ -31,9 +31,9 @@ Deno.serve(async (req) => {
 
   const started = Date.now();
   const summary = { picked: (rows || []).length, updated: 0, failed: 0, skipped_time: 0, with_years: 0, with_sponsorship: 0, with_salary: 0, with_work_mode: 0, with_benefits: 0 };
-  await mapConcurrent(rows || [], CONCURRENCY, async (row: { id: string; description: string | null; location: string | null }) => {
+  await mapConcurrent(rows || [], CONCURRENCY, async (row: { id: string; description: string | null; location: string | null; work_mode: string | null }) => {
     if (Date.now() - started > TIME_BUDGET_MS) { summary.skipped_time++; return; }
-    const facts = extractJobFacts(row.description, { location: row.location });
+    const facts = extractJobFacts(row.description, { location: row.location, workMode: row.work_mode });
     const { error: updateError } = await admin.from("job_postings").update({
       years_required: facts.years_required,
       sponsorship: facts.sponsorship,
@@ -45,6 +45,8 @@ Deno.serve(async (req) => {
       salary_text_annual_max: facts.salary?.annual_max ?? null,
       work_mode_text: facts.work_mode,
       benefits: facts.benefits.length ? facts.benefits : null,
+      remote_region: facts.remote_region,
+      apply_by: facts.apply_by,
       facts_extracted_at: new Date().toISOString(),
     }).eq("id", row.id);
     if (updateError) { summary.failed++; return; }

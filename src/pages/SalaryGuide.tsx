@@ -7,6 +7,7 @@ import { LandingFooter } from '@/components/landing/LandingFooter';
 import { SectionHeading } from '@/components/shared/SectionHeading';
 import { Skeleton } from '@/components/ui/skeleton';
 import { humanizeCategory } from '@/lib/jobPostingFormat';
+import { PayCheck } from '@/components/salary/PayCheck';
 import { TrendingUp, MapPin, Briefcase, ShieldCheck } from 'lucide-react';
 
 const EMBER = 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)';
@@ -142,6 +143,10 @@ const SalaryGuide = () => {
                 <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                 Last computed {fmtDate(snap.generated_at)}. AYN's catalog refreshes every two hours and removes postings within about three days of the company taking them down, so this reflects the market as it stands today, not a stale archive.
               </p>
+
+              <div className="mt-10">
+                <PayCheck categories={snap.categories} />
+              </div>
 
               <div className="mt-14">
                 <SectionHeading>Median salary by role, ranked by how many are open</SectionHeading>

@@ -48,7 +48,7 @@ interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile
 // handoff from Browse jobs having just happened.
 const LAST_OPEN_KEY = "ayn_jobs_last_open";
 
-interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string; application_status: string; application_status_changed_at: string }
+interface JobRow { id: string; source?: string | null; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string; application_status: string; application_status_changed_at: string }
 
 // v3.182.0 — "status silence is the #1 killer": research consistently found
 // candidates expect a reply within days and disengage after 1-2 weeks of
@@ -256,7 +256,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     queryKey: jobsQueryKey,
     queryFn: async () => {
       const { data, error } = await supabase.from("jobs")
-        .select("id, company, title, location, source_url, jd_text, created_at, application_status, application_status_changed_at")
+        .select("id, source, company, title, location, source_url, jd_text, created_at, application_status, application_status_changed_at")
         .eq("user_id", userId).order("created_at", { ascending: false });
       if (error) throw error;
       return (data as JobRow[]) ?? [];
@@ -277,6 +277,24 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
       return Object.fromEntries(scores.filter((s) => s.match_pct != null).map((s) => [s.id, s.match_pct as number]));
     },
   });
+
+  // Which saved jobs have left AYN's feed. "taken_down" when AYN watched it leave, "not_listed" when it
+  // simply is not in the feed any more. Only jobs saved from the feed are judged; a job someone added by
+  // hand was never in it.
+  const { data: listingById = {} } = useQuery({
+    queryKey: ["saved-jobs-status", userId, jobs.length],
+    enabled: jobs.length > 0,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("saved_jobs_status" as never);
+      if (error) throw error;
+      const rows = (data as unknown as Array<{ job_id: string; status: string; taken_down_at: string | null }>) ?? [];
+      return Object.fromEntries(rows.map((r) => [r.job_id, r]));
+    },
+  });
+  const isGone = (j: JobRow) => j.source === "job_board" && ["taken_down", "not_listed"].includes(listingById[j.id]?.status);
+  const goneCount = jobs.filter(isGone).length;
 
   // The "restore what was open" logic below is a real, order-sensitive,
   // one-time side effect of the list arriving (consume a handoff flag,
@@ -1022,6 +1040,12 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
         </div>
       )}
 
+      {goneCount > 0 && (
+        <p className="text-sm rounded-lg px-3 py-2" style={{ background: "var(--rh-tint)", color: "var(--rh-muted)" }}>
+          {goneCount} of your saved jobs {goneCount === 1 ? "is" : "are"} no longer listed. The company may have filled or taken {goneCount === 1 ? "it" : "them"} down, so check before you spend time tailoring.
+        </p>
+      )}
+
       {jobsPending && (
         <Card className="p-10 text-center rounded-xl shadow-none hover:shadow-none" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
           <Loader2 className="w-6 h-6 mx-auto mb-3 animate-spin opacity-60" />
@@ -1123,7 +1147,14 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                 >
                   {meta.label}{showSilentDays ? ` · ${silentDays}d silent` : ""}
                 </span>
-                {fitById[j.id] != null && (
+                {isGone(j) && (
+                  <span className="text-[11px] font-bold" style={{ color: "var(--rh-gold)" }} title="This job is no longer in AYN's job feed. The company may have filled or taken down the posting.">
+                    {listingById[j.id]?.status === "taken_down" && listingById[j.id]?.taken_down_at
+                      ? `Taken down ${new Date(listingById[j.id].taken_down_at!).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+                      : "No longer listed"}
+                  </span>
+                )}
+                {fitById[j.id] != null && !isGone(j) && (
                   <span className="text-[11px] font-bold" style={{ color: "var(--rh-trust)" }} title="How closely this job matches your resume, worked out automatically">
                     Fit {fitById[j.id]}%
                   </span>

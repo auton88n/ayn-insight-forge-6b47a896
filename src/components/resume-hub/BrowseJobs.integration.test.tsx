@@ -4,6 +4,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, act, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
@@ -91,7 +92,7 @@ const active = () => document.querySelector('.ayn-match-row.is-active');
 function mount() {
   const onAdded = vi.fn();
   const qc = new QueryClient();
-  render(<QueryClientProvider client={qc}><BrowseJobs userId="user-1" onAdded={onAdded} onOpenProfile={vi.fn()} /></QueryClientProvider>);
+  render(<MemoryRouter><QueryClientProvider client={qc}><BrowseJobs userId="user-1" onAdded={onAdded} onOpenProfile={vi.fn()} /></QueryClientProvider></MemoryRouter>);
   return { onAdded };
 }
 

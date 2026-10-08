@@ -88,7 +88,7 @@ app.use((req, res, next) => {
 
 // Log only crawler endpoints, never query strings, IPs, cookies or raw agents.
 // Agent labels are unverified claims, not authenticated Google requests.
-const sitemapPaths = new Set(['/sitemap.xml', '/sitemap-jobs.xml', '/sitemap-insights.xml']);
+const sitemapPaths = new Set(['/sitemap.xml', '/sitemap-jobs.xml', '/sitemap-insights.xml', '/sitemap-companies.xml']);
 app.use((req, res, next) => {
   if (!sitemapPaths.has(req.path)) return next();
   const started = performance.now();
@@ -527,6 +527,84 @@ app.get('/jobs/:id', async (req, res, next) => {
   }
 });
 
+// Company pages: a public page per company with its open roles and what AYN has observed about how it
+// hires. Rendered here too, so a crawler that does not run JavaScript sees the real text.
+const COMPANY_SLUG_RE = /^[a-z0-9][a-z0-9._-]{0,120}$/i;
+const COMPANY_PAGE_CACHE_MS = 10 * 60 * 1000;
+const COMPANY_PAGE_CACHE_MAX = 500;
+const companyPageCache = new Map();
+
+async function fetchRpc(name, body) {
+  const SUPABASE_ANON_KEY = requireSupabaseAnonKey();
+  const r = await fetch(`${SUPABASE_ORIGIN}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`rpc ${name} failed: ${r.status}`);
+  return r.json();
+}
+
+function renderCompanyBody(p) {
+  const i = p.insights || {};
+  const lines = [`<p>${escapeHtml(p.name)} has ${i.open_roles} open roles on AYN.</p>`];
+  if (i.pay) lines.push(`<p>${escapeHtml(p.name)} shows pay on ${i.pay.pct}% of its ${i.pay.postings} open postings.</p>`);
+  if (i.speed) lines.push(`<p>Roles at ${escapeHtml(p.name)} typically stay open about ${i.speed.median_days_open} days, based on ${i.speed.closed_tracked} closed postings AYN has tracked.</p>`);
+  if (p.relisted_roles > 0) lines.push(`<p>${p.relisted_roles} of its live roles have been listed before.</p>`);
+  const cats = (p.top_categories || []).map((c) => `${escapeHtml(String(c.category).replace(/_/g, ' '))} (${c.open_roles})`).join(', ');
+  if (cats) lines.push(`<p>Where it is hiring: ${cats}.</p>`);
+  const ben = (p.common_benefits || []).map((b) => `${escapeHtml(b.benefit)} (${b.roles})`).join(', ');
+  if (ben) lines.push(`<p>Benefits its postings name: ${ben}.</p>`);
+  const jobs = (p.jobs || []).map((j) => `<li><a href="/jobs/${escapeHtml(j.id)}">${escapeHtml(j.title)}</a>${j.location ? ` (${escapeHtml(j.location)})` : ''}</li>`).join('');
+  return `<main><h1>${escapeHtml(p.name)}: open roles and hiring stats</h1>${lines.join('')}<h2>Open roles</h2><ul>${jobs}</ul></main>`;
+}
+
+app.get('/companies/:slug', async (req, res, next) => {
+  const { slug } = req.params;
+  if (!COMPANY_SLUG_RE.test(slug)) { next(); return; }
+  if (indexHtml === null) { res.status(503).send('Service temporarily unavailable, please retry.'); return; }
+  const key = slug.toLowerCase();
+  const now = Date.now();
+  const cached = companyPageCache.get(key);
+  if (cached && now - cached.at < COMPANY_PAGE_CACHE_MS) { res.status(cached.status).type('html').send(cached.html); return; }
+  try {
+    const p = await fetchRpc('company_profile', { p_company_slug: key });
+    if (!p) {
+      // A company with no live roles must not be a crawler-visible soft 404.
+      res.status(404).type('html').send(indexHtml);
+      return;
+    }
+    const title = `${p.name} jobs and hiring stats | AYN`;
+    const description = `${p.name} has ${p.insights.open_roles} open roles on AYN. See how openly it shows pay and how long its roles stay open, counted from real postings.`.slice(0, 300);
+    let html = swapMeta(indexHtml, { title, description, canonical: `${SITE}/companies/${encodeURIComponent(key)}` });
+    html = injectHead(html, `<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'Organization', name: p.name, ...(p.logo_url ? { logo: p.logo_url } : {}) }).replace(/</g, '\\u003c')}</script>`);
+    html = injectRoot(html, renderCompanyBody(p));
+    if (companyPageCache.size >= COMPANY_PAGE_CACHE_MAX) companyPageCache.delete(companyPageCache.keys().next().value);
+    companyPageCache.set(key, { html, at: now, status: 200 });
+    res.type('html').send(html);
+  } catch (err) {
+    console.error('/companies/:slug failed:', err.message);
+    res.status(503).type('html').send(indexHtml);
+  }
+});
+
+let companiesSitemapCache = { xml: null, at: 0 };
+app.get('/sitemap-companies.xml', async (req, res) => {
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  const now = Date.now();
+  if (companiesSitemapCache.xml && now - companiesSitemapCache.at < 30 * 60 * 1000) { res.send(companiesSitemapCache.xml); return; }
+  try {
+    const rows = await fetchRpc('company_sitemap_list', { p_min: 3, p_limit: 5000 });
+    const urls = rows.map((r) => `  <url>\n    <loc>${SITE}/companies/${encodeURIComponent(r.slug)}</loc>\n    <lastmod>${new Date(r.last_posted).toISOString().slice(0, 10)}</lastmod>\n  </url>`).join('\n');
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+    companiesSitemapCache = { xml, at: now };
+    res.send(xml);
+  } catch (err) {
+    console.error('sitemap-companies.xml failed:', err.message);
+    res.send('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n');
+  }
+});
+
 // Every real route in src/App.tsx. Anything not in here is a genuine 404,
 // so we still serve the SPA shell but with a 404 status, otherwise Google
 // indexes every junk path as a live page.
@@ -538,7 +616,7 @@ const ROUTES = [
   '/approval-result', '/subscription-success', '/subscription-canceled',
   '/dashboard', '/admin',
 ];
-const PREFIXES = ['/resume-hub/', '/dashboard/', '/admin/', '/manage-', '/jobs/', '/insights/'];
+const PREFIXES = ['/resume-hub/', '/dashboard/', '/admin/', '/manage-', '/jobs/', '/insights/', '/companies/'];
 
 function isKnownRoute(pathname) {
   if (ROUTES.includes(pathname)) return true;
@@ -689,7 +767,7 @@ function renderPublicPage(pathname) {
 // Must match PUBLIC_JOB_SUMMARY_COLUMNS, page size and ordering in
 // src/components/landing/JobsBrowser.tsx. Served stale while it refreshes in
 // the background, so a slow backend can never hold up the page.
-const JOB_SUMMARY_COLUMNS = 'id,source,company,company_slug,company_logo_url,title,location,apply_url,posted_at,employment_type,seniority,salary_min,salary_max,salary_currency,category,work_mode,city,last_seen_at,first_seen_at,repost_count,years_required,sponsorship,salary_text_min,salary_text_max,salary_text_currency,salary_text_period,work_mode_text,benefits';
+const JOB_SUMMARY_COLUMNS = 'id,source,company,company_slug,company_logo_url,title,location,apply_url,posted_at,employment_type,seniority,salary_min,salary_max,salary_currency,category,work_mode,city,last_seen_at,first_seen_at,repost_count,years_required,sponsorship,salary_text_min,salary_text_max,salary_text_currency,salary_text_period,work_mode_text,benefits,remote_region,apply_by';
 const JOBS_BOOT_FRESH_MS = 60 * 1000;
 let jobsBoot = { data: null, at: 0, refreshing: null };
 

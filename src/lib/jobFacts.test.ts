@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractBenefits, extractJobFacts, extractSalaryFromText, extractSponsorship, extractWorkMode, extractYearsRequired } from "../../supabase/functions/_shared/jobFacts";
+import { extractApplyBy, extractBenefits, extractJobFacts, extractRemoteRegion, extractSalaryFromText, extractSponsorship, extractWorkMode, extractYearsRequired } from "../../supabase/functions/_shared/jobFacts";
 
 describe("extractYearsRequired", () => {
   it("reads the common phrasings", () => {
@@ -120,5 +120,41 @@ describe("extractBenefits", () => {
   });
   it("does not count a benefit the posting says it lacks", () => {
     expect(extractBenefits("Relocation assistance is not available for this role.")).toEqual([]);
+  });
+});
+
+describe("extractRemoteRegion", () => {
+  it("reads a region limit on a remote role", () => {
+    expect(extractRemoteRegion("This is a remote position within the United States.", true)).toBe("United States");
+    expect(extractRemoteRegion("Location: Remote, US or Canada", true)).toBe("United States or Canada");
+    expect(extractRemoteRegion("Candidates must be located in the UK to be considered.", true)).toBe("United Kingdom");
+  });
+  it("leaves a list that includes places it does not know", () => {
+    expect(extractRemoteRegion("This role will be remote and based in the UK, Ireland or Spain.", true)).toBeNull();
+  });
+  it("does not read an office location as a restriction", () => {
+    expect(extractRemoteRegion("We are remote-first with a headquarters office in the US.", true)).toBeNull();
+    expect(extractRemoteRegion("Fully remote role open worldwide.", true)).toBeNull();
+  });
+  it("only trusts 'must be located in' when the role is remote", () => {
+    expect(extractRemoteRegion("You must be located in the US.", false)).toBeNull();
+  });
+});
+
+describe("extractApplyBy", () => {
+  const now = new Date("2026-10-08T00:00:00Z");
+  it("reads written dates", () => {
+    expect(extractApplyBy("Applications close on November 15, 2026.", now)).toBe("2026-11-15");
+    expect(extractApplyBy("Apply by 20 October 2026", now)).toBe("2026-10-20");
+    expect(extractApplyBy("Application deadline: 2026-12-01", now)).toBe("2026-12-01");
+  });
+  it("takes the next occurrence when no year is written", () => {
+    expect(extractApplyBy("Apply by January 15", now)).toBe("2027-01-15");
+  });
+  it("does not believe impossible, long-past or far-future dates", () => {
+    expect(extractApplyBy("Apply by February 31, 2027", now)).toBeNull();
+    expect(extractApplyBy("Applications close on March 3, 2024", now)).toBeNull();
+    expect(extractApplyBy("Closing date: 5 May 2031", now)).toBeNull();
+    expect(extractApplyBy("Join us. We were founded on March 3.", now)).toBeNull();
   });
 });

@@ -308,15 +308,37 @@ export function jobAgeNotes(job: { posted_at: string; first_seen_at?: string | n
 }
 
 /** Facts the posting itself states in its text. Left out when the posting is silent. */
-export function jobFactChips(job: { years_required?: number | null; sponsorship?: string | null }): Array<{ key: string; text: string; title: string }> {
-  const chips: Array<{ key: string; text: string; title: string }> = [];
-  if (job.years_required) {
+export type FactChip = { key: string; text: string; title: string; tone?: "gold" | "trust" };
+const ENTRY_LEVEL = new Set(["junior", "intern", "entry", "entry_level", "associate", "graduate"]);
+
+export function jobFactChips(job: {
+  years_required?: number | null; sponsorship?: string | null; seniority?: string | null;
+  remote_region?: string | null; apply_by?: string | null;
+}): FactChip[] {
+  const chips: FactChip[] = [];
+  const entryLevelAsksYears = !!job.years_required && job.years_required >= 3 && ENTRY_LEVEL.has(String(job.seniority || "").toLowerCase());
+  if (entryLevelAsksYears) {
+    chips.push({ key: "years", text: `Entry level, but asks ${job.years_required}+ years`, tone: "gold",
+      title: "Listed as an entry or junior role, yet its own text asks for this many years of experience." });
+  } else if (job.years_required) {
     chips.push({ key: "years", text: `${job.years_required}+ years asked`, title: "The most years of experience this posting asks for, read from its own text." });
   }
   if (job.sponsorship === "not_offered") {
-    chips.push({ key: "visa", text: "No visa sponsorship", title: "The posting says it does not sponsor visas." });
+    chips.push({ key: "visa", text: "No visa sponsorship", tone: "gold", title: "The posting says it does not sponsor visas." });
   } else if (job.sponsorship === "offered") {
-    chips.push({ key: "visa", text: "Visa sponsorship offered", title: "The posting says it offers visa sponsorship." });
+    chips.push({ key: "visa", text: "Visa sponsorship offered", tone: "trust", title: "The posting says it offers visa sponsorship." });
+  }
+  if (job.remote_region) {
+    chips.push({ key: "region", text: `Remote, ${job.remote_region} only`, tone: "gold", title: "The posting limits this remote role to people in this place." });
+  }
+  if (job.apply_by) {
+    const due = Date.parse(job.apply_by + "T23:59:59Z");
+    const days = Math.ceil((due - Date.now()) / 86_400_000);
+    if (Number.isFinite(due) && days >= 0) {
+      const when = new Date(job.apply_by + "T12:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      chips.push({ key: "deadline", text: days <= 7 ? `Closing soon: apply by ${when}` : `Apply by ${when}`, tone: days <= 7 ? "gold" : undefined,
+        title: "The application deadline the posting states." });
+    }
   }
   return chips;
 }
