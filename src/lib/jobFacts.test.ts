@@ -70,6 +70,13 @@ describe("extractSalaryFromText", () => {
     expect(extractSalaryFromText("Pay is $45 - $55 per hour", "Denver, CO")).toMatchObject({ period: "hour", annual_min: 93600, annual_max: 114400 });
     expect(extractSalaryFromText("Salary \u20ac4,000 - \u20ac5,000 per month")).toMatchObject({ period: "month", annual_min: 48000, annual_max: 60000, currency: "EUR" });
   });
+  it("does not call a yearly salary monthly because the word appears nearby", () => {
+    const s = extractSalaryFromText("Base salary $65,000 - $100,000 plus a monthly performance incentive.", "Dallas, TX");
+    expect(s).toMatchObject({ period: "year", annual_min: 65000, annual_max: 100000 });
+  });
+  it("skips an hourly figure too high to be a wage (a customer rate)", () => {
+    expect(extractSalaryFromText("Moving crews are billed at $150 - $250 per hour.")).toBeNull();
+  });
   it("ignores bonuses, funding and ambiguous small numbers", () => {
     expect(extractSalaryFromText("Includes a sign-on bonus of $10,000 - $20,000.")).toBeNull();
     expect(extractSalaryFromText("We raised $50 - $100 million to grow.")).toBeNull();

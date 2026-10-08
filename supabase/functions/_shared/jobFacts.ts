@@ -122,14 +122,16 @@ export function extractSalaryFromText(text: string, location?: string | null): T
     const after = text.slice(m.index + whole.length, m.index + whole.length + 40).split(/[.!?\n]/)[0] || "";
     if (NOT_PAY.test(before + " " + whole + " " + after)) continue;
     // Period: spoken, or clear from the size of the numbers. A small pair with no period word is ambiguous: skipped.
+    // A monthly figure above 30,000 is not a realistic monthly wage: the word "monthly" nearby is about
+    // something else (a bonus, a fee), and numbers that large are a yearly salary.
     let period: PayPeriod | null = null;
-    if (HOURLY.test(window)) period = "hour";
-    else if (MONTHLY.test(window)) period = "month";
+    if (HOURLY.test(window) && hi <= 200) period = "hour";
+    else if (MONTHLY.test(window) && hi <= 30_000) period = "month";
     else if (lo >= 15_000) period = "year";
     if (!period) continue;
     const inRange = period === "year" ? lo >= 15_000 && hi <= 1_500_000
-      : period === "hour" ? lo >= 5 && hi <= 500
-      : lo >= 1_000 && hi <= 100_000;
+      : period === "hour" ? lo >= 5 && hi <= 200
+      : lo >= 1_000 && hi <= 30_000;
     if (!inRange) continue;
     // A "range" whose ends are very far apart is a headcount or a sum, not pay.
     if (hi / lo > 3) continue;
