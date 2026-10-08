@@ -534,11 +534,11 @@ const COMPANY_PAGE_CACHE_MS = 10 * 60 * 1000;
 const COMPANY_PAGE_CACHE_MAX = 500;
 const companyPageCache = new Map();
 
-async function fetchRpc(name, body) {
+async function fetchRpc(name, body, range) {
   const SUPABASE_ANON_KEY = requireSupabaseAnonKey();
   const r = await fetch(`${SUPABASE_ORIGIN}/rest/v1/rpc/${name}`, {
     method: 'POST',
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json', ...(range ? { Range: range } : {}) },
     body: JSON.stringify(body),
   });
   if (!r.ok) throw new Error(`rpc ${name} failed: ${r.status}`);
@@ -594,7 +594,13 @@ app.get('/sitemap-companies.xml', async (req, res) => {
   const now = Date.now();
   if (companiesSitemapCache.xml && now - companiesSitemapCache.at < 30 * 60 * 1000) { res.send(companiesSitemapCache.xml); return; }
   try {
-    const rows = await fetchRpc('company_sitemap_list', { p_min: 3, p_limit: 5000 });
+    // The database answers at most 1,000 rows per request, so page through with the Range header.
+    const rows = [];
+    for (let offset = 0; offset < 5000; offset += 1000) {
+      const page = await fetchRpc('company_sitemap_list', { p_min: 3, p_limit: 5000 }, `${offset}-${offset + 999}`);
+      rows.push(...page);
+      if (page.length < 1000) break;
+    }
     const urls = rows.map((r) => `  <url>\n    <loc>${SITE}/companies/${encodeURIComponent(r.slug)}</loc>\n    <lastmod>${new Date(r.last_posted).toISOString().slice(0, 10)}</lastmod>\n  </url>`).join('\n');
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
     companiesSitemapCache = { xml, at: now };
