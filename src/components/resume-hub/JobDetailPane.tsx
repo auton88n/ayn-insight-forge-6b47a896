@@ -124,7 +124,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
             v3.171.0 — recolored to the new trust teal, its own accent
             reserved only for this class of signal, distinct from the
             decorative ember used everywhere else on the page. */}
-        <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--rh-trust)" }} title="Never a third-party aggregator, never LinkedIn or Indeed. Pulled straight from the company's own hiring system and dropped from AYN 3 days after it's posted, so nothing here goes stale.">
+        <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--rh-trust)" }} title="Never a third-party aggregator, never LinkedIn or Indeed. Pulled straight from the company's own hiring system. When the company takes a posting down, it leaves AYN within about 3 days.">
           <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
           Sourced directly from {job.company}'s own hiring system
         </p>

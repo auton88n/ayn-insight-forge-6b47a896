@@ -39,7 +39,7 @@ export const HEAD_TO_HEAD: Record<Audience, { themLabel: string; rows: { them: s
   job_seeker: {
     themLabel: 'Other job boards',
     rows: [
-      { them: "Listings pulled in from anywhere, some already filled, some never real to begin with.", us: "Sourced straight from the company's own career page, pruned within 3 days if it's not reconfirmed live." },
+      { them: "Listings pulled in from anywhere, some already filled, some never real to begin with.", us: "Sourced straight from the company's own career page. When the company takes a posting down, it leaves AYN within 3 days." },
       { them: 'One resume, sent to every posting, competing with hundreds of others.', us: "A resume rewritten for the one job you're applying to, from your real experience." },
       { them: 'No idea what you are missing until the rejection arrives.', us: 'See exactly what matches and what is missing before you apply.' },
       { them: 'Recruiters skim keyword stuffed resumes for seconds.', us: 'Employers see an evidence based profile, gaps stated plainly.' },

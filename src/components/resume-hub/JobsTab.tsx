@@ -35,7 +35,7 @@ import ResumeDiffViewer from "./ResumeDiffViewer";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
-import { companyAvatar, formatLocation } from "@/lib/jobPostingFormat";
+import { companyAvatar, formatLocation, decodeHtmlEntities, displayJobTitle } from "@/lib/jobPostingFormat";
 import { savedJobsQueryKey } from "@/lib/queryKeys";
 import { cleanApplyUrl } from "@/lib/applyUrl";
 
@@ -227,6 +227,9 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // enforced server side (figuresVerified) and stated here so the person
   // knows it's not part of what they're being asked to decide on.
   const [tailorConfirmOpen, setTailorConfirmOpen] = useState(false);
+  // Same rule for the cover letter: the credit is spent when the letter is written, so the
+  // person confirms the cost first. A click on the button only opens this dialog.
+  const [coverConfirmOpen, setCoverConfirmOpen] = useState(false);
 
   // v3.172.0 — a real filter/status view over the pipeline, not a full
   // drag-and-drop kanban board -- delivers the same "see where everything
@@ -249,7 +252,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // own save/unsave actions invalidate this same key (savedJobsQueryKey,
   // src/lib/queryKeys.ts) after writing to the same "jobs" table, so a job
   // added or removed there is never hidden behind a stale cache here.
-  const { data: jobs = [] } = useQuery({
+  const { data: jobs = [], isPending: jobsPending } = useQuery({
     queryKey: jobsQueryKey,
     queryFn: async () => {
       const { data, error } = await supabase.from("jobs")
@@ -484,11 +487,19 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   };
 
 
+  // Asked for with an in-app dialog, not the browser's own confirm box (which some browsers and
+  // embedded views silently dismiss, leaving the button looking dead). A failed delete now says so.
+  const [removeTargetId, setRemoveTargetId] = useState<string | null>(null);
   const removeJob = async (id: string) => {
-    if (!confirm("Remove this job?")) return;
-    await supabase.from("jobs").delete().eq("id", id);
+    const { error } = await supabase.from("jobs").delete().eq("id", id).eq("user_id", userId);
+    if (error) {
+      toast({ title: "Couldn't remove that job", description: error.message, variant: "destructive" });
+      return;
+    }
     if (selected?.id === id) setSelected(null);
     queryClient.setQueryData<JobRow[]>(jobsQueryKey, (prev) => (prev ?? []).filter((j) => j.id !== id));
+    queryClient.invalidateQueries({ queryKey: jobsQueryKey });
+    toast({ title: "Removed", description: "Taken off your saved jobs." });
   };
 
   // v3.172.0 — one click, no ceremony, matching the exact thing the
@@ -556,7 +567,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                 {companyAvatar(selected.company || "?").initial}
               </div>
               <div className="min-w-0">
-                <h2 className="rh-display text-xl leading-snug">{selected.title}</h2>
+                <h2 className="rh-display text-xl leading-snug">{displayJobTitle(selected.title, selected.company)}</h2>
                 <p className="text-sm" style={{ color: "var(--rh-muted)" }}>{selected.company} {selected.location && `• ${formatLocation(selected.location)}`}</p>
                 {selected.source_url && (
                   <a
@@ -580,7 +591,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                   {matchData.score}/100
                 </div>
               )}
-              <Button onClick={() => removeJob(selected.id)} variant="ghost" size="icon" aria-label="Remove job"><Trash2 className="w-4 h-4" /></Button>
+              <Button onClick={() => setRemoveTargetId(selected.id)} variant="ghost" size="icon" aria-label="Remove job"><Trash2 className="w-4 h-4" /></Button>
             </div>
           </div>
 
@@ -641,7 +652,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
           <Card className="p-5 rounded-xl lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)] overflow-y-auto" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
             <h3 className="rh-display text-sm mb-2">Job description</h3>
             {selected.jd_text
-              ? <pre className="text-sm whitespace-pre-wrap font-sans" style={{ color: "var(--rh-muted)" }}>{selected.jd_text}</pre>
+              ? <pre className="text-sm whitespace-pre-wrap font-sans" style={{ color: "var(--rh-muted)" }}>{decodeHtmlEntities(selected.jd_text)}</pre>
               : <p className="text-sm" style={{ color: "var(--rh-muted)" }}>No description was saved for this job.</p>}
           </Card>
 
@@ -665,7 +676,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                     ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Tailoring…</>
                     : "Tailor resume"}
                 </Button>
-                <Button onClick={writeCover} disabled={activeAction !== null || !primaryResume || !tailoring.enabled} variant="outline">
+                <Button onClick={() => setCoverConfirmOpen(true)} disabled={activeAction !== null || !primaryResume || !tailoring.enabled} variant="outline">
                   {activeAction === "cover"
                     ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Writing…</>
                     : "Write cover letter"}
@@ -868,6 +879,50 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={removeTargetId !== null} onOpenChange={(o) => { if (!o) setRemoveTargetId(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Remove this job?</DialogTitle>
+              <DialogDescription>
+                It leaves your saved jobs. Any tailored resume or cover letter you made for it is removed with it.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setRemoveTargetId(null)}>Keep it</Button>
+              <Button
+                variant="destructive"
+                onClick={() => { const id = removeTargetId; setRemoveTargetId(null); if (id) void removeJob(id); }}
+              >
+                Remove job
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={coverConfirmOpen} onOpenChange={setCoverConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Write a cover letter?</DialogTitle>
+              <DialogDescription>
+                AYN writes a cover letter for this job using only what is in your resume and profile. It never invents an employer, a number or a skill.
+              </DialogDescription>
+            </DialogHeader>
+            <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-5">
+              <li>This uses 1 credit.</li>
+              <li>You are only charged if the letter is written successfully. A failed attempt costs nothing.</li>
+            </ul>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setCoverConfirmOpen(false)}>Cancel</Button>
+              <Button
+                onClick={() => { setCoverConfirmOpen(false); writeCover(); }}
+                style={{ background: "var(--rh-accent)", borderColor: "var(--rh-accent)", color: "#fff" }}
+                className="hover:opacity-90"
+              >
+                Write my cover letter
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -883,7 +938,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   const statusScoped = statusFilter ? jobs.filter((j) => j.application_status === statusFilter) : jobs;
   const q = jobQuery.trim().toLowerCase();
   const visibleJobs = q
-    ? statusScoped.filter((j) => j.title.toLowerCase().includes(q) || j.company.toLowerCase().includes(q))
+    ? statusScoped.filter((j) => (j.title || "").toLowerCase().includes(q) || (j.company || "").toLowerCase().includes(q))
     : statusScoped;
 
   return (
@@ -952,7 +1007,14 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
         </div>
       )}
 
-      {jobs.length === 0 && (
+      {jobsPending && (
+        <Card className="p-10 text-center rounded-xl shadow-none hover:shadow-none" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
+          <Loader2 className="w-6 h-6 mx-auto mb-3 animate-spin opacity-60" />
+          Loading your saved jobs…
+        </Card>
+      )}
+
+      {!jobsPending && jobs.length === 0 && (
         <Card className="p-10 text-center rounded-xl shadow-none hover:shadow-none" style={{ borderColor: "var(--rh-hair)", color: "var(--rh-muted)" }}>
           <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
           No saved jobs yet. Browse jobs to get started.
@@ -1009,7 +1071,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
         {visibleJobs.map((j) => {
           const avatar = companyAvatar(j.company || "?");
           const meta = STATUS_META[j.application_status] ?? STATUS_META.saved;
-          const snippet = (j.jd_text || "").trim();
+          const snippet = decodeHtmlEntities(j.jd_text).trim();
           // v3.182.0 — a lightweight, always-visible version of the silence
           // nudge above: discoverable across the whole pipeline at a glance,
           // without opening every card one at a time.
@@ -1029,7 +1091,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               >
                 {avatar.initial}
               </div>
-              <p className="rh-display text-[18px] leading-snug mb-1">{j.title}</p>
+              <p className="rh-display text-[18px] leading-snug mb-1">{displayJobTitle(j.title, j.company)}</p>
               <p className="text-[13px] mb-3" style={{ color: "var(--rh-muted)" }}>
                 {j.company}{j.location ? ` · ${formatLocation(j.location)}` : ""}
               </p>

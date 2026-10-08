@@ -52,6 +52,15 @@ export const SENIORITY_LABELS: Record<string, string> = {
 // live, none of them hardcoded at the time) -- fall back to a humanized
 // slug instead of the raw underscore-joined value so an unmapped one
 // still reads like a real label, not a database column value.
+/** A posting whose "title" is really a requisition number ("Job Requisition ID: 180984") is not a title.
+ * Show what the person can recognise instead of the number. */
+export function displayJobTitle(title: string | null | undefined, company?: string | null): string {
+  const t = String(title || "").trim();
+  const looksLikeId = !t || /^(job\s*)?(requisition|req)\b[\s#:.-]*(id|no|number)?[\s#:.-]*[\w-]*$/i.test(t) || /^[\d\s_#-]{4,}$/.test(t);
+  if (!looksLikeId) return t;
+  return company ? `Role at ${company}` : "Untitled role";
+}
+
 export function humanizeSlug(s: string) {
   return s.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
@@ -120,7 +129,9 @@ export function formatLocation(raw: string | null | undefined): string {
     .split(/\s+[-\u2013\u2014]\s+|\s*,\s*/)
     .map((p) => p.trim())
     .filter(Boolean)
-    .map((p) => COUNTRY_CODES[p.toLowerCase()] ?? p);
+    .map((p) => COUNTRY_CODES[p.toLowerCase()] ?? p)
+    // "DUbai" (two capitals then lower case) is a typing slip in the source; "NYC" and "McLean" are left alone.
+    .map((p) => (/^[A-Z]{2}[a-z]{2,}$/.test(p) ? p[0] + p.slice(1).toLowerCase() : p));
   const seen = new Set<string>();
   const unique = parts.filter((p) => {
     const k = p.toLowerCase();
@@ -379,8 +390,23 @@ export function dedupeJdBlocks(blocks: JdBlock[]): JdBlock[] {
   return kept.filter((b, i) => b.kind !== "heading" || (kept[i + 1] !== undefined && kept[i + 1].kind !== "heading"));
 }
 
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ndash: "-", mdash: "-", rsquo: "'", lsquo: "'", rdquo: '"', ldquo: '"', hellip: "...", bull: "-",
+};
+
+/** Job text copied in from other systems sometimes carries raw HTML entities ("&#13;", "&amp;"). Show them as the
+ * characters they stand for. A carriage-return entity is dropped, since it is only a line-break leftover. */
+export function decodeHtmlEntities(s: string | null | undefined): string {
+  const once = (t: string) => t
+    .replace(/&#(\d+);/g, (_m, n) => { const c = Number(n); return c === 13 ? "" : c === 160 ? " " : String.fromCodePoint(c); })
+    .replace(/&#x([0-9a-f]+);/gi, (_m, h) => { const c = parseInt(h, 16); return c === 13 ? "" : String.fromCodePoint(c); })
+    .replace(/&([a-z]+);/gi, (m, name) => NAMED_ENTITIES[name.toLowerCase()] ?? m);
+  // Twice on purpose: source text is sometimes double-encoded ("&amp;#34;").
+  return once(once(String(s || "")));
+}
+
 export function parseJobDescription(text: string): JdBlock[] {
-  const lines = collapseBulletGaps(text.replace(/\r\n/g, "\n").split("\n"));
+  const lines = collapseBulletGaps(decodeHtmlEntities(text).replace(/\r\n/g, "\n").split("\n"));
   const blocks: JdBlock[] = [];
   let paraBuf: string[] = [];
   let bulletBuf: string[] = [];

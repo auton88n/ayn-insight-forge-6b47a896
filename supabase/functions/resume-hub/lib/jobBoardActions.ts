@@ -178,52 +178,34 @@ export async function handleRoleFinder(ctx: BaseCtx): Promise<Response> {
   { const blocked = await accountGate(adminRoles, user.id, action); if (blocked) return blocked; }
   { const limited = await rateLimitGate(adminRoles, user.id, action, 10, 15); if (limited) return limited; }
 
-  const [identity, canonical] = await Promise.all([
-    loadIdentity(adminRoles, user.id, {}).catch(() => null),
-    loadCanonical(adminRoles, user.id),
-  ]);
-  const bundle = buildSections(identity, canonical);
-  if (!bundle.text || bundle.chars < 60) return json({ roles: [], has_profile: false });
+  const identity = await loadIdentity(adminRoles, user.id, {}).catch(() => null);
+  const document = identity?.resume.raw;
+  const documentText = document ? flattenResumeSkillsAndProse(document) : "";
+  if (!documentText || documentText.length < 60) return json({ roles: [], has_profile: false });
 
-  const profile = {
-    skills: bundle.sections.skills,
-    title: identity?.current_title.value || "",
-    yearsExperience: identity?.computed_years_experience.value || 0,
-  };
+  // v3.373.0 — the previous version loaded up to 6,000 full job descriptions into memory and scored
+  // each one in a loop, which the server cancelled once the catalog grew past a few thousand rows
+  // ("Couldn't load this right now"). The closest roles are now found inside the database from the
+  // stored job vectors, the same ones "Match me" uses, so the answer is fast at any catalog size.
+  const sectionHash = (await sha256b(documentText)).slice(0, 16);
+  const profileVec = await profileVector(adminRoles, user.id, sectionHash, identity, documentText);
+  if (!profileVec) return json({ roles: [], has_profile: true, unavailable: true });
 
-  const { data: postings, error: postingsErr } = await adminRoles
-    .from("job_postings")
-    .select("id, title, company, description, posted_at, skills")
-    .order("posted_at", { ascending: false })
-    .limit(6000);
-  if (postingsErr) return json({ error: postingsErr.message }, 500);
+  const { data, error } = await adminRoles.rpc("role_finder_nearest", {
+    p_embedding: JSON.stringify(profileVec.vector), p_model: profileVec.model, p_limit: 15,
+  });
+  if (error) return json({ error: error.message }, 500);
 
-  type Bucket = { title: string; sumScore: number; count: number; companies: Set<string>; bestId: string; bestScore: number };
-  const buckets = new Map<string, Bucket>();
-  for (const row of (postings || []) as Array<{ id: string; title: string | null; company: string | null; description: string | null; skills: string[] | null }>) {
-    const title = String(row.title || "").trim();
-    if (!title) continue;
-    const q = computeQuickScore(String(row.description || ""), title, profile, row.skills || undefined);
-    const key = title.toLowerCase();
-    let b = buckets.get(key);
-    if (!b) { b = { title, sumScore: 0, count: 0, companies: new Set(), bestId: row.id, bestScore: -1 }; buckets.set(key, b); }
-    b.sumScore += q.score;
-    b.count += 1;
-    if (row.company) b.companies.add(String(row.company));
-    if (q.score > b.bestScore) { b.bestScore = q.score; b.bestId = row.id; }
-  }
-
-  const roles = Array.from(buckets.values())
-    .map((b) => ({
-      title: b.title,
-      match_pct: Math.round(b.sumScore / b.count),
-      openings: b.count,
-      companies: Array.from(b.companies).slice(0, 3),
-      sample_job_id: b.bestId,
+  const roles = ((data || []) as Array<{ title: string; avg_cos: number; openings: number; companies: string[] | null; best_id: string }>)
+    .map((r) => ({
+      title: r.title,
+      match_pct: blendMatch(Number(r.avg_cos), 0.5, 0.75),
+      openings: Number(r.openings),
+      companies: r.companies || [],
+      sample_job_id: r.best_id,
     }))
     .filter((r) => r.match_pct >= 30)
-    .sort((a, b) => b.match_pct - a.match_pct || b.openings - a.openings)
-    .slice(0, 15);
+    .sort((a, b) => b.match_pct - a.match_pct || b.openings - a.openings);
 
   return json({ roles, has_profile: true });
 }

@@ -755,7 +755,15 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         title: job.title,
         location: job.location,
       }).select("id").single();
-      if (error) throw error;
+      if (error) {
+        // A double click can race the check above; the database refuses a second copy.
+        if ((error as { code?: string }).code === "23505") {
+          setSavedUrls((prev) => new Set(prev).add(cleanApplyUrl(job.apply_url)));
+          toast({ title: "Already saved", description: "Find it on the Saved jobs page whenever you're ready." });
+          return;
+        }
+        throw error;
+      }
       setSavedUrls((prev) => new Set(prev).add(cleanApplyUrl(job.apply_url)));
       // Saved jobs (JobsTab.tsx) reads this same "jobs" table through its
       // own cached query -- a genuinely new row here would otherwise sit

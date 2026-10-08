@@ -140,7 +140,7 @@ const SalaryGuide = () => {
 
               <p className="mt-4 text-xs text-muted-foreground flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                Last computed {fmtDate(snap.generated_at)}. AYN's catalog refreshes every two hours and prunes any posting not reconfirmed live within three days, so this reflects the market as it stands today, not a stale archive.
+                Last computed {fmtDate(snap.generated_at)}. AYN's catalog refreshes every two hours and removes postings within about three days of the company taking them down, so this reflects the market as it stands today, not a stale archive.
               </p>
 
               <div className="mt-14">

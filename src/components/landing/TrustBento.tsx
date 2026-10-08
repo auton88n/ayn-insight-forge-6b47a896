@@ -43,7 +43,7 @@ export const TrustBento = memo(() => {
     <div className="lp-bento is-stat-bento" role="group" aria-label="Why AYN's job listings can be trusted">
       <article className="lp-tile is-stat is-lead lp-span-3">
         <span className="lp-stat-k">3 days</span>
-        <span className="lp-stat-l">is the longest a listing survives without being reconfirmed live &mdash; no ghost jobs sitting around for weeks</span>
+        <span className="lp-stat-l">is the most a listing stays on AYN after the company takes it down from its own career page</span>
       </article>
       <article className="lp-tile is-stat lp-span-3">
         <span className="lp-stat-k">{count}</span>

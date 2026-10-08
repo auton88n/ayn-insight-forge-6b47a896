@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Flame, Heart, Layers, Loader2, X } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
-import { SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, formatLocation } from "@/lib/jobPostingFormat";
+import { SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, formatLocation, decodeHtmlEntities } from "@/lib/jobPostingFormat";
 import { HOT_WINDOW_MS } from "./browseJobsHelpers";
 import { ScoreGauge } from "./ScoreGauge";
 
@@ -134,7 +134,7 @@ export function SwipeDeck({
   const rot = dragX / 18;
   const passOpacity = dragX < 0 ? Math.min(Math.abs(dragX) / 90, 1) : 0;
   const saveOpacity = dragX > 0 ? Math.min(dragX / 90, 1) : 0;
-  const desc = (current.description || "").trim();
+  const desc = decodeHtmlEntities(current.description).trim();
   // v3.183.0 — reported directly: the swipe deck never showed the New
   // badge at all, even though the same 24h logic already works correctly
   // in list view. Same HOT_WINDOW_MS, just never wired into this card.
