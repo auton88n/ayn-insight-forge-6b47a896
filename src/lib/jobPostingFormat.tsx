@@ -316,7 +316,7 @@ export function jobFactChips(job: {
   remote_region?: string | null; apply_by?: string | null;
 }): FactChip[] {
   const chips: FactChip[] = [];
-  const entryLevelAsksYears = !!job.years_required && job.years_required >= 3 && ENTRY_LEVEL.has(String(job.seniority || "").toLowerCase());
+  const entryLevelAsksYears = !!job.years_required && job.years_required >= 5 && ENTRY_LEVEL.has(String(job.seniority || "").toLowerCase());
   if (entryLevelAsksYears) {
     chips.push({ key: "years", text: `Entry level, but asks ${job.years_required}+ years`, tone: "gold",
       title: "Listed as an entry or junior role, yet its own text asks for this many years of experience." });

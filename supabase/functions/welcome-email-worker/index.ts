@@ -11,6 +11,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { wrapEmail, heading, para, ctaButton, escapeHtml, sendBrandedEmail } from "../_shared/emailTemplate.ts";
 import { permanentEmailError, retryAt, sendWindowExpired } from "./reliability.ts";
+import { sendSavedJobAlerts } from "./savedJobAlerts.ts";
 
 const MAX_ATTEMPTS = 4;
 const APP_URL = "https://ayn.careers/";
@@ -157,5 +158,9 @@ Deno.serve(async (req) => {
     await new Promise((r) => setTimeout(r, 600));
   }
 
-  return json(summary);
+  try {
+    return json({ ...summary, saved_job_alerts: await sendSavedJobAlerts(admin) });
+  } catch {
+    return json({ ...summary, saved_job_alerts_error: "Outbox failed; inspect queue health" }, 503);
+  }
 });

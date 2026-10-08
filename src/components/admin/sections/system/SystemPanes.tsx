@@ -705,6 +705,12 @@ export function AiPane() {
 // from the database, so there is nothing to fetch here.
 const SYSTEM_EMAILS: { subject: string; who: string; when: string; says: string }[] = [
   {
+    subject: 'An update about your saved job',
+    who: 'Job seekers who enabled saved job removal alerts in Settings',
+    when: 'A future removal of an unapplied saved job from AYN, processed by the minute email worker',
+    says: 'Names the job and company, explains that removal is not proof of employer closure, and links to saved jobs and email preferences. Retries are bounded and deduplicated.',
+  },
+  {
     subject: 'Confirm your AYN account',
     who: 'A new job seeker or employer',
     when: 'The moment they sign up',
@@ -809,6 +815,7 @@ function SystemEmailsReference() {
 // send failure is finally visible instead of invisible.
 const EMAIL_TYPE_LABELS: Record<string, string> = {
   welcome: 'Welcome email',
+  saved_job_removed: 'Saved job removal alert',
   signup: 'Account confirmation',
   recovery: 'Password reset',
   email_change: 'Email change confirmation',

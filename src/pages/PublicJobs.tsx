@@ -81,11 +81,8 @@ const PublicJobs = () => {
     // pane" default on a bare list -- selected being non-null already
     // means the same thing routeId used to gate on.
     if (!selected) return undefined;
-    const isRemote = selected.work_mode === 'remote';
-    const postedMs = Date.parse(selected.posted_at);
-    const validThrough = Number.isNaN(postedMs)
-      ? undefined
-      : new Date(postedMs + 3 * 24 * 60 * 60 * 1000).toISOString();
+    const isRemote = (selected.work_mode || selected.work_mode_text) === 'remote';
+    const validThrough = selected.apply_by || undefined;
     return {
       '@context': 'https://schema.org/',
       '@type': 'JobPosting',
@@ -98,10 +95,7 @@ const PublicJobs = () => {
       directApply: false,
       ...(isRemote ? {
         jobLocationType: 'TELECOMMUTE',
-        applicantLocationRequirements: [
-          { '@type': 'Country', name: 'US' },
-          { '@type': 'Country', name: 'CA' },
-        ],
+        ...(selected.remote_region ? { applicantLocationRequirements: { '@type': 'AdministrativeArea', name: selected.remote_region } } : {}),
       } : {}),
       ...(selected.location ? {
         jobLocation: { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: selected.location } },

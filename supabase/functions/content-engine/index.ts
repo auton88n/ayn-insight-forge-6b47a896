@@ -202,15 +202,17 @@ Deno.serve(async (req: Request) => {
     // request body limit is kept as an explicit override purely for manual
     // testing (curl-ing this function directly with a one-off count).
     let topicsPerRun = 2;
+    let refreshExisting = false;
     const { data: setting } = await admin.from("app_settings").select("value").eq("key", "content_engine_articles_per_run").maybeSingle();
     const configured = Number(setting?.value);
     if (Number.isFinite(configured) && configured >= 1 && configured <= 5) topicsPerRun = configured;
     try {
       const body = await req.json();
       if (typeof body?.limit === "number" && body.limit > 0 && body.limit <= 5) topicsPerRun = body.limit;
+      refreshExisting = body?.refresh_existing === true;
     } catch { /* no body, use configured/default */ }
 
-    const { data: candidates, error: candErr } = await admin.rpc("article_topic_candidates", { p_limit: topicsPerRun });
+    const { data: candidates, error: candErr } = await admin.rpc(refreshExisting ? "article_refresh_candidates" : "article_topic_candidates", { p_limit: topicsPerRun });
     if (candErr) throw candErr;
 
     const results: Array<Record<string, unknown>> = [];

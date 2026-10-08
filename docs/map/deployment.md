@@ -1,5 +1,13 @@
 # Deployment & VPS operations
 
+## Job-data completion, 9 October 2026
+
+Also apply `20261009202000_article_refresh_candidates.sql` before deploying the updated `content-engine` directory. The service-role-only maintenance mode can refresh up to five existing reports per call without changing normal cron selection; report any generation failure instead of claiming old copy has refreshed.
+
+Apply `20261009200000_job_pay_comparison.sql` then `20261009201000_saved_job_email_alerts.sql` transactionally **before** deploying the frontend and email worker. No new cron or endpoint: the existing minute `welcome-email-worker` now imports `savedJobAlerts.ts`, so deploy the whole directory, not index.ts alone. Keep alerts opt-in; do not enable user preferences during deployment. Check the public comparison RPC, company HTML, worker auth/empty-outbox response, admin queue permissions, and the existing cron history. Tests/fixtures must roll back; do not send test emails to real accounts.
+
+Rollback: restore the previous frontend `dist`, `server.js` and deployed `welcome-email-worker` directory, restart the two corresponding containers. Additive SQL can remain; old code cannot drain the alert queue. If rolling back the queue itself, disable its archive trigger first, preserve queued records for investigation, and restore the account-export function from the pre-release schema backup rather than dropping a referenced table. Stop release if any migration, build, auth check or existing welcome flow fails. Staging has no separately configured backend; rollback-only production-schema fixtures are not equivalent to a full isolated staging deployment.
+
 ## Google sign-in — configured October 2026
 
 Google Cloud project `amazing-craft-510613-b8` (AYN Sign-in) is separate from SEO Monster. Web client `465015103449-9o5f7c9naq4l4qksg3l7ajnirm8umnti.apps.googleusercontent.com` uses origin `https://ayn.careers` and callback `https://ayn.careers/auth/v1/callback`. Audience is External/In production. Google verified and published the AYN name and existing `public/ayn-icon-128.png` logo. Support/developer contact is `crossmint7@gmail.com`.

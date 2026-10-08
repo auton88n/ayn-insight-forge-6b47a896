@@ -1,6 +1,6 @@
 // What AYN is collecting about jobs: how complete each fact is, and how much history has built up.
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAdminJobData } from '@/admin-app/hooks/useAdminQuery';
+import { useAdminJobData, useAdminSavedJobAlertHealth } from '@/admin-app/hooks/useAdminQuery';
 import { Stat, LoadingBlock, ErrorBlock, when } from '../ui';
 
 const COVERAGE_LABELS: Array<[string, string, string]> = [
@@ -20,6 +20,7 @@ const pct = (n: number, total: number) => (total ? Math.round((100 * n) / total)
 
 export default function JobDataPane() {
   const q = useAdminJobData();
+  const alerts = useAdminSavedJobAlertHealth();
   if (q.isLoading) return <LoadingBlock />;
   if (q.error) return <ErrorBlock error={q.error} onRetry={() => q.refetch()} />;
   const d = q.data || {};
@@ -32,6 +33,13 @@ export default function JobDataPane() {
 
   return (
     <div className="space-y-5">
+      <Card>
+        <CardHeader><CardTitle className="text-base">Saved job email alerts</CardTitle></CardHeader>
+        <CardContent className="text-sm space-y-2">
+          {alerts.isPending ? <p>Loading queue health…</p> : alerts.isError ? <ErrorBlock error={alerts.error} onRetry={() => alerts.refetch()} /> : <p>{alerts.data?.opted_in ?? 0} opted in · {alerts.data?.pending ?? 0} waiting · {alerts.data?.sent ?? 0} sent · {alerts.data?.failed ?? 0} failed · {alerts.data?.skipped ?? 0} skipped</p>}
+          <p className="text-muted-foreground">Opt-in only, future removals of unapplied saved jobs. Processed by the minute email worker. See System → Email for individual send attempts. A removed listing is not proof of employer closure.</p>
+        </CardContent>
+      </Card>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Live jobs" value={total.toLocaleString()} hint={`${d.companies?.distinct_live ?? 0} companies`} />
         <Stat label="History kept" value={Number(h.archive_total || 0).toLocaleString()} hint={`${h.archive_7d ?? 0} added in 7 days`} accent />

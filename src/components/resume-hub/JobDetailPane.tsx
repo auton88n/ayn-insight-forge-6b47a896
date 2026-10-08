@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Building2, ExternalLink, Loader2, MapPin, Plus, ShieldCheck, TrendingUp } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
 import { CompanyInsightsNote } from "@/components/shared/CompanyInsightsNote";
+import { JobPayComparison } from "@/components/shared/JobPayComparison";
 import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, JobDescriptionBody, formatLocation, jobAgeNotes, jobFactChips } from "@/lib/jobPostingFormat";
 import { extractCultureSnippet } from "./browseJobsHelpers";
 import { ScorePill } from "./ScorePill";
@@ -59,7 +60,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
         ...jobFactChips(job).map((c) => ({
           key: c.key, label: c.text, value: c.text, title: c.title, tone: c.tone,
         })),
-      ].filter((c): c is { key: string; label: string; value: string; tone?: "gold" | "trust"; title?: string } => !!c);
+      ].filter((c): c is NonNullable<typeof c> & object => !!c);
 
   // Sept 2026 -- "why still small card not like the other one full and
   // scroll in... i want you to copy exactly how the cards in job search
@@ -159,7 +160,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
             {highlightCells.map((c, i) => (
               <span key={c.key} className="inline-flex items-center gap-2">
                 {i > 0 && <span aria-hidden="true" style={{ color: "var(--rh-hair)" }}>·</span>}
-                <span title={c.title} style={{ color: c.tone === "gold" ? "var(--rh-gold)" : c.tone === "trust" ? "var(--rh-trust)" : "var(--rh-muted)" }}>
+                <span title={'title' in c ? c.title : undefined} style={{ color: c.tone === "gold" ? "var(--rh-gold)" : c.tone === "trust" ? "var(--rh-trust)" : "var(--rh-muted)" }}>
                   {c.value}
                 </span>
               </span>
@@ -168,6 +169,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
         )}
 
         <CompanyInsightsNote slug={job.company_slug} company={job.company} className="text-xs" />
+        <JobPayComparison jobId={job.id} />
 
         {job.benefits && job.benefits.length > 0 && (
           <p className="text-xs" style={{ color: "var(--rh-muted)" }} title="Standard benefits this posting names in its own text.">

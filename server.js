@@ -462,8 +462,7 @@ const JOB_PAGE_CACHE_MS = 5 * 60 * 1000;
 const JOB_PAGE_CACHE_MAX = 500;
 
 function jobPostingJsonLd(j) {
-  const postedMs = Date.parse(j.posted_at);
-  const validThrough = Number.isNaN(postedMs) ? undefined : new Date(postedMs + 3 * 24 * 60 * 60 * 1000).toISOString();
+  const validThrough = j.apply_by || undefined;
   const ld = {
     '@context': 'https://schema.org/',
     '@type': 'JobPosting',
@@ -474,9 +473,9 @@ function jobPostingJsonLd(j) {
     hiringOrganization: { '@type': 'Organization', name: j.company },
     identifier: { '@type': 'PropertyValue', name: 'AYN', value: j.id },
     directApply: false,
-    ...(j.work_mode === 'remote' ? {
+    ...((j.work_mode || j.work_mode_text) === 'remote' ? {
       jobLocationType: 'TELECOMMUTE',
-      applicantLocationRequirements: [{ '@type': 'Country', name: 'US' }, { '@type': 'Country', name: 'CA' }],
+      ...(j.remote_region ? { applicantLocationRequirements: { '@type': 'AdministrativeArea', name: j.remote_region } } : {}),
     } : {}),
     ...(j.location ? { jobLocation: { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: j.location } } } : {}),
     ...(j.employment_type ? { employmentType: String(j.employment_type).toUpperCase() } : {}),
@@ -551,6 +550,7 @@ function renderCompanyBody(p) {
   if (i.pay) lines.push(`<p>${escapeHtml(p.name)} shows pay on ${i.pay.pct}% of its ${i.pay.postings} open postings.</p>`);
   if (i.speed) lines.push(`<p>Roles at ${escapeHtml(p.name)} typically stay open about ${i.speed.median_days_open} days, based on ${i.speed.closed_tracked} closed postings AYN has tracked.</p>`);
   if (p.relisted_roles > 0) lines.push(`<p>${p.relisted_roles} of its live roles have been listed before.</p>`);
+  lines.push(`<p>${Number(p.edits_30d) || 0} posting field changes observed in the last 30 days. One posting may have several changes; this is not a count of hires.</p>`);
   const cats = (p.top_categories || []).map((c) => `${escapeHtml(String(c.category).replace(/_/g, ' '))} (${c.open_roles})`).join(', ');
   if (cats) lines.push(`<p>Where it is hiring: ${cats}.</p>`);
   const ben = (p.common_benefits || []).map((b) => `${escapeHtml(b.benefit)} (${b.roles})`).join(', ');

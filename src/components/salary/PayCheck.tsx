@@ -30,25 +30,28 @@ export function PayCheck({ categories }: { categories: Array<{ category: string 
   const [result, setResult] = useState<Result | null>(null);
   const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [submitted, setSubmitted] = useState({ currency: "USD", yearly: 0 });
 
-  const money = (n: number | undefined) => (n == null ? "" : `${SYMBOL[currency] ?? ""}${Math.round(n).toLocaleString("en-US")}`);
+  const money = (n: number | undefined) => (n == null ? "" : `${SYMBOL[submitted.currency] ?? ""}${Math.round(n).toLocaleString("en-US")}`);
   const yearly = Number(amount.replace(/[^0-9.]/g, ""));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy || !(yearly >= 1000)) return;
+    if (busy || !(yearly >= 1000 && yearly <= 5000000)) return;
     setBusy(true); setFailed(false); setResult(null); setCopied(false);
-    const { data, error } = await supabase.rpc("salary_market_check" as never, {
-      p_category: category || null, p_title_query: title.trim() || null, p_city: city.trim() || null,
-      p_currency: currency, p_amount: yearly,
-    } as never);
-    setBusy(false);
-    if (error || !data) { setFailed(true); return; }
-    setResult(data as unknown as Result);
+    setSubmitted({ currency, yearly });
+    try {
+      const { data, error } = await supabase.rpc("salary_market_check" as never, {
+        p_category: category || null, p_title_query: title.trim() || null, p_city: city.trim() || null,
+        p_currency: currency, p_amount: yearly,
+      } as never);
+      if (error || !data) { setFailed(true); return; }
+      setResult(data as unknown as Result);
+    } catch { setFailed(true); } finally { setBusy(false); }
   };
 
   const summary = result?.enough && result.median
-    ? `I checked my pay of ${money(yearly)} a year against ${result.sample} advertised ranges for similar roles on AYN. The median advertised is ${money(result.median)}, and mine sits at the ${result.your_percentile}th percentile. (Advertised ranges, not actual pay.)`
+    ? `I checked my pay of ${money(submitted.yearly)} a year against ${result.sample} advertised ranges for similar roles on AYN. The median advertised is ${money(result.median)}, and mine sits at the ${result.your_percentile}th percentile. (Advertised ranges, not actual pay.)`
     : "";
 
   const copy = async () => {
@@ -57,7 +60,7 @@ export function PayCheck({ categories }: { categories: Array<{ category: string 
 
   // Where "you" sit between the 10th and 90th percentile, for the little bar.
   const pos = result?.enough && result.p10 != null && result.p90 != null && result.p90 > result.p10
-    ? Math.max(0, Math.min(100, ((yearly - result.p10) / (result.p90 - result.p10)) * 100))
+    ? Math.max(0, Math.min(100, ((submitted.yearly - result.p10) / (result.p90 - result.p10)) * 100))
     : null;
 
   return (
@@ -92,7 +95,7 @@ export function PayCheck({ categories }: { categories: Array<{ category: string 
           </div>
         </label>
         <div className="flex items-end">
-          <Button type="submit" disabled={busy || !(yearly >= 1000)} className="w-full">
+          <Button type="submit" disabled={busy || !(yearly >= 1000 && yearly <= 5000000)} className="w-full">
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Compare"}
           </Button>
         </div>
@@ -102,14 +105,14 @@ export function PayCheck({ categories }: { categories: Array<{ category: string 
 
       {result && !result.enough && (
         <p className="mt-4 text-sm" role="status">
-          Only {result.sample} advertised {currency} ranges match, which is too few to compare fairly. Try a broader role, remove the city, or leave the title blank.
+          Only {result.sample} advertised {submitted.currency} ranges match, which is too few to compare fairly. Try a broader role, remove the city, or leave the title blank.
         </p>
       )}
 
       {result?.enough && result.median != null && (
         <div className="mt-5" role="status">
           <p className="text-lg font-semibold">
-            {money(yearly)} is {Math.abs(result.vs_median_pct ?? 0) < 3 ? "right at" : (result.vs_median_pct ?? 0) > 0 ? `${result.vs_median_pct}% above` : `${Math.abs(result.vs_median_pct ?? 0)}% below`} the median advertised {money(result.median)}.
+            {money(submitted.yearly)} is {Math.abs(result.vs_median_pct ?? 0) < 3 ? "right at" : (result.vs_median_pct ?? 0) > 0 ? `${result.vs_median_pct}% above` : `${Math.abs(result.vs_median_pct ?? 0)}% below`} the median advertised {money(result.median)}.
           </p>
           <p className="text-sm text-muted-foreground mt-1">
             It sits above {result.your_percentile}% of the {result.sample} advertised ranges for similar roles.

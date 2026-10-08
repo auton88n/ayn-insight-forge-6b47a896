@@ -51,6 +51,14 @@ export const NotificationSettings = ({ userId, accessToken }: NotificationSettin
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-0.5">
+            <Label htmlFor="saved-job-email-alerts">Saved job removal alerts</Label>
+            <p className="text-sm text-muted-foreground">Email me when an unapplied saved job leaves AYN's catalog. This does not always mean the employer has closed it. Applies to future removals only.</p>
+          </div>
+          <Switch id="saved-job-email-alerts" checked={settings.email_saved_job_alerts}
+            onCheckedChange={(checked) => updateSettings({ email_saved_job_alerts: checked })} disabled={updating} />
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
             <Label>Product news and tips</Label>
             <p className="text-sm text-muted-foreground">
               Occasional emails about new AYN features and how to get more out of it.

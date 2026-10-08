@@ -9,6 +9,7 @@ export interface UserSettings {
   email_system_alerts: boolean;
   email_usage_warnings: boolean;
   email_marketing: boolean;
+  email_saved_job_alerts: boolean;
   email_weekly_summary: boolean;
   in_app_sounds: boolean;
   desktop_notifications: boolean;
@@ -70,6 +71,7 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
             email_system_alerts: created.email_system_alerts ?? true,
             email_usage_warnings: created.email_usage_warnings ?? true,
             email_marketing: created.email_marketing ?? false,
+            email_saved_job_alerts: created.email_saved_job_alerts ?? false,
             email_weekly_summary: created.email_weekly_summary ?? false,
             in_app_sounds: created.in_app_sounds ?? true,
             desktop_notifications: created.desktop_notifications ?? false,
@@ -85,6 +87,7 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
           email_system_alerts: fetched.email_system_alerts ?? true,
           email_usage_warnings: fetched.email_usage_warnings ?? true,
           email_marketing: fetched.email_marketing ?? false,
+          email_saved_job_alerts: fetched.email_saved_job_alerts ?? false,
           email_weekly_summary: fetched.email_weekly_summary ?? false,
           in_app_sounds: fetched.in_app_sounds ?? true,
           desktop_notifications: fetched.desktop_notifications ?? false,

@@ -1,5 +1,11 @@
 # Resume Hub map (web app + resume-hub backend)
 
+## Job-data completion, 9 October 2026
+
+`JobPayComparison` is shared by public `JobsBrowser` (including `/jobs/:id`) and signed-in `JobDetailPane`; only the opened detail fetches `job_salary_comparison(uuid)`. This public aggregate RPC reads the existing normalized `job_pay` view. Cohorts require the same category, city, seniority and currency, exclude the target itself, need 20 other ranges, and never broaden automatically. Missing comparable metadata yields no card. Annualized advertised base-pay midpoints are not actual pay, total compensation or a salary recommendation. `PayCheck` now freezes submitted inputs while displaying/copying a result, enforces the server's amount bound and releases loading on network failure.
+
+Company pages display `edits_30d` as field-change events, not unique postings or hires, both in React and server-rendered HTML. The entry-level mismatch chip starts at **5+ years**, not 3. JobPosting JSON-LD in both server and client uses only an actual `apply_by` deadline and stated `remote_region`; the fabricated 3-day expiry and blanket US/Canada remote restriction are removed. In-app saved-job removal notices remain; optional proactive emails and their privacy/administration boundaries are documented in platform.md.
+
 ## September 2026 improvement batch (local, not deployed)
 
 ### Public disclosure boundary, 28 September (local)
