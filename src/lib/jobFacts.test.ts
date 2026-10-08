@@ -11,6 +11,11 @@ describe("extractYearsRequired", () => {
   it("takes the largest stated requirement", () => {
     expect(extractYearsRequired("2+ years of SQL experience and 8+ years of overall experience")).toBe(8);
   });
+  it("ignores a company boasting about its own history", () => {
+    expect(extractYearsRequired("We have over 20 years of experience helping clients grow.")).toBeNull();
+    expect(extractYearsRequired("Our team brings 25 years of combined experience in the industry.")).toBeNull();
+    expect(extractYearsRequired("We are looking for a leader with 12+ years of experience in sales.")).toBe(12);
+  });
   it("stays empty when nothing is stated or the number is not about experience", () => {
     expect(extractYearsRequired("Join a fast growing team. We celebrate 10 years of customer love.")).toBeNull();
     expect(extractYearsRequired("")).toBeNull();
@@ -26,6 +31,13 @@ describe("extractSponsorship", () => {
   it("detects an offer", () => {
     expect(extractSponsorship("Visa sponsorship is available for the right candidate.")).toBe("offered");
     expect(extractSponsorship("We will sponsor work visas and relocation.")).toBe("offered");
+  });
+  it("does not mistake a business or event sponsor for visa sponsorship", () => {
+    expect(extractSponsorship("Work with the clinical Sponsor and external vendors, and not the CRO.")).toBeNull();
+    expect(extractSponsorship("We do not accept corporate sponsorship for this event.")).toBeNull();
+  });
+  it("reads a candidate must not need sponsorship as not offered", () => {
+    expect(extractSponsorship("Candidates must be authorized to work for any employer that does not require sponsorship.")).toBe("not_offered");
   });
   it("stays empty when the posting is silent or only asks a question", () => {
     expect(extractSponsorship("Great benefits and a friendly team.")).toBeNull();
