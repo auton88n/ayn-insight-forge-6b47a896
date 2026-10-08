@@ -119,14 +119,25 @@ export function mapResumeToCareer(resume: ResumeContent, prev: Career): Career {
   const total_yoe = earliest ? Math.max(0, new Date().getFullYear() - earliest) : prev.derived?.total_yoe;
   return {
     ...prev,
-    skills: skills.length ? skills.map(name => ({ name, level: null, years: null, last_used: null })) : prev.skills,
+    // A re-upload keeps whatever level, years and last-used the person already set for a skill they still list.
+    skills: skills.length
+      ? skills.map(name => {
+          const known = (prev.skills || []).find(s => s.name.trim().toLowerCase() === String(name).trim().toLowerCase());
+          return { name, level: known?.level ?? null, years: known?.years ?? null, last_used: known?.last_used ?? null };
+        })
+      : prev.skills,
     experiences: work.length
-      ? work.map(w => ({
+      ? work.map(w => {
+          // "Present", "Current" and "Now" mean the role is ongoing. Before, only a blank end date did, so a
+          // current job read from a resume was filed as ended.
+          const ongoing = !w.end || /^(present|current|now|ongoing|today)$/i.test(String(w.end).trim());
+          return {
           company: w.company || "", title: w.title || "", location: w.location,
-          start: w.start, end: w.end, current: !w.end,
+          start: w.start, end: ongoing ? undefined : w.end, current: ongoing,
           bullets: (w.bullets || []).slice(0, 5),
           bullets_from_resume: (w.bullets || []).length > 0,
-        }))
+          };
+        })
       : prev.experiences,
     education: edu.length
       ? edu.map(e => ({ school: e.school || "", degree: e.degree, field: e.field, start: e.start, end: e.end }))

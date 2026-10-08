@@ -263,6 +263,21 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     },
   });
 
+  // A fit score for every saved job, worked out automatically, so a saved job shows how well it suits
+  // the person without opening it and pressing a button. Free and fast (it compares meaning, not an AI
+  // rewrite), only runs once a resume is on file, and the server remembers each result.
+  const scoreable = jobs.filter((j) => (j.jd_text || "").trim()).slice(0, 50);
+  const { data: fitById = {} } = useQuery({
+    queryKey: ["saved-job-fit", userId, scoreable.map((j) => j.id).join(",")],
+    enabled: !!primaryResume && scoreable.length > 0,
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+    queryFn: async () => {
+      const { scores } = await resumeHubApi.jobBoardScore(scoreable.map((j) => ({ id: j.id, title: j.title, description: j.jd_text || "" })));
+      return Object.fromEntries(scores.filter((s) => s.match_pct != null).map((s) => [s.id, s.match_pct as number]));
+    },
+  });
+
   // The "restore what was open" logic below is a real, order-sensitive,
   // one-time side effect of the list arriving (consume a handoff flag,
   // or reopen whatever was last viewed) -- not something to re-run every
@@ -1108,6 +1123,11 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                 >
                   {meta.label}{showSilentDays ? ` · ${silentDays}d silent` : ""}
                 </span>
+                {fitById[j.id] != null && (
+                  <span className="text-[11px] font-bold" style={{ color: "var(--rh-trust)" }} title="How closely this job matches your resume, worked out automatically">
+                    Fit {fitById[j.id]}%
+                  </span>
+                )}
                 <span className="text-[11px] font-bold underline" style={{ color: "var(--rh-accent-2)" }}>
                   Read full posting
                 </span>

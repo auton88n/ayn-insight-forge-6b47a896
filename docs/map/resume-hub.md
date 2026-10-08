@@ -770,3 +770,11 @@ The timer is enforced from `started_at` on the server, not from a client clock. 
 Employer: `src/components/employer/AssessmentDialog.tsx` (generate, review, edit, send) opened from "Send an assessment" in the candidate dialog, and `src/components/employer/AssessmentsPanel.tsx` on a new Assessments tab in the left nav.
 Candidate: `src/components/resume-hub/AssessmentsTab.tsx`, a new badged tab in Resume Hub, with the timer, autosave, and the growth notes after submitting.
 Client API: `src/lib/assessments.ts`.
+
+## Match scoring, saved jobs and credits (Oct 2026)
+
+- **Match me and the browse score** (`job_board_score`, `lib/jobBoardActions.ts`) compare meaning, not wording. Every live job has a 768 dimension vector in `job_postings.embedding` (same model as `candidate_index`), written by the `job-embed-worker` edge function (cron every minute, 300 jobs per run, only real model vectors are stored). The person's vector is built from their current title plus resume text and cached in `ai_result_cache` (`profilevec:v1:...`). Score = 0.7 semantic (cosine mapped from 0.45 to 0.72) + 0.15 title fit + 0.15 years fit (`blendMatch`). A job without a vector is embedded on the spot; the old wording coverage (`evaluateResumeText`) is only a fallback.
+- **Explore roles** (`role_finder`) calls the SQL function `role_finder_nearest` (nearest 600 job vectors grouped by title, HNSW index `job_postings_embedding_hnsw`). The old version loaded thousands of descriptions and the edge worker was cancelled.
+- **Saved jobs**: `jobs` has a unique index on `(user_id, source_url)`; the save path treats a 23505 as "already saved". Removal uses an in-app dialog and reports failures. Each saved card shows an automatic fit (`job_board_score` over the saved descriptions, results cached server side as `boardsem:v1:...`).
+- **Out of credits**: `lib/resumeHub.ts` calls `notifyOutOfCredits` (`lib/outOfCredits.ts`) on a 402 `insufficient_credits`; one `OutOfCreditsDialog` mounted in `LandingPage` offers the plans page. The cover letter, like the tailor, asks for confirmation (1 credit, charged only after a successful letter) before it runs.
+- **Freshness wording**: a posting leaves AYN within about 3 days of the company taking it down. `posted_at` can be refreshed by sources, so never claim a hard 3 day maximum age.

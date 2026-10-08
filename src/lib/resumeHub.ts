@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { notifyOutOfCredits } from "@/lib/outOfCredits";
 import { SUPABASE_URL } from "@/config";
 import { maintenanceErrorFrom } from "@/lib/featureError";
 
@@ -68,6 +69,7 @@ function handleCallError(status: number, data: unknown): never {
   // v3.28.0 — suspension and per account restrictions answer with a code and
   // a written message. Show the message, not the code.
   const coded = data as { code?: string; message?: string; error?: string };
+  if (coded?.code === "insufficient_credits") notifyOutOfCredits(coded.message || "You do not have enough credits for that.");
   if (coded?.code === "account_suspended" || coded?.code === "account_restricted" || coded?.code === "insufficient_credits") {
     throw new Error(coded.message || "This account cannot do that right now.");
   }

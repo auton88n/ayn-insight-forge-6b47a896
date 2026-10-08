@@ -4,6 +4,7 @@ import { SEO, organizationSchema, websiteSchema, softwareApplicationSchema, crea
 import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { EmployerSidebar } from '@/components/landing/EmployerSidebar';
 import { AuthModal } from './auth/AuthModal';
+import { OutOfCreditsDialog } from '@/components/shared/OutOfCreditsDialog';
 import { LandingSections } from '@/components/landing/LandingSections';
 import type { Audience } from '@/lib/landingAudience';
 import { TAB_META, MORE_TAB_META, ACCOUNT_TAB_META, HOME_TAB_HANDOFF_KEY, type HomeTabId } from '@/components/landing/homeTabMeta';
@@ -196,6 +197,7 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
             </main>
           </div>
         )}
+        <OutOfCreditsDialog onSeePlans={() => navigate('/pricing')} />
         <AuthModal key={`${authRole}-${authTab}`} open={showAuthModal} onOpenChange={setShowAuthModal} initialRole={authRole} initialTab={authTab} />
       </div>
     </>

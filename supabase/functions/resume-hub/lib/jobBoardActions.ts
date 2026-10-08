@@ -84,6 +84,11 @@ export async function handleJobBoardScore(ctx: BaseCtx): Promise<Response> {
   const scores = await mapConcurrent(capped, 4, async (j) => {
     const jdText = String(j.description || "");
     let jobVec = vectors.get(j.id);
+    const semKey = jdText.trim() ? `boardsem:v1:${user.id}:${sectionHash}:${(await sha256b(jdText)).slice(0, 24)}` : "";
+    if (profileVec && !jobVec && semKey) {
+      const hit = await cacheGet<{ match_pct: number }>(adminScore, semKey);
+      if (hit) return { id: j.id, match_pct: hit.match_pct, method: "semantic" };
+    }
     // A job the background worker has not reached yet is embedded right here, so one list never
     // mixes two different scoring methods. The vector is saved so it is only ever paid for once.
     if (profileVec && !jobVec && jdText.trim()) {
@@ -99,7 +104,9 @@ export async function handleJobBoardScore(ctx: BaseCtx): Promise<Response> {
     }
     if (profileVec && jobVec) {
       const q = computeQuickScore(jdText, String(j.title || ""), quickProfile);
-      return { id: j.id, match_pct: blendMatch(cosine(profileVec.vector, jobVec), q.titlePct / 100, q.experiencePct / 100), method: "semantic" };
+      const match_pct = blendMatch(cosine(profileVec.vector, jobVec), q.titlePct / 100, q.experiencePct / 100);
+      if (semKey && !vectors.has(j.id)) await cacheSet(adminScore, semKey, user.id, "job_board_score", { match_pct }, 7 * 24 * 60 * 60 * 1000);
+      return { id: j.id, match_pct, method: "semantic" };
     }
     if (!jdText.trim()) return { id: j.id, match_pct: null };
     const jdHash = (await sha256b(jdText)).slice(0, 24);
