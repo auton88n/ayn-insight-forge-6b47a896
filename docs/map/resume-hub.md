@@ -778,3 +778,14 @@ Client API: `src/lib/assessments.ts`.
 - **Saved jobs**: `jobs` has a unique index on `(user_id, source_url)`; the save path treats a 23505 as "already saved". Removal uses an in-app dialog and reports failures. Each saved card shows an automatic fit (`job_board_score` over the saved descriptions, results cached server side as `boardsem:v1:...`).
 - **Out of credits**: `lib/resumeHub.ts` calls `notifyOutOfCredits` (`lib/outOfCredits.ts`) on a 402 `insufficient_credits`; one `OutOfCreditsDialog` mounted in `LandingPage` offers the plans page. The cover letter, like the tailor, asks for confirmation (1 credit, charged only after a successful letter) before it runs.
 - **Freshness wording**: a posting leaves AYN within about 3 days of the company taking it down. `posted_at` can be refreshed by sources, so never claim a hard 3 day maximum age.
+
+## Job data collected (Oct 2026)
+
+Everything below is read from the job feed or from the posting's own text. Nothing is estimated.
+
+- **History**: `job_postings.first_seen_at / last_seen_at / repost_count`. The sync functions set `last_seen_at` on every upsert. A BEFORE INSERT trigger (`job_postings_carry_history`) looks the role (company, title, location) up in `job_postings_archive` and carries the earliest `first_seen_at` forward and counts earlier lives. `job_postings_archive` is filled by a BEFORE DELETE trigger, so every removal path is covered.
+- **Facts read from text** (`_shared/jobFacts.ts`, deterministic, judged sentence by sentence): years of experience asked, visa sponsorship stated, a pay range (`salary_text_*`, with currency and period, annualized), work mode (`work_mode_text`) and benefits (`benefits`). Run by the `job-enrich-worker` edge function (cron every minute, rows with `facts_extracted_at is null`). The feed's own `salary_min/max/work_mode` are never overwritten; the site prefers the feed value and falls back to the text value.
+- **Edits**: `job_posting_changes` (BEFORE UPDATE trigger) logs when a company changes a live posting's title, place, pay or description. A feed handover (`source` changed) and whitespace or case only differences are ignored.
+- **Company hiring speed**: SQL `company_hiring_speed(slug)` (median and spread of days open from the archive, null until 5 closed postings are tracked); shown by `CompanyHiringSpeedNote`.
+- **Admin**: System, "Job data" pane (`get_admin_job_data`).
+- **Rules**: say "first seen N days ago" and "listed N times", never "ghost job". `first_seen_at` is a lower bound (tracking began 14 Aug 2026).
