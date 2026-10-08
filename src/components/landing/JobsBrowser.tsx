@@ -4,12 +4,13 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { JobPosting } from '@/lib/resumeHub';
+import { CompanyHiringSpeedNote } from '@/components/shared/CompanyHiringSpeedNote';
 import { companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike, JobDescriptionBody, employmentTypeLabel, seniorityLabel, humanizeCategory, formatLocation, locationSearchPatterns, jobAgeNotes, jobFactChips } from '@/lib/jobPostingFormat';
 import { Search, ExternalLink, Loader2, MapPin, ArrowLeft, ArrowRight, RefreshCw, Link2 } from 'lucide-react';
 import { cleanApplyUrl } from '@/lib/applyUrl';
 
 const PAGE_SIZE = 25;
-export const PUBLIC_JOB_SUMMARY_COLUMNS = 'id,source,company,company_slug,company_logo_url,title,location,apply_url,posted_at,employment_type,seniority,salary_min,salary_max,salary_currency,category,work_mode,city,last_seen_at,first_seen_at,repost_count,years_required,sponsorship';
+export const PUBLIC_JOB_SUMMARY_COLUMNS = 'id,source,company,company_slug,company_logo_url,title,location,apply_url,posted_at,employment_type,seniority,salary_min,salary_max,salary_currency,category,work_mode,city,last_seen_at,first_seen_at,repost_count,years_required,sponsorship,salary_text_min,salary_text_max,salary_text_currency,salary_text_period,work_mode_text,benefits';
 type JobSummary = Omit<JobPosting, 'description'>;
 // The server puts the first page of jobs, and the first job's full posting, in the
 // HTML itself (see getJobsBootstrap in server.js), so the page can show jobs without
@@ -216,6 +217,8 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
           <div className="lp-browser-detail-head">{logo(selected, true)}<div><p className="lp-browser-detail-company">{selected.company}</p><p className="ayn-source-note" title="The last time AYN's feed saw this posting still listed, not its original publish date.">Last seen listed {postedDate(selected.last_seen_at || selected.posted_at)}</p></div></div>
           <h2 ref={headingRef} tabIndex={-1} className="ayn-job-title">{selected.title}</h2>
           <div className="lp-browser-pill-row">{selected.location && <span><MapPin size={15} />{formatLocation(selected.location)}</span>}{selected.employment_type && <span>{employmentTypeLabel(selected.employment_type)}</span>}{selected.seniority && <span>{seniorityLabel(selected.seniority)}</span>}{resolveSalary(selected) && <span>{resolveSalary(selected)!.text}</span>}{jobFactChips(selected).map((c) => <span key={c.key} title={c.title}>{c.text}</span>)}{jobAgeNotes(selected).map((n) => <span key={n.text} title={n.title}>{n.text}</span>)}</div>
+          <CompanyHiringSpeedNote slug={selected.company_slug} company={selected.company} className="ayn-source-note" />
+          {selected.benefits && selected.benefits.length > 0 && <p className="ayn-source-note" title="Standard benefits this posting names in its own text.">Benefits named: {selected.benefits.join(' · ')}</p>}
           <div className="lp-browser-actions"><a href={/^https?:\/\//i.test(selected.apply_url) ? cleanApplyUrl(selected.apply_url) : undefined} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-primary">Open application <ExternalLink size={16} /></a><button className="lp-btn lp-btn-ghost" onClick={() => { try { sessionStorage.setItem('ayn_check_jd', selected.description); } catch { /* checker remains usable */ } navigate('/check-resume'); }}>Check my fit</button><button className="lp-btn lp-btn-ghost" onClick={() => { try { void navigator.clipboard.writeText(`${window.location.origin}/jobs/${selected.id}`); } catch { /* clipboard unavailable */ } }}><Link2 size={16} /> Copy link</button></div>
           <p className="ayn-source-note">You apply on the employer’s own site.</p>
           <div className="lp-browser-jd"><h3>About this role</h3><JobDescriptionBody text={selected.description} /></div>

@@ -7,6 +7,7 @@ import { memo, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Building2, ExternalLink, Loader2, MapPin, Plus, ShieldCheck, TrendingUp } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
+import { CompanyHiringSpeedNote } from "@/components/shared/CompanyHiringSpeedNote";
 import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, JobDescriptionBody, formatLocation, jobAgeNotes, jobFactChips } from "@/lib/jobPostingFormat";
 import { extractCultureSnippet } from "./browseJobsHelpers";
 import { ScorePill } from "./ScorePill";
@@ -52,7 +53,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
         // still showing. humanizeSlug already exists for exactly this
         // shape of value (used for employment_type/seniority already) —
         // reused here instead of the narrower, wrong capitalize-only fix.
-        job.work_mode && { key: "mode", label: "Work mode", value: humanizeSlug(job.work_mode), tone: "trust" as const },
+        (job.work_mode || job.work_mode_text) && { key: "mode", label: "Work mode", value: humanizeSlug((job.work_mode || job.work_mode_text)!), tone: "trust" as const },
         job.employment_type && { key: "type", label: "Type", value: EMPLOYMENT_TYPE_LABELS[job.employment_type] || humanizeSlug(job.employment_type) },
         // Facts the posting states in its own text (read once, never guessed).
         ...jobFactChips(job).map((c) => ({
@@ -165,6 +166,14 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
               </span>
             ))}
           </div>
+        )}
+
+        <CompanyHiringSpeedNote slug={job.company_slug} company={job.company} className="text-xs" />
+
+        {job.benefits && job.benefits.length > 0 && (
+          <p className="text-xs" style={{ color: "var(--rh-muted)" }} title="Standard benefits this posting names in its own text.">
+            <span className="font-semibold">Benefits named:</span> {job.benefits.join(" · ")}
+          </p>
         )}
 
         <div className="flex items-center gap-2 flex-wrap pt-1">

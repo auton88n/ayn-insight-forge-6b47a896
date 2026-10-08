@@ -280,6 +280,13 @@ export interface JobPosting {
   // What AYN has observed about the listing's life, and facts the posting states in its own text.
   first_seen_at?: string | null;
   last_seen_at?: string | null;
+  // A pay range, work mode and benefits the posting states in its own text.
+  salary_text_min?: number | null;
+  salary_text_max?: number | null;
+  salary_text_currency?: string | null;
+  salary_text_period?: "year" | "month" | "hour" | null;
+  work_mode_text?: "remote" | "hybrid" | "onsite" | null;
+  benefits?: string[] | null;
   repost_count?: number | null;
   years_required?: number | null;
   sponsorship?: "offered" | "not_offered" | null;

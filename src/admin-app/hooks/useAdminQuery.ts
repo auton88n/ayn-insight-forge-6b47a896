@@ -283,6 +283,10 @@ export function useArticleConfigAction() {
   });
 }
 
+export function useAdminJobData() {
+  return useQuery({ queryKey: ['admin', 'v2', 'job_data'] as const, queryFn: () => adminRpc<any>('get_admin_job_data'), staleTime: FAST_STALE_TIME, refetchInterval: FAST_STALE_TIME });
+}
+
 export function useAdminSeo() {
   return useQuery({ queryKey: adminV2Keys.seo, queryFn: () => adminRpc<any>('get_admin_seo'), staleTime: FAST_STALE_TIME, refetchInterval: FAST_STALE_TIME });
 }

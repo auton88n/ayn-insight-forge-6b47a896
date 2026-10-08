@@ -9,8 +9,9 @@ import {
   VisitorAnalyticsPane, SessionReplayPane,
 } from './system/SystemPanes';
 import { ModerationPane, FlagsPane, CreditsPane, AdminsPane } from './system/ControlPanes';
+import JobDataPane from './system/JobDataPane';
 
-type Pane = 'accounts' | 'credits' | 'moderation' | 'flags' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'consent' | 'cookies' | 'settings' | 'admins' | 'activity' | 'visitors' | 'replay';
+type Pane = 'accounts' | 'credits' | 'moderation' | 'flags' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'consent' | 'cookies' | 'settings' | 'admins' | 'activity' | 'visitors' | 'replay' | 'jobs';
 
 const PANES: { id: Pane; label: string }[] = [
   { id: 'accounts', label: 'Accounts' },
@@ -28,6 +29,7 @@ const PANES: { id: Pane; label: string }[] = [
   { id: 'cookies', label: 'Cookie consent' },
   { id: 'admins', label: 'Admins' },
   { id: 'activity', label: 'Activity' },
+  { id: 'jobs', label: 'Job data' },
   { id: 'visitors', label: 'Visitor analytics' },
   // v3.360.0 — PostHog session replay, read into the admin panel instead
   // of needing a second login on posthog.com.
@@ -74,6 +76,7 @@ export default function SystemSection() {
       {pane === 'cookies' && <CookieConsentPane />}
       {pane === 'admins' && <AdminsPane />}
       {pane === 'activity' && <ActivityPane />}
+      {pane === 'jobs' && <JobDataPane />}
       {pane === 'visitors' && <VisitorAnalyticsPane />}
       {pane === 'replay' && <SessionReplayPane />}
       {pane === 'settings' && <SettingsPane onGoToFlags={() => setPane('flags')} />}

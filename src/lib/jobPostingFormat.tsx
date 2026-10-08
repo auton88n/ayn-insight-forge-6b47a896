@@ -228,6 +228,13 @@ function extractSalaryFromText(text: string): { min: number; max: number; period
 export function resolveSalary(job: JobPosting): { text: string; fromListingText: boolean } | null {
   const structured = formatSalary(job.salary_min, job.salary_max, job.salary_currency);
   if (structured) return { text: structured, fromListingText: false };
+  // A range read from the posting text on the server (with its currency and pay period worked out).
+  if (job.salary_text_min != null && job.salary_text_max != null) {
+    const fmtN = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
+    const suffix = job.salary_text_period === "hour" ? "/hr" : job.salary_text_period === "month" ? "/mo" : "";
+    const cur = job.salary_text_currency || "";
+    return { text: `${cur ? cur + " " : "$"}${fmtN(job.salary_text_min)} to ${fmtN(job.salary_text_max)}${suffix}`, fromListingText: true };
+  }
   const extracted = extractSalaryFromText(job.description || "");
   if (!extracted) return null;
   const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
