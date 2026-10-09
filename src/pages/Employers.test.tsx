@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
+vi.mock('@/config', () => ({ SUPABASE_URL: 'https://ayn-test.invalid', SUPABASE_ANON_KEY: 'local-unit-fixture' }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { auth: {
   onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
   getSession: async () => ({ data: { session: { user: { id: 'seeker' } } } }),
