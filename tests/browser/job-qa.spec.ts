@@ -1,5 +1,30 @@
 import { test, expect } from '@playwright/test';
 
+test('positive salary-filter results request an exact count and paginate past the first page', async ({ page }) => {
+  const jobs = Array.from({ length: 26 }, (_, i) => ({ id: `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`, company: 'Fixture', title: `Engineer ${i + 1}`, location: 'Austin', description: 'Python required.', posted_at: '2026-10-01', apply_url: 'https://fixture.invalid/apply' }));
+  const preferences: string[] = [];
+  await page.route('**/*', async route => {
+    const url = new URL(route.request().url());
+    if (url.hostname === '127.0.0.1') return route.continue();
+    if (url.pathname === '/rest/v1/rpc/browse_job_postings') {
+      const preference = route.request().headers()['prefer'] || '';
+      preferences.push(preference);
+      const offset = Number(url.searchParams.get('offset')) || 0;
+      const rows = jobs.slice(offset, offset + 25);
+      return route.fulfill({ json: rows, headers: { 'access-control-expose-headers': 'Content-Range', 'content-range': `${offset}-${offset + rows.length - 1}/${preference.includes('count=exact') ? '26' : '*'}` } });
+    }
+    if (url.pathname === '/rest/v1/job_postings') return route.fulfill({ json: jobs.find(j => `eq.${j.id}` === url.searchParams.get('id')) || jobs[0] });
+    return route.abort();
+  });
+  await page.goto('/jobs?minPay=100000&currency=USD');
+  await expect(page.locator('p[role="status"]')).toHaveText('26 roles found');
+  await expect(page.locator('.lp-browser-card-title')).toHaveCount(25);
+  await page.getByRole('button', { name: 'Load more jobs', exact: true }).click();
+  await expect(page.locator('.lp-browser-card-title')).toHaveCount(26);
+  expect(preferences.length).toBe(2);
+  expect(preferences.every(p => p.includes('count=exact'))).toBe(true);
+});
+
 test('salary filters reach the server before pagination and persist through refresh', async ({ page }) => {
   const job = { id: '8010724c-04aa-433c-94a9-af81bd4fbfb2', company: 'Fixture company)', title: 'Engineer (33010)', location: '65-Fairfield Acura, Fairfield, OH', posted_at: '2026-10-01', description: 'Python required.', apply_url: 'https://fixture.invalid/apply' };
   const filters: Array<{ p_min_annual: number; p_currency: string }> = [];

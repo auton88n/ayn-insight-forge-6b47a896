@@ -97,7 +97,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
     queryKey: ['public-job-summaries', query, where, categorySlug, city, minimumPay, payCurrency],
     initialPageParam: 0,
     queryFn: async ({ pageParam, signal }) => {
-      let request = (minimumPay ? supabase.rpc('browse_job_postings', { p_min_annual: minimumPay, p_currency: payCurrency }) : supabase.from('job_postings')).select(PUBLIC_JOB_SUMMARY_COLUMNS, { count: 'exact' })
+      let request = (minimumPay ? supabase.rpc('browse_job_postings', { p_min_annual: minimumPay, p_currency: payCurrency }, { count: 'exact' }) : supabase.from('job_postings')).select(PUBLIC_JOB_SUMMARY_COLUMNS, { count: 'exact' })
         .or('scam_suspected.is.null,scam_suspected.eq.false').order('posted_at', { ascending: false }).order('id', { ascending: true });
       if (categorySlug) request = request.eq('category', categorySlug);
       if (city) request = request.ilike('city', city);

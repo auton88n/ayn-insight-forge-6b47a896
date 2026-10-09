@@ -518,7 +518,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const queryLocations = useMemo(() => (matchMode ? desiredLocations : null), [desiredKey, matchMode]);
 
   const buildQuery = useCallback((withCount: boolean) => {
-    let q = (minimumPay || employmentType ? supabase.rpc('browse_job_postings', { p_min_annual: minimumPay, p_currency: payCurrency, p_employment_type: employmentType }) : supabase.from('job_postings'))
+    let q = (minimumPay || employmentType ? supabase.rpc('browse_job_postings', { p_min_annual: minimumPay, p_currency: payCurrency, p_employment_type: employmentType }, withCount ? { count: 'exact' } : {}) : supabase.from('job_postings'))
       .select(COLS, withCount ? { count: "exact" } : undefined)
       .order("posted_at", { ascending: false })
       // v3.196.0 — the closure checker (job-checker/) flags real scam

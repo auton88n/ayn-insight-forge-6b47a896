@@ -39,11 +39,17 @@ vi.mock('@/integrations/supabase/client', () => {
     });
     return proxy;
   };
-  return { supabase: { from: builder, rpc: vi.fn(async (_name: string, args: { p_company_slugs?: string[] }) => ({
+  return { supabase: { from: builder, rpc: vi.fn((_name: string, args: { p_company_slugs?: string[] }, options?: unknown) => {
+    if (_name === 'browse_job_postings') {
+      h.ops.push({ table: 'rpc', op: _name, args: [args, options] });
+      return builder('job_postings');
+    }
+    return Promise.resolve({
       // the real RPC answers every requested company (status may be null)
       data: _name === 'job_filter_options' ? { categories: [], seniorities: [], employment_types: ['full_time', 'contract'] } : (args?.p_company_slugs ?? []).map((company_slug) => ({ company_slug, status: 'insufficient_data' })),
       error: null,
-    })), auth: { getSession: vi.fn() } } };
+    });
+  }), auth: { getSession: vi.fn() } } };
 });
 vi.mock('@/lib/resumeHub', () => ({
   resumeHubApi: new Proxy({}, {
@@ -226,6 +232,17 @@ describe('BrowseJobs list (real component, mocked backend)', () => {
     expect(filtersBtn()).toHaveTextContent('1');
     fireEvent.click(screen.getByText('Clear these filters'));
     await waitFor(() => expect(filtersBtn()).not.toHaveTextContent('1'));
+  });
+
+  it('salary filtering requests an exact RPC count in account browsing', async () => {
+    mount();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    fireEvent.click(screen.getByText('Filters').closest('button') as HTMLElement);
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Minimum annual salary' }), { target: { value: '100000' } });
+    await waitFor(() => expect(h.ops.some(o => o.table === 'rpc' && o.op === 'browse_job_postings' &&
+      (o.args[0] as { p_min_annual: number }).p_min_annual === 100000 &&
+      (o.args[1] as { count?: string })?.count === 'exact')).toBe(true));
+    expect(rows()).toHaveLength(3);
   });
 
   it('search suggestions are offered from the catalog and picking one fills the box', async () => {

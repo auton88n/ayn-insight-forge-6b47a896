@@ -14,6 +14,8 @@ The shared requirements parser accepts explicit prose qualifications without bul
 
 Migration `20261009233000_job_qa_filters_remote_cohorts.sql` adds catalog-only public RPCs `browse_job_postings` and `job_filter_options`. SalaryFilter is shared by public/account browsing: explicit currency, normalized advertised annual minimum, unknown pay excluded when filtering, server filters/count before pagination. Default browsing retains direct-table/bootstrap loading. Canonical employment types group real aliases, omit unrecognized engagement slugs and read complete-catalog options rather than a 5,000-row sample. Public minPay/currency parameters survive refresh/Back/category changes.
 
+For RPC browsing, request `count: 'exact'` in **rpc's third options argument**, not only the chained select options (which do not set the RPC count header). Public and account first-page requests both require this; otherwise positive filtered rows falsely display zero and pagination stops after page one. The browser regression asserts the outgoing Prefer header and a positive 26-row count across two pages; the account component regression checks the salary RPC's count option too.
+
 Remote salary cohorts match explicit eligibility/category/level/currency and remote status, never HQ city. Unrecognized restrictions stay separate; unknown remote eligibility hides the comparison. Local cohorts exclude remote roles. Neutral framing, selected-posting exclusion and the 20-other-posting minimum remain unchanged. `tests/job-qa-cohorts.sql` validates these rules under rollback, alongside unit/browser regressions. No private tables, paid actions or account mutations added.
 
 ## Production job QA, 9 October 2026
