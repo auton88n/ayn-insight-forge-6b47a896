@@ -24,6 +24,9 @@ it('cleans source artifacts without removing meaningful role or company text', (
   expect(formatLocation('65-Fairfield Acura, Fairfield, OH')).toBe('Fairfield, OH');
   expect(formatLocation('East Islip, NY, NY')).toBe('East Islip, NY');
   expect(formatLocation('0090, East Islip, NY, NY11730')).toBe('East Islip, NY 11730');
+  expect(formatLocation('65-Fairfield Acura - Fairfield, OH 45014')).toBe('Fairfield, OH 45014');
+  expect(formatLocation('0090 - East Islip, NY - EAST ISLIP, NY 11730')).toBe('East Islip, NY 11730');
+  expect(formatLocation('0099 - Corporate - Acton, MA 01420')).toBe('Corporate, Acton, MA 01420');
   const original = { title: 'Engineer - Austin, TX', company: 'Acme)', location: 'Austin, TX' };
   expect(tidyPosting(original).title).toBe('Engineer');
   expect(original.title).toBe('Engineer - Austin, TX');

@@ -161,9 +161,9 @@ const COUNTRY_CODES: Record<string, string> = {
  * -> "Dubai", "Dubai, Dubai, ae" -> "Dubai, UAE". */
 export function formatLocation(raw: string | null | undefined): string {
   if (!raw) return "";
-  let cleaned = raw;
+  let cleaned = raw.replace(/\s+[-\u2013\u2014]\s+/g, ', ');
   // Remove a source store identifier only when a separate city/state follows.
-  if (/^\d{2,}(?:[-\s][^,]+)?,\s*[^,]+,\s*[A-Z]{2}\b/.test(cleaned)) cleaned = cleaned.replace(/^[^,]+,\s*/, '');
+  if (/^\d{2,}(?:[-\s][^,]+)?,/.test(cleaned) && /,\s*[A-Z]{2}(?:\s+\d{5}(?:-\d{4})?)?$/.test(cleaned)) cleaned = cleaned.replace(/^[^,]+,\s*/, '');
   cleaned = cleaned.replace(/\b([A-Z]{2}),\s*\1(?=\s*\d{5}\b|[, ]|$)/g, '$1')
     .replace(/\b([A-Z]{2})(\d{5}(?:-\d{4})?)\b/g, '$1 $2');
   const parts = cleaned
@@ -174,7 +174,9 @@ export function formatLocation(raw: string | null | undefined): string {
     // "DUbai" (two capitals then lower case) is a typing slip in the source; "NYC" and "McLean" are left alone.
     .map((p) => (/^[A-Z]{2}[a-z]{2,}$/.test(p) ? p[0] + p.slice(1).toLowerCase() : p));
   const seen = new Set<string>();
+  const statesWithZip = new Set(parts.filter(p => /^[A-Z]{2}\s+\d{5}(?:-\d{4})?$/.test(p)).map(p => p.slice(0, 2)));
   const unique = parts.filter((p) => {
+    if (/^[A-Z]{2}$/.test(p) && statesWithZip.has(p)) return false;
     const k = p.toLowerCase();
     if (seen.has(k)) return false;
     seen.add(k);
