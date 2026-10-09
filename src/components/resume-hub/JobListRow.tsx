@@ -7,7 +7,7 @@
 // changes. Markup and behaviour are otherwise identical to the old inline
 // row.
 import { memo } from "react";
-import { PostingReceiptLine } from '@/components/shared/PostingEvidence';
+import { PostingReceiptLine } from '@/components/shared/PostingReceiptLine';
 import { additionalWorkMode } from '@/lib/jobPostingFormat';
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Flame, Bookmark } from "lucide-react";

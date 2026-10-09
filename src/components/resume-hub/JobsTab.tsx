@@ -41,7 +41,8 @@ import { companyAvatar, formatLocation, decodeHtmlEntities, displayJobTitle, Job
 import { JobApplicationFacts } from '@/components/shared/JobApplicationFacts';
 import { savedJobsQueryKey } from "@/lib/queryKeys";
 import { cleanApplyUrl } from "@/lib/applyUrl";
-import { PostingReceiptLine, PostingEvidencePanel } from '@/components/shared/PostingEvidence';
+import { PostingReceiptLine } from '@/components/shared/PostingReceiptLine';
+import { PostingEvidencePanel } from '@/components/shared/PostingEvidence';
 import type { PostingReceipt } from '@/lib/postingEvidence';
 
 interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile: () => void; onCreditsChanged?: () => void; onBackToBrowse: () => void }

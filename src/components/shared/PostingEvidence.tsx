@@ -1,12 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { evidenceDate, receiptLine, type PostingEvidence, type PostingReceipt } from '@/lib/postingEvidence';
+import { evidenceDate, receiptLine, type PostingEvidence } from '@/lib/postingEvidence';
 import './posting-evidence.css';
-
-/** Pure card content: no per-card request and no interactive element in a button. */
-export function PostingReceiptLine({ posting }: { posting: PostingReceipt }) {
-  return <span className="ayn-receipt-line" title="AYN observations, not a guarantee of hiring. Dates use UTC.">{receiptLine(posting)}</span>;
-}
 
 export function PostingEvidencePanel({ jobId }: { jobId: string }) {
   const q = useQuery({

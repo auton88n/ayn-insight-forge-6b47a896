@@ -4,7 +4,7 @@
 // next couple of cards in the deck) and SwipeDeck itself. Pure code
 // movement, zero logic changes.
 import { useEffect, useRef, useState } from "react";
-import { PostingReceiptLine } from '@/components/shared/PostingEvidence';
+import { PostingReceiptLine } from '@/components/shared/PostingReceiptLine';
 import { additionalWorkMode } from '@/lib/jobPostingFormat';
 import { Badge } from "@/components/ui/badge";
 import { Flame, Heart, Layers, Loader2, X } from "lucide-react";

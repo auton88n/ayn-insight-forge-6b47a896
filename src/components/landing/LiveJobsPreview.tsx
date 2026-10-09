@@ -23,7 +23,7 @@
  * already proved out live: no new backend surface, no new risk.
  */
 import { memo, useEffect, useState } from 'react';
-import { PostingReceiptLine } from '@/components/shared/PostingEvidence';
+import { PostingReceiptLine } from '@/components/shared/PostingReceiptLine';
 import type { PostingReceipt } from '@/lib/postingEvidence';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';

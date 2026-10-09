@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { AynLoader } from '@/components/shared/AynLoader';
-import { PostingReceiptLine, PostingEvidencePanel } from '@/components/shared/PostingEvidence';
+import { PostingReceiptLine } from '@/components/shared/PostingReceiptLine';
+import { PostingEvidencePanel } from '@/components/shared/PostingEvidence';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';

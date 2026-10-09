@@ -9,7 +9,7 @@ import { LandingFooter } from "@/components/landing/LandingFooter";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { Skeleton } from "@/components/ui/skeleton";
 import { companyAvatar, formatLocation, humanizeCategory, humanizeSlug } from "@/lib/jobPostingFormat";
-import { PostingReceiptLine } from '@/components/shared/PostingEvidence';
+import { PostingReceiptLine } from '@/components/shared/PostingReceiptLine';
 import type { PostingReceipt } from '@/lib/postingEvidence';
 
 interface Profile {

@@ -12,6 +12,8 @@ Tests: `postingEvidence.test.ts`, `tests/browser/posting-evidence.spec.ts` and r
 
 Saved lookup returns `match_basis`; company/title fallback is explicitly disclosed on the saved card/detail because it may be another vacancy. Exact-link matches take priority. Timeline overflow is keyboard-focusable as well as scrollable.
 
+`PostingReceiptLine.tsx` is a pure module separate from the networked detail panel. This keeps card/memoization imports independent of Supabase configuration, including clean CI environments with no developer `.env`.
+
 ## Nine-item QA follow-up, 9 October 2026
 
 `jobCopy.ts` provides complete interpolated prose rather than a global CSS/DOM spacing hack. Source, results, saved availability and pay paragraphs keep spaces in visible and accessible text. `jobAvailability.ts` distinguishes live, removed and unverified/manual listings independently from application stage; redundant stage pills are hidden. Checks key on actual saved IDs, and loading/errors cannot pretend that a job is live. Company work-mode counts disclose classified coverage and the unclassified remainder in React/server HTML. Categories are labeled “Roles it is hiring for,” not locations.
