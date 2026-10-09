@@ -10,6 +10,7 @@ import { type JobPosting } from "@/lib/resumeHub";
 import { CompanyInsightsNote } from "@/components/shared/CompanyInsightsNote";
 import { JobPayComparison } from "@/components/shared/JobPayComparison";
 import { JobApplicationFacts } from '@/components/shared/JobApplicationFacts';
+import { additionalWorkMode } from '@/lib/jobPostingFormat';
 import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, JobDescriptionBody, formatLocation, jobAgeNotes, jobFactChips } from "@/lib/jobPostingFormat";
 import { extractCultureSnippet } from "./browseJobsHelpers";
 import { ScorePill } from "./ScorePill";
@@ -55,7 +56,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
         // still showing. humanizeSlug already exists for exactly this
         // shape of value (used for employment_type/seniority already) —
         // reused here instead of the narrower, wrong capitalize-only fix.
-        (job.work_mode || job.work_mode_text) && { key: "mode", label: "Work mode", value: humanizeSlug((job.work_mode || job.work_mode_text)!), tone: "trust" as const },
+        additionalWorkMode(job.location, job.work_mode || job.work_mode_text) && { key: "mode", label: "Work mode", value: additionalWorkMode(job.location, job.work_mode || job.work_mode_text)!, tone: "trust" as const },
         job.employment_type && { key: "type", label: "Type", value: EMPLOYMENT_TYPE_LABELS[job.employment_type] || humanizeSlug(job.employment_type) },
         // Facts the posting states in its own text (read once, never guessed).
         ...jobFactChips(job).filter(c => c.key !== 'region' && c.key !== 'deadline').map((c) => ({

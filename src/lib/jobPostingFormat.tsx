@@ -57,13 +57,25 @@ export const SENIORITY_LABELS: Record<string, string> = {
  * Show what the person can recognise instead of the number. */
 export function displayJobTitle(title: string | null | undefined, company?: string | null, description?: string | null): string {
   const t = String(title || "").trim();
-  const looksLikeId = !t || /^Job from resume check$/i.test(t) || /^(job\s*)?(requisition|req)\b[\s#:.-]*(id|no|number)?[\s#:.-]*[\w-]*(?:\s*[.…]+)?$/i.test(t) || /^[\d\s_#-]{4,}$/.test(t);
+  const looksLikeId = !t || /^(?:Job from resume check|Saved job \(title not provided\))$/i.test(t) || /^(job\s*)?(requisition|req)\b[\s#:.-]*(id|no|number)?[\s#:.-]*[\w-]*(?:\s*[.…]+)?$/i.test(t) || /^[\d\s_#-]{4,}$/.test(t);
   if (!looksLikeId) return t;
   // Read only an explicit title label, never turn the requisition number,
   // company boilerplate or a requirements sentence into a guessed role.
   const labeled = decodeHtmlEntities(description).match(/^(?:job title|position title|role title|position|role)\s*:\s*([^\n]{3,100})$/im)?.[1]?.trim();
   if (labeled && !/^(?:job\s*)?(?:requisition|req)\b/i.test(labeled)) return labeled;
-  return company ? `Role at ${company}` : "Saved job (title not provided)";
+  const text = decodeHtmlEntities(description);
+  // Recover only explicit attribution, not a client/partner mentioned later in a JD.
+  const employer = company?.trim() || text.match(/^\s*(?:company|employer)\s*:\s*([^\n]{2,80})\s*$/im)?.[1]?.trim()
+    || text.match(/^\s*Established[^\n,.]{0,150},\s*([^\n,.]{2,80}?)\s+today is\b/im)?.[1]?.trim();
+  return employer ? `Role at ${employer}` : "Saved job (title not provided)";
+}
+
+/** Do not repeat an already stated work mode beside the location. */
+export function additionalWorkMode(location: string | null | undefined, mode: string | null | undefined): string | null {
+  if (!mode) return null;
+  const label = mode === 'onsite' ? 'On-site' : humanizeSlug(mode);
+  const token = mode === 'onsite' ? /\bon[ -]?site\b/i : mode === 'remote' ? /\bremote\b/i : mode === 'hybrid' ? /\bhybrid\b/i : null;
+  return token?.test(location || '') ? null : label;
 }
 
 export function humanizeSlug(s: string) {

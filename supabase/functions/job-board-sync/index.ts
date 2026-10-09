@@ -55,6 +55,7 @@ import { isTrendingTechCategory } from "../_shared/trendingCategories.ts";
 import { stripHtml } from "../_shared/htmlText.ts";
 import { detectScamSignal, checkApplyUrlTrust } from "../_shared/scamSignals.ts";
 import { cleanApplyUrl } from "../_shared/applyUrl.ts";
+import { verifiedEmploymentType } from "../_shared/jobEmploymentType.ts";
 
 // v3.134.0 — /jobs/search (the plain search endpoint) truncates description
 // to a ~1000-char preview, confirmed live (999 chars, cut off mid-sentence).
@@ -357,9 +358,9 @@ async function syncRegion(
           scam_suspected: scam.suspected || urlTrust.suspected,
           scam_reason: scam.reason ?? urlTrust.reason,
           // v3.166.0 — freehire's own structured enrichment, captured as-is,
-          // never inferred for the rows it doesn't have. See this file's own
-          // header note on real, live-measured coverage per field.
-          employment_type: e.employment_type ? String(e.employment_type).slice(0, 60) : null,
+          // never inferred for the rows it doesn't have. Reject the demonstrated
+          // prior-internship-experience/type confusion without inventing a replacement.
+          employment_type: verifiedEmploymentType(e.employment_type ? String(e.employment_type).slice(0, 60) : null, title, description),
           seniority: e.seniority ? String(e.seniority).slice(0, 60) : null,
           salary_min: typeof e.salary_min === "number" ? Math.round(e.salary_min) : null,
           salary_max: typeof e.salary_max === "number" ? Math.round(e.salary_max) : null,

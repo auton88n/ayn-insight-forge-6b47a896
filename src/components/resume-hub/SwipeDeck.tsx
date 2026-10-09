@@ -4,6 +4,7 @@
 // next couple of cards in the deck) and SwipeDeck itself. Pure code
 // movement, zero logic changes.
 import { useEffect, useRef, useState } from "react";
+import { additionalWorkMode } from '@/lib/jobPostingFormat';
 import { Badge } from "@/components/ui/badge";
 import { Flame, Heart, Layers, Loader2, X } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
@@ -210,9 +211,9 @@ export function SwipeDeck({
                 {salary.text}
               </span>
             )}
-            {current.work_mode && (
+            {additionalWorkMode(current.location, current.work_mode) && (
               <span className="text-[11px] font-semibold rounded-full px-2.5 py-1 capitalize" style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}>
-                {current.work_mode}
+                {additionalWorkMode(current.location, current.work_mode)}
               </span>
             )}
             {current.seniority && (

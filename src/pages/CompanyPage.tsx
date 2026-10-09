@@ -89,7 +89,7 @@ const CompanyPage = () => {
 
                   <div className="mt-6 grid gap-6 md:grid-cols-2 text-sm">
                     <div><h2 className="font-semibold mb-1.5">Posting updates</h2>
-                      <p className="text-muted-foreground">{p.edits_30d} field changes observed in the last 30 days. One posting may have several changes; this is not a count of hires.</p></div>
+                      <p className="text-muted-foreground">{`${p.edits_30d} field ${p.edits_30d === 1 ? 'change' : 'changes'} observed in the last 30 days. One posting may have several changes; this is not a count of hires.`}</p></div>
                     {p.top_categories.length > 0 && (
                       <div><h2 className="font-semibold mb-1.5">Where it is hiring</h2>
                         <p className="text-muted-foreground">{p.top_categories.map((c) => `${humanizeCategory(c.category)} (${c.open_roles})`).join(", ")}</p></div>
@@ -125,7 +125,7 @@ const CompanyPage = () => {
                         );
                       })}
                     </ul>
-                    {p.insights.open_roles > p.jobs.length && <p className="text-sm text-muted-foreground mt-3">Showing the {p.jobs.length} most recent of {p.insights.open_roles}. <Link className="underline" to={`/jobs`}>Search all jobs</Link>.</p>}
+                    {p.insights.open_roles > p.jobs.length && <p className="text-sm text-muted-foreground mt-3">{`Showing the ${p.jobs.length} most recent of ${p.insights.open_roles}. `}<Link className="underline" to={`/jobs`}>Search all jobs</Link>.</p>}
                   </div>
 
                   <p className="mt-10 text-xs text-muted-foreground max-w-2xl">

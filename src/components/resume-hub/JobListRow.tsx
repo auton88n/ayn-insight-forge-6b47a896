@@ -7,6 +7,7 @@
 // changes. Markup and behaviour are otherwise identical to the old inline
 // row.
 import { memo } from "react";
+import { additionalWorkMode } from '@/lib/jobPostingFormat';
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Flame, Bookmark } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
@@ -105,12 +106,12 @@ function JobListRowImpl({
                   {SENIORITY_LABELS[j.seniority] || humanizeSlug(j.seniority)}
                 </span>
               )}
-              {j.work_mode && (
+              {additionalWorkMode(j.location, j.work_mode) && (
                 <span
                   className="text-[10.5px] font-medium rounded-full px-2 py-0.5"
                   style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}
                 >
-                  {humanizeSlug(j.work_mode)}
+                  {additionalWorkMode(j.location, j.work_mode)}
                 </span>
               )}
             </div>

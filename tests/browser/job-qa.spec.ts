@@ -26,7 +26,7 @@ test('job details disclose source pay problems and visible application condition
   const job = {
     id: '8010724c-04aa-433c-94a9-af81bd4fbfb2', company: 'Fixture company', title: 'General Manager',
     description: 'Remote role available in the United States only. Pay: Up to $65,000.00 per hour',
-    location: 'Austin, TX', remote_region: 'United States', work_mode: 'remote', apply_by: '2026-09-11',
+    location: 'United States (Remote)', remote_region: 'United States', work_mode: 'remote', apply_by: '2026-09-11',
     posted_at: '2026-10-01T12:00:00Z', apply_url: 'https://fixture.invalid/apply',
   };
   await page.route('**/*', async route => {
@@ -46,6 +46,7 @@ test('job details disclose source pay problems and visible application condition
   await expect(conditions).toContainText('Stated deadline has passed');
   await expect(page.getByRole('note').filter({ hasText: 'Pay period needs confirmation' })).toBeVisible();
   await expect(page.getByText(job.description, { exact: true })).toBeVisible();
+  await expect(page.locator('.lp-browser-card-meta')).toHaveText('United States (Remote)');
 });
 
 test('company observations render once, including after refresh', async ({ page }) => {
@@ -53,8 +54,8 @@ test('company observations render once, including after refresh', async ({ page 
     if (new URL(route.request().url()).hostname === '127.0.0.1') return route.continue();
     if (route.request().url().includes('/rest/v1/rpc/company_profile')) return route.fulfill({ json: {
       slug: 'workstream', name: 'Workstream', logo_url: null,
-      insights: { open_roles: 11, pay: { postings: 11, with_pay: 1, pct: 9 }, speed: null },
-      relisted_roles: 0, edits_30d: 2, sponsorship: { offered: 0, not_offered: 0 },
+      insights: { open_roles: 100, pay: { postings: 11, with_pay: 1, pct: 9 }, speed: null },
+      relisted_roles: 0, edits_30d: 1, sponsorship: { offered: 0, not_offered: 0 },
       work_mode: {}, top_categories: [], common_benefits: [], jobs: [],
     } });
     return route.abort();
@@ -63,7 +64,8 @@ test('company observations render once, including after refresh', async ({ page 
   for (let pass = 0; pass < 2; pass++) {
     await expect(page.getByText('of postings show pay (1 of 11)', { exact: true })).toHaveCount(1);
     await expect(page.getByRole('heading', { name: 'Posting updates', exact: true })).toHaveCount(1);
-    await expect(page.getByText(/2 field changes observed in the last 30 days/)).toHaveCount(1);
+    await expect(page.getByText(/1 field change observed in the last 30 days/)).toHaveCount(1);
+    await expect(page.getByText(/Showing the 0 most recent of 100\./)).toHaveCount(1);
     if (!pass) await page.reload();
   }
 });

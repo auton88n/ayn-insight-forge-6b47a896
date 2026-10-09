@@ -2,6 +2,12 @@
 
 ## Production job QA, 9 October 2026
 
+Follow-up QA: title fallback also recognizes its own saved generic placeholder and recovers explicit `Company:`/`Employer:` labels or the narrowly stated `Established …, <company> today is` introduction (the affected Al-Futtaim saved JD). It does not infer employers from arbitrary client mentions or overwrite personal jobs. `additionalWorkMode` suppresses repeated remote/hybrid/on-site labels in public cards, account list/swipe cards and detail highlights. Company update/count copy uses complete strings with preserved number spacing and singular/plural grammar; server copy agrees.
+
+`job-board-sync` now uses `_shared/jobEmploymentType.ts` to reject feed internship tags demonstrably confused with prior internship experience unless the title or engagement wording independently confirms internship. Other/ambiguous feed types are preserved; this is not exhaustive type verification. `20261009230000_correct_attorney_internship_tag.sql` clears only the reported public-safety attorney's incorrect tag under exact ID/source/title/text guards. No replacement type is inferred.
+
+Remote/deadline surfacing was verified live on posting IDs `6bb4bdda-2b4c-4927-b0b4-cbc6145f4db3` (US eligibility) and `bf64027b-1a8b-44e2-b4a7-d76ac4fbe36d` (12 October deadline). Both public detail queries and account `COLS` include the fields. Missing facts intentionally render no section. Marketing/Support's equal 1,030 counts were independently confirmed against their distinct DB categories and the snapshot RPC; no fabricated count correction is warranted.
+
 Decimal-comma parsing also reads OTE ranges that the older parser missed. Explicit OTE/on-target-earnings labels are excluded from the base-pay candidate, with tests protecting a separate base range followed by a different OTE amount (including concatenated feed text). This is a narrow labeling guard, not complete total-compensation or level/location-specific range validation.
 
 `displayJobTitle` now rejects old checker placeholders and requisition identifiers; it uses an explicitly labeled role in the JD or a neutral company/title-missing fallback. This fixes existing saved cards at display time without rewriting user data. Checker continuation saves the same safe fallback for new manual jobs. `/employers` no longer redirects signed-in seekers into Saved jobs; marketing remains public, while approved/pending employer and legal-consent gates are unchanged.

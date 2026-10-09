@@ -550,7 +550,7 @@ function renderCompanyBody(p) {
   if (i.pay) lines.push(`<p>${escapeHtml(p.name)} shows pay on ${i.pay.pct}% of its ${i.pay.postings} open postings.</p>`);
   if (i.speed) lines.push(`<p>Postings at ${escapeHtml(p.name)} typically remain in AYN's catalog about ${i.speed.median_days_open} days, based on ${i.speed.closed_tracked} removals. Includes employer closure and freshness pruning; not time to hire.</p>`);
   if (p.relisted_roles > 0) lines.push(`<p>${p.relisted_roles} of its live roles have been listed before.</p>`);
-  lines.push(`<p>${Number(p.edits_30d) || 0} posting field changes observed in the last 30 days. One posting may have several changes; this is not a count of hires.</p>`);
+  lines.push(`<p>${Number(p.edits_30d) || 0} posting field ${Number(p.edits_30d) === 1 ? 'change' : 'changes'} observed in the last 30 days. One posting may have several changes; this is not a count of hires.</p>`);
   const cats = (p.top_categories || []).map((c) => `${escapeHtml(String(c.category).replace(/_/g, ' '))} (${c.open_roles})`).join(', ');
   if (cats) lines.push(`<p>Where it is hiring: ${cats}.</p>`);
   const ben = (p.common_benefits || []).map((b) => `${escapeHtml(b.benefit)} (${b.roles})`).join(', ');

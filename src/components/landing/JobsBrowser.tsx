@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { JobPosting } from '@/lib/resumeHub';
 import { CompanyInsightsNote } from '@/components/shared/CompanyInsightsNote';
 import { JobApplicationFacts } from '@/components/shared/JobApplicationFacts';
+import { additionalWorkMode } from '@/lib/jobPostingFormat';
 import { JobPayComparison } from '@/components/shared/JobPayComparison';
 import { companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike, JobDescriptionBody, employmentTypeLabel, seniorityLabel, humanizeCategory, formatLocation, locationSearchPatterns, jobAgeNotes, jobFactChips } from '@/lib/jobPostingFormat';
 import { Search, ExternalLink, Loader2, MapPin, ArrowLeft, ArrowRight, RefreshCw, Link2 } from 'lucide-react';
@@ -201,7 +202,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
           const salary = resolveSalary({ ...job, description: '' });
           return (
         <button id={'job-result-' + job.id} key={job.id} type="button" onClick={() => openJob(job)} aria-pressed={selectedId === job.id} className={'lp-browser-card ' + (selectedId === job.id ? 'is-active' : '')}>
-          <div className="lp-browser-card-row">{logo(job)}<div className="lp-browser-card-text"><div className="lp-browser-card-company">{job.company}</div><div className="lp-browser-card-title">{job.title}</div><div className="lp-browser-card-meta">{formatLocation(job.location) || 'Location not listed'}{job.work_mode && ' · ' + job.work_mode.charAt(0).toUpperCase() + job.work_mode.slice(1)}</div><div className="ayn-job-meta-bottom">{/* "View posting" used to fill this slot when the source never
+          <div className="lp-browser-card-row">{logo(job)}<div className="lp-browser-card-text"><div className="lp-browser-card-company">{job.company}</div><div className="lp-browser-card-title">{job.title}</div><div className="lp-browser-card-meta">{[formatLocation(job.location) || 'Location not listed', additionalWorkMode(job.location, job.work_mode)].filter(Boolean).join(' · ')}</div><div className="ayn-job-meta-bottom">{/* "View posting" used to fill this slot when the source never
                   stated an employment type, reading as a second, unrelated
                   action sitting where "Full-time"/"Contract" belongs. An
                   unknown type is now just omitted, not papered over with a
