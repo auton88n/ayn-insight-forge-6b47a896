@@ -19,6 +19,8 @@ test('main sitemap survives a live dist rebuild and logs no request secrets', { 
     await mkdir(path.join(fixture, 'public'));
     await symlink(path.join(root, 'node_modules'), path.join(fixture, 'node_modules'));
     await copyFile(path.join(root, 'server.js'), path.join(fixture, 'server.mjs'));
+    await mkdir(path.join(fixture, 'src/lib'), { recursive: true });
+    await copyFile(path.join(root, 'src/lib/jobLocation.mjs'), path.join(fixture, 'src/lib/jobLocation.mjs'));
     await copyFile(path.join(root, 'index.html'), path.join(fixture, 'dist/index.html'));
     for (const folder of ['dist', 'public']) {
       await copyFile(path.join(root, 'public/sitemap.xml'), path.join(fixture, folder, 'sitemap.xml'));

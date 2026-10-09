@@ -176,7 +176,7 @@ export default function LegalPage({ slug }: Props) {
             </nav>
           )}
 
-          <article className="legal-doc prose prose-neutral dark:prose-invert max-w-none mt-10">
+          <article className="ayn-reading legal-doc mt-10">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react';
 import { AynLoader } from '@/components/shared/AynLoader';
 import { PostingReceiptLine } from '@/components/shared/PostingReceiptLine';
 import { PostingEvidencePanel } from '@/components/shared/PostingEvidence';
@@ -29,6 +29,13 @@ const jobsBootstrap: JobsBootstrap | null = (() => {
     const el = document.getElementById('ayn-jobs-bootstrap');
     const data = el ? JSON.parse(el.textContent || 'null') : null;
     return data && Array.isArray(data.rows) && data.rows.length && typeof data.at === 'number' ? data as JobsBootstrap : null;
+  } catch { return null; }
+})();
+const detailBootstrap: { job: JobPosting; at: number } | null = (() => {
+  try {
+    const el = document.getElementById('ayn-job-detail-bootstrap');
+    const value = el ? JSON.parse(el.textContent || 'null') : null;
+    return value?.job?.id && typeof value.at === 'number' ? value : null;
   } catch { return null; }
 })();
 export const BROWSE_CATEGORIES = ['software_engineering', 'sales', 'marketing', 'design', 'data_analytics', 'product', 'operations', 'finance', 'customer_success', 'devops', 'healthcare', 'education', 'hr', 'legal', 'retail', 'hospitality', 'administrative', 'construction'];
@@ -73,6 +80,10 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
   };
   const query = params.get('q') ?? initialQuery;
   const where = params.get('where') ?? initialWhere;
+  const workMode = ['remote', 'hybrid', 'onsite'].includes(params.get('mode') || '') ? params.get('mode')! : '';
+  const days = ['1', '7', '30'].includes(params.get('days') || '') ? params.get('days')! : '';
+  const employment = ['full_time', 'part_time', 'contract', 'internship', 'temporary', 'seasonal', 'freelance'].includes(params.get('type') || '') ? params.get('type')! : '';
+  const level = ['junior', 'middle', 'senior', 'staff', 'lead', 'principal', 'intern', 'c_level'].includes(params.get('level') || '') ? params.get('level')! : '';
   const minimumPay = Math.max(0, Math.min(10000000, Number(params.get('minPay')) || 0));
   const payCurrency = ['USD','CAD','GBP','EUR','AUD','AED','SAR','SGD','CHF','INR'].includes(params.get('currency') || '') ? params.get('currency')! : 'USD';
   const [draftPay, setDraftPay] = useState(minimumPay);
@@ -94,15 +105,19 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, []);
-  const useBootstrap = !query && !where && !categorySlug && !city && !minimumPay;
+  const useBootstrap = !query && !where && !categorySlug && !city && !minimumPay && !workMode && !days && !employment && !level;
   const listings = useInfiniteQuery({
-    queryKey: ['public-job-summaries', query, where, categorySlug, city, minimumPay, payCurrency],
+    queryKey: ['public-job-summaries', query, where, categorySlug, city, minimumPay, payCurrency, workMode, days, employment, level],
     initialPageParam: 0,
     queryFn: async ({ pageParam, signal }) => {
-      let request = (minimumPay ? supabase.rpc('browse_job_postings', { p_min_annual: minimumPay, p_currency: payCurrency }, { count: 'exact' }) : supabase.from('job_postings')).select(PUBLIC_JOB_SUMMARY_COLUMNS, { count: 'exact' })
+      let request = (minimumPay || employment ? supabase.rpc('browse_job_postings', { p_min_annual: minimumPay, p_currency: payCurrency, ...(employment ? { p_employment_type: employment } : {}) }, { count: 'exact' }) : supabase.from('job_postings')).select(PUBLIC_JOB_SUMMARY_COLUMNS, { count: 'exact' })
         .or('scam_suspected.is.null,scam_suspected.eq.false').order('posted_at', { ascending: false }).order('id', { ascending: true });
       if (categorySlug) request = request.eq('category', categorySlug);
       if (city) request = request.ilike('city', city);
+      if (workMode) request = request.or(`work_mode.eq.${workMode},and(work_mode.is.null,work_mode_text.eq.${workMode})`);
+      if (level) request = request.eq('seniority', level);
+      // Feed refreshes may update posted_at. Do not sell this as the employer's publication date.
+      if (days) request = request.gte('first_seen_at', new Date(Date.now() - Number(days) * 86_400_000).toISOString());
       const term = safeLike(query), place = safeLike(where);
       if (term) request = request.or('title.ilike.%' + term + '%,company.ilike.%' + term + '%,location.ilike.%' + term + '%');
       if (place) {
@@ -126,18 +141,28 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
     queryKey: ['public-job-detail', selectedId],
     enabled: !!selectedId,
     queryFn: async ({ signal }) => {
-      const { data, error } = await supabase.from('job_postings').select(PUBLIC_JOB_SUMMARY_COLUMNS + ',description,skills')
-        .eq('id', selectedId!).or('scam_suspected.is.null,scam_suspected.eq.false').abortSignal(signal).maybeSingle();
-      if (error) throw error;
-      return data as unknown as JobPosting | null;
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      signal.addEventListener('abort', abort, { once: true });
+      if (signal.aborted) abort();
+      const timer = setTimeout(abort, 15_000);
+      try {
+        const { data, error } = await supabase.from('job_postings').select(PUBLIC_JOB_SUMMARY_COLUMNS + ',description,skills')
+          .eq('id', selectedId!).or('scam_suspected.is.null,scam_suspected.eq.false').abortSignal(controller.signal).maybeSingle();
+        if (error) throw error;
+        return data as unknown as JobPosting | null;
+      } finally { clearTimeout(timer); signal.removeEventListener('abort', abort); }
     },
     staleTime: 60_000,
-    ...(useBootstrap && jobsBootstrap?.detail && jobsBootstrap.detail.id === selectedId ? {
+    retry: 1,
+    ...(detailBootstrap && detailBootstrap.job.id === selectedId ? { initialData: detailBootstrap.job, initialDataUpdatedAt: detailBootstrap.at } : useBootstrap && jobsBootstrap?.detail && jobsBootstrap.detail.id === selectedId ? {
       initialData: jobsBootstrap.detail,
       initialDataUpdatedAt: jobsBootstrap.at,
     } : {}),
   });
-  const selected = detail.data ? tidyPosting(detail.data) : detail.data;
+  // The parent stores this value for page metadata. A fresh object on every
+  // render makes that effect update the parent indefinitely on /jobs/:id.
+  const selected = useMemo(() => detail.data ? tidyPosting(detail.data) : detail.data, [detail.data]);
   const total = listings.data?.pages[0]?.total ?? 0;
   useEffect(() => { onJobsLoaded?.({ total, loading: listings.isPending }); }, [total, listings.isPending, onJobsLoaded]);
   useEffect(() => { onSelectedChange?.(explicitId && selected?.id === explicitId ? selected : null); }, [explicitId, selected, onSelectedChange]);
@@ -150,6 +175,12 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
     next.delete('job');
     if (routeId) navigate('/jobs?' + next.toString());
     else setEmbeddedParams(next);
+  };
+  const updateFilter = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value); else next.delete(key);
+    next.delete('job');
+    if (routeId) navigate('/jobs?' + next.toString()); else setEmbeddedParams(next);
   };
   const openJob = (job: JobSummary) => {
     const next = new URLSearchParams(params); next.set('job', job.id);
@@ -184,7 +215,15 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
       {!city && <label className="ayn-search-input"><span>Location</span><div><MapPin size={18} /><input value={draftWhere} onChange={event => setDraftWhere(event.target.value)} placeholder="City, country or remote" /></div></label>}
       <button type="submit" className="lp-btn lp-btn-primary">Search jobs <ArrowRight size={16} /></button>
     </form>
-    <details className="rounded-lg border p-3 mb-3"><summary className="cursor-pointer text-sm">Salary filter{minimumPay ? ` · ${minimumPay.toLocaleString()} ${payCurrency} minimum` : ''}</summary>
+    <p className="ayn-source-note">Search a title, skill or company—not a full sentence. Put the city or country in Location and use Work mode below.</p>
+    <div className="ayn-discovery-filters grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+      <label className="flex min-w-0 flex-col gap-1 text-sm">Work mode <select aria-label="Work mode" value={workMode} onChange={e => updateFilter('mode', e.target.value)} className="w-full min-w-0 border rounded-md p-2"><option value="">Any work mode</option><option value="remote">Remote</option><option value="hybrid">Hybrid</option><option value="onsite">On-site</option></select></label>
+      <label className="flex min-w-0 flex-col gap-1 text-sm">First observed <select aria-label="First observed" value={days} onChange={e => updateFilter('days', e.target.value)} className="w-full min-w-0 border rounded-md p-2"><option value="">Any time</option><option value="1">Past 24 hours</option><option value="7">Past week</option><option value="30">Past month</option></select></label>
+      <label className="flex min-w-0 flex-col gap-1 text-sm">Employment <select aria-label="Employment type" value={employment} onChange={e => updateFilter('type', e.target.value)} className="w-full min-w-0 border rounded-md p-2"><option value="">Any employment type</option>{['full_time','part_time','contract','internship','temporary','seasonal','freelance'].map(v => <option key={v} value={v}>{employmentTypeLabel(v)}</option>)}</select></label>
+      <label className="flex min-w-0 flex-col gap-1 text-sm">Experience <select aria-label="Experience level" value={level} onChange={e => updateFilter('level', e.target.value)} className="w-full min-w-0 border rounded-md p-2"><option value="">Any experience level</option>{['junior','middle','senior','staff','lead','principal','intern','c_level'].map(v => <option key={v} value={v}>{seniorityLabel(v)}</option>)}</select></label>
+    </div>
+    <p className="ayn-source-note">First observed is when AYN first recorded the posting, not its original publication date. Filtered results exclude unknown classifications.</p>
+    <details open className="ayn-pay-controls rounded-lg border p-3 mb-3"><summary className="cursor-pointer text-sm">Salary filter{minimumPay ? ` · ${minimumPay.toLocaleString()} ${payCurrency} minimum` : ''}</summary>
       <div className="max-w-md mt-3"><SalaryFilter minimum={draftPay} currency={draftCurrency} onMinimum={setDraftPay} onCurrency={setDraftCurrency} />
         <button type="button" className="lp-btn lp-btn-ghost mt-2" onClick={updateSearch}>Apply filters</button></div>
     </details>

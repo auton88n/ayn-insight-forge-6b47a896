@@ -216,8 +216,8 @@ describe('BrowseJobs list (real component, mocked backend)', () => {
     mount();
     await waitFor(() => expect(rows()).toHaveLength(3));
     expect(screen.queryByText('Clear')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('Remote'));
-    await waitFor(() => expect(h.ops.some((o) => o.op === 'ilike' && o.args[0] === 'location' && o.args[1] === '%remote%')).toBe(true));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Work mode' }), { target: { value: 'remote' } });
+    await waitFor(() => expect(h.ops.some((o) => o.op === 'or' && o.args[0] === 'work_mode.eq.remote,and(work_mode.is.null,work_mode_text.eq.remote)')).toBe(true));
     fireEvent.click(await screen.findByText('Clear'));
     await waitFor(() => expect(screen.queryByText('Clear')).not.toBeInTheDocument());
   });
@@ -227,9 +227,9 @@ describe('BrowseJobs list (real component, mocked backend)', () => {
     await waitFor(() => expect(rows()).toHaveLength(3));
     const filtersBtn = () => screen.getByText('Filters').closest('button') as HTMLElement;
     fireEvent.click(filtersBtn());
-    expect(screen.getByText('Posted within')).toBeInTheDocument();
+    expect(screen.getByText('First observed by AYN')).toBeInTheDocument();
     fireEvent.click(screen.getByText('3 days'));
-    await waitFor(() => expect(h.ops.some((o) => o.table === 'job_postings' && o.op === 'gte' && o.args[0] === 'posted_at')).toBe(true));
+    await waitFor(() => expect(h.ops.some((o) => o.table === 'job_postings' && o.op === 'gte' && o.args[0] === 'first_seen_at')).toBe(true));
     expect(filtersBtn()).toHaveTextContent('1');
     fireEvent.click(screen.getByText('Clear these filters'));
     await waitFor(() => expect(filtersBtn()).not.toHaveTextContent('1'));

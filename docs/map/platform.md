@@ -1,5 +1,13 @@
 # 2 October 2026: Insights content engine handoff and archive safety
 
+## Pay-data floor, 10 October 2026
+
+`content-engine/grounding.ts` `applySalaryFloor`: fewer than 10 USD salary-stating postings removes every pay figure from the data given to the model and stored in `source_data`, and a salary report with no usable sample is skipped, not published. Reported pay is labelled as annual USD midpoints. Found because `salary-sales-london` published a "median" from one salary; that article was archived (not deleted) and can be regenerated only once the city has enough pay data.
+
+## Reading presentation, 10 October 2026 (local, not deployed)
+
+Insights and legal Markdown use explicit scoped `.ayn-reading` typography in `src/index.css` rather than the undefined Tailwind `prose` plugin. Paragraphs, heading hierarchy, lists, links, quotes and code are styled; Insights tables use a keyboard-focusable local scrolling wrapper. Legal anchors, version text, contents and print styles remain. Markdown HTML is not enabled, source text and legal wording are unchanged. `tests/browser/presentation.spec.ts` checks desktop/mobile typography, list markers, tables, HTML escaping and legal paragraph spacing. Job search controls retain AYN colors with consistent field spacing and 44px controls. No new dependency, backend writer, credit or consent behavior is added.
+
 ## Frontend feature loading, 9 October 2026
 
 `landing/HomeTabPanel.tsx` is a small eager registry, not the public-tab implementation. The former combined `HomeTabs.tsx` is replaced by ten independent `landing/tabs/*Tab.tsx` modules. `LandingSections.tsx` loads only the chosen public tab, the job browser, or the employer marketing shell (`EmployerLandingSections.tsx`); account tabs and employer sidebar remain deferred. `useRevealContent.ts` observes delayed content as well as initial DOM and guarantees visibility after 900ms, avoiding invisible lazy-loaded sections. Public tab markup, pricing, navigation and actions remain unchanged.

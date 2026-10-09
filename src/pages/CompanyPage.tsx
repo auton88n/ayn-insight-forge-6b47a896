@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { jobCopy } from '@/lib/jobCopy';
+import { normalizeLocationCounts } from '@/lib/jobLocation.mjs';
 import { displayCompany, displayJobTitle } from '@/lib/jobPostingFormat';
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,6 +45,14 @@ const CompanyPage = () => {
     },
   });
   const p = q.data ? { ...q.data, name: displayCompany(q.data.name) } : q.data;
+  const locations = useQuery({
+    queryKey: ['company-locations', slug], staleTime: 10 * 60 * 1000,
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase.rpc('company_location_summary', { p_company_slug: slug }).abortSignal(signal);
+      if (error) throw error;
+      return data;
+    },
+  });
   const av = companyAvatar(p?.name || slug);
   const modes = p ? Object.entries(p.work_mode).filter(([m]) => ['remote', 'hybrid', 'onsite'].includes(m)).sort((a, b) => b[1] - a[1]) : [];
 
@@ -92,6 +101,12 @@ const CompanyPage = () => {
                   </div>
 
                   <div className="mt-6 grid gap-6 md:grid-cols-2 text-sm">
+                    <div><h2 className="font-semibold mb-1.5">Where it is hiring</h2>
+                      {locations.isPending ? <p className="text-muted-foreground">Loading posting locations…</p> : locations.isError ? <button type="button" className="underline" onClick={() => locations.refetch()}>Retry locations</button> : locations.data && <>
+                        <p className="text-muted-foreground">{normalizeLocationCounts(locations.data.groups).map(g => `${g.location} (${g.roles})`).join('; ') || 'No locations stated.'}</p>
+                        <p className="text-muted-foreground mt-1">{`${locations.data.with_location} of ${locations.data.total} postings state a location. Counts describe posting location combinations, not separate vacancies in each city.`}{locations.data.source_groups > 100 ? ' Showing the 100 most common source location combinations.' : ''}</p>
+                      </>}
+                    </div>
                     <div><h2 className="font-semibold mb-1.5">Posting updates</h2>
                       <p className="text-muted-foreground">{`${p.edits_30d} field ${p.edits_30d === 1 ? 'change' : 'changes'} observed in the last 30 days. One posting may have several changes; this is not a count of hires.`}</p></div>
                     {p.top_categories.length > 0 && (

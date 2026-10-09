@@ -35,6 +35,7 @@
  * that happened to already call humanizeSlug as a second-tier fallback.
  */
 import { useMemo } from "react";
+import { canonicalLocation, locationWorkMode } from './jobLocation.mjs';
 export { relevantPostingSkills } from '../../supabase/functions/_shared/jobSkills';
 
 export function displayCompany(raw: string): string {
@@ -52,7 +53,7 @@ export function tidyPosting<T extends { title: string; company: string; location
     const at = title.lastIndexOf(separator);
     if (at > 0 && location && formatLocation(title.slice(at + separator.length)).toLowerCase() === location.toLowerCase()) title = title.slice(0, at);
   }
-  return { ...job, title, company: displayCompany(job.company) };
+  return { ...job, title, company: displayCompany(job.company), ...('work_mode' in job && !job.work_mode && !('work_mode_text' in job && job.work_mode_text) ? { work_mode: locationWorkMode(job.location) } : {}) };
 }
 import type { JobPosting } from "@/lib/resumeHub";
 import { extractSalaryFromText as extractPostingSalary, payPeriodWarning } from '../../supabase/functions/_shared/jobFacts';
@@ -94,7 +95,7 @@ export function additionalWorkMode(location: string | null | undefined, mode: st
   if (!mode) return null;
   const label = mode === 'onsite' ? 'On-site' : humanizeSlug(mode);
   const token = mode === 'onsite' ? /\bon[ -]?site\b/i : mode === 'remote' ? /\bremote\b/i : mode === 'hybrid' ? /\bhybrid\b/i : null;
-  return token?.test(location || '') ? null : label;
+  return token?.test(formatLocation(location)) ? null : label;
 }
 
 export function humanizeSlug(s: string) {
@@ -151,38 +152,12 @@ export function humanizeCategory(s: string) {
 // Country codes the job feeds leave in place of a name. Only the unambiguous
 // ones: two-letter "ae" is the UAE, but "sa", "il" and the like are also US
 // states or Australian states, so those are left alone.
-const COUNTRY_CODES: Record<string, string> = {
-  are: "UAE", ae: "UAE", sau: "Saudi Arabia", qat: "Qatar", kwt: "Kuwait", bhr: "Bahrain",
-  omn: "Oman", isr: "Israel", usa: "USA", can: "Canada", gbr: "UK",
-};
 
 /** Tidies a location for display only (never for filtering, which must keep
  * matching the stored value): "Dubai, ARE" -> "Dubai, UAE", "Dubai - Dubai"
  * -> "Dubai", "Dubai, Dubai, ae" -> "Dubai, UAE". */
 export function formatLocation(raw: string | null | undefined): string {
-  if (!raw) return "";
-  let cleaned = raw.replace(/\s+[-\u2013\u2014]\s+/g, ', ');
-  // Remove a source store identifier only when a separate city/state follows.
-  if (/^\d{2,}(?:[-\s][^,]+)?,/.test(cleaned) && /,\s*[A-Z]{2}(?:\s*\d{5}(?:-\d{4})?)?$/.test(cleaned)) cleaned = cleaned.replace(/^[^,]+,\s*/, '');
-  cleaned = cleaned.replace(/\b([A-Z]{2}),\s*\1(?=\s*\d{5}\b|[, ]|$)/g, '$1')
-    .replace(/\b([A-Z]{2})(\d{5}(?:-\d{4})?)\b/g, '$1 $2');
-  const parts = cleaned
-    .split(/\s+[-\u2013\u2014]\s+|\s*,\s*/)
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .map((p) => COUNTRY_CODES[p.toLowerCase()] ?? p)
-    // "DUbai" (two capitals then lower case) is a typing slip in the source; "NYC" and "McLean" are left alone.
-    .map((p) => (/^[A-Z]{2}[a-z]{2,}$/.test(p) ? p[0] + p.slice(1).toLowerCase() : p));
-  const seen = new Set<string>();
-  const statesWithZip = new Set(parts.filter(p => /^[A-Z]{2}\s+\d{5}(?:-\d{4})?$/.test(p)).map(p => p.slice(0, 2)));
-  const unique = parts.filter((p) => {
-    if (/^[A-Z]{2}$/.test(p) && statesWithZip.has(p)) return false;
-    const k = p.toLowerCase();
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-  return unique.join(", ");
+  return canonicalLocation(raw);
 }
 
 const UAE_PLACES = ["united arab emirates", "uae", "emirates", "dubai", "abu dhabi", "sharjah", "ajman", "ras al khaimah", "fujairah", "umm al quwain"];
@@ -192,6 +167,9 @@ const UAE_PLACES = ["united arab emirates", "uae", "emirates", "dubai", "abu dha
  * several ways, so a country-level search matches the whole country. */
 export function locationSearchPatterns(place: string): string[] {
   const key = place.trim().toLowerCase().replace(/\./g, "");
+  // Do not expand country codes into substring patterns: %us% matches
+  // Austin and %usa% matches Jerusalem. Full alias-aware filtering needs
+  // token-aware catalog keys; presentation normalization is not that index.
   return UAE_PLACES.slice(0, 3).includes(key) ? UAE_PLACES : [place];
 }
 
@@ -483,11 +461,12 @@ const NAMED_ENTITIES: Record<string, string> = {
 };
 
 /** Job text copied in from other systems sometimes carries raw HTML entities ("&#13;", "&amp;"). Show them as the
- * characters they stand for. A carriage-return entity is dropped, since it is only a line-break leftover. */
+ * characters they stand for. Preserve encoded line breaks rather than gluing sections together. */
 export function decodeHtmlEntities(s: string | null | undefined): string {
+  const character = (c: number) => !Number.isInteger(c) || c < 0 || c > 0x10ffff || (c >= 0xd800 && c <= 0xdfff) ? '\uFFFD' : c === 13 ? '\n' : c === 160 ? ' ' : String.fromCodePoint(c);
   const once = (t: string) => t
-    .replace(/&#(\d+);/g, (_m, n) => { const c = Number(n); return c === 13 ? "" : c === 160 ? " " : String.fromCodePoint(c); })
-    .replace(/&#x([0-9a-f]+);/gi, (_m, h) => { const c = parseInt(h, 16); return c === 13 ? "" : String.fromCodePoint(c); })
+    .replace(/&#(\d+);/g, (_m, n) => character(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_m, h) => character(parseInt(h, 16)))
     .replace(/&([a-z]+);/gi, (m, name) => NAMED_ENTITIES[name.toLowerCase()] ?? m);
   // Twice on purpose: source text is sometimes double-encoded ("&amp;#34;").
   return once(once(String(s || "")));
@@ -507,7 +486,11 @@ export function parseJobDescription(text: string): JdBlock[] {
     bulletBuf = [];
   };
   for (const raw of lines) {
-    const line = raw.trim();
+    // Interpret explicit Markdown section markers, not employer prose.
+    // Keep unknown HTML as text; never render a source string as live markup.
+    const sourceLine = raw.trim();
+    const markdownHeading = sourceLine.match(/^#{1,6}\s+(.+?)(?:\s+#+)?$/)?.[1];
+    const line = markdownHeading || sourceLine;
     if (!line) {
       flushPara();
       flushBullets();
@@ -519,7 +502,7 @@ export function parseJobDescription(text: string): JdBlock[] {
       bulletBuf.push(bulletText);
       continue;
     }
-    if (isJdHeading(line)) {
+    if (markdownHeading || isJdHeading(line)) {
       flushPara();
       flushBullets();
       blocks.push({ kind: "heading", text: line.replace(/:$/, "") });

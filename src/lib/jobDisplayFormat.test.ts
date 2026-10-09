@@ -1,6 +1,20 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { formatLocation, humanizeCategory, locationSearchPatterns } from './jobPostingFormat';
+import { formatLocation, humanizeCategory, locationSearchPatterns, decodeHtmlEntities, parseJobDescription } from './jobPostingFormat';
+
+describe('source text presentation', () => {
+  it('renders explicit Markdown headings as sections instead of raw hash marks', () => {
+    expect(parseJobDescription('## Responsibilities\n- Build APIs\n\n### Qualifications\nPython required.')).toEqual([
+      { kind: 'heading', text: 'Responsibilities' }, { kind: 'bullets', items: ['Build APIs'] },
+      { kind: 'heading', text: 'Qualifications' }, { kind: 'para', text: 'Python required.' },
+    ]);
+  });
+  it('keeps encoded line breaks and tolerates invalid source entities', () => {
+    expect(decodeHtmlEntities('Requirements&#13;Python')).toBe('Requirements\nPython');
+    expect(decodeHtmlEntities('&#999999999; &#xD800;')).toBe('\uFFFD \uFFFD');
+    expect(decodeHtmlEntities('C&amp;#43;&amp;#43;')).toBe('C++');
+  });
+});
 
 describe('formatLocation (display only)', () => {
   it.each([
@@ -9,7 +23,7 @@ describe('formatLocation (display only)', () => {
     ['Dubai, Dubai, ae', 'Dubai, UAE'],
     ['Riyadh, SAU', 'Riyadh, Saudi Arabia'],
     ['Toronto, ON, Canada', 'Toronto, ON, Canada'],
-    ['Austin, TX', 'Austin, TX'],
+    ['Austin, TX', 'Austin, Texas, United States'],
     ['Adelaide, SA', 'Adelaide, SA'],
     ['Remote', 'Remote'],
     ['', ''],

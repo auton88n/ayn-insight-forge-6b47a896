@@ -17,6 +17,14 @@ export interface PostingEvidence extends PostingReceipt {
   changes: PostingChange[];
   appearances?: Array<{ archive_id: number; first_observed_at: string | null; removed_at: string; removal_reason: string }>;
 }
+/** Display the source identity without leaking its internal snake-case key.
+ * Unknown sources remain named; do not pretend they are direct employer feeds. */
+export function postingSourceLabel(value?: string | null): string {
+  if (!value?.trim()) return 'Not recorded';
+  const key = value.trim();
+  const labels: Record<string, string> = { freehire: 'Freehire', greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workday: 'Workday', job_board: 'Job board', manual: 'Manually added' };
+  return labels[key.toLowerCase()] || key.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 export function evidenceDate(value?: string | null): string | null {
   if (!value || !Number.isFinite(Date.parse(value))) return null;
   return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });

@@ -17,7 +17,7 @@
 // minimum length before writing it to the public articles table.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
-import { invalidFigures } from "./grounding.ts";
+import { applySalaryFloor, hasEnoughPayData, invalidFigures } from "./grounding.ts";
 import { aiTimeout } from "./timeBudget.ts";
 
 // ───────────────────────── AI relay (self-contained) ─────────────────────────
@@ -130,6 +130,7 @@ function buildPrompt(kind: string, category: string, city: string | null, source
     "5. No AI-cliche phrasing: no 'leverage', 'seamless', 'unlock', 'dive into', 'in today's fast-paced'. Write like a specific, careful analyst, not a generic blog.",
     "6. Write real markdown with 2-3 short ## sections. Open with the single most useful real number, not a throat-clearing intro paragraph.",
     "7. Say 'median', never '50th percentile'. You may say '25th percentile' and '75th percentile' for p25_salary and p75_salary, nothing else. Never state an average, total, difference, ratio, share, or percentage you worked out yourself, and never write a figure like '50 percent' or 'half'. Compare numbers in words ('well above', 'about double' is NOT allowed, 'higher than') without stating a computed number.",
+    "8. Pay figures are only in the data when enough postings state a salary. If a salary_note is present, say plainly that there is not enough pay data to report a figure and write about openings, freshness, work mode and employers instead. If salary_basis is present, say the pay figures are annual US dollar midpoints.",
   ].join(" ");
   const user = `Write ${topic}. Here is the complete, real data to ground every claim in -- nothing outside this object is true for this report:\n\n${JSON.stringify(sourceData)}`;
   return { system, user };
@@ -229,8 +230,15 @@ Deno.serve(async (req: Request) => {
           p_kind: c.kind, p_category: c.category, p_city: c.city,
         });
         if (srcErr) throw srcErr;
+        // A salary report with no usable pay sample would publish an anecdote as a
+        // market median. Skip it instead; hiring reports never depended on pay.
+        if (c.kind === "salary_report" && !hasEnoughPayData(sourceData as Record<string, unknown>)) {
+          results.push({ ok: false, kind: c.kind, category: c.category, city: c.city, error: "skipped: too few salary-stating postings" });
+          continue;
+        }
 
-        const article = await generateOne(c.kind, c.category, c.city, sourceData, deadline);
+        const groundedData = applySalaryFloor(sourceData as Record<string, unknown>);
+        const article = await generateOne(c.kind, c.category, c.city, groundedData, deadline);
         const wordCount = article.body_md.split(/\s+/).filter(Boolean).length;
         const slugParts = [c.kind === "salary_report" ? "salary" : "hiring", c.category, c.city].filter(Boolean) as string[];
         const slug = slugify(slugParts.join("-"));
@@ -238,7 +246,7 @@ Deno.serve(async (req: Request) => {
         const { data: articleId, error: upsertErr } = await admin.rpc("article_upsert", {
           p_slug: slug, p_kind: c.kind, p_category: c.category, p_city: c.city,
           p_title: article.title, p_dek: article.dek, p_meta_description: article.meta_description,
-          p_body_md: article.body_md, p_faq: article.faq, p_source_data: sourceData,
+          p_body_md: article.body_md, p_faq: article.faq, p_source_data: groundedData,
           p_word_count: wordCount, p_generation_cost_cents: article.costCents,
         });
         if (upsertErr) throw upsertErr;

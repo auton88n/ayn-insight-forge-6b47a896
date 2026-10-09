@@ -1494,6 +1494,34 @@ html { scrollbar-gutter: stable; }
   max-width: 46rem;
 }
 
+/* Explicit document typography: Tailwind's `prose` plugin is not installed.
+   Scope to reading surfaces, never reset headings/lists across the application. */
+.ayn-reading { max-width: 72ch; min-width: 0; font-size: 1rem; line-height: 1.8; overflow-wrap: anywhere; }
+.ayn-reading > :first-child { margin-top: 0; }
+.ayn-reading p { margin: 0 0 1.25em; }
+.ayn-reading :is(h1,h2,h3,h4,h5,h6) { font-family: 'Outfit', sans-serif; font-weight: 600; line-height: 1.3; text-wrap: balance; margin: 1.8em 0 .65em; }
+.ayn-reading h1 { font-size: 1.8em; }
+.ayn-reading h2 { font-size: 1.5em; }
+.ayn-reading h3 { font-size: 1.2em; }
+.ayn-reading :is(h4,h5,h6) { font-size: 1.05em; }
+.ayn-reading :is(ul,ol) { padding-inline-start: 1.5em; margin: 0 0 1.25em; }
+.ayn-reading ul { list-style: disc; }
+.ayn-reading ol { list-style: decimal; }
+.ayn-reading li { padding-inline-start: .2em; margin: .4em 0; }
+.ayn-reading li > p { margin-bottom: .5em; }
+.ayn-reading li :is(ul,ol) { margin-top: .5em; margin-bottom: .5em; }
+.ayn-reading a { text-decoration: underline; text-underline-offset: 3px; }
+.ayn-reading blockquote { border-inline-start: 3px solid currentColor; margin: 1.5em 0; padding-inline-start: 1.25em; }
+.ayn-reading hr { margin: 2em 0; border-top: 1px solid hsl(var(--border)); }
+.ayn-reading pre { overflow-x: auto; padding: 1em; border-radius: .5rem; background: hsl(var(--muted)); margin: 1.25em 0; }
+.ayn-reading code { font-size: .875em; }
+.ayn-reading img { max-width: 100%; height: auto; }
+.ayn-reading-table { overflow-x: auto; max-width: 100%; margin: 1.5em 0; scrollbar-width: thin; }
+.ayn-reading table { width: 100%; border-collapse: collapse; font-size: .9em; }
+.ayn-reading :is(th,td) { text-align: start; vertical-align: top; padding: .65em .8em; border: 1px solid hsl(var(--border)); }
+.ayn-reading th { font-weight: 600; background: hsl(var(--muted)); }
+.ayn-reading :is(a,.ayn-reading-table):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+
 .legal-doc {
   font-size: 0.9375rem;
   line-height: 1.75;

@@ -1,5 +1,17 @@
 # Resume Hub map (web app + resume-hub backend)
 
+### Search/location follow-up — local until release verification
+
+`src/lib/jobLocation.mjs` is a pure formatter shared by React and server-rendered public HTML, with `.d.mts` declarations. Original source locations are not overwritten. Known country/state spellings, uppercase cities, ZIPs, numeric store identifiers and explicit facility labels are tidied; unknown places and ambiguous CA/WA without US context remain explicit. Location work modes render separately; an "or remote" alternative does not establish a remote-only role. This is not a geocoder or a complete worldwide place database. Title suffix removal still requires an exact normalized location match.
+
+Public `JobsBrowser` exposes work mode, employment type (existing canonical RPC), experience level and first-observed 24h/week/month filters. Their URL parameters (`mode`, `type`, `level`, `days`) survive refresh/Back/category changes. Work-mode filtering uses stored `work_mode`, falling back to `work_mode_text` only when the former is null, never substring searching the location. Account browsing uses the same mode rule and first-seen timestamp. Full-sentence queries have explicit literal-search guidance; no AI intent parser is claimed. Salary controls start expanded; currency remains explicit with no fabricated FX conversion.
+
+Direct job pages reuse an escaped `ayn-job-detail-bootstrap` JSON script from the server. The selected-job object is memoized to avoid a parent metadata update loop; detail requests have a 15-second deadline and one retry. Server catalog fetches have 10-second deadlines. No routing redirect is inferred from this fix: cold loads and reloads require browser verification.
+
+Migration `20261010030000_company_location_summary.sql` adds a public, company-scoped catalog aggregate (no private table grants): total, location coverage, source group count and at most 100 source location combinations, excluding scams. React/server use the same normalization/count-merging function and disclose truncation and multi-location semantics. This uses the whole catalog, not the company's 40-role preview. Account erasure, billing and email flows are unchanged: this batch adds no personal search records or alerts.
+
+Outstanding discovery scope: location autocomplete/granularity and reliable-coordinate radius, company picker, recent/saved searches and opt-in new-job alerts. These are not implemented by the controls above. Keep them open rather than advertising a completed 24-item release.
+
 ### Posting evidence follow-up
 
 Migration `20261010020000_posting_evidence_details.sql` extends the public receipt RPC with up to 20 non-scam archived appearances matching company/title/location. Missing records are disclosed against the ingestion count, never invented. The original explicit projection remains in a revoked base function. Future description changes save two 780-character excerpts around the first difference; historical length-only logs remain unavailable. Excerpts render as escaped previous/new text, not full-document or exhaustive diffs. Saved-card ownership rules and catalog-pruning/closure distinctions are unchanged.

@@ -1,5 +1,9 @@
 # Deployment & VPS operations
 
+## Search/location follow-up, 10 October 2026
+
+`20261010030000_company_location_summary.sql` was applied live before the app push (schema backup: `/root/ayn-pre-location-summary-schema.sql`). `tests/company-location-summary.sql` ends in `rollback` and MUST be piped inside `BEGIN;` — run bare it commits 46 fixture postings (this happened once and was cleaned by slug prefix `ayn-location-fixture-`). Back up public schema, server.js and dist first. The pure `src/lib/jobLocation.mjs` must exist in the frontend's `/app` checkout for server.js (the VPS mounts `/root/ayn-repo` there). Old code ignores the additive RPC, so rollback restores app code without deleting observations or source strings. No new personal tables, email workers, credentials or environment variables.
+
 ## Evidence follow-up, 10 October 2026
 
 Apply and record `20261010020000_posting_evidence_details.sql` before deploying its frontend. Recovery backup: `/root/ayn-evidence-details-backup.R128XV` (public schema, frontend, prior commit). The rollback-only `tests/posting-evidence-release.sql` now verifies real description excerpts, archived appearances, revoked base-function execution, anonymous projection and saved-job account isolation. No accounts, original job descriptions or salary-comparison thresholds are modified by the migration.

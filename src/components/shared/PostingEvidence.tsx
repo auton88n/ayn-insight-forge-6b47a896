@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { evidenceDate, receiptLine, type PostingEvidence } from '@/lib/postingEvidence';
+import { evidenceDate, receiptLine, postingSourceLabel, type PostingEvidence } from '@/lib/postingEvidence';
 import './posting-evidence.css';
 
 export function PostingEvidencePanel({ jobId }: { jobId: string }) {
@@ -18,7 +18,7 @@ export function PostingEvidencePanel({ jobId }: { jobId: string }) {
     {q.isPending ? <p role="status">Loading recorded observations…</p> : q.isError ? <div role="alert"><p>Observation history could not load. This is not evidence that the job closed.</p><button type="button" onClick={() => q.refetch()}>Retry history</button></div> : !p ? <p>No observation history available for this posting.</p> : <>
       <p className="ayn-evidence-state">{receiptLine(p)}</p>
       <dl className="ayn-evidence-facts">
-        <div><dt>Source</dt><dd>{p.source ? p.source.replace(/_/g, ' ') : 'Not recorded'}</dd></div>
+        <div><dt>Source</dt><dd>{postingSourceLabel(p.source)}</dd></div>
         <div><dt>Last feed sighting</dt><dd>{evidenceDate(p.last_seen_at) || 'Not recorded'}</dd></div>
         <div><dt>Last successful page check</dt><dd>{evidenceDate(p.closure_last_open_at || (p.closure_status === 'open' ? p.closure_checked_at : null)) || 'Not recorded'}</dd></div>
       </dl>

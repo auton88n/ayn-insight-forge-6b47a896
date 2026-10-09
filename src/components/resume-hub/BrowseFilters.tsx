@@ -193,7 +193,8 @@ export function FiltersMenu({
   <div className="absolute z-50 mt-1 right-0 w-[300px] rounded-md border bg-popover shadow-lg p-3 space-y-3 max-h-[70vh] overflow-y-auto">
     <SalaryFilter minimum={minimumPay} currency={payCurrency} onMinimum={setMinimumPay} onCurrency={setPayCurrency} />
     <div>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Posted within</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">First observed by AYN</p>
+      <p className="text-xs text-muted-foreground mb-2">When AYN first recorded the role, not the employer’s publication date.</p>
       <div className="flex flex-wrap gap-1.5">
         {POSTED_WITHIN_OPTIONS.map((o) => (
           <button

@@ -27,7 +27,7 @@ import { Loader2, Inbox, MapPin, Briefcase, Banknote, ExternalLink, ChevronDown,
 import { employerApi, type Proposal } from "@/lib/employer";
 import { resumeHubApi } from "@/lib/resumeHub";
 import MessageThread from "@/components/shared/MessageThread";
-import { companyAvatar } from "@/lib/jobPostingFormat";
+import { companyAvatar, employmentTypeLabel } from "@/lib/jobPostingFormat";
 import { poolStatusQueryKey } from "@/lib/queryKeys";
 
 function when(iso: string | null): string {
@@ -175,7 +175,7 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
             )}
             {p.employment_type && (
               <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}>
-                <Briefcase className="w-3 h-3 inline mr-1 -mt-0.5" />{p.employment_type}
+                <Briefcase className="w-3 h-3 inline mr-1 -mt-0.5" />{employmentTypeLabel(p.employment_type)}
               </span>
             )}
             {p.salary_range && (

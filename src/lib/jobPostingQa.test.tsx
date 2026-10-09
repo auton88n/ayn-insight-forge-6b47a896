@@ -23,12 +23,12 @@ it('cleans source artifacts without removing meaningful role or company text', (
   expect(displayJobTitle('SAP Engineer (S/4HANA)')).toBe('SAP Engineer (S/4HANA)');
   expect(displayCompany('Acme)')).toBe('Acme');
   expect(displayCompany('Acme (US)')).toBe('Acme (US)');
-  expect(formatLocation('65-Fairfield Acura, Fairfield, OH')).toBe('Fairfield, OH');
-  expect(formatLocation('East Islip, NY, NY')).toBe('East Islip, NY');
-  expect(formatLocation('0090, East Islip, NY, NY11730')).toBe('East Islip, NY 11730');
-  expect(formatLocation('65-Fairfield Acura - Fairfield, OH 45014')).toBe('Fairfield, OH 45014');
-  expect(formatLocation('0090 - East Islip, NY - EAST ISLIP, NY 11730')).toBe('East Islip, NY 11730');
-  expect(formatLocation('0099 - Corporate - Acton, MA 01420')).toBe('Corporate, Acton, MA 01420');
+  expect(formatLocation('65-Fairfield Acura, Fairfield, OH')).toBe('Fairfield, Ohio, United States');
+  expect(formatLocation('East Islip, NY, NY')).toBe('East Islip, New York, United States');
+  expect(formatLocation('0090, East Islip, NY, NY11730')).toBe('East Islip, New York, United States');
+  expect(formatLocation('65-Fairfield Acura - Fairfield, OH 45014')).toBe('Fairfield, Ohio, United States');
+  expect(formatLocation('0090 - East Islip, NY - EAST ISLIP, NY 11730')).toBe('East Islip, New York, United States');
+  expect(formatLocation('0099 - Corporate - Acton, MA 01420')).toBe('Acton, Massachusetts, United States');
   const original = { title: 'Engineer - Austin, TX', company: 'Acme)', location: 'Austin, TX' };
   expect(tidyPosting(original).title).toBe('Engineer');
   expect(original.title).toBe('Engineer - Austin, TX');
@@ -60,12 +60,12 @@ it('recovers company attribution for existing and newly saved title-missing jobs
   expect(displayJobTitle(null, 'Verified company', jd)).toBe('Role at Verified company');
 });
 it('does not repeat remote or hybrid modes already present in a location', () => {
-  expect(additionalWorkMode('United States (Remote)', 'remote')).toBeNull();
+  expect(additionalWorkMode('United States (Remote)', 'remote')).toBe('Remote');
   expect(additionalWorkMode('Remote', 'remote')).toBeNull();
-  expect(additionalWorkMode('London, hybrid', 'hybrid')).toBeNull();
+  expect(additionalWorkMode('London, hybrid', 'hybrid')).toBe('Hybrid');
   expect(additionalWorkMode('Austin', 'remote')).toBe('Remote');
   expect(additionalWorkMode('United States (Remote)', 'hybrid')).toBe('Hybrid');
-  expect(additionalWorkMode('Boston (On-site)', 'onsite')).toBeNull();
+  expect(additionalWorkMode('Boston (On-site)', 'onsite')).toBe('On-site');
   expect(additionalWorkMode(null, null)).toBeNull();
 });
 it('does not confuse prior internship experience with an internship engagement', () => {

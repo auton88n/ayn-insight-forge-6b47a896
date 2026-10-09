@@ -61,6 +61,7 @@ type CurrentDatabase = Omit<Database, 'public'> & {
       inbox_messages: InboxMessage;
     };
     Functions: Functions & {
+      company_location_summary: { Args: { p_company_slug: string }; Returns: { total: number; with_location: number; source_groups: number; groups: Array<{ location: string; roles: number }> } };
       company_hiring_status: { Args: { p_company_slug: string }; Returns: string | null };
       company_hiring_status_batch: { Args: { p_company_slugs: string[] }; Returns: { company_slug: string; status: string | null }[] };
       save_primary_resume: { Args: { p_id: string; p_title: string; p_content: Database['public']['Tables']['resumes']['Row']['content']; p_ats_score: number | null; p_ats_issues: Database['public']['Tables']['resumes']['Row']['content'] | null }; Returns: string };

@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { marked } from 'marked';
+import { canonicalLocation, normalizeLocationCounts } from './src/lib/jobLocation.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -363,6 +364,7 @@ async function fetchJson(pathAndQuery) {
   const SUPABASE_ANON_KEY = requireSupabaseAnonKey();
   const r = await fetch(`${SUPABASE_ORIGIN}/rest/v1/${pathAndQuery}`, {
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    signal: AbortSignal.timeout(10_000),
   });
   if (!r.ok) throw new Error(`fetch failed: ${r.status}`);
   return r.json();
@@ -492,7 +494,9 @@ function jobPostingJsonLd(j) {
 
 function renderJobBody(j) {
   const paras = String(j.description || '').slice(0, 8000).split(/\n{1,}/).map((t) => t.trim()).filter(Boolean);
-  const where = [j.location, j.work_mode].filter(Boolean).join(' · ');
+  const place = canonicalLocation(j.location);
+  const mode = j.work_mode || j.work_mode_text;
+  const where = [place, place.toLowerCase().replace(/[ -]/g, '') === mode ? null : mode].filter(Boolean).join(' · ');
   const salary = j.salary_min && j.salary_max ? `${j.salary_currency || 'USD'} ${Number(j.salary_min).toLocaleString('en-US')} to ${Number(j.salary_max).toLocaleString('en-US')} a year` : '';
   const apply = /^https?:\/\//i.test(j.apply_url || '') ? `<p><a href="${escapeHtml(j.apply_url)}" rel="nofollow noopener">Apply on the employer’s site</a></p>` : '';
   return `<main><article><h1>${escapeHtml(j.title)}</h1><p>${escapeHtml(j.company)}${where ? ` · ${escapeHtml(where)}` : ''}</p>${salary ? `<p>${escapeHtml(salary)}</p>` : ''}${paras.map((t) => `<p>${escapeHtml(t)}</p>`).join('')}${apply}<nav><a href="/jobs">Browse all jobs</a> · <a href="/check-resume">Check my resume</a></nav></article></main>`;
@@ -517,6 +521,9 @@ app.get('/jobs/:id', async (req, res, next) => {
     });
     html = injectHead(html, jobPostingJsonLd(j));
     html = injectRoot(html, renderJobBody(j));
+    // The server already fetched this exact posting. Reuse it during hydration
+    // instead of showing a loader and making a second serial detail request.
+    html = injectHead(html, `<script type="application/json" id="ayn-job-detail-bootstrap">${JSON.stringify({ job: j, at: now }).replace(/</g, '\\u003c')}</script>`);
     if (jobPageCache.size >= JOB_PAGE_CACHE_MAX) jobPageCache.delete(jobPageCache.keys().next().value);
     jobPageCache.set(id, { html, at: now });
     res.type('html').send(html);
@@ -539,6 +546,7 @@ async function fetchRpc(name, body, range) {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json', ...(range ? { Range: range } : {}) },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10_000),
   });
   if (!r.ok) throw new Error(`rpc ${name} failed: ${r.status}`);
   return r.json();
@@ -553,12 +561,16 @@ function renderCompanyBody(p) {
   lines.push(`<p>${Number(p.edits_30d) || 0} posting field ${Number(p.edits_30d) === 1 ? 'change' : 'changes'} observed in the last 30 days. One posting may have several changes; this is not a count of hires.</p>`);
   const cats = (p.top_categories || []).map((c) => `${escapeHtml(String(c.category).replace(/_/g, ' '))} (${c.open_roles})`).join(', ');
   if (cats) lines.push(`<p>Roles it is hiring for: ${cats}.</p>`);
+  if (p.locations) {
+    const places = normalizeLocationCounts(p.locations.groups).map(g => `${escapeHtml(g.location)} (${Number(g.roles)})`).join('; ');
+    lines.push(`<h2>Where it is hiring</h2><p>${places || 'No locations stated.'}</p><p>${Number(p.locations.with_location)} of ${Number(p.locations.total)} postings state a location. Counts describe posting location combinations, not separate vacancies in each city.${p.locations.source_groups > 100 ? ' Showing the 100 most common source location combinations.' : ''}</p>`);
+  }
   const classifiedModes = Object.entries(p.work_mode || {}).filter(([mode]) => ['remote','hybrid','onsite'].includes(mode));
   const classified = classifiedModes.reduce((sum, [, count]) => sum + Number(count), 0);
   if (classifiedModes.length) lines.push(`<p>AYN has classified work mode for ${classified} of ${Number(i.open_roles)} postings. ${Math.max(0, Number(i.open_roles) - classified)} remain unclassified.</p>`);
   const ben = (p.common_benefits || []).map((b) => `${escapeHtml(b.benefit)} (${b.roles})`).join(', ');
   if (ben) lines.push(`<p>Benefits its postings name: ${ben}.</p>`);
-  const jobs = (p.jobs || []).map((j) => `<li><a href="/jobs/${escapeHtml(j.id)}">${escapeHtml(j.title)}</a>${j.location ? ` (${escapeHtml(j.location)})` : ''}</li>`).join('');
+  const jobs = (p.jobs || []).map((j) => `<li><a href="/jobs/${escapeHtml(j.id)}">${escapeHtml(j.title)}</a>${j.location ? ` (${escapeHtml(canonicalLocation(j.location))})` : ''}</li>`).join('');
   return `<main><h1>${escapeHtml(p.name)}: open roles and hiring stats</h1>${lines.join('')}<h2>Open roles</h2><ul>${jobs}</ul></main>`;
 }
 
@@ -571,12 +583,13 @@ app.get('/companies/:slug', async (req, res, next) => {
   const cached = companyPageCache.get(key);
   if (cached && now - cached.at < COMPANY_PAGE_CACHE_MS) { res.status(cached.status).type('html').send(cached.html); return; }
   try {
-    const p = await fetchRpc('company_profile', { p_company_slug: key });
+    const [p, locations] = await Promise.all([fetchRpc('company_profile', { p_company_slug: key }), fetchRpc('company_location_summary', { p_company_slug: key }).catch(() => { console.error('Company location summary unavailable'); return null; })]);
     if (!p) {
       // A company with no live roles must not be a crawler-visible soft 404.
       res.status(404).type('html').send(indexHtml);
       return;
     }
+    p.locations = locations;
     const title = `${p.name} jobs and hiring stats | AYN`;
     const description = `${p.name} has ${p.insights.open_roles} open roles on AYN. See pay transparency, posting updates and observed time in AYN's catalog.`.slice(0, 300);
     let html = swapMeta(indexHtml, { title, description, canonical: `${SITE}/companies/${encodeURIComponent(key)}` });

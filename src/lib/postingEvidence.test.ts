@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { evidenceAge, evidenceDate, receiptLine } from './postingEvidence';
+import { evidenceAge, evidenceDate, receiptLine, postingSourceLabel } from './postingEvidence';
 
 const now = Date.parse('2026-10-10T12:00:00Z');
 describe('posting receipts', () => {
+  it('uses readable source names without changing source attribution', () => {
+    expect(postingSourceLabel('freehire')).toBe('Freehire');
+    expect(postingSourceLabel('greenhouse')).toBe('Greenhouse');
+    expect(postingSourceLabel('partner_catalog')).toBe('Partner Catalog');
+    expect(postingSourceLabel('')).toBe('Not recorded');
+    expect(postingSourceLabel(null)).toBe('Not recorded');
+  });
   it('distinguishes successful page checks from feed sightings', () => {
     expect(receiptLine({ closure_status: 'open', closure_checked_at: '2026-10-10T09:00:00Z' }, now)).toBe('Still listed when checked 3h ago');
     expect(receiptLine({ last_seen_at: '2026-10-10T09:00:00Z' }, now)).toBe('Seen in source feed 3h ago · page check not recorded');

@@ -37,7 +37,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { Loader2, Search, Home, X } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 import { resumeHubApi, type JobPosting } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
 // v3.322.0 — these used to be defined in this file; four separate public,
@@ -153,7 +153,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const [rawQuery, setRawQuery] = useState("");
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState<string | null>(null);
-  const [remoteOnly, setRemoteOnly] = useState(false);
+  const [workMode, setWorkMode] = useState('');
 
   // v3.166.0 — real filters, backed by the enrichment columns job-board-sync
   // now captures. employmentType/seniority are chip toggles (a small,
@@ -292,12 +292,12 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     setRolesOpen(false);
     setMatchMode(false);
     setLocation(null);
-    setRemoteOnly(false);
+    setWorkMode('');
     setRawQuery(title);
     setQuery(title);
   };
 
-  const hasFilters = !!query || !!location || remoteOnly || !!employmentType || !!seniority || !!category || !!postedWithin || minimumPay > 0;
+  const hasFilters = !!query || !!location || !!workMode || !!employmentType || !!seniority || !!category || !!postedWithin || minimumPay > 0;
 
   /* Debounce the search box so typing doesn't fire a query per keystroke. */
   useEffect(() => {
@@ -535,16 +535,16 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       q = q.or(queryLocations.map((l) => `location.ilike.%${safeLike(l)}%`).join(","));
     } else {
       if (location) q = q.eq("location", location);
-      if (remoteOnly) q = q.ilike("location", "%remote%");
+      if (workMode) q = q.or(`work_mode.eq.${workMode},and(work_mode.is.null,work_mode_text.eq.${workMode})`);
     }
     if (seniority) q = q.eq("seniority", seniority);
     if (category) q = q.eq("category", category);
     if (postedWithin) {
       const cutoff = new Date(Date.now() - Number(postedWithin) * 24 * 60 * 60 * 1000).toISOString();
-      q = q.gte("posted_at", cutoff);
+      q = q.gte("first_seen_at", cutoff);
     }
     return q;
-  }, [query, location, remoteOnly, matchMode, queryLocations, employmentType, seniority, category, postedWithin, minimumPay, payCurrency]);
+  }, [query, location, workMode, matchMode, queryLocations, employmentType, seniority, category, postedWithin, minimumPay, payCurrency]);
 
   // v3.142.0 — the underlying query still sorts by recency (that's what
   // keeps pagination and the total count honest); once a page's quick
@@ -835,7 +835,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     setRawQuery("");
     setQuery("");
     setLocation(null);
-    setRemoteOnly(false);
+    setWorkMode('');
     setMatchMode(false);
     setEmploymentType(null);
     setMinimumPay(0);
@@ -854,7 +854,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       return;
     }
     setLocation(null);
-    setRemoteOnly(false);
+    setWorkMode('');
     setMatchMode(true);
   };
 
@@ -926,15 +926,9 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             exactly as before -- pixel-identical desktop behavior, purely
             additive on mobile. */}
         <div className="flex gap-2 lg:contents">
-          <Button
-            type="button"
-            variant={remoteOnly ? "default" : "outline"}
-            onClick={() => setRemoteOnly((v) => !v)}
-            disabled={matchMode}
-            className={`flex-1 lg:flex-initial shrink-0 ${matchMode ? "opacity-50" : ""}`}
-          >
-            <Home className="w-4 h-4 mr-1.5" />Remote
-          </Button>
+          <select aria-label="Work mode" value={workMode} onChange={e => setWorkMode(e.target.value)} disabled={matchMode} className="flex-1 lg:flex-initial border rounded-md bg-background px-3 py-2 text-sm disabled:opacity-50">
+            <option value="">Any work mode</option><option value="remote">Remote</option><option value="hybrid">Hybrid</option><option value="onsite">On-site</option>
+          </select>
 
           {/* v3.167.0 — the job type/seniority/category/posted-within chips
               used to sit permanently on screen, ~20 of them wrapping across

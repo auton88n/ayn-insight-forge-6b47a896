@@ -13,6 +13,7 @@ export const POSTED_WITHIN_OPTIONS = [
   { key: "1", label: "24 hours" },
   { key: "3", label: "3 days" },
   { key: "7", label: "This week" },
+  { key: "30", label: "Past month" },
 ] as const;
 
 // v3.166.0 — the enrichment columns job-board-sync now captures, so filters

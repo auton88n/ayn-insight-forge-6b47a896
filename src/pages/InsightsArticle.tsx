@@ -116,8 +116,10 @@ const InsightsArticle = () => {
                       </Link>
                     </div>
 
-                    <article className="prose prose-neutral dark:prose-invert max-w-none mt-10">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{article.body_md}</ReactMarkdown>
+                    <article className="ayn-reading mt-10">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                        table: ({ children }) => <div className="ayn-reading-table" role="region" aria-label="Report table" tabIndex={0}><table>{children}</table></div>,
+                      }}>{article.body_md}</ReactMarkdown>
                     </article>
 
                     {article.faq && article.faq.length > 0 && (
