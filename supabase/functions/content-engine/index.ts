@@ -18,6 +18,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { invalidFigures } from "./grounding.ts";
+import { aiTimeout } from "./timeBudget.ts";
 
 // ───────────────────────── AI relay (self-contained) ─────────────────────────
 // Deliberately a second, minimal caller rather than importing resume-hub's
@@ -39,6 +40,7 @@ async function callAI(opts: {
   user: string;
   toolName: string;
   toolSchema: Record<string, unknown>;
+  deadline: number;
 }): Promise<{ structured: Record<string, unknown>; costCents: number }> {
   const apiKey = relayApiKey();
   if (!apiKey) throw new Error("AI relay key not configured");
@@ -56,13 +58,14 @@ async function callAI(opts: {
 
   let lastErr = "";
   for (let attempt = 0; attempt < 3; attempt++) {
+    const timeout = aiTimeout(opts.deadline);
     let r: Response;
     try {
       r = await fetch(GATEWAY_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(timeout),
       });
     } catch (e) {
       lastErr = `network: ${(e as Error).message}`;
@@ -133,10 +136,10 @@ function buildPrompt(kind: string, category: string, city: string | null, source
 }
 
 async function generateOne(
-  kind: string, category: string, city: string | null, sourceData: unknown,
+  kind: string, category: string, city: string | null, sourceData: unknown, deadline: number,
 ): Promise<{ title: string; dek: string; meta_description: string; body_md: string; faq: unknown; costCents: number }> {
   const { system, user } = buildPrompt(kind, category, city, sourceData);
-  let { structured, costCents } = await callAI({ system, user, toolName: "emit_article", toolSchema: ARTICLE_SCHEMA });
+  let { structured, costCents } = await callAI({ system, user, toolName: "emit_article", toolSchema: ARTICLE_SCHEMA, deadline });
   const unsupportedFigures = (draft: Record<string, unknown>) => invalidFigures(
     [draft.title, draft.dek, draft.meta_description, draft.body_md, JSON.stringify(draft.faq || "")]
       .map((field) => String(field || "")).join("\n"),
@@ -157,7 +160,7 @@ async function generateOne(
     if (bad.length) notes.push(`Your previous draft stated these figures, which do NOT appear anywhere in the data above: ${bad.join(", ")}. Every figure must come from the data only.`);
     if (wc < MIN_ARTICLE_WORDS) notes.push(`Your previous draft was only ${wc} words. It must be at least 450, ideally 500-700. Expand the interpretation in each section, do not just repeat the same facts in fewer words.`);
     const retryUser = `${user}\n\n${notes.join(" ")}\n\nRewrite it from scratch with both of these fixed.`;
-    const retry = await callAI({ system, user: retryUser, toolName: "emit_article", toolSchema: ARTICLE_SCHEMA });
+    const retry = await callAI({ system, user: retryUser, toolName: "emit_article", toolSchema: ARTICLE_SCHEMA, deadline });
     structured = retry.structured;
     costCents += retry.costCents;
     bad = unsupportedFigures(structured);
@@ -177,6 +180,7 @@ async function generateOne(
 }
 
 Deno.serve(async (req: Request) => {
+  const deadline = Date.now() + 45_000;
   if (req.method === "OPTIONS") return handleCors(req);
 
   try {
@@ -226,7 +230,7 @@ Deno.serve(async (req: Request) => {
         });
         if (srcErr) throw srcErr;
 
-        const article = await generateOne(c.kind, c.category, c.city, sourceData);
+        const article = await generateOne(c.kind, c.category, c.city, sourceData, deadline);
         const wordCount = article.body_md.split(/\s+/).filter(Boolean).length;
         const slugParts = [c.kind === "salary_report" ? "salary" : "hiring", c.category, c.city].filter(Boolean) as string[];
         const slug = slugify(slugParts.join("-"));

@@ -2,6 +2,8 @@
 
 ## Job-data completion, 9 October 2026
 
+The real edge supervisor limit is 60 seconds (`functions/main/index.ts`), not a guessed memory fault. Deploy content-engine's new `timeBudget.ts` with index.ts; the caller now budgets the entire request, including quality retries, to 45 seconds. No shared runtime limit or memory allowance was increased. At the first maintenance check 5 of 16 existing reports refreshed; 11 were still old. Recheck the final database counts rather than assuming a completed retry.
+
 The compatible dependency lockfile patch needs a real dependency install before container restart: verify installed compression 1.8.2, proxy-addr 2.0.8 and source-map-js 1.2.2 inside `ayn-frontend`, not only the Git lockfile. The deployment's normal npm install performs this. Do not use `npm audit fix --force` to suppress remaining build-tool warnings; that would be a separate framework/toolchain change.
 
 Maintenance refresh follow-up: a five-report call returned `WorkerRequestCancelled`; use the corrected handler's one-report maintenance cap and recheck published timestamps. Do not interpret a failed HTTP batch as proof that no earlier report was saved. Follow-up also keeps email preference links inside the shared HTML shell and corrects catalog-duration wording across React, metadata and server HTML.
