@@ -22,6 +22,14 @@ const { flattenResumeSkillsAndProse } = load('tailoring');
 const jd = 'Requirements:\n- Python\n- Docker\n- Kubernetes\n- Terraform\n- PostgreSQL\n- Java';
 
 describe('public resume review disclosure', () => {
+  it('recognizes inline requirement labels without admitting inline benefits', () => {
+    expect(publicResumeReview('Python', 'Skills: Python').matchPct).toBe(100);
+    const result = publicResumeReview('Python', 'Requirements: Python and Terraform.\nBenefits: Health insurance.');
+    expect(result.matchPct).toBe(0);
+    expect(result.requirementCount).toBe(1);
+    expect(result.missing[0]).toContain('Terraform');
+    expect(result.missing.join(' ')).not.toContain('insurance');
+  });
   it('evaluates explicit prose requirements without a heading or bullets', () => {
     const result = publicResumeReview('Python Docker developer', 'We require experience with Python and Docker. Candidates must have five years of software engineering experience.');
     expect(result.requirementCount).toBeGreaterThan(0);

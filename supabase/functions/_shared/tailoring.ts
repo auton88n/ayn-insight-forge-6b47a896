@@ -372,7 +372,13 @@ function terms(s: string, minLen = 3): string[] {
 
 /** Split a JD into requirement-ish items with a required / nice-to-have tag. */
 function extractRequirements(jd: string): Array<{ text: string; kind: "required" | "nice_to_have" }> {
-  const lines = jd.split(/\r?\n/).flatMap(l => l.trim().split(/(?<=[.!?])\s+(?=[A-Z])/));
+  const lines = jd.split(/\r?\n/).flatMap(l => {
+    const text = l.trim();
+    const inline = text.match(/^(requirements|qualifications|required skills|skills|preferred qualifications|preferred skills|nice to have|benefits|perks|compensation|salary|responsibilities)\s*:\s*(.+)$/i);
+    // Explicit labels carry their section meaning even when the employer
+    // puts the first item on the same line. Do not infer labels from prose.
+    return (inline ? [`${inline[1]}:`, `- ${inline[2]}`] : [text]).flatMap(part => part.split(/(?<=[.!?])\s+(?=[A-Z])/));
+  });
   const out: Array<{ text: string; kind: "required" | "nice_to_have" }> = [];
   let bucket: "required" | "nice_to_have" | null = null;
   let inReqSection = false;

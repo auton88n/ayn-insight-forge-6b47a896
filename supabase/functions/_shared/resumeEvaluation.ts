@@ -1,6 +1,6 @@
 import { buildSections, computeGap, flattenResumeSkillsAndProse } from './tailoring.ts';
 
-export const RESUME_EVALUATION_VERSION = 'document-alignment-2026-10-09-prose';
+export const RESUME_EVALUATION_VERSION = 'document-alignment-2026-10-09-prose-v2';
 
 /** Same document/JD and version always yield the same assessment. This is
  * wording coverage, not proof of proficiency or an employer ATS prediction. */
