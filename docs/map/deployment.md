@@ -2,6 +2,8 @@
 
 ## Job-data completion, 9 October 2026
 
+The compatible dependency lockfile patch needs a real dependency install before container restart: verify installed compression 1.8.2, proxy-addr 2.0.8 and source-map-js 1.2.2 inside `ayn-frontend`, not only the Git lockfile. The deployment's normal npm install performs this. Do not use `npm audit fix --force` to suppress remaining build-tool warnings; that would be a separate framework/toolchain change.
+
 Maintenance refresh follow-up: a five-report call returned `WorkerRequestCancelled`; use the corrected handler's one-report maintenance cap and recheck published timestamps. Do not interpret a failed HTTP batch as proof that no earlier report was saved. Follow-up also keeps email preference links inside the shared HTML shell and corrects catalog-duration wording across React, metadata and server HTML.
 
 Release `ce2a76c6` was pushed and auto-deployed; all three migrations applied atomically. Backup: `/root/ayn-job-data-backup.8vm5G6` (`app-before.tgz`, `worker-before.tgz`, `schema-before.sql`). Verified worker anonymous denial (401), service response 200 with empty outboxes, public comparison 200, anonymous admin-health denial (401), current company server HTML, matching deployed function hashes, and healthy frontend/edge containers. Test fixtures rolled back (zero fixture-category postings and alert rows). Local checks: 196 tests, six SEO tests, frontend TypeScript and production build passed. Existing article refresh is a separate live maintenance operation; inspect its actual outcomes before describing all older reports as updated.
