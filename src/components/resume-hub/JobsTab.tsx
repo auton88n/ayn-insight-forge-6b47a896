@@ -610,8 +610,6 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               <div className="min-w-0">
                 <h2 className="rh-display text-xl leading-snug">{displayJobTitle(selected.title, selected.company, selected.jd_text)}</h2>
                 <p className="text-sm" style={{ color: "var(--rh-muted)" }}>{selected.company} {selected.location && `• ${formatLocation(selected.location)}`}</p>
-                {listingById[selected.id]?.match_basis === 'company_title' && <p className="text-xs">Catalog match uses company and title, not the original link. It may be a different vacancy.</p>}
-                {listingById[selected.id]?.posting_id && <PostingEvidencePanel jobId={listingById[selected.id].posting_id!} />}
                 {selected.source_url && (
                   <a
                     href={cleanApplyUrl(selected.source_url)}
@@ -637,6 +635,9 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               <Button onClick={() => setRemoveTargetId(selected.id)} variant="ghost" size="icon" aria-label="Remove job"><Trash2 className="w-4 h-4" /></Button>
             </div>
           </div>
+
+          {listingById[selected.id]?.match_basis === 'company_title' && <p className="text-xs mt-3">Catalog match uses company and title, not the original link. It may be a different vacancy.</p>}
+          {listingById[selected.id]?.posting_id && <PostingEvidencePanel jobId={listingById[selected.id].posting_id!} />}
 
           {/* v3.172.0 — "where do things stand," one click, no ceremony —
               the exact thing the application-tracker research (Huntr,
