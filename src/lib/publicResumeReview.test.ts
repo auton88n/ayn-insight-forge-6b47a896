@@ -10,6 +10,7 @@ function load(name: string): any {
   new Function('require', 'exports', compiled)((path: string) => {
     if (path === './tailoring.ts') return load('tailoring');
     if (path === './resumeEvaluation.ts') return load('resumeEvaluation');
+    if (path === './jobSkills.ts') return load('jobSkills');
     throw new Error(`Unexpected dependency: ${path}`);
   }, exports);
   return exports;
@@ -21,6 +22,25 @@ const { flattenResumeSkillsAndProse } = load('tailoring');
 const jd = 'Requirements:\n- Python\n- Docker\n- Kubernetes\n- Terraform\n- PostgreSQL\n- Java';
 
 describe('public resume review disclosure', () => {
+  it('evaluates explicit prose requirements without a heading or bullets', () => {
+    const result = publicResumeReview('Python Docker developer', 'We require experience with Python and Docker. Candidates must have five years of software engineering experience.');
+    expect(result.requirementCount).toBeGreaterThan(0);
+    expect(result.matchPct).toBe(50);
+    expect(result.missing.length).toBeGreaterThan(0);
+    expect(result.missing.length).toBeLessThanOrEqual(3);
+  });
+  it('does not turn legal instructions or benefits into requirements', () => {
+    const result = publicResumeReview('Python developer', 'Requirements:\n- Python\nBenefits:\nYou have access to health insurance.\nFor additional information about E-Verify visit USCIS.');
+    expect(result.matchPct).toBe(100);
+    expect(result.requirementCount).toBe(1);
+  });
+  it('ignores boilerplate tags without deleting genuine USCIS training', () => {
+    const sections = buildSections(null, null, 'Python developer');
+    const legal = computeGap('For additional information about E-Verify visit USCIS.', sections, { jdSkills: ['uscis'] });
+    expect(legal.missing).toHaveLength(0);
+    const real = computeGap('Complete ISSO USCIS provided training as required.', sections, { jdSkills: ['uscis'] });
+    expect(real.missing.some((r: {text: string}) => r.text === 'uscis')).toBe(true);
+  });
   it('scores the same document identically through public, before and after paths', () => {
     const resume = { basics: { title: 'Developer' }, skills: ['Python'], projects: [{ name: 'Deployment', description: 'Docker Kubernetes Terraform' }], certifications: ['PostgreSQL'], education: [{ degree: 'Java' }] };
     const text = flattenResumeSkillsAndProse(resume);

@@ -3,6 +3,7 @@
 // only renders what it is handed: the open/closed flags, the outside-click
 // refs and the state all still live in BrowseJobs.
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import { SalaryFilter } from '@/components/shared/SalaryFilter';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -147,6 +148,10 @@ export function LocationPicker({ boxRef, disabled, location, open, onToggle, fil
 type NullableSetter = Dispatch<SetStateAction<string | null>>;
 
 interface FiltersMenuProps {
+  minimumPay: number;
+  setMinimumPay: (v: number) => void;
+  payCurrency: string;
+  setPayCurrency: (v: string) => void;
   boxRef: RefObject<HTMLDivElement>;
   open: boolean;
   onToggle: () => void;
@@ -166,7 +171,7 @@ interface FiltersMenuProps {
 
 export function FiltersMenu({
   boxRef, open, onToggle, activeCount, postedWithin, setPostedWithin, employmentTypes, employmentType, setEmploymentType,
-  seniorities, seniority, setSeniority, categories, category, setCategory,
+  seniorities, seniority, setSeniority, categories, category, setCategory, minimumPay, setMinimumPay, payCurrency, setPayCurrency,
 }: FiltersMenuProps) {
   return (
 <div className="relative flex-1 lg:flex-initial shrink-0" ref={boxRef}>
@@ -186,6 +191,7 @@ export function FiltersMenu({
 </Button>
 {open && (
   <div className="absolute z-50 mt-1 right-0 w-[300px] rounded-md border bg-popover shadow-lg p-3 space-y-3 max-h-[70vh] overflow-y-auto">
+    <SalaryFilter minimum={minimumPay} currency={payCurrency} onMinimum={setMinimumPay} onCurrency={setPayCurrency} />
     <div>
       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Posted within</p>
       <div className="flex flex-wrap gap-1.5">
@@ -265,7 +271,7 @@ export function FiltersMenu({
     )}
 
     {activeCount > 0 && (
-      <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => { setEmploymentType(null); setSeniority(null); setCategory(null); setPostedWithin(null); }}>
+      <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => { setEmploymentType(null); setSeniority(null); setCategory(null); setPostedWithin(null); setMinimumPay(0); }}>
         Clear these filters
       </Button>
     )}

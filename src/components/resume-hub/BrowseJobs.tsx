@@ -61,6 +61,7 @@ import { JobListRow } from "./JobListRow";
 import { JobDetailPane } from "./JobDetailPane";
 import { BrowseToolbar } from "./BrowseToolbar";
 import { SearchBox, LocationPicker, FiltersMenu } from "./BrowseFilters";
+import { tidyPosting } from '@/lib/jobPostingFormat';
 import { RoleFinderDialog, TrendingDialog, type RoleFit } from "./BrowseJobsDialogs";
 import { PAGE_SIZE, BROWSE_LAST_OPEN_KEY, COLS, displayCount } from "./browseJobsHelpers";
 
@@ -160,6 +161,13 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   // values); postedWithin is a chip too. All plain .eq()/.gte() additions to
   // buildQuery, same shape as the existing location/remoteOnly filters.
   const [employmentType, setEmploymentType] = useState<string | null>(null);
+  const [minimumPay, setMinimumPay] = useState(0);
+  const [draftMinimumPay, setDraftMinimumPay] = useState(0);
+  const [payCurrency, setPayCurrency] = useState('USD');
+  useEffect(() => {
+    const timer = window.setTimeout(() => setMinimumPay(draftMinimumPay), 350);
+    return () => window.clearTimeout(timer);
+  }, [draftMinimumPay]);
   const [seniority, setSeniority] = useState<string | null>(null);
   const [category, setCategory] = useState<string | null>(null);
   const [postedWithin, setPostedWithin] = useState<string | null>(null);
@@ -289,7 +297,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     setQuery(title);
   };
 
-  const hasFilters = !!query || !!location || remoteOnly || !!employmentType || !!seniority || !!category || !!postedWithin;
+  const hasFilters = !!query || !!location || remoteOnly || !!employmentType || !!seniority || !!category || !!postedWithin || minimumPay > 0;
 
   /* Debounce the search box so typing doesn't fire a query per keystroke. */
   useEffect(() => {
@@ -332,20 +340,14 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     if (!filtersOpen || filterOptionsLoadedRef.current) return;
     filterOptionsLoadedRef.current = true;
     let cancelled = false;
-    Promise.all([
-      supabase.from("job_postings").select("category").not("category", "is", null).limit(5000),
-      supabase.from("job_postings").select("employment_type").not("employment_type", "is", null).limit(5000),
-      supabase.from("job_postings").select("seniority").not("seniority", "is", null).limit(5000),
-    ]).then(([cat, et, sen]) => {
+    supabase.rpc('job_filter_options').then(({ data, error }) => {
       if (cancelled) return;
-      const dedupe = (rows: { [k: string]: string | null }[] | null, key: string) => {
-        const set = new Set<string>();
-        for (const r of rows || []) if (r[key]) set.add(r[key] as string);
-        return Array.from(set).sort((a, b) => a.localeCompare(b));
-      };
-      setCategories(dedupe(cat.data as { category: string | null }[], "category"));
-      setEmploymentTypes(dedupe(et.data as { employment_type: string | null }[], "employment_type"));
-      setSeniorities(dedupe(sen.data as { seniority: string | null }[], "seniority"));
+      if (error) { filterOptionsLoadedRef.current = false; return; }
+      const options = data as unknown as { categories: string[]; employment_types: string[]; seniorities: string[] };
+      if (!options || !Array.isArray(options.categories) || !Array.isArray(options.employment_types) || !Array.isArray(options.seniorities)) { filterOptionsLoadedRef.current = false; return; }
+      setCategories(options.categories.sort());
+      setEmploymentTypes(options.employment_types.sort());
+      setSeniorities(options.seniorities.sort());
     });
     return () => { cancelled = true; };
   }, [filtersOpen]);
@@ -423,7 +425,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   // not a new primitive. (filtersOpen itself now declared up near locOpen
   // -- see that declaration's own v3.171.0 comment.)
   const filtersBoxRef = useRef<HTMLDivElement | null>(null);
-  const activeFilterCount = [employmentType, seniority, category, postedWithin].filter(Boolean).length;
+  const activeFilterCount = [employmentType, seniority, category, postedWithin, minimumPay || null].filter(Boolean).length;
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -516,8 +518,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
   const queryLocations = useMemo(() => (matchMode ? desiredLocations : null), [desiredKey, matchMode]);
 
   const buildQuery = useCallback((withCount: boolean) => {
-    let q = supabase
-      .from("job_postings")
+    let q = (minimumPay || employmentType ? supabase.rpc('browse_job_postings', { p_min_annual: minimumPay, p_currency: payCurrency, p_employment_type: employmentType }) : supabase.from('job_postings'))
       .select(COLS, withCount ? { count: "exact" } : undefined)
       .order("posted_at", { ascending: false })
       // v3.196.0 — the closure checker (job-checker/) flags real scam
@@ -536,7 +537,6 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       if (location) q = q.eq("location", location);
       if (remoteOnly) q = q.ilike("location", "%remote%");
     }
-    if (employmentType) q = q.eq("employment_type", employmentType);
     if (seniority) q = q.eq("seniority", seniority);
     if (category) q = q.eq("category", category);
     if (postedWithin) {
@@ -544,7 +544,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       q = q.gte("posted_at", cutoff);
     }
     return q;
-  }, [query, location, remoteOnly, matchMode, queryLocations, employmentType, seniority, category, postedWithin]);
+  }, [query, location, remoteOnly, matchMode, queryLocations, employmentType, seniority, category, postedWithin, minimumPay, payCurrency]);
 
   // v3.142.0 — the underlying query still sorts by recency (that's what
   // keeps pagination and the total count honest); once a page's quick
@@ -584,7 +584,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
         toast({ title: "Couldn't load jobs", description: error.message, variant: "destructive" });
         return;
       }
-      const rows = (data as unknown as JobPosting[]) ?? [];
+      const rows = ((data as unknown as JobPosting[]) ?? []).map(tidyPosting);
       setJobs(rows);
       setTotal(count ?? rows.length);
       setSelected((prev) => (prev && rows.some((r) => r.id === prev.id) ? prev : rows[0] ?? null));
@@ -636,7 +636,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     let cancelled = false;
     supabase.from("job_postings").select(COLS).eq("id", lastId).maybeSingle().then(({ data }) => {
       if (cancelled || !data) return;
-      setSelected(data as unknown as JobPosting);
+      setSelected(tidyPosting(data as unknown as JobPosting));
     });
     return () => { cancelled = true; };
   }, []);
@@ -687,7 +687,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
       toast({ title: "Couldn't load more", description: error.message, variant: "destructive" });
       return;
     }
-    const rows = (data as unknown as JobPosting[]) ?? [];
+    const rows = ((data as unknown as JobPosting[]) ?? []).map(tidyPosting);
     setJobs((prev) => [...prev, ...rows]);
     scorePage(rows);
   };
@@ -838,6 +838,8 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
     setRemoteOnly(false);
     setMatchMode(false);
     setEmploymentType(null);
+    setMinimumPay(0);
+    setDraftMinimumPay(0);
     setSeniority(null);
     setCategory(null);
     setPostedWithin(null);
@@ -942,6 +944,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
               controls, just out of the way until wanted. Same hand-rolled
               dropdown pattern as the location box, not a new primitive. */}
           <FiltersMenu
+            minimumPay={draftMinimumPay} setMinimumPay={setDraftMinimumPay} payCurrency={payCurrency} setPayCurrency={setPayCurrency}
             boxRef={filtersBoxRef}
             open={filtersOpen}
             onToggle={() => setFiltersOpen((v) => !v)}
@@ -973,8 +976,8 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
           : total === null
             ? ""
             : hasFilters || matchMode
-              ? <><span className="font-semibold text-foreground">{displayCount(total)}</span> job{total === 1 ? "" : "s"} match your search</>
-              : <><span className="font-semibold text-foreground">{displayCount(total)}</span> jobs</>}
+              ? `${displayCount(total)} ${total === 1 ? 'job matches' : 'jobs match'} your search`
+              : `${displayCount(total)} jobs`}
       </p>
 
       {/* Split view: list on the left, the full posting on the right */}

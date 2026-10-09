@@ -7,6 +7,8 @@ import type { JobPosting } from '@/lib/resumeHub';
 import { CompanyInsightsNote } from '@/components/shared/CompanyInsightsNote';
 import { JobApplicationFacts } from '@/components/shared/JobApplicationFacts';
 import { additionalWorkMode } from '@/lib/jobPostingFormat';
+import { displayJobTitle, tidyPosting } from '@/lib/jobPostingFormat';
+import { SalaryFilter } from '@/components/shared/SalaryFilter';
 import { JobPayComparison } from '@/components/shared/JobPayComparison';
 import { companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike, JobDescriptionBody, employmentTypeLabel, seniorityLabel, humanizeCategory, formatLocation, locationSearchPatterns, jobAgeNotes, jobFactChips } from '@/lib/jobPostingFormat';
 import { Search, ExternalLink, Loader2, MapPin, ArrowLeft, ArrowRight, RefreshCw, Link2 } from 'lucide-react';
@@ -69,6 +71,10 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
   };
   const query = params.get('q') ?? initialQuery;
   const where = params.get('where') ?? initialWhere;
+  const minimumPay = Math.max(0, Math.min(10000000, Number(params.get('minPay')) || 0));
+  const payCurrency = ['USD','CAD','GBP','EUR','AUD','AED','SAR','SGD','CHF','INR'].includes(params.get('currency') || '') ? params.get('currency')! : 'USD';
+  const [draftPay, setDraftPay] = useState(minimumPay);
+  const [draftCurrency, setDraftCurrency] = useState(payCurrency);
   const [draftQuery, setDraftQuery] = useState(query);
   const [draftWhere, setDraftWhere] = useState(where);
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
@@ -79,18 +85,19 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
   const category = categorySlug ? humanizeCategory(categorySlug) : null;
   const explicitId = routeId || params.get('job');
   useEffect(() => { setDraftQuery(query); setDraftWhere(where); }, [query, where]);
+  useEffect(() => { setDraftPay(minimumPay); setDraftCurrency(payCurrency); }, [minimumPay, payCurrency]);
   useEffect(() => {
     const media = window.matchMedia('(max-width: 1023px)');
     const update = () => setNarrow(media.matches);
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, []);
-  const useBootstrap = !query && !where && !categorySlug && !city;
+  const useBootstrap = !query && !where && !categorySlug && !city && !minimumPay;
   const listings = useInfiniteQuery({
-    queryKey: ['public-job-summaries', query, where, categorySlug, city],
+    queryKey: ['public-job-summaries', query, where, categorySlug, city, minimumPay, payCurrency],
     initialPageParam: 0,
     queryFn: async ({ pageParam, signal }) => {
-      let request = supabase.from('job_postings').select(PUBLIC_JOB_SUMMARY_COLUMNS, { count: 'exact' })
+      let request = (minimumPay ? supabase.rpc('browse_job_postings', { p_min_annual: minimumPay, p_currency: payCurrency }) : supabase.from('job_postings')).select(PUBLIC_JOB_SUMMARY_COLUMNS, { count: 'exact' })
         .or('scam_suspected.is.null,scam_suspected.eq.false').order('posted_at', { ascending: false }).order('id', { ascending: true });
       if (categorySlug) request = request.eq('category', categorySlug);
       if (city) request = request.ilike('city', city);
@@ -111,7 +118,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
       initialDataUpdatedAt: jobsBootstrap.at,
     } : {}),
   });
-  const jobs = listings.data?.pages.flatMap(page => page.rows) ?? [];
+  const jobs = (listings.data?.pages.flatMap(page => page.rows) ?? []).map(tidyPosting);
   const selectedId = explicitId || (!narrow ? jobs[0]?.id : undefined);
   const detail = useQuery({
     queryKey: ['public-job-detail', selectedId],
@@ -128,7 +135,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
       initialDataUpdatedAt: jobsBootstrap.at,
     } : {}),
   });
-  const selected = detail.data;
+  const selected = detail.data ? tidyPosting(detail.data) : detail.data;
   const total = listings.data?.pages[0]?.total ?? 0;
   useEffect(() => { onJobsLoaded?.({ total, loading: listings.isPending }); }, [total, listings.isPending, onJobsLoaded]);
   useEffect(() => { onSelectedChange?.(explicitId && selected?.id === explicitId ? selected : null); }, [explicitId, selected, onSelectedChange]);
@@ -137,6 +144,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
     const next = new URLSearchParams(params);
     if (draftQuery.trim()) next.set('q', draftQuery.trim()); else next.delete('q');
     if (draftWhere.trim()) next.set('where', draftWhere.trim()); else next.delete('where');
+    if (draftPay) { next.set('minPay', String(draftPay)); next.set('currency', draftCurrency); } else { next.delete('minPay'); next.delete('currency'); }
     next.delete('job');
     if (routeId) navigate('/jobs?' + next.toString());
     else setEmbeddedParams(next);
@@ -174,6 +182,10 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
       {!city && <label className="ayn-search-input"><span>Location</span><div><MapPin size={18} /><input value={draftWhere} onChange={event => setDraftWhere(event.target.value)} placeholder="City, country or remote" /></div></label>}
       <button type="submit" className="lp-btn lp-btn-primary">Search jobs <ArrowRight size={16} /></button>
     </form>
+    <details className="rounded-lg border p-3 mb-3"><summary className="cursor-pointer text-sm">Salary filter{minimumPay ? ` · ${minimumPay.toLocaleString()} ${payCurrency} minimum` : ''}</summary>
+      <div className="max-w-md mt-3"><SalaryFilter minimum={draftPay} currency={draftCurrency} onMinimum={setDraftPay} onCurrency={setDraftCurrency} />
+        <button type="button" className="lp-btn lp-btn-ghost mt-2" onClick={updateSearch}>Apply filters</button></div>
+    </details>
     <div className="ayn-results-toolbar">
       <p role="status">{listings.isPending ? 'Finding jobs…' : listings.isError ? 'Search unavailable' : total > 999 ? '1,000+ roles to explore' : total + (total === 1 ? ' role found' : ' roles found')}</p>
       <div><select aria-label="Job category" value={categorySlug || ''} onChange={event => {
@@ -218,7 +230,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
         {narrow && explicitId && <button type="button" className="ayn-back-results" onClick={backToResults}><ArrowLeft size={18} /> Back to results</button>}
         {selectedId && detail.isPending ? <div className="ayn-inline-state" role="status"><AynLoader size="sm" label="Loading the full posting" /></div> : detail.isError ? <div className="ayn-inline-state" role="alert"><h3>This posting could not load</h3><button className="lp-btn lp-btn-ghost" onClick={() => detail.refetch()}>Try again</button></div> : selected ? <article className="lp-browser-detail-card">
           <div className="lp-browser-detail-head">{logo(selected, true)}<div><p className="lp-browser-detail-company">{selected.company}</p><p className="ayn-source-note" title="The last time AYN's feed saw this posting still listed, not its original publish date.">Last seen listed {postedDate(selected.last_seen_at || selected.posted_at)}</p></div></div>
-          <h2 ref={headingRef} tabIndex={-1} className="ayn-job-title">{selected.title}</h2>
+          <h2 ref={headingRef} tabIndex={-1} className="ayn-job-title">{displayJobTitle(selected.title, selected.company, selected.description)}</h2>
           <div className="lp-browser-pill-row">{selected.location && <span><MapPin size={15} />{formatLocation(selected.location)}</span>}{selected.employment_type && <span>{employmentTypeLabel(selected.employment_type)}</span>}{selected.seniority && <span>{seniorityLabel(selected.seniority)}</span>}{resolveSalary(selected) && <span>{resolveSalary(selected)!.text}</span>}{jobFactChips(selected).filter(c => c.key !== 'region' && c.key !== 'deadline').map((c) => <span key={c.key} title={c.title}>{c.text}</span>)}{jobAgeNotes(selected).map((n) => <span key={n.text} title={n.title}>{n.text}</span>)}</div>
           <JobApplicationFacts job={selected} />
           <CompanyInsightsNote slug={selected.company_slug} company={selected.company} className="ayn-source-note" />

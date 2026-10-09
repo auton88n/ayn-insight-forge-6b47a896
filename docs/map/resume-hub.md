@@ -1,5 +1,17 @@
 # Resume Hub map (web app + resume-hub backend)
 
+## Nine-item QA follow-up, 9 October 2026
+
+`jobCopy.ts` provides complete interpolated prose rather than a global CSS/DOM spacing hack. Source, results, saved availability and pay paragraphs keep spaces in visible and accessible text. `jobAvailability.ts` distinguishes live, removed and unverified/manual listings independently from application stage; redundant stage pills are hidden. Checks key on actual saved IDs, and loading/errors cannot pretend that a job is live. Company work-mode counts disclose classified coverage and the unclassified remainder in React/server HTML. Categories are labeled “Roles it is hiring for,” not locations.
+
+Display-only `tidyPosting`/title/company/location helpers hide numeric title/store artifacts, duplicate states and unmatched closing parentheses. Only an exact repeated location suffix is removed; stored original source text is retained. `_shared/jobSkills.ts` rejects USCIS/EEO/E-Verify tags only when all occurrences are legal/instruction text, preserving real training requirements; ingestion, displayed tags and tagged gap/matching inputs share the rule.
+
+The shared requirements parser accepts explicit prose qualifications without bullets/headings, splits sentences, preserves legal/benefits/company-voice exclusions and permits longer explicit requirements. Evaluation version `document-alignment-2026-10-09-prose` invalidates tailor/board-score cache keys. The public checker remains text-only with at most three missing findings disclosed; no billing/free-access changes.
+
+Migration `20261009233000_job_qa_filters_remote_cohorts.sql` adds catalog-only public RPCs `browse_job_postings` and `job_filter_options`. SalaryFilter is shared by public/account browsing: explicit currency, normalized advertised annual minimum, unknown pay excluded when filtering, server filters/count before pagination. Default browsing retains direct-table/bootstrap loading. Canonical employment types group real aliases, omit unrecognized engagement slugs and read complete-catalog options rather than a 5,000-row sample. Public minPay/currency parameters survive refresh/Back/category changes.
+
+Remote salary cohorts match explicit eligibility/category/level/currency and remote status, never HQ city. Unrecognized restrictions stay separate; unknown remote eligibility hides the comparison. Local cohorts exclude remote roles. Neutral framing, selected-posting exclusion and the 20-other-posting minimum remain unchanged. `tests/job-qa-cohorts.sql` validates these rules under rollback, alongside unit/browser regressions. No private tables, paid actions or account mutations added.
+
 ## Production job QA, 9 October 2026
 
 Follow-up QA: title fallback also recognizes its own saved generic placeholder and recovers explicit `Company:`/`Employer:` labels or the narrowly stated `Established …, <company> today is` introduction (the affected Al-Futtaim saved JD). It does not infer employers from arbitrary client mentions or overwrite personal jobs. `additionalWorkMode` suppresses repeated remote/hybrid/on-site labels in public cards, account list/swipe cards and detail highlights. Company update/count copy uses complete strings with preserved number spacing and singular/plural grammar; server copy agrees.

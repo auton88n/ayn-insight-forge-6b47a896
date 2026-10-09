@@ -1,5 +1,13 @@
 # Deployment & VPS operations
 
+## Nine-item job QA release, 9 October 2026
+
+Apply `20261009233000_job_qa_filters_remote_cohorts.sql` transactionally and record its receipt before frontend deployment. Run it first with `tests/job-qa-cohorts.sql` under BEGIN; fixtures end with ROLLBACK. This validates remote/HQ separation, target exclusion, currency/employment aliases, minimum boundaries, sample-size guard and public permissions. Back up schema/frontend/workers before release. No original job descriptions, accounts, billing or OAuth settings are changed.
+
+Official deployment must copy all shared modules (new `jobSkills.ts`), resume-hub and job-board-sync. Verify remote labels, salary-filter results and persisted URL state, company classification denominators, deployed shared hashes, anonymous grants and bundle budgets. On failure restore previous frontend/worker artifacts and comparison RPC from the schema backup; additive catalog filter RPCs may remain unused by older code. Default browsing retains the direct-table/bootstrap path.
+
+Recovery backup: `/root/ayn-nine-qa-backup.HPCo4n` (frontend-before.tgz, worker-before.tgz, schema-before.sql), pre-release `c2e3ebbd`. Local gates: 219 unit tests, 16 local and three compiled browser tests, six SEO tests, eight collector tests, two bundle tests, TypeScript/build/wiring passed; registry audit reported zero known vulnerabilities. Rollback-only SQL cohort/filter/grant fixtures passed. These counts are local/fixture evidence, not a claim that every production page has been manually reviewed.
+
 ## Production job QA release, 9 October 2026
 
 Follow-up release: deploy frontend/server copy and `job-board-sync` with the new shared `jobEmploymentType.ts` together. Apply `20261009230000_correct_attorney_internship_tag.sql` and record its receipt; the exact guarded update clears one incorrect public posting tag, not candidate records or all feed types. Backup `/root/ayn-qa-followup.nayXrz` preserves frontend, shared/sync functions and the complete original public attorney row. Recovery restores that row's original employment_type only if needed, without overwriting concurrent description changes. The correction passed a real UPDATE/assertion in a rolled-back production transaction. Local gates passed: 212 unit, 14 browser, three compiled-browser, six SEO, eight collector and two bundle tests; frontend typecheck/build/wiring and bundle budgets passed. No new infrastructure, user-data writes, credit changes or salary-comparison threshold changes.

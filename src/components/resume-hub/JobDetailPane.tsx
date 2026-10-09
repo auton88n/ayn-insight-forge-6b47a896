@@ -11,6 +11,8 @@ import { CompanyInsightsNote } from "@/components/shared/CompanyInsightsNote";
 import { JobPayComparison } from "@/components/shared/JobPayComparison";
 import { JobApplicationFacts } from '@/components/shared/JobApplicationFacts';
 import { additionalWorkMode } from '@/lib/jobPostingFormat';
+import { relevantPostingSkills, displayJobTitle, displayCompany } from '@/lib/jobPostingFormat';
+import { jobCopy } from '@/lib/jobCopy';
 import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, JobDescriptionBody, formatLocation, jobAgeNotes, jobFactChips } from "@/lib/jobPostingFormat";
 import { extractCultureSnippet } from "./browseJobsHelpers";
 import { ScorePill } from "./ScorePill";
@@ -100,9 +102,9 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
             </div>
           )}
           <div className="min-w-0">
-            <h2 className="rh-display text-[24px] leading-snug">{job.title}</h2>
+            <h2 className="rh-display text-[24px] leading-snug">{displayJobTitle(job.title, job.company, job.description)}</h2>
             <p className="text-sm flex items-center gap-1.5 mt-0.5" style={{ color: "var(--rh-muted)" }}>
-              <Building2 className="w-3.5 h-3.5 shrink-0" />{job.company}
+              <Building2 className="w-3.5 h-3.5 shrink-0" />{displayCompany(job.company)}
             </p>
             {job.location && (
               <p className="text-sm flex items-center gap-1.5" style={{ color: "var(--rh-muted)" }}>
@@ -137,7 +139,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
             decorative ember used everywhere else on the page. */}
         <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--rh-trust)" }} title="Never a third-party aggregator, never LinkedIn or Indeed. Pulled straight from the company's own hiring system. When the company takes a posting down, it leaves AYN within about 3 days.">
           <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-          Sourced directly from {job.company}'s own hiring system
+          {jobCopy.source(displayCompany(job.company))}
         </p>
 
         {activelyHiring && (
@@ -229,11 +231,11 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
           <JobDescriptionBody text={job.description ?? ""} />
         </div>
 
-        {job.skills && job.skills.length > 0 && (
+        {relevantPostingSkills(job.skills, job.description || '').length > 0 && (
           <div>
             <div className="text-[10px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--rh-faint)" }}>Skills for this role</div>
             <div className="flex flex-wrap gap-1.5">
-              {job.skills.slice(0, 10).map((s) => (
+              {relevantPostingSkills(job.skills, job.description || '').slice(0, 10).map((s) => (
                 <span key={s} className="text-xs font-semibold rounded-full px-2.5 py-1" style={{ background: "var(--rh-trust-tint)", color: "var(--rh-trust)" }}>
                   {s}
                 </span>

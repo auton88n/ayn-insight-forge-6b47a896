@@ -7,12 +7,13 @@ interface Comparison {
   city: string; seniority: string; annual_min: number; annual_max: number;
   median: number | null; p25: number | null; p75: number | null;
   vs_median_pct: number | null;
+  cohort_scope?: 'remote' | 'local'; cohort_location?: string;
 }
 
 /** Only fetch for the opened detail, never for each card in a search result. */
 export function JobPayComparison({ jobId }: { jobId: string }) {
   const q = useQuery({
-    queryKey: ["job-pay-comparison", jobId], staleTime: 10 * 60_000, retry: false,
+    queryKey: ["job-pay-comparison-v2", jobId], staleTime: 10 * 60_000, retry: false,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("job_salary_comparison" as never, { p_job_id: jobId } as never);
       if (error) throw error;
@@ -26,11 +27,11 @@ export function JobPayComparison({ jobId }: { jobId: string }) {
     || !Number.isFinite(p.annual_min) || !Number.isFinite(p.annual_max)) return null;
   return <section className="rounded-xl border p-4 space-y-2" aria-label="Salary versus advertised market pay">
     <h3 className="font-semibold text-sm">Salary vs advertised market</h3>
-    <p className="text-sm">{money(p.annual_min)}–{money(p.annual_max)} per year ({p.currency})</p>
+    <p className="text-sm">{`${money(p.annual_min)}–${money(p.annual_max)} per year (${p.currency})`}</p>
     {p.enough && p.median != null ? <>
-      <p className="text-sm">This range's midpoint is {p.vs_median_pct === 0 ? "at" : `${Math.abs(p.vs_median_pct!)}% ${p.vs_median_pct! > 0 ? "above" : "below"}`} the advertised median of {money(p.median)}.</p>
-      <p className="text-xs text-muted-foreground">Middle half of comparable ranges: {money(p.p25!)}–{money(p.p75!)}.</p>
-    </> : <p className="text-sm text-muted-foreground">Only {p.sample} other comparable {p.sample === 1 ? "range" : "ranges"}; at least 20 are needed for a comparison.</p>}
-    <p className="text-xs text-muted-foreground">Compared with {p.sample} other {humanizeCategory(p.category)} postings in {p.city}, at {seniorityLabel(p.seniority)} level, in {p.currency}. Annualized advertised base pay, not actual salaries or total compensation. No currency conversion.</p>
+      <p className="text-sm">{`This range's midpoint is ${p.vs_median_pct === 0 ? "at" : `${Math.abs(p.vs_median_pct!)}% ${p.vs_median_pct! > 0 ? "above" : "below"}`} the advertised median of ${money(p.median)}.`}</p>
+      <p className="text-xs text-muted-foreground">{`Middle half of comparable ranges: ${money(p.p25!)}–${money(p.p75!)}.`}</p>
+    </> : <p className="text-sm text-muted-foreground">{`Only ${p.sample} other comparable ${p.sample === 1 ? "range" : "ranges"}; at least 20 are needed for a comparison.`}</p>}
+    <p className="text-xs text-muted-foreground">{`Compared with ${p.sample} other ${humanizeCategory(p.category)} ${p.cohort_scope === 'remote' ? 'remote postings eligible in' : 'postings in'} ${p.cohort_location || p.city}, at ${seniorityLabel(p.seniority)} level, in ${p.currency}. Annualized advertised base pay, not actual salaries or total compensation. No currency conversion.`}</p>
   </section>;
 }

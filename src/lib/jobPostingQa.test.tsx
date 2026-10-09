@@ -3,7 +3,41 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { additionalWorkMode, displayJobTitle, JobDescriptionBody, resolveSalary } from './jobPostingFormat';
 import { verifiedEmploymentType } from '../../supabase/functions/_shared/jobEmploymentType';
 import type { JobPosting } from './resumeHub';
+import { displayCompany, formatLocation, tidyPosting, relevantPostingSkills } from './jobPostingFormat';
+import { jobCopy } from './jobCopy';
+import { jobAvailability } from './jobAvailability';
 afterEach(cleanup);
+
+it('separates live, removed and unverified saved jobs without assuming manual jobs are live', () => {
+  expect(jobAvailability('job_board', 'live')).toBe('live');
+  expect(jobAvailability('job_board', 'taken_down')).toBe('gone');
+  expect(jobAvailability('job_board', 'not_listed')).toBe('gone');
+  expect(jobAvailability('job_board', undefined)).toBe('unknown');
+  expect(jobAvailability('manual', 'live')).toBe('unknown');
+});
+
+it('cleans source artifacts without removing meaningful role or company text', () => {
+  expect(displayJobTitle('Field Support Specialist III (33010)')).toBe('Field Support Specialist III');
+  expect(displayJobTitle('SAP Engineer (S/4HANA)')).toBe('SAP Engineer (S/4HANA)');
+  expect(displayCompany('Acme)')).toBe('Acme');
+  expect(displayCompany('Acme (US)')).toBe('Acme (US)');
+  expect(formatLocation('65-Fairfield Acura, Fairfield, OH')).toBe('Fairfield, OH');
+  expect(formatLocation('East Islip, NY, NY')).toBe('East Islip, NY');
+  expect(formatLocation('0090, East Islip, NY, NY11730')).toBe('East Islip, NY 11730');
+  const original = { title: 'Engineer - Austin, TX', company: 'Acme)', location: 'Austin, TX' };
+  expect(tidyPosting(original).title).toBe('Engineer');
+  expect(original.title).toBe('Engineer - Austin, TX');
+  expect(tidyPosting({ ...original, title: 'Engineer - Infrastructure' }).title).toBe('Engineer - Infrastructure');
+});
+it('filters instruction-only USCIS tags, preserving actual training requirements', () => {
+  expect(relevantPostingSkills(['python', 'uscis'], 'Python required. For additional information about E-Verify visit USCIS.')).toEqual(['python']);
+  expect(relevantPostingSkills(['uscis'], 'Complete ISSO USCIS provided training as required.')).toEqual(['uscis']);
+});
+it('makes complete readable prose with the classification denominator', () => {
+  expect(jobCopy.source('Nextiva')).toBe("Sourced directly from Nextiva's own hiring system");
+  expect(jobCopy.modeCoverage(9, 176)).toContain('9 of 176 postings. 167 remain unclassified');
+  expect(jobCopy.results(0)).toBe('0 jobs match your search');
+});
 
 it('does not use requisition identifiers or old checker placeholders as titles', () => {
   expect(displayJobTitle('Job Requisition ID: 180984…', 'Al-Futtaim Group')).toBe('Role at Al-Futtaim Group');

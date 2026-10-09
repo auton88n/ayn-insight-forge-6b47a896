@@ -4302,6 +4302,12 @@ export type Database = {
       }
     }
     Functions: {
+      browse_job_postings: {
+        Args: { p_min_annual?: number; p_currency?: string; p_employment_type?: string | null }
+        Returns: Database['public']['Tables']['job_postings']['Row'][]
+        SetofOptions: { from: '*'; to: 'job_postings'; isOneToOne: false; isSetofReturn: true }
+      }
+      job_filter_options: { Args: never; Returns: Json }
       get_admin_seo_collection_history: { Args: never; Returns: Json }
       admin_adjust_credits: {
         Args: { p_amount: number; p_reason: string; p_user_id: string }

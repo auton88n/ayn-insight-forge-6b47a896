@@ -49,6 +49,7 @@
 // esm.sh's own CDN), while npm: (already proven working here by resume-hub)
 // resolves cleanly. Cloud's own deployment was unaffected either way.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { relevantPostingSkills } from '../_shared/jobSkills.ts';
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { classifyRegion } from "../_shared/geoScope.ts";
 import { isTrendingTechCategory } from "../_shared/trendingCategories.ts";
@@ -368,7 +369,7 @@ async function syncRegion(
           category: e.category ? String(e.category).slice(0, 60) : null,
           work_mode: j.work_mode ? String(j.work_mode).slice(0, 30) : null,
           city: Array.isArray(j.cities) && j.cities[0] ? String(j.cities[0]).slice(0, 200) : null,
-          skills: Array.isArray(j.skills) ? j.skills.filter(Boolean).map((s) => String(s).slice(0, 80)).slice(0, 40) : null,
+          skills: Array.isArray(j.skills) ? relevantPostingSkills(j.skills.filter(Boolean).map((s) => String(s).slice(0, 80)).slice(0, 40), description) : null,
           mass_posting_count: typeof j.reality?.mass_posting_count === "number" ? Math.round(j.reality.mass_posting_count) : null,
         };
       })

@@ -35,6 +35,25 @@
  * that happened to already call humanizeSlug as a second-tier fallback.
  */
 import { useMemo } from "react";
+export { relevantPostingSkills } from '../../supabase/functions/_shared/jobSkills';
+
+export function displayCompany(raw: string): string {
+  let value = raw.trim();
+  while (value.endsWith(')') && (value.match(/\)/g)?.length || 0) > (value.match(/\(/g)?.length || 0)) value = value.slice(0, -1).trim();
+  return value;
+}
+
+/** Presentation only: never overwrite employer text in the catalog. Strip a
+ * location suffix only when it exactly repeats the separately supplied location. */
+export function tidyPosting<T extends { title: string; company: string; location?: string | null }>(job: T): T {
+  let title = displayJobTitle(job.title, displayCompany(job.company));
+  const location = formatLocation(job.location);
+  for (const separator of [' - ', ' | ', ' – ', ' — ']) {
+    const at = title.lastIndexOf(separator);
+    if (at > 0 && location && formatLocation(title.slice(at + separator.length)).toLowerCase() === location.toLowerCase()) title = title.slice(0, at);
+  }
+  return { ...job, title, company: displayCompany(job.company) };
+}
 import type { JobPosting } from "@/lib/resumeHub";
 import { extractSalaryFromText as extractPostingSalary, payPeriodWarning } from '../../supabase/functions/_shared/jobFacts';
 
@@ -56,7 +75,7 @@ export const SENIORITY_LABELS: Record<string, string> = {
 /** A posting whose "title" is really a requisition number ("Job Requisition ID: 180984") is not a title.
  * Show what the person can recognise instead of the number. */
 export function displayJobTitle(title: string | null | undefined, company?: string | null, description?: string | null): string {
-  const t = String(title || "").trim();
+  const t = String(title || "").trim().replace(/\s*\(\d{4,}\)\s*$/, '').trim();
   const looksLikeId = !t || /^(?:Job from resume check|Saved job \(title not provided\))$/i.test(t) || /^(job\s*)?(requisition|req)\b[\s#:.-]*(id|no|number)?[\s#:.-]*[\w-]*(?:\s*[.…]+)?$/i.test(t) || /^[\d\s_#-]{4,}$/.test(t);
   if (!looksLikeId) return t;
   // Read only an explicit title label, never turn the requisition number,
@@ -142,7 +161,12 @@ const COUNTRY_CODES: Record<string, string> = {
  * -> "Dubai", "Dubai, Dubai, ae" -> "Dubai, UAE". */
 export function formatLocation(raw: string | null | undefined): string {
   if (!raw) return "";
-  const parts = raw
+  let cleaned = raw;
+  // Remove a source store identifier only when a separate city/state follows.
+  if (/^\d{2,}(?:[-\s][^,]+)?,\s*[^,]+,\s*[A-Z]{2}\b/.test(cleaned)) cleaned = cleaned.replace(/^[^,]+,\s*/, '');
+  cleaned = cleaned.replace(/\b([A-Z]{2}),\s*\1(?=\s*\d{5}\b|[, ]|$)/g, '$1')
+    .replace(/\b([A-Z]{2})(\d{5}(?:-\d{4})?)\b/g, '$1 $2');
+  const parts = cleaned
     .split(/\s+[-\u2013\u2014]\s+|\s*,\s*/)
     .map((p) => p.trim())
     .filter(Boolean)

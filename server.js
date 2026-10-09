@@ -552,7 +552,10 @@ function renderCompanyBody(p) {
   if (p.relisted_roles > 0) lines.push(`<p>${p.relisted_roles} of its live roles have been listed before.</p>`);
   lines.push(`<p>${Number(p.edits_30d) || 0} posting field ${Number(p.edits_30d) === 1 ? 'change' : 'changes'} observed in the last 30 days. One posting may have several changes; this is not a count of hires.</p>`);
   const cats = (p.top_categories || []).map((c) => `${escapeHtml(String(c.category).replace(/_/g, ' '))} (${c.open_roles})`).join(', ');
-  if (cats) lines.push(`<p>Where it is hiring: ${cats}.</p>`);
+  if (cats) lines.push(`<p>Roles it is hiring for: ${cats}.</p>`);
+  const classifiedModes = Object.entries(p.work_mode || {}).filter(([mode]) => ['remote','hybrid','onsite'].includes(mode));
+  const classified = classifiedModes.reduce((sum, [, count]) => sum + Number(count), 0);
+  if (classifiedModes.length) lines.push(`<p>AYN has classified work mode for ${classified} of ${Number(i.open_roles)} postings. ${Math.max(0, Number(i.open_roles) - classified)} remain unclassified.</p>`);
   const ben = (p.common_benefits || []).map((b) => `${escapeHtml(b.benefit)} (${b.roles})`).join(', ');
   if (ben) lines.push(`<p>Benefits its postings name: ${ben}.</p>`);
   const jobs = (p.jobs || []).map((j) => `<li><a href="/jobs/${escapeHtml(j.id)}">${escapeHtml(j.title)}</a>${j.location ? ` (${escapeHtml(j.location)})` : ''}</li>`).join('');

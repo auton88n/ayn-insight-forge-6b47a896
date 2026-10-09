@@ -1,4 +1,6 @@
 import { Link, useParams } from "react-router-dom";
+import { jobCopy } from '@/lib/jobCopy';
+import { displayCompany, displayJobTitle } from '@/lib/jobPostingFormat';
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { SEO } from "@/components/shared/SEO";
@@ -39,9 +41,9 @@ const CompanyPage = () => {
       return (data as unknown as Profile | null) ?? null;
     },
   });
-  const p = q.data;
+  const p = q.data ? { ...q.data, name: displayCompany(q.data.name) } : q.data;
   const av = companyAvatar(p?.name || slug);
-  const modes = p ? Object.entries(p.work_mode).sort((a, b) => b[1] - a[1]) : [];
+  const modes = p ? Object.entries(p.work_mode).filter(([m]) => ['remote', 'hybrid', 'onsite'].includes(m)).sort((a, b) => b[1] - a[1]) : [];
 
   return (
     <>
@@ -91,12 +93,13 @@ const CompanyPage = () => {
                     <div><h2 className="font-semibold mb-1.5">Posting updates</h2>
                       <p className="text-muted-foreground">{`${p.edits_30d} field ${p.edits_30d === 1 ? 'change' : 'changes'} observed in the last 30 days. One posting may have several changes; this is not a count of hires.`}</p></div>
                     {p.top_categories.length > 0 && (
-                      <div><h2 className="font-semibold mb-1.5">Where it is hiring</h2>
+                      <div><h2 className="font-semibold mb-1.5">Roles it is hiring for</h2>
                         <p className="text-muted-foreground">{p.top_categories.map((c) => `${humanizeCategory(c.category)} (${c.open_roles})`).join(", ")}</p></div>
                     )}
                     {modes.length > 0 && (
                       <div><h2 className="font-semibold mb-1.5">How roles are worked</h2>
-                        <p className="text-muted-foreground">{modes.map(([m, n]) => `${humanizeSlug(m)} ${n}`).join(", ")}</p></div>
+                        <p className="text-muted-foreground">{modes.map(([m, n]) => `${humanizeSlug(m)} ${n}`).join(", ")}</p>
+                        <p className="text-muted-foreground mt-1">{jobCopy.modeCoverage(modes.reduce((sum, [, n]) => sum + n, 0), p.insights.open_roles)}</p></div>
                     )}
                     {p.common_benefits.length > 0 && (
                       <div><h2 className="font-semibold mb-1.5">Benefits its postings name</h2>
@@ -116,7 +119,7 @@ const CompanyPage = () => {
                         return (
                           <li key={j.id}>
                             <Link to={`/jobs/${j.id}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-muted/40">
-                              <span className="font-medium">{j.title}</span>
+                              <span className="font-medium">{displayJobTitle(j.title, p.name)}</span>
                               <span className="text-xs text-muted-foreground">
                                 {[j.location ? formatLocation(j.location) : null, `Posted ${postedAge(j.posted_at)}`, ...notes.map((n) => n.text)].filter(Boolean).join(" · ")}
                               </span>

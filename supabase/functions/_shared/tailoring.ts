@@ -11,6 +11,7 @@
 
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 import type { Identity } from "./identity.ts";
+import { relevantPostingSkills } from './jobSkills.ts';
 
 // ──────────────────────────────────────────────────────────────
 // hashing
@@ -226,7 +227,7 @@ const STOP = new Set(("a an the and or of to in on for with as at by from is are
   "experience experiences work working ability able strong excellent good years year plus using use used " +
   "knowledge understanding skills skill including include includes etc other others related similar role " +
   "candidate candidates who what when where how team teams within across into about over under more most " +
-  "such well also than then them there here very much many any all not no if while during per each both required preferred").split(/\s+/));
+  "such well also than then them there here very much many any all not no if while during per each both required preferred require requires applicant applicants").split(/\s+/));
 
 // Keep the existing soft-skill filter, but never discard a degree, license,
 // certification or experience threshold just because it is not an addable skill.
@@ -371,7 +372,7 @@ function terms(s: string, minLen = 3): string[] {
 
 /** Split a JD into requirement-ish items with a required / nice-to-have tag. */
 function extractRequirements(jd: string): Array<{ text: string; kind: "required" | "nice_to_have" }> {
-  const lines = jd.split(/\r?\n/).map((l) => l.trim());
+  const lines = jd.split(/\r?\n/).flatMap(l => l.trim().split(/(?<=[.!?])\s+(?=[A-Z])/));
   const out: Array<{ text: string; kind: "required" | "nice_to_have" }> = [];
   let bucket: "required" | "nice_to_have" | null = null;
   let inReqSection = false;
@@ -390,6 +391,8 @@ function extractRequirements(jd: string): Array<{ text: string; kind: "required"
     if (!raw) continue;
     const low = raw.toLowerCase();
     const bulletish = /^[-*•·‣◦o]\s+|^\d+[.)]\s+/.test(raw);
+    const explicitRequirement = QUALIFICATION.test(raw) || /\b(?:must (?:have|know|be|possess)|(?:we|candidates?) (?:require|requires)|experience (?:with|in)|proficien(?:t|cy) (?:in|with)|candidates? should|you (?:have|need))\s+\w/i.test(raw);
+    if (/\b(?:equal opportunity|e-verify|visit USCIS|privacy policy|reasonable accommodation)\b/i.test(raw)) continue;
     // isHeading's own definition (short, no trailing punctuation) also
     // matches nearly every ordinary bulleted requirement line -- "- AWS"
     // is exactly as "heading-shaped" as "Job Summary:" by that test alone.
@@ -401,7 +404,7 @@ function extractRequirements(jd: string): Array<{ text: string; kind: "required"
     // rule, see the comment further down), never a section label, so it
     // must never be routed through the heading branch below regardless of
     // how short or unpunctuated it looks.
-    const isHeading = raw.length < 90 && !/[.!?]$/.test(raw) && !bulletish && !QUALIFICATION.test(raw);
+    const isHeading = raw.length < 90 && !/[.!?]$/.test(raw) && !bulletish && !QUALIFICATION.test(raw) && !explicitRequirement;
     if (isHeading) {
       if (/(nice to have|preferred|bonus|plus(es)?|desirable|good to have)/.test(low)) { bucket = "nice_to_have"; inReqSection = true; excluded = false; continue; }
       if (/(requirement|qualification|must have|what you.{0,10}(bring|need|have)|who you are|about you|skills|we.{0,5}re looking for|you have)/.test(low)) { bucket = "required"; inReqSection = true; excluded = false; continue; }
@@ -428,7 +431,7 @@ function extractRequirements(jd: string): Array<{ text: string; kind: "required"
       continue;
     }
     if (excluded) continue;
-    if (!bulletish && !inReqSection) continue;
+    if (!bulletish && !inReqSection && !explicitRequirement) continue;
     const text = raw.replace(/^[-*•·‣◦o]\s+|^\d+[.)]\s+/, "").trim();
     // v3.143.0 — reported directly against a live JD (Samsara): a "Who You
     // Are" heading is a real requirements-section signal for many
@@ -464,9 +467,9 @@ function extractRequirements(jd: string): Array<{ text: string; kind: "required"
     // shortest one (154 chars) is a known, disclosed residual gap now,
     // preferred over the alternative of silently breaking real
     // requirement matching on ordinarily-written JDs like this one.
-    if (text.length > 200) continue;
+    if (text.length > (explicitRequirement ? 600 : 200)) continue;
     if (GENERIC_QUAL.test(text) && !QUALIFICATION.test(text)) continue;
-    if (COMPANY_VOICE.test(text)) continue;
+    if (COMPANY_VOICE.test(text) && !/^we require\b/i.test(text)) continue;
     // A bullet is already a deliberate, single item -- "- Kubernetes" or
     // "- AWS" is exactly as real a requirement as a full sentence, so it
     // gets a lower bar than free-flowing prose in a requirements section.
@@ -502,7 +505,7 @@ export function computeGap(
 
   const items: Array<{ text: string; kind: "required" | "nice_to_have" }> = [
     ...(extra?.mustHaves || []).map((t) => ({ text: t, kind: "required" as const })),
-    ...(extra?.jdSkills || []).map((t) => ({ text: t, kind: "required" as const })),
+    ...relevantPostingSkills(extra?.jdSkills, jd).map((t) => ({ text: t, kind: "required" as const })),
     ...(extra?.niceToHaves || []).map((t) => ({ text: t, kind: "nice_to_have" as const })),
     ...extractRequirements(jd),
   ];
@@ -714,7 +717,7 @@ export function computeQuickScore(jdText: string, jobTitle: string, profile: Qui
   // JavaScript framework" in the prose). Never present for a job freehire
   // didn't tag (~most rows, per this file's own live coverage numbers) --
   // an empty jobTags array degrades to exactly today's JD-text-only check.
-  const tagWordStems = (jobTags || []).flatMap((t) => norm(t).split(" ").filter(Boolean).map(stem));
+  const tagWordStems = relevantPostingSkills(jobTags, jd).flatMap((t) => norm(t).split(" ").filter(Boolean).map(stem));
   const hasTermStemmed = (t: string) => {
     if (hasTerm(t)) return true;
     const words = norm(t).split(" ").filter((w) => w.length >= 3);

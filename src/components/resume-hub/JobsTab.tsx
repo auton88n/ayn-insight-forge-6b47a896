@@ -20,6 +20,8 @@
  * the one part of Resume Hub that hadn't been re-skinned.
  */
 import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
+import { jobAvailability } from '@/lib/jobAvailability';
+import { jobCopy } from '@/lib/jobCopy';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -237,6 +239,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // stands at a glance" value the research found without the much bigger
   // UI investment a real board would need for a list this size.
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<'all' | 'live' | 'gone' | 'unknown'>('all');
   // v3.173.0 — reported directly: no way to search a growing saved-jobs
   // list at all, unlike Browse jobs' own search box. All-client-side is
   // the right call here (unlike Browse jobs' server-side, debounced search
@@ -282,8 +285,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   // Which saved jobs have left AYN's feed. "taken_down" when AYN watched it leave, "not_listed" when it
   // simply is not in the feed any more. Only jobs saved from the feed are judged; a job someone added by
   // hand was never in it.
-  const { data: listingById = {} } = useQuery({
-    queryKey: ["saved-jobs-status", userId, jobs.length],
+  const { data: listingById = {}, isPending: availabilityPending, isError: availabilityError } = useQuery({
+    queryKey: ["saved-jobs-status", userId, jobs.map(j => j.id).sort().join('|')],
     enabled: jobs.length > 0,
     staleTime: 5 * 60 * 1000,
     retry: false,
@@ -296,6 +299,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
   });
   const isGone = (j: JobRow) => j.source === "job_board" && ["taken_down", "not_listed"].includes(listingById[j.id]?.status);
   const goneCount = jobs.filter(isGone).length;
+  const availabilityOf = (j: JobRow) => jobAvailability(j.source, listingById[j.id]?.status);
 
   // The "restore what was open" logic below is a real, order-sensitive,
   // one-time side effect of the list arriving (consume a handoff flag,
@@ -969,7 +973,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     acc[s] = jobs.filter((j) => j.application_status === s).length;
     return acc;
   }, {});
-  const statusScoped = statusFilter ? jobs.filter((j) => j.application_status === statusFilter) : jobs;
+  const statusScoped = jobs.filter(j => (!statusFilter || j.application_status === statusFilter) && (availability === 'all' || availabilityOf(j) === availability));
   const q = jobQuery.trim().toLowerCase();
   const visibleJobs = q
     ? statusScoped.filter((j) => (j.title || "").toLowerCase().includes(q) || (j.company || "").toLowerCase().includes(q))
@@ -1015,15 +1019,15 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
-            onClick={() => setStatusFilter(null)}
+            onClick={() => { setStatusFilter(null); setAvailability('all'); }}
             className="text-xs font-semibold rounded-full px-3 py-1.5 transition"
-            style={!statusFilter
+            style={!statusFilter && availability === 'all'
               ? { background: "var(--rh-ink)", color: "#fff" }
               : { background: "var(--rh-raised)", color: "var(--rh-muted)" }}
           >
             All · {jobs.length}
           </button>
-          {STATUS_ORDER.filter((s) => statusCounts[s] > 0).map((s) => {
+          {STATUS_ORDER.filter((s) => statusCounts[s] > 0 && statusCounts[s] !== jobs.length).map((s) => {
             const meta = STATUS_META[s];
             const active = statusFilter === s;
             return (
@@ -1041,9 +1045,21 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
         </div>
       )}
 
+      {jobs.length > 0 && <div className="flex gap-2 flex-wrap" aria-label="Saved job availability">
+        {availabilityPending && <p role="status">Checking listing availability…</p>}
+        {availabilityError && <p role="alert">Listing availability could not be verified. Your saved jobs are still available.</p>}
+        {(['all', 'live', 'gone', 'unknown'] as const).map(key => <button type="button" key={key}
+          disabled={key !== 'all' && (availabilityPending || availabilityError)}
+          aria-pressed={availability === key} onClick={() => setAvailability(key)}
+          style={availability === key ? { background: 'var(--rh-ink)', color: '#fff' } : { color: 'var(--rh-muted)' }}
+          className="text-xs rounded-full border px-3 py-1.5">
+          {`${({ all: 'Any availability', live: 'Still listed', gone: 'No longer listed', unknown: 'Not verified / manually saved' })[key]} · ${key === 'all' ? jobs.length : jobs.filter(j => availabilityOf(j) === key).length}`}
+        </button>)}
+      </div>}
+
       {goneCount > 0 && (
         <p className="text-sm rounded-lg px-3 py-2" style={{ background: "var(--rh-tint)", color: "var(--rh-muted)" }}>
-          {goneCount} of your saved jobs {goneCount === 1 ? "is" : "are"} no longer listed. The company may have filled or taken {goneCount === 1 ? "it" : "them"} down, so check before you spend time tailoring.
+          {jobCopy.unavailable(goneCount)}
         </p>
       )}
 

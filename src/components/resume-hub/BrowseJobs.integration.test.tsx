@@ -41,7 +41,7 @@ vi.mock('@/integrations/supabase/client', () => {
   };
   return { supabase: { from: builder, rpc: vi.fn(async (_name: string, args: { p_company_slugs?: string[] }) => ({
       // the real RPC answers every requested company (status may be null)
-      data: (args?.p_company_slugs ?? []).map((company_slug) => ({ company_slug, status: 'insufficient_data' })),
+      data: _name === 'job_filter_options' ? { categories: [], seniorities: [], employment_types: ['full_time', 'contract'] } : (args?.p_company_slugs ?? []).map((company_slug) => ({ company_slug, status: 'insufficient_data' })),
       error: null,
     })), auth: { getSession: vi.fn() } } };
 });

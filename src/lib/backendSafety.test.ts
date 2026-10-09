@@ -10,7 +10,7 @@ function backendModule(path: string): Record<string, (...args: any[]) => any> {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   const exports = {};
-  new Function('require', 'exports', 'Deno', js)(createRequire(import.meta.url), exports, { env: { get: () => undefined } });
+  new Function('require', 'exports', 'Deno', js)((dependency: string) => dependency === './jobSkills.ts' ? backendModule('../../supabase/functions/_shared/jobSkills.ts') : createRequire(import.meta.url)(dependency), exports, { env: { get: () => undefined } });
   return exports;
 }
 
