@@ -7,11 +7,12 @@
 // changes. Markup and behaviour are otherwise identical to the old inline
 // row.
 import { memo } from "react";
+import { PostingReceiptLine } from '@/components/shared/PostingEvidence';
 import { additionalWorkMode } from '@/lib/jobPostingFormat';
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Flame, Bookmark } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
-import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, formatLocation } from "@/lib/jobPostingFormat";
+import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, formatLocation } from "@/lib/jobPostingFormat";
 import { HOT_WINDOW_MS } from "./browseJobsHelpers";
 import { ScorePill } from "./ScorePill";
 import { cleanApplyUrl } from "@/lib/applyUrl";
@@ -38,7 +39,7 @@ function JobListRowImpl({
   job: j, active, isSaved, isSeen, isSaving, logoFailed, score, hasScored,
   onOpen, onToggleBookmark, onLogoError,
 }: JobListRowProps) {
-  const isHot = Date.now() - new Date(j.posted_at).getTime() < HOT_WINDOW_MS;
+  const isHot = !!j.first_seen_at && Date.now() - new Date(j.first_seen_at).getTime() < HOT_WINDOW_MS;
   const avatar = companyAvatar(j.company);
   const logoUrl = resolveLogoUrl(j);
   const showLogo = !!logoUrl && !logoFailed;
@@ -75,7 +76,6 @@ function JobListRowImpl({
           </p>
           <div className="flex items-center gap-2 flex-wrap pt-0.5">
             <ScorePill score={score} hasScored={hasScored} />
-            <span className="text-[11px]" style={{ color: "var(--rh-faint)" }}>{postedAge(j.posted_at)} · {postedDate(j.posted_at)}</span>
             {salary && (
               <span
                 className="text-[11px] font-bold"
@@ -116,6 +116,7 @@ function JobListRowImpl({
               )}
             </div>
           )}
+          <PostingReceiptLine posting={j} />
         </div>
       </button>
       <div className="flex flex-col items-end gap-2 shrink-0">
@@ -127,7 +128,7 @@ function JobListRowImpl({
             className="shrink-0 gap-1 border-0"
             style={{ background: "var(--rh-gradient)", color: "#fff", boxShadow: "var(--rh-glow)" }}
           >
-            <Flame className="w-3 h-3" /> New
+            <Flame className="w-3 h-3" /> New to AYN
           </Badge>
         )}
         {isSeen && (

@@ -41,6 +41,8 @@ import { companyAvatar, formatLocation, decodeHtmlEntities, displayJobTitle, Job
 import { JobApplicationFacts } from '@/components/shared/JobApplicationFacts';
 import { savedJobsQueryKey } from "@/lib/queryKeys";
 import { cleanApplyUrl } from "@/lib/applyUrl";
+import { PostingReceiptLine, PostingEvidencePanel } from '@/components/shared/PostingEvidence';
+import type { PostingReceipt } from '@/lib/postingEvidence';
 
 interface Props { userId: string; onOpenJob: (id: string) => void; onOpenProfile: () => void; onCreditsChanged?: () => void; onBackToBrowse: () => void }
 
@@ -293,7 +295,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
     queryFn: async () => {
       const { data, error } = await supabase.rpc("saved_jobs_status" as never);
       if (error) throw error;
-      const rows = (data as unknown as Array<{ job_id: string; status: string; taken_down_at: string | null }>) ?? [];
+      const rows = (data as unknown as Array<{ job_id: string; status: string; taken_down_at: string | null; posting_id: string | null; match_basis: string | null; receipt: PostingReceipt | null }>) ?? [];
       return Object.fromEntries(rows.map((r) => [r.job_id, r]));
     },
   });
@@ -607,6 +609,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               <div className="min-w-0">
                 <h2 className="rh-display text-xl leading-snug">{displayJobTitle(selected.title, selected.company, selected.jd_text)}</h2>
                 <p className="text-sm" style={{ color: "var(--rh-muted)" }}>{selected.company} {selected.location && `• ${formatLocation(selected.location)}`}</p>
+                {listingById[selected.id]?.match_basis === 'company_title' && <p className="text-xs">Catalog match uses company and title, not the original link. It may be a different vacancy.</p>}
+                {listingById[selected.id]?.posting_id && <PostingEvidencePanel jobId={listingById[selected.id].posting_id!} />}
                 {selected.source_url && (
                   <a
                     href={cleanApplyUrl(selected.source_url)}
@@ -1156,6 +1160,8 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                   {snippet}
                 </p>
               )}
+              {j.source === 'job_board' ? listingById[j.id]?.receipt ? <PostingReceiptLine posting={listingById[j.id].receipt!} /> : <span className="ayn-receipt-line">{availabilityError ? 'Catalog observations could not load' : availabilityPending ? 'Loading catalog observations…' : 'No catalog observation history available'}</span> : <span className="ayn-receipt-line">Manually saved · no catalog observations</span>}
+              {listingById[j.id]?.match_basis === 'company_title' && <span className="text-xs">Matched by company/title, not original link.</span>}
               <div className="flex-1" />
               <div className="flex items-center justify-between pt-3 mt-3 border-t w-full" style={{ borderColor: "var(--rh-hair)" }}>
                 <span
@@ -1165,9 +1171,9 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                   {meta.label}{showSilentDays ? ` · ${silentDays}d silent` : ""}
                 </span>
                 {isGone(j) && (
-                  <span className="text-[11px] font-bold" style={{ color: "var(--rh-gold)" }} title="This job is no longer in AYN's job feed. The company may have filled or taken down the posting.">
+                  <span className="text-[11px] font-bold" style={{ color: "var(--rh-gold)" }} title="Absence from AYN's catalog does not establish whether anyone was hired.">
                     {listingById[j.id]?.status === "taken_down" && listingById[j.id]?.taken_down_at
-                      ? `Taken down ${new Date(listingById[j.id].taken_down_at!).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+                      ? `Left AYN catalog ${new Date(listingById[j.id].taken_down_at!).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
                       : "No longer listed"}
                   </span>
                 )}

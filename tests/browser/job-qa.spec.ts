@@ -17,7 +17,7 @@ test('positive salary-filter results request an exact count and paginate past th
     return route.abort();
   });
   await page.goto('/jobs?minPay=100000&currency=USD');
-  await expect(page.locator('p[role="status"]')).toHaveText('26 roles found');
+  await expect(page.locator('p[role="status"]').filter({ hasText: '26 roles found' })).toHaveText('26 roles found');
   await expect(page.locator('.lp-browser-card-title')).toHaveCount(25);
   await page.getByRole('button', { name: 'Load more jobs', exact: true }).click();
   await expect(page.locator('.lp-browser-card-title')).toHaveCount(26);

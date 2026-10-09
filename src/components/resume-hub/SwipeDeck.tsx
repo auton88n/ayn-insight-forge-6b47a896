@@ -4,6 +4,7 @@
 // next couple of cards in the deck) and SwipeDeck itself. Pure code
 // movement, zero logic changes.
 import { useEffect, useRef, useState } from "react";
+import { PostingReceiptLine } from '@/components/shared/PostingEvidence';
 import { additionalWorkMode } from '@/lib/jobPostingFormat';
 import { Badge } from "@/components/ui/badge";
 import { Flame, Heart, Layers, Loader2, X } from "lucide-react";
@@ -139,11 +140,11 @@ export function SwipeDeck({
   // v3.183.0 — reported directly: the swipe deck never showed the New
   // badge at all, even though the same 24h logic already works correctly
   // in list view. Same HOT_WINDOW_MS, just never wired into this card.
-  const isHot = Date.now() - new Date(current.posted_at).getTime() < HOT_WINDOW_MS;
+  const isHot = !!current.first_seen_at && Date.now() - new Date(current.first_seen_at).getTime() < HOT_WINDOW_MS;
 
   return (
     <div className="flex flex-col items-center gap-5 py-2">
-      <div className="relative" style={{ width: "min(360px, 92vw)", height: 440 }}>
+      <div className="relative" style={{ width: "min(360px, 92vw)", height: 500 }}>
         {onDeck && <SwipeCardPeek job={onDeck} style={{ transform: "translateY(16px) scale(0.94)", opacity: 0.5, zIndex: 1 }} />}
         {upNext && <SwipeCardPeek job={upNext} style={{ transform: "translateY(8px) scale(0.97)", opacity: 0.8, zIndex: 2 }} />}
         <div
@@ -197,7 +198,7 @@ export function SwipeDeck({
                 className="shrink-0 gap-1 border-0"
                 style={{ background: "var(--rh-gradient)", color: "#fff", boxShadow: "var(--rh-glow)" }}
               >
-                <Flame className="w-3 h-3" /> New
+                <Flame className="w-3 h-3" /> New to AYN
               </Badge>
             )}
           </div>
@@ -222,6 +223,7 @@ export function SwipeDeck({
               </span>
             )}
           </div>
+          <PostingReceiptLine posting={current} />
           <p className="text-[13px] leading-relaxed flex-1 overflow-hidden" style={{ color: "var(--rh-muted)" }}>
             {desc ? `${desc.slice(0, 200)}${desc.length > 200 ? "…" : ""}` : "No description on file for this one. Open it to see more on the company's own site."}
           </p>

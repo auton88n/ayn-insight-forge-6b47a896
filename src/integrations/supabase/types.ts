@@ -2287,6 +2287,9 @@ export type Database = {
       }
       job_postings: {
         Row: {
+          closure_status: string | null
+          closure_checked_at: string | null
+          closure_last_open_at: string | null
           apply_url: string
           company: string
           company_logo_url: string | null
@@ -2301,6 +2304,9 @@ export type Database = {
           title: string
         }
         Insert: {
+          closure_status?: string | null
+          closure_checked_at?: string | null
+          closure_last_open_at?: string | null
           apply_url: string
           company: string
           company_logo_url?: string | null
@@ -2315,6 +2321,9 @@ export type Database = {
           title: string
         }
         Update: {
+          closure_status?: string | null
+          closure_checked_at?: string | null
+          closure_last_open_at?: string | null
           apply_url?: string
           company?: string
           company_logo_url?: string | null
@@ -4308,6 +4317,7 @@ export type Database = {
         SetofOptions: { from: '*'; to: 'job_postings'; isOneToOne: false; isSetofReturn: true }
       }
       job_filter_options: { Args: never; Returns: Json }
+      job_posting_evidence: { Args: { p_job_id: string }; Returns: Json }
       get_admin_seo_collection_history: { Args: never; Returns: Json }
       admin_adjust_credits: {
         Args: { p_amount: number; p_reason: string; p_user_id: string }

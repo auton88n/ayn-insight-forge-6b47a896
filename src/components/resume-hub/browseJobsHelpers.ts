@@ -18,7 +18,7 @@ export const POSTED_WITHIN_OPTIONS = [
 // v3.166.0 — the enrichment columns job-board-sync now captures, so filters
 // and ranking can read them without a second round trip per row.
 export const COLS = "id, source, company, company_slug, company_logo_url, title, description, location, apply_url, posted_at, "
-  + "employment_type, seniority, salary_min, salary_max, salary_currency, category, work_mode, city, skills, first_seen_at, repost_count, years_required, sponsorship, salary_text_min, salary_text_max, salary_text_currency, salary_text_period, work_mode_text, benefits, remote_region, apply_by";
+  + "employment_type, seniority, salary_min, salary_max, salary_currency, category, work_mode, city, skills, first_seen_at, last_seen_at, closure_status, closure_checked_at, closure_last_open_at, repost_count, years_required, sponsorship, salary_text_min, salary_text_max, salary_text_currency, salary_text_period, work_mode_text, benefits, remote_region, apply_by";
 
 // v3.167.0 — asked directly not to expose the raw catalog size. A precise
 // count is genuinely useful feedback when it's small (a filtered search

@@ -94,6 +94,8 @@ The replacement is only consented first-party page-view measurement. It is docum
 
 ## The box
 
+Posting-receipts release: apply `20261010010000_posting_evidence.sql` transactionally **before** serving the new frontend (summary queries require the new column). Validate with `tests/posting-evidence-release.sql` in a rollback-only transaction first. Back up the existing RPC definitions/schema, built frontend and job-board-sync worker. This is additive and backward-compatible with the previous frontend; rollback the app/worker first and retain the additive column rather than deleting observation data. Deploy through the official script and verify anonymous evidence plus live hashed assets. No new environment variables or infrastructure services.
+
 - **IP**: `2.25.109.213`
 - **Access**: `ssh root@2.25.109.213` — key-based, no password prompt in this environment.
 - **Domain**: `ayn.careers`. Supabase itself is merged onto the bare domain (no `supabase.` subdomain) via Traefik path-prefix routing — see `blueprint.md`/CLAUDE.md's own domain-merge history if touching routing.

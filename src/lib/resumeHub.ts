@@ -280,6 +280,9 @@ export interface JobPosting {
   // What AYN has observed about the listing's life, and facts the posting states in its own text.
   first_seen_at?: string | null;
   last_seen_at?: string | null;
+  closure_status?: string | null;
+  closure_checked_at?: string | null;
+  closure_last_open_at?: string | null;
   // A pay range, work mode and benefits the posting states in its own text.
   salary_text_min?: number | null;
   salary_text_max?: number | null;

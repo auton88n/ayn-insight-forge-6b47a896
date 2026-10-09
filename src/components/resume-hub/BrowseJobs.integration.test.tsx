@@ -40,6 +40,7 @@ vi.mock('@/integrations/supabase/client', () => {
     return proxy;
   };
   return { supabase: { from: builder, rpc: vi.fn((_name: string, args: { p_company_slugs?: string[] }, options?: unknown) => {
+    if (_name === 'job_posting_evidence') return { abortSignal: () => Promise.resolve({ data: { source: 'freehire', changes: [] }, error: null }) };
     if (_name === 'browse_job_postings') {
       h.ops.push({ table: 'rpc', op: _name, args: [args, options] });
       return builder('job_postings');
@@ -163,7 +164,7 @@ describe('BrowseJobs list (real component, mocked backend)', () => {
     const heading = await screen.findByRole('heading', { level: 2, name: 'Role 3' });
     const pane = heading.closest('div.p-5') as HTMLElement;
     expect(within(pane).getByText('Build things')).toBeInTheDocument();
-    expect(within(pane).getByText(/Sourced directly from Acme 3/)).toBeInTheDocument();
+    expect(within(pane).getByRole('region', { name: 'Posting evidence' })).toBeInTheDocument();
     fireEvent.click(within(pane).getByText('Save and check my fit'));
     await waitFor(() => expect(onAdded).toHaveBeenCalledWith('saved-row-1'));
     const insert = h.ops.find((o) => o.table === 'jobs' && o.op === 'insert')!;

@@ -1,5 +1,17 @@
 # Resume Hub map (web app + resume-hub backend)
 
+## Posting receipts, 10 October 2026
+
+Production cards use shared `PostingReceiptLine` across public browse/preview, account list/swipe, company roles and saved jobs. Summary projections carry receipts; cards do not issue history requests. `PostingEvidencePanel` loads one cached, abortable `job_posting_evidence(uuid)` RPC per opened catalog posting, with explicit loading/error/retry/unknown and archived states, a desktop horizontal/mobile vertical timeline, and escaped old/new diffs. No verified seals, hiring-intent claims or fabricated events. Existing brand assets/colors and salary-comparison sample guards remain.
+
+Migration `20261010010000_posting_evidence.sql` adds `closure_last_open_at` and a trigger preserving successful page checks after failures. Only currently successful historical checks are backfilled. `job-board-sync` stamps a closure attempt before deletion. Feed `last_seen_at` is explicitly separate from page checks; `posted_at` is never a receipt fallback. Reappearance counts mean matching earlier catalog lives, not proven employer reposts. Catalog pruning is not employer closure. Historical salary edits have no currency/period metadata and display raw source values with that limitation; description edits have no full old text. Field-change history is capped at 30, values at 300 characters. Archive lookup is indexed by posting ID/time.
+
+The new public SECURITY DEFINER RPC projects only catalog receipt fields and allowlisted changes, excludes scam rows, and grants no archive/change table access. `company_profile` adds summary receipt fields. `saved_jobs_status` retains `auth.uid()` ownership and batched lookup, adds catalog ID/receipt, prefers exact URL matches and excludes scam records. Personal saved jobs remain private; manually added jobs have no invented history. No new paid/AI action, user table, consent, export or erasure seam. Admin job-data overview remains the existing aggregate source.
+
+Tests: `postingEvidence.test.ts`, `tests/browser/posting-evidence.spec.ts` and rollback-only `tests/posting-evidence-release.sql` cover date/state semantics, responsive rendering, literal escaped diffs, request count, retry, archives, successful-check preservation, caps and anonymous privileges. Missing historical events cannot be reconstructed.
+
+Saved lookup returns `match_basis`; company/title fallback is explicitly disclosed on the saved card/detail because it may be another vacancy. Exact-link matches take priority. Timeline overflow is keyboard-focusable as well as scrollable.
+
 ## Nine-item QA follow-up, 9 October 2026
 
 `jobCopy.ts` provides complete interpolated prose rather than a global CSS/DOM spacing hack. Source, results, saved availability and pay paragraphs keep spaces in visible and accessible text. `jobAvailability.ts` distinguishes live, removed and unverified/manual listings independently from application stage; redundant stage pills are hidden. Checks key on actual saved IDs, and loading/errors cannot pretend that a job is live. Company work-mode counts disclose classified coverage and the unclassified remainder in React/server HTML. Categories are labeled “Roles it is hiring for,” not locations.

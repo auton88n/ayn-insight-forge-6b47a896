@@ -23,6 +23,8 @@
  * already proved out live: no new backend surface, no new risk.
  */
 import { memo, useEffect, useState } from 'react';
+import { PostingReceiptLine } from '@/components/shared/PostingEvidence';
+import type { PostingReceipt } from '@/lib/postingEvidence';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { companyAvatar, formatLocation } from '@/lib/jobPostingFormat';
@@ -30,7 +32,7 @@ import { companyAvatar, formatLocation } from '@/lib/jobPostingFormat';
 const HOT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const PREVIEW_SIZE = 4;
 
-type PreviewJob = {
+type PreviewJob = PostingReceipt & {
   id: string;
   title: string;
   company: string;
@@ -45,7 +47,7 @@ export const LiveJobsPreview = memo(() => {
     let cancelled = false;
     supabase
       .from('job_postings')
-      .select('id, title, company, location, posted_at')
+      .select('id, title, company, location, posted_at, first_seen_at, last_seen_at, repost_count, closure_status, closure_checked_at, closure_last_open_at')
       .order('posted_at', { ascending: false })
       .or('scam_suspected.is.null,scam_suspected.eq.false')
       .limit(PREVIEW_SIZE)
@@ -59,9 +61,9 @@ export const LiveJobsPreview = memo(() => {
 
   return (
     <div className="lp-hero-results">
-      <div className="lp-hero-results-label">Posted in the last few hours</div>
+      <div className="lp-hero-results-label">Recently observed listings</div>
       {jobs.map((job) => {
-        const isNew = Date.now() - new Date(job.posted_at).getTime() < HOT_WINDOW_MS;
+        const isNew = !!job.first_seen_at && Date.now() - new Date(job.first_seen_at).getTime() < HOT_WINDOW_MS;
         const avatar = companyAvatar(job.company);
         return (
           <Link key={job.id} to={`/jobs/${job.id}`} className="lp-hero-result">
@@ -71,8 +73,9 @@ export const LiveJobsPreview = memo(() => {
               <span className="lp-hero-result-meta" style={{ display: 'block' }}>
                 {job.company}{job.location ? ` · ${formatLocation(job.location)}` : ''}
               </span>
+              <PostingReceiptLine posting={job} />
             </span>
-            {isNew && <span className="lp-hero-result-new">NEW</span>}
+            {isNew && <span className="lp-hero-result-new">NEW TO AYN</span>}
           </Link>
         );
       })}

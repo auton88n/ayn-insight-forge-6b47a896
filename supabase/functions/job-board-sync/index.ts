@@ -558,7 +558,7 @@ async function verifyClosureBatch(
         // closure apart from a blind elapsed-time prune. Two round trips,
         // but this only ever runs for the small checked batch, not the bulk
         // fallback prune.
-        await admin.from("job_postings").update({ closure_status: "closed" }).eq("id", row.id);
+        await admin.from("job_postings").update({ closure_status: "closed", closure_checked_at: new Date().toISOString() }).eq("id", row.id);
         await admin.from("job_postings").delete().eq("id", row.id);
         confirmedClosed++;
       }

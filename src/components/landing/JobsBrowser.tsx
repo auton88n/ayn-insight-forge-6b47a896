@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { AynLoader } from '@/components/shared/AynLoader';
+import { PostingReceiptLine, PostingEvidencePanel } from '@/components/shared/PostingEvidence';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,12 +11,12 @@ import { additionalWorkMode } from '@/lib/jobPostingFormat';
 import { displayJobTitle, tidyPosting } from '@/lib/jobPostingFormat';
 import { SalaryFilter } from '@/components/shared/SalaryFilter';
 import { JobPayComparison } from '@/components/shared/JobPayComparison';
-import { companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike, JobDescriptionBody, employmentTypeLabel, seniorityLabel, humanizeCategory, formatLocation, locationSearchPatterns, jobAgeNotes, jobFactChips } from '@/lib/jobPostingFormat';
+import { companyAvatar, resolveLogoUrl, resolveSalary, safeLike, JobDescriptionBody, employmentTypeLabel, seniorityLabel, humanizeCategory, formatLocation, locationSearchPatterns, jobFactChips } from '@/lib/jobPostingFormat';
 import { Search, ExternalLink, Loader2, MapPin, ArrowLeft, ArrowRight, RefreshCw, Link2 } from 'lucide-react';
 import { cleanApplyUrl } from '@/lib/applyUrl';
 
 const PAGE_SIZE = 25;
-export const PUBLIC_JOB_SUMMARY_COLUMNS = 'id,source,company,company_slug,company_logo_url,title,location,apply_url,posted_at,employment_type,seniority,salary_min,salary_max,salary_currency,category,work_mode,city,last_seen_at,first_seen_at,repost_count,years_required,sponsorship,salary_text_min,salary_text_max,salary_text_currency,salary_text_period,work_mode_text,benefits,remote_region,apply_by';
+export const PUBLIC_JOB_SUMMARY_COLUMNS = 'id,source,company,company_slug,company_logo_url,title,location,apply_url,posted_at,employment_type,seniority,salary_min,salary_max,salary_currency,category,work_mode,city,last_seen_at,first_seen_at,closure_status,closure_checked_at,closure_last_open_at,repost_count,years_required,sponsorship,salary_text_min,salary_text_max,salary_text_currency,salary_text_period,work_mode_text,benefits,remote_region,apply_by';
 type JobSummary = Omit<JobPosting, 'description'>;
 // The server puts the first page of jobs, and the first job's full posting, in the
 // HTML itself (see getJobsBootstrap in server.js), so the page can show jobs without
@@ -219,7 +220,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
                   action sitting where "Full-time"/"Contract" belongs. An
                   unknown type is now just omitted, not papered over with a
                   confusing fallback label that isn't about employment type. */}
-                  {employmentTypeLabel(job.employment_type) && <span>{employmentTypeLabel(job.employment_type)}</span>}{salary && <span className="ayn-job-salary" title={salary.fromListingText ? "Read directly from this posting's own text." : undefined}>{salary.text}</span>}<span className="ayn-job-posted" title="The last time AYN confirmed this posting was still live, not its original publish date.">Last seen listed {postedAge(job.last_seen_at || job.posted_at)}</span></div></div></div>
+                  {employmentTypeLabel(job.employment_type) && <span>{employmentTypeLabel(job.employment_type)}</span>}{salary && <span className="ayn-job-salary" title={salary.fromListingText ? "Read directly from this posting's own text." : undefined}>{salary.text}</span>}</div><PostingReceiptLine posting={job} /></div></div>
         </button>
           );
         })}
@@ -229,9 +230,10 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
       <div className="lp-browser-detail" ref={pane} aria-label="Selected job">
         {narrow && explicitId && <button type="button" className="ayn-back-results" onClick={backToResults}><ArrowLeft size={18} /> Back to results</button>}
         {selectedId && detail.isPending ? <div className="ayn-inline-state" role="status"><AynLoader size="sm" label="Loading the full posting" /></div> : detail.isError ? <div className="ayn-inline-state" role="alert"><h3>This posting could not load</h3><button className="lp-btn lp-btn-ghost" onClick={() => detail.refetch()}>Try again</button></div> : selected ? <article className="lp-browser-detail-card">
-          <div className="lp-browser-detail-head">{logo(selected, true)}<div><p className="lp-browser-detail-company">{selected.company}</p><p className="ayn-source-note" title="The last time AYN's feed saw this posting still listed, not its original publish date.">Last seen listed {postedDate(selected.last_seen_at || selected.posted_at)}</p></div></div>
+          <div className="lp-browser-detail-head">{logo(selected, true)}<div><p className="lp-browser-detail-company">{selected.company}</p></div></div>
           <h2 ref={headingRef} tabIndex={-1} className="ayn-job-title">{displayJobTitle(selected.title, selected.company, selected.description)}</h2>
-          <div className="lp-browser-pill-row">{selected.location && <span><MapPin size={15} />{formatLocation(selected.location)}</span>}{selected.employment_type && <span>{employmentTypeLabel(selected.employment_type)}</span>}{selected.seniority && <span>{seniorityLabel(selected.seniority)}</span>}{resolveSalary(selected) && <span>{resolveSalary(selected)!.text}</span>}{jobFactChips(selected).filter(c => c.key !== 'region' && c.key !== 'deadline').map((c) => <span key={c.key} title={c.title}>{c.text}</span>)}{jobAgeNotes(selected).map((n) => <span key={n.text} title={n.title}>{n.text}</span>)}</div>
+          <div className="lp-browser-pill-row">{selected.location && <span><MapPin size={15} />{formatLocation(selected.location)}</span>}{selected.employment_type && <span>{employmentTypeLabel(selected.employment_type)}</span>}{selected.seniority && <span>{seniorityLabel(selected.seniority)}</span>}{resolveSalary(selected) && <span>{resolveSalary(selected)!.text}</span>}{jobFactChips(selected).filter(c => c.key !== 'region' && c.key !== 'deadline').map((c) => <span key={c.key} title={c.title}>{c.text}</span>)}</div>
+          <PostingEvidencePanel jobId={selected.id} />
           <JobApplicationFacts job={selected} />
           <CompanyInsightsNote slug={selected.company_slug} company={selected.company} className="ayn-source-note" />
           <JobPayComparison jobId={selected.id} />
@@ -240,7 +242,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
           <p className="ayn-source-note">You apply on the employer’s own site.</p>
           <div className="lp-browser-jd"><h3>About this role</h3><JobDescriptionBody text={selected.description} /></div>
           {onStartFree && <div className="ayn-job-next"><h3>Make this application yours.</h3><p>Use your AYN profile to prepare a resume and cover letter for this role.</p><button className="lp-btn lp-btn-ghost" onClick={() => (signedIn ? navigate('/resume-hub') : onStartFree())}>Open my workspace <ArrowRight size={16} /></button></div>}
-        </article> : <div className="lp-browser-detail-empty">{selectedId ? 'This posting is no longer available. Choose another role from the results.' : 'Choose a role to read its requirements and prepare your application.'}</div>}
+        </article> : <div className="lp-browser-detail-empty">{selectedId ? <><p>This posting is no longer in AYN’s live catalog. Choose another role from the results.</p><PostingEvidencePanel jobId={selectedId} /></> : 'Choose a role to read its requirements and prepare your application.'}</div>}
       </div>
     </div>
   </div>;

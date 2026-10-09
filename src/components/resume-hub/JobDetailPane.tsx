@@ -4,16 +4,16 @@
 // when the open job or one of its own flags changes, not on every keystroke
 // in the search box.
 import { memo, useMemo } from "react";
+import { PostingEvidencePanel } from '@/components/shared/PostingEvidence';
 import { Button } from "@/components/ui/button";
-import { Building2, ExternalLink, Loader2, MapPin, Plus, ShieldCheck, TrendingUp } from "lucide-react";
+import { Building2, ExternalLink, Loader2, MapPin, Plus, TrendingUp } from "lucide-react";
 import { type JobPosting } from "@/lib/resumeHub";
 import { CompanyInsightsNote } from "@/components/shared/CompanyInsightsNote";
 import { JobPayComparison } from "@/components/shared/JobPayComparison";
 import { JobApplicationFacts } from '@/components/shared/JobApplicationFacts';
 import { additionalWorkMode } from '@/lib/jobPostingFormat';
 import { relevantPostingSkills, displayJobTitle, displayCompany } from '@/lib/jobPostingFormat';
-import { jobCopy } from '@/lib/jobCopy';
-import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, JobDescriptionBody, formatLocation, jobAgeNotes, jobFactChips } from "@/lib/jobPostingFormat";
+import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, JobDescriptionBody, formatLocation, jobFactChips } from "@/lib/jobPostingFormat";
 import { extractCultureSnippet } from "./browseJobsHelpers";
 import { ScorePill } from "./ScorePill";
 import { cleanApplyUrl } from "@/lib/applyUrl";
@@ -116,36 +116,15 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
 
         <div className="flex items-center gap-2 flex-wrap">
           <ScorePill score={score} hasScored={hasScored} size={44} />
-          <span className="text-xs" style={{ color: "var(--rh-faint)" }}>Posted {postedAge(job.posted_at)} · {postedDate(job.posted_at)}</span>
-          {jobAgeNotes(job).map((n) => (
-            <span key={n.text} className="text-xs font-semibold" style={{ color: "var(--rh-gold)" }} title={n.title}>{n.text}</span>
-          ))}
         </div>
 
-        {/* v3.169.0 — asked directly to research what job seekers actually
-            complain about on LinkedIn/Indeed, then use it as an advantage.
-            The single most-repeated complaint, across every source checked:
-            fake and ghost listings, and no way to tell a real posting from
-            one that's already been filled or was never real. AYN's real,
-            structural answer to that (never a third-party aggregator like
-            LinkedIn/Indeed, sourced straight from the company's own hiring
-            system, pruned the moment it's 3 days old, v3.194.0, was 7) was
-            already true and already stated once in this page's own
-            subtitle, but never
-            surfaced as its own trust signal where someone deciding whether
-            to trust THIS posting actually is.
-            v3.171.0 — recolored to the new trust teal, its own accent
-            reserved only for this class of signal, distinct from the
-            decorative ember used everywhere else on the page. */}
-        <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--rh-trust)" }} title="Never a third-party aggregator, never LinkedIn or Indeed. Pulled straight from the company's own hiring system. When the company takes a posting down, it leaves AYN within about 3 days.">
-          <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-          {jobCopy.source(displayCompany(job.company))}
-        </p>
+        {/* Receipts replace the former generic source/verification claim. */}
+        <PostingEvidencePanel jobId={job.id} />
 
         {activelyHiring && (
           <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--rh-trust)" }} title="Based on real turnover AYN has actually observed over time for this company, not a guess from one listing.">
             <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-            {job.company} is actively hiring
+            {`${job.company}: catalog turnover observed`}
           </p>
         )}
 

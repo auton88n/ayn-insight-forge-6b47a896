@@ -8,7 +8,9 @@ import { SeekerSidebar } from "@/components/landing/SeekerSidebar";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { SectionHeading } from "@/components/shared/SectionHeading";
 import { Skeleton } from "@/components/ui/skeleton";
-import { companyAvatar, formatLocation, humanizeCategory, humanizeSlug, jobAgeNotes, postedAge } from "@/lib/jobPostingFormat";
+import { companyAvatar, formatLocation, humanizeCategory, humanizeSlug } from "@/lib/jobPostingFormat";
+import { PostingReceiptLine } from '@/components/shared/PostingEvidence';
+import type { PostingReceipt } from '@/lib/postingEvidence';
 
 interface Profile {
   slug: string;
@@ -25,7 +27,7 @@ interface Profile {
   work_mode: Record<string, number>;
   top_categories: Array<{ category: string; open_roles: number }>;
   common_benefits: Array<{ benefit: string; roles: number }>;
-  jobs: Array<{ id: string; title: string; location: string | null; posted_at: string; first_seen_at: string | null; seniority: string | null; work_mode: string | null; apply_by: string | null }>;
+  jobs: Array<PostingReceipt & { id: string; title: string; location: string | null; posted_at: string; seniority: string | null; work_mode: string | null; apply_by: string | null }>;
 }
 
 /** A company's public page: its open roles and what AYN has observed about how it hires. Every figure is
@@ -115,14 +117,14 @@ const CompanyPage = () => {
                     <SectionHeading>Open roles</SectionHeading>
                     <ul className="divide-y rounded-xl border">
                       {p.jobs.map((j) => {
-                        const notes = jobAgeNotes({ posted_at: j.posted_at, first_seen_at: j.first_seen_at });
                         return (
                           <li key={j.id}>
                             <Link to={`/jobs/${j.id}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-muted/40">
                               <span className="font-medium">{displayJobTitle(j.title, p.name)}</span>
                               <span className="text-xs text-muted-foreground">
-                                {[j.location ? formatLocation(j.location) : null, `Posted ${postedAge(j.posted_at)}`, ...notes.map((n) => n.text)].filter(Boolean).join(" · ")}
+                                {j.location ? formatLocation(j.location) : 'Location not stated'}
                               </span>
+                              <span className="w-full"><PostingReceiptLine posting={j} /></span>
                             </Link>
                           </li>
                         );
