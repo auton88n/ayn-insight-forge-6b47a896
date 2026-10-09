@@ -77,6 +77,9 @@ describe("extractSalaryFromText", () => {
     expect(extractSalaryFromText('Salary: $18.54 - 25.75$/HOURLY')).toMatchObject({ period: 'hour' });
     expect(extractSalaryFromText('Pay $25 - $30 per per hour')).toMatchObject({ period: 'hour' });
     expect(extractSalaryFromText('Salary $31/hr - $44/hr')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('The OTE range is $219,458.75 - $274,323.75\nPay Range$158,010—$197,512.50 USD')).toMatchObject({ min: 158010 });
+    expect(extractSalaryFromText('Oakland Pay Range$162,427—$203,034 USDOTE (On Target Earning)$232,043—$290,054 USD')).toMatchObject({ min: 162427 });
+    expect(extractSalaryFromText('Annual OTE: $120,000 - $180,000')).toBeNull();
     expect(extractSalaryFromText('Pay $18 - $20 per/hr.')).toMatchObject({ period: 'hour' });
     expect(extractSalaryFromText('The base salary range for this role is $130,000 - $190,000 (Total OTE: $145,000 - $220,000)')).toMatchObject({ min: 130000, max: 190000 });
     expect(extractSalaryFromText('Salary $15,000 - $20,000 per year, paid monthly.', 'Austin, TX')?.period).toBe('year');

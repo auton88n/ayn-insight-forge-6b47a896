@@ -153,6 +153,14 @@ export function extractSalaryFromText(text: string, location?: string | null): T
     const before = rawBefore.split(/[.!?\n]/).pop() || "";
     const after = text.slice(m.index + whole.length, m.index + whole.length + 40).split(/[.!?\n]/)[0] || "";
     if (NOT_PAY.test(before + " " + whole + " " + after)) continue;
+    // Do not let newly readable decimal OTE ranges displace base pay. Treat
+    // OTE as this range's label only, not a different amount nearby. Some feeds
+    // concatenate "USDOTE" between two ranges without whitespace.
+    const currentLabel = before.replace(/(?:USD|CAD|AUD|NZD|GBP|EUR|AED|CHF)(?=OTE\b)/g, ' ')
+      .split(/[$£€]\s*\d[\d,.]*(?:[Kk])?/).pop() || '';
+    const oteSuffix = /^\s*(?:(?:USD|CAD|AUD|NZD|GBP|EUR|AED|CHF)\s*)?\(?\s*(?:ote|on[- ]target earnings?)\b/i.test(after)
+      && !/[$£€]\s*\d/.test(after);
+    if (/\b(?:ote|on[- ]target earnings?)\b/i.test(currentLabel) || oteSuffix) continue;
     // Some feeds collapse "this is an hourly rate." directly into the range.
     // Accept only that immediately preceding unit phrase, not any prior sentence.
     const leadingUnit = before.trim() ? before : rawBefore.match(/\b(?:annual|yearly|monthly|hourly)\s+(?:rate|pay|salary|wage)\.\s*$/i)?.[0]?.replace(/\.\s*$/, '') || before;

@@ -2,6 +2,8 @@
 
 ## Production job QA, 9 October 2026
 
+Decimal-comma parsing also reads OTE ranges that the older parser missed. Explicit OTE/on-target-earnings labels are excluded from the base-pay candidate, with tests protecting a separate base range followed by a different OTE amount (including concatenated feed text). This is a narrow labeling guard, not complete total-compensation or level/location-specific range validation.
+
 `displayJobTitle` now rejects old checker placeholders and requisition identifiers; it uses an explicitly labeled role in the JD or a neutral company/title-missing fallback. This fixes existing saved cards at display time without rewriting user data. Checker continuation saves the same safe fallback for new manual jobs. `/employers` no longer redirects signed-in seekers into Saved jobs; marketing remains public, while approved/pending employer and legal-consent gates are unchanged.
 
 Frontend `resolveSalary` delegates to `_shared/jobFacts.ts`, the same parser used by `job-enrich-worker`. Units belong to the adjacent amount, not an unrelated nearby bonus. Contradictory/implausible explicit units and unsupported weekly/daily ranges are rejected, not silently relabeled annual. Large unlabeled ranges retain the previous annual inference; this is not exhaustive salary verification. `JobDescriptionBody` flags unusually high hourly source wording as requiring confirmation, preserving the original quotation. It does not claim the General Manager's source typo proves annual pay. `JobPayComparison` framing and cohort guard are unchanged.
