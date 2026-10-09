@@ -40,9 +40,9 @@ export async function sendSavedJobAlerts(admin: Admin) {
         to: user.email, subject: "An update about your saved job",
         html: wrapEmail(heading("A saved job is no longer listed on AYN")
           + para(`${escapeHtml(row.title)} at ${escapeHtml(row.company)} has left AYN's catalog.`)
-          + para("The employer may have closed it, or the listing may have left our freshness window. This is not confirmation that hiring ended. Your saved job is still in AYN; check the employer's page before deciding what to do."),
-          ["The AYN Team"], ctaButton("https://ayn.careers/#saved-jobs", "View saved jobs"))
-          + `<p style="text-align:center;font-size:12px"><a href="https://ayn.careers/settings">Turn off saved job alerts in Settings → Email preferences</a></p>`,
+          + para("The employer may have closed it, or the listing may have left our freshness window. This is not confirmation that hiring ended. Your saved job is still in AYN; check the employer's page before deciding what to do.")
+          + para('<a href="https://ayn.careers/settings">Turn off saved job alerts in Settings → Email preferences</a>'),
+          ["The AYN Team"], ctaButton("https://ayn.careers/#saved-jobs", "View saved jobs")),
       };
       if (!row.send_payload) await finish({ send_payload: payload, send_started_at: new Date().toISOString() });
       const result = await sendBrandedEmail(payload.to, payload.subject, payload.html, `saved-job/${row.id}`);

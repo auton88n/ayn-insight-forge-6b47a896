@@ -30,7 +30,7 @@ export function JobPayComparison({ jobId }: { jobId: string }) {
     {p.enough && p.median != null ? <>
       <p className="text-sm">This range's midpoint is {p.vs_median_pct === 0 ? "at" : `${Math.abs(p.vs_median_pct!)}% ${p.vs_median_pct! > 0 ? "above" : "below"}`} the advertised median of {money(p.median)}.</p>
       <p className="text-xs text-muted-foreground">Middle half of comparable ranges: {money(p.p25!)}–{money(p.p75!)}.</p>
-    </> : <p className="text-sm text-muted-foreground">Only {p.sample} other comparable ranges; at least 20 are needed for a comparison.</p>}
+    </> : <p className="text-sm text-muted-foreground">Only {p.sample} other comparable {p.sample === 1 ? "range" : "ranges"}; at least 20 are needed for a comparison.</p>}
     <p className="text-xs text-muted-foreground">Compared with {p.sample} other {humanizeCategory(p.category)} postings in {p.city}, at {seniorityLabel(p.seniority)} level, in {p.currency}. Annualized advertised base pay, not actual salaries or total compensation. No currency conversion.</p>
   </section>;
 }

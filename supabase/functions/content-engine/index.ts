@@ -212,6 +212,9 @@ Deno.serve(async (req: Request) => {
       refreshExisting = body?.refresh_existing === true;
     } catch { /* no body, use configured/default */ }
 
+    // Maintenance calls refresh one report at a time: a five-report live
+    // refresh exceeded the shared edge worker's runtime budget.
+    if (refreshExisting) topicsPerRun = 1;
     const { data: candidates, error: candErr } = await admin.rpc(refreshExisting ? "article_refresh_candidates" : "article_topic_candidates", { p_limit: topicsPerRun });
     if (candErr) throw candErr;
 

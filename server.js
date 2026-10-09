@@ -548,7 +548,7 @@ function renderCompanyBody(p) {
   const i = p.insights || {};
   const lines = [`<p>${escapeHtml(p.name)} has ${i.open_roles} open roles on AYN.</p>`];
   if (i.pay) lines.push(`<p>${escapeHtml(p.name)} shows pay on ${i.pay.pct}% of its ${i.pay.postings} open postings.</p>`);
-  if (i.speed) lines.push(`<p>Roles at ${escapeHtml(p.name)} typically stay open about ${i.speed.median_days_open} days, based on ${i.speed.closed_tracked} closed postings AYN has tracked.</p>`);
+  if (i.speed) lines.push(`<p>Postings at ${escapeHtml(p.name)} typically remain in AYN's catalog about ${i.speed.median_days_open} days, based on ${i.speed.closed_tracked} removals. Includes employer closure and freshness pruning; not time to hire.</p>`);
   if (p.relisted_roles > 0) lines.push(`<p>${p.relisted_roles} of its live roles have been listed before.</p>`);
   lines.push(`<p>${Number(p.edits_30d) || 0} posting field changes observed in the last 30 days. One posting may have several changes; this is not a count of hires.</p>`);
   const cats = (p.top_categories || []).map((c) => `${escapeHtml(String(c.category).replace(/_/g, ' '))} (${c.open_roles})`).join(', ');
@@ -575,7 +575,7 @@ app.get('/companies/:slug', async (req, res, next) => {
       return;
     }
     const title = `${p.name} jobs and hiring stats | AYN`;
-    const description = `${p.name} has ${p.insights.open_roles} open roles on AYN. See how openly it shows pay and how long its roles stay open, counted from real postings.`.slice(0, 300);
+    const description = `${p.name} has ${p.insights.open_roles} open roles on AYN. See pay transparency, posting updates and observed time in AYN's catalog.`.slice(0, 300);
     let html = swapMeta(indexHtml, { title, description, canonical: `${SITE}/companies/${encodeURIComponent(key)}` });
     html = injectHead(html, `<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'Organization', name: p.name, ...(p.logo_url ? { logo: p.logo_url } : {}) }).replace(/</g, '\\u003c')}</script>`);
     html = injectRoot(html, renderCompanyBody(p));

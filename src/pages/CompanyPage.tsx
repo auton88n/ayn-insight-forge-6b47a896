@@ -47,7 +47,7 @@ const CompanyPage = () => {
     <>
       <SEO
         title={p ? `${p.name} jobs and hiring stats` : "Company jobs and hiring stats"}
-        description={p ? `${p.name} has ${p.insights.open_roles} open roles on AYN. See how openly it shows pay and how long its roles stay open, counted from real postings.` : "Open roles and hiring stats for a company, counted from real postings."}
+        description={p ? `${p.name} has ${p.insights.open_roles} open roles on AYN. See pay transparency, posting updates and observed time in AYN's catalog.` : "Open roles and posting observations for a company, counted from real listings."}
         canonical={`/companies/${slug}`}
         noIndex={!p}
       />
@@ -82,7 +82,7 @@ const CompanyPage = () => {
                     </div>
                     <div className="rounded-xl border p-5">
                       <div className="text-3xl font-bold tabular-nums">{p.insights.speed ? `${p.insights.speed.median_days_open} days` : "Not yet"}</div>
-                      <div className="text-sm text-muted-foreground mt-1" title="Median time between AYN first seeing a posting and it being taken down.">{p.insights.speed ? `typical time a role stays open (${p.insights.speed.closed_tracked} closed tracked)` : "enough closed roles tracked to say how long its roles stay open"}</div>
+                      <div className="text-sm text-muted-foreground mt-1" title="Includes employer closure and AYN freshness pruning; not time to hire.">{p.insights.speed ? `typical time in AYN's catalog (${p.insights.speed.closed_tracked} removals tracked)` : "enough removed postings to measure catalog duration"}</div>
                     </div>
                     <div className="rounded-xl border p-5"><div className="text-3xl font-bold tabular-nums">{p.relisted_roles}</div><div className="text-sm text-muted-foreground mt-1">live roles AYN has seen listed before</div></div>
                   </div>

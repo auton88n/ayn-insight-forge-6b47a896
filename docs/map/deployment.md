@@ -2,6 +2,10 @@
 
 ## Job-data completion, 9 October 2026
 
+Maintenance refresh follow-up: a five-report call returned `WorkerRequestCancelled`; use the corrected handler's one-report maintenance cap and recheck published timestamps. Do not interpret a failed HTTP batch as proof that no earlier report was saved. Follow-up also keeps email preference links inside the shared HTML shell and corrects catalog-duration wording across React, metadata and server HTML.
+
+Release `ce2a76c6` was pushed and auto-deployed; all three migrations applied atomically. Backup: `/root/ayn-job-data-backup.8vm5G6` (`app-before.tgz`, `worker-before.tgz`, `schema-before.sql`). Verified worker anonymous denial (401), service response 200 with empty outboxes, public comparison 200, anonymous admin-health denial (401), current company server HTML, matching deployed function hashes, and healthy frontend/edge containers. Test fixtures rolled back (zero fixture-category postings and alert rows). Local checks: 196 tests, six SEO tests, frontend TypeScript and production build passed. Existing article refresh is a separate live maintenance operation; inspect its actual outcomes before describing all older reports as updated.
+
 Also apply `20261009202000_article_refresh_candidates.sql` before deploying the updated `content-engine` directory. The service-role-only maintenance mode can refresh up to five existing reports per call without changing normal cron selection; report any generation failure instead of claiming old copy has refreshed.
 
 Apply `20261009200000_job_pay_comparison.sql` then `20261009201000_saved_job_email_alerts.sql` transactionally **before** deploying the frontend and email worker. No new cron or endpoint: the existing minute `welcome-email-worker` now imports `savedJobAlerts.ts`, so deploy the whole directory, not index.ts alone. Keep alerts opt-in; do not enable user preferences during deployment. Check the public comparison RPC, company HTML, worker auth/empty-outbox response, admin queue permissions, and the existing cron history. Tests/fixtures must roll back; do not send test emails to real accounts.

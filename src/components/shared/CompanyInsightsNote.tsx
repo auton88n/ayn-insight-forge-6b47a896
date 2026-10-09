@@ -36,8 +36,8 @@ export function CompanyInsightsNote({ slug, company, className }: { slug?: strin
         </p>
       )}
       {speed && (
-        <p title="Worked out from the time between AYN first seeing a posting and it being taken down. Only shown once enough closed postings have been tracked.">
-          At {company}, roles typically stay open about {speed.median_days_open} days{spread}, based on {speed.closed_tracked} closed postings AYN has tracked.
+        <p title="Time a posting remained in AYN's catalog before closure or freshness pruning. This is not an employer's time to hire.">
+          At {company}, postings typically remain in AYN's catalog about {speed.median_days_open} days{spread}, based on {speed.closed_tracked} removed postings.
         </p>
       )}
       <p>

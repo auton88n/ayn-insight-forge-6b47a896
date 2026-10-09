@@ -2,6 +2,8 @@
 
 ## Job-data completion, 9 October 2026
 
+Live copy follow-up: `company_hiring_speed` historically aggregates both `closed` and `pruned` archive rows. The company page, shared insight note and server HTML now call this **time in AYN's catalog**, explicitly not employer time-to-hire. Existing RPC names/response keys remain unchanged for compatibility; do not relabel these observations as hiring speed without a genuinely confirmed employer outcome source.
+
 `JobPayComparison` is shared by public `JobsBrowser` (including `/jobs/:id`) and signed-in `JobDetailPane`; only the opened detail fetches `job_salary_comparison(uuid)`. This public aggregate RPC reads the existing normalized `job_pay` view. Cohorts require the same category, city, seniority and currency, exclude the target itself, need 20 other ranges, and never broaden automatically. Missing comparable metadata yields no card. Annualized advertised base-pay midpoints are not actual pay, total compensation or a salary recommendation. `PayCheck` now freezes submitted inputs while displaying/copying a result, enforces the server's amount bound and releases loading on network failure.
 
 Company pages display `edits_30d` as field-change events, not unique postings or hires, both in React and server-rendered HTML. The entry-level mismatch chip starts at **5+ years**, not 3. JobPosting JSON-LD in both server and client uses only an actual `apply_by` deadline and stated `remote_region`; the fabricated 3-day expiry and blanket US/Canada remote restriction are removed. In-app saved-job removal notices remain; optional proactive emails and their privacy/administration boundaries are documented in platform.md.

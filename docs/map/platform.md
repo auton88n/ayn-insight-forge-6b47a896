@@ -2,6 +2,8 @@
 
 ## Saved job removal emails, 9 October 2026
 
+Live refresh correction: a five-report maintenance call exceeded the shared edge worker's supervisor budget. Maintenance mode is therefore capped at **one report per request**, regardless of the caller's requested limit. Successful writes before cancellation are retained; check article timestamps before retrying. This overrides the initial five-report maintenance description below, not normal cron selection. Company duration copy now explicitly describes catalog retention (closure or freshness pruning), not actual time to hire.
+
 Article maintenance: service-role-only `content-engine` accepts `{refresh_existing:true,limit:1..5}` and calls `article_refresh_candidates`, which selects only currently published, unblocked reports with at least 20 current matching jobs, oldest refresh first. The existing grounded generator and archive-race-safe upsert remain the only write path. The normal cron's topic selection is unchanged. Apply `20261009202000_article_refresh_candidates.sql` before deploying this handler. This avoids waiting behind all never-published topics when refreshing richer pay data; unsuccessful generations retain the previous published article.
 
 `user_settings.email_saved_job_alerts` defaults **false**, controlled in Settings → Email preferences. Migration `20261009201000_saved_job_email_alerts.sql` queues **future** archive insert events only, for an unapplied saved `job_board` job with an exact normalized application URL (query stripped); it never backfills old removals or guesses by company/title. Emails say "no longer listed on AYN", explicitly not proof that an employer stopped hiring. Existing in-app notices are unchanged.
