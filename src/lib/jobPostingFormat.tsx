@@ -163,7 +163,7 @@ export function formatLocation(raw: string | null | undefined): string {
   if (!raw) return "";
   let cleaned = raw.replace(/\s+[-\u2013\u2014]\s+/g, ', ');
   // Remove a source store identifier only when a separate city/state follows.
-  if (/^\d{2,}(?:[-\s][^,]+)?,/.test(cleaned) && /,\s*[A-Z]{2}(?:\s+\d{5}(?:-\d{4})?)?$/.test(cleaned)) cleaned = cleaned.replace(/^[^,]+,\s*/, '');
+  if (/^\d{2,}(?:[-\s][^,]+)?,/.test(cleaned) && /,\s*[A-Z]{2}(?:\s*\d{5}(?:-\d{4})?)?$/.test(cleaned)) cleaned = cleaned.replace(/^[^,]+,\s*/, '');
   cleaned = cleaned.replace(/\b([A-Z]{2}),\s*\1(?=\s*\d{5}\b|[, ]|$)/g, '$1')
     .replace(/\b([A-Z]{2})(\d{5}(?:-\d{4})?)\b/g, '$1 $2');
   const parts = cleaned
