@@ -17,6 +17,8 @@ it('separates live, removed and unverified saved jobs without assuming manual jo
 });
 
 it('cleans source artifacts without removing meaningful role or company text', () => {
+  expect(displayJobTitle('*Construction Account Executive')).toBe('Construction Account Executive');
+  expect(displayJobTitle('C++ Engineer')).toBe('C++ Engineer');
   expect(displayJobTitle('Field Support Specialist III (33010)')).toBe('Field Support Specialist III');
   expect(displayJobTitle('SAP Engineer (S/4HANA)')).toBe('SAP Engineer (S/4HANA)');
   expect(displayCompany('Acme)')).toBe('Acme');
@@ -83,4 +85,8 @@ it('labels suspicious source pay as unverified and keeps the quoted description 
 });
 it('shares currency and monthly extraction rules with the backend', () => {
   expect(resolveSalary({ description: 'Salary €4,000 - €5,000 per month', location: 'Berlin' } as JobPosting)).toEqual({ text: 'EUR 4k to 5k/mo', fromListingText: true });
+});
+it('shows equal salary endpoints once', () => {
+  expect(resolveSalary({ salary_min: 70304, salary_max: 70304 } as JobPosting)?.text).toBe('USD 70k');
+  expect(resolveSalary({ salary_text_min: 35, salary_text_max: 35, salary_text_period: 'hour', salary_text_currency: 'USD' } as JobPosting)?.text).toBe('USD 35/hr');
 });

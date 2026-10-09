@@ -75,7 +75,7 @@ export const SENIORITY_LABELS: Record<string, string> = {
 /** A posting whose "title" is really a requisition number ("Job Requisition ID: 180984") is not a title.
  * Show what the person can recognise instead of the number. */
 export function displayJobTitle(title: string | null | undefined, company?: string | null, description?: string | null): string {
-  const t = String(title || "").trim().replace(/\s*\(\d{4,}\)\s*$/, '').trim();
+  const t = String(title || "").trim().replace(/^\*+\s*/, '').replace(/\s*\(\d{4,}\)\s*$/, '').trim();
   const looksLikeId = !t || /^(?:Job from resume check|Saved job \(title not provided\))$/i.test(t) || /^(job\s*)?(requisition|req)\b[\s#:.-]*(id|no|number)?[\s#:.-]*[\w-]*(?:\s*[.…]+)?$/i.test(t) || /^[\d\s_#-]{4,}$/.test(t);
   if (!looksLikeId) return t;
   // Read only an explicit title label, never turn the requisition number,
@@ -199,7 +199,7 @@ function formatSalary(min: number | null | undefined, max: number | null | undef
   if (min == null && max == null) return null;
   const cur = currency || "USD";
   const fmt = (n: number) => n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
-  if (min != null && max != null) return `${cur} ${fmt(min)} to ${fmt(max)}`;
+  if (min != null && max != null) return min === max ? `${cur} ${fmt(min)}` : `${cur} ${fmt(min)} to ${fmt(max)}`;
   return `${cur} ${fmt((min ?? max)!)}+`;
 }
 
@@ -247,13 +247,15 @@ export function resolveSalary(job: JobPosting): { text: string; fromListingText:
     const fmtN = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
     const suffix = job.salary_text_period === "hour" ? "/hr" : job.salary_text_period === "month" ? "/mo" : "";
     const cur = job.salary_text_currency || "";
-    return { text: `${cur ? cur + " " : "$"}${fmtN(job.salary_text_min)} to ${fmtN(job.salary_text_max)}${suffix}`, fromListingText: true };
+    const range = job.salary_text_min === job.salary_text_max ? fmtN(job.salary_text_min) : `${fmtN(job.salary_text_min)} to ${fmtN(job.salary_text_max)}`;
+    return { text: `${cur ? cur + " " : "$"}${range}${suffix}`, fromListingText: true };
   }
   const extracted = extractPostingSalary(job.description || "", job.location);
   if (!extracted) return null;
   const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
   const suffix = extracted.period === "hour" ? "/hr" : extracted.period === "month" ? "/mo" : "";
-  return { text: `${extracted.currency || '$'} ${fmt(extracted.min)} to ${fmt(extracted.max)}${suffix}`, fromListingText: true };
+  const range = extracted.min === extracted.max ? fmt(extracted.min) : `${fmt(extracted.min)} to ${fmt(extracted.max)}`;
+  return { text: `${extracted.currency || '$'} ${range}${suffix}`, fromListingText: true };
 }
 
 // v3.171.0 — was a flat pastel fill (bg-blue-100/text-blue-700, etc.), the

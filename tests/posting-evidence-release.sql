@@ -6,12 +6,27 @@ begin
   if t.id is null then raise exception 'Posting template required'; end if;
   t.id:=target; t.external_id:=target::text; t.apply_url:='https://fixture.invalid/evidence/'||target;
   t.company_slug:='ayn-evidence-fixture'; t.scam_suspected:=false;
+  t.created_at:=now();
   t.closure_status:='open'; t.closure_checked_at:='2026-10-08T12:00:00Z';
   insert into public.job_postings select (t).*;
   update public.job_postings set closure_status='error',closure_checked_at='2026-10-09T12:00:00Z' where id=target;
   r:=public.job_posting_evidence(target);
   if (r->>'closure_last_open_at')::timestamptz<>'2026-10-08T12:00:00Z'::timestamptz
     or r->>'closure_status'<>'error' then raise exception 'Lost last successful check: %',r; end if;
+  update public.job_postings set description = 'Build reliable Python systems for our customers and maintain databases.' where id=target;
+  update public.job_postings set description = 'Build reliable Python and SQL systems for our customers and maintain databases.' where id=target;
+  r:=public.job_posting_evidence(target);
+  if not exists(select 1 from jsonb_array_elements(r->'changes') c
+    where c->>'field'='description' and c->>'old_excerpt' like '%Python systems%'
+      and c->>'new_excerpt' like '%Python and SQL systems%') then raise exception 'Description excerpts missing'; end if;
+  t.id:=gen_random_uuid(); t.external_id:=t.id::text; t.apply_url:='https://fixture.invalid/earlier/'||t.id;
+  insert into public.job_postings select (t).*;
+  delete from public.job_postings where id=t.id;
+  update public.job_postings set repost_count=1 where id=target;
+  r:=public.job_posting_evidence(target);
+  if jsonb_array_length(r->'appearances')<>1 or r->'appearances'->0->>'removal_reason'<>'pruned'
+    or has_function_privilege('anon','public.job_posting_evidence_base(uuid)','execute')
+    then raise exception 'Earlier appearance or base-function permissions failed'; end if;
   for n in 1..35 loop
     insert into public.job_posting_changes(job_posting_id,company_slug,title,field,old_value,new_value)
       values(target,'ayn-evidence-fixture',t.title,'title',repeat('x',400),'New');

@@ -1,5 +1,9 @@
 # Resume Hub map (web app + resume-hub backend)
 
+### Posting evidence follow-up
+
+Migration `20261010020000_posting_evidence_details.sql` extends the public receipt RPC with up to 20 non-scam archived appearances matching company/title/location. Missing records are disclosed against the ingestion count, never invented. The original explicit projection remains in a revoked base function. Future description changes save two 780-character excerpts around the first difference; historical length-only logs remain unavailable. Excerpts render as escaped previous/new text, not full-document or exhaustive diffs. Saved-card ownership rules and catalog-pruning/closure distinctions are unchanged.
+
 ## Posting receipts, 10 October 2026
 
 Production cards use shared `PostingReceiptLine` across public browse/preview, account list/swipe, company roles and saved jobs. Summary projections carry receipts; cards do not issue history requests. `PostingEvidencePanel` loads one cached, abortable `job_posting_evidence(uuid)` RPC per opened catalog posting, with explicit loading/error/retry/unknown and archived states, a desktop horizontal/mobile vertical timeline, and escaped old/new diffs. No verified seals, hiring-intent claims or fabricated events. Existing brand assets/colors and salary-comparison sample guards remain.

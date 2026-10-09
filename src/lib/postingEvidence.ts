@@ -11,8 +11,12 @@ export interface PostingReceipt {
 }
 export interface PostingChange {
   id: number; field: string; old_value: string | null; new_value: string | null; changed_at: string;
+  old_excerpt?: string | null; new_excerpt?: string | null;
 }
-export interface PostingEvidence extends PostingReceipt { changes: PostingChange[] }
+export interface PostingEvidence extends PostingReceipt {
+  changes: PostingChange[];
+  appearances?: Array<{ archive_id: number; first_observed_at: string | null; removed_at: string; removal_reason: string }>;
+}
 export function evidenceDate(value?: string | null): string | null {
   if (!value || !Number.isFinite(Date.parse(value))) return null;
   return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });

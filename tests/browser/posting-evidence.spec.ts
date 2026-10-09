@@ -5,7 +5,8 @@ const job = { id, title: 'Engineer', company: 'Fixture', description: 'Build dat
   location: 'Austin', source: 'greenhouse', posted_at: '2026-10-10', first_seen_at: '2026-09-12',
   closure_status: 'error', closure_checked_at: '2026-10-09', closure_last_open_at: '2026-10-08',
   last_seen_at: '2026-10-09', repost_count: 2, apply_url: 'https://fixture.invalid/apply' };
-const evidence = { ...job, changes: [
+const evidence = { ...job, appearances: [{ archive_id: 1, first_observed_at: '2026-09-12', removed_at: '2026-09-20', removal_reason: 'pruned' }], changes: [
+  { id: 3, field: 'description', old_value: '40 characters', new_value: '45 characters', old_excerpt: 'Build Python systems.', new_excerpt: 'Build Python and SQL systems.', changed_at: '2026-10-08' },
   { id: 2, field: 'salary', old_value: '100000 to 120000', new_value: '110000 to 130000', changed_at: '2026-10-07' },
   { id: 1, field: 'title', old_value: '<script>alert(1)</script>', new_value: 'Engineer', changed_at: '2026-10-06' },
 ] };
@@ -32,6 +33,9 @@ for (const width of [1280, 390]) test(`receipts, real diffs and failed checks re
   await expect(page.getByRole('region', { name: 'Posting evidence' })).toContainText('Historical currency and pay period were not recorded');
   expect(reads).toBe(1);
   const panel = page.getByRole('region', { name: 'Posting evidence' });
+  await expect(panel).toContainText('Earlier catalog appearance');
+  await expect(panel).toContainText('2 counted at ingestion; 1 matching archive records');
+  await expect(panel).toContainText('Build Python and SQL systems.');
   await expect(panel.locator('del').first()).toHaveText('<script>alert(1)</script>');
   await expect(panel.locator('script')).toHaveCount(0);
   await expect(panel).toContainText('Oct 8, 2026');

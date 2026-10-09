@@ -1,5 +1,11 @@
 # Deployment & VPS operations
 
+## Evidence follow-up, 10 October 2026
+
+Apply and record `20261010020000_posting_evidence_details.sql` before deploying its frontend. Recovery backup: `/root/ayn-evidence-details-backup.R128XV` (public schema, frontend, prior commit). The rollback-only `tests/posting-evidence-release.sql` now verifies real description excerpts, archived appearances, revoked base-function execution, anonymous projection and saved-job account isolation. No accounts, original job descriptions or salary-comparison thresholds are modified by the migration.
+
+Rollback the frontend from the backup; the additive RPC fields are compatible with the previous frontend. To roll back the RPC itself, restore the previous definition/grants from the schema backup rather than granting API users access to `job_posting_evidence_base`. Excerpt columns may remain unused. Signed-in production Saved Jobs verified 27 total / 9 listed / 17 absent / 1 manual and nine receipt cards under the listed filter. Local checks: 227 unit, 21 browser (including 390px), three compiled-browser, types/build/wiring and bundle budgets passed. Historical length-only description records remain explicitly unavailable; future excerpts are bounded and not exhaustive document diffs.
+
 ## Nine-item job QA release, 9 October 2026
 
 Apply `20261009233000_job_qa_filters_remote_cohorts.sql` transactionally and record its receipt before frontend deployment. Run it first with `tests/job-qa-cohorts.sql` under BEGIN; fixtures end with ROLLBACK. This validates remote/HQ separation, target exclusion, currency/employment aliases, minimum boundaries, sample-size guard and public permissions. Back up schema/frontend/workers before release. No original job descriptions, accounts, billing or OAuth settings are changed.
