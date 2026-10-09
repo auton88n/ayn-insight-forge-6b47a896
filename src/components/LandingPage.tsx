@@ -1,9 +1,9 @@
-import { memo, useEffect } from 'react';
+import { lazy, Suspense, memo, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { SEO, organizationSchema, websiteSchema, softwareApplicationSchema, createFAQSchema } from '@/components/shared/SEO';
 import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
-import { EmployerSidebar } from '@/components/landing/EmployerSidebar';
-import { AuthModal } from './auth/AuthModal';
+const EmployerSidebar = lazy(() => import('@/components/landing/EmployerSidebar').then(module => ({ default: module.EmployerSidebar })));
+import { AuthModal } from './auth/DeferredAuthModal';
 import { OutOfCreditsDialog } from '@/components/shared/OutOfCreditsDialog';
 import { LandingSections } from '@/components/landing/LandingSections';
 import type { Audience } from '@/lib/landingAudience';
@@ -160,7 +160,7 @@ const LandingPage = memo(({ forcedAudience = 'job_seeker' }: { forcedAudience?: 
           // ago. Same collapsible shell the seeker side already uses, just
           // with EmployerSidebar's own nav in it instead of SeekerSidebar's.
           <div className="lp lp-shell-with-sidebar">
-            <EmployerSidebar />
+            <Suspense fallback={null}><EmployerSidebar /></Suspense>
             <main className="lp-sidebar-main">
               <LandingSections
                 forcedAudience={forcedAudience}

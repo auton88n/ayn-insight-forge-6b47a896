@@ -17,23 +17,16 @@ export default defineConfig(({ mode }) => ({
   build: {
     sourcemap: false,
     minify: 'esbuild',
-    chunkSizeWarningLimit: 1500,
+    manifest: true,
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-ui': [
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-select',
-            '@radix-ui/react-popover',
-            '@radix-ui/react-tooltip',
-          ],
+          // Let Rollup share UI primitives by their actual consumers. A single
+          // UI bucket made the homepage fetch every account/admin widget.
           'vendor-supabase': ['@supabase/supabase-js'],
           'vendor-query': ['@tanstack/react-query'],
-          'vendor-icons': ['lucide-react'],
-          'vendor-motion': ['framer-motion'],
         },
       },
     },

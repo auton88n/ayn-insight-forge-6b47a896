@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search, FileCheck2, FileText, Briefcase, Target, Inbox, ClipboardCheck, GraduationCap, Settings, Menu, PanelLeftClose, PanelLeftOpen, LogOut, LogIn, ChevronDown, Building2, LifeBuoy, Tag, type LucideIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { AuthModal } from '@/components/auth/AuthModal';
+import { AuthModal } from '@/components/auth/DeferredAuthModal';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { toast } from 'sonner';
 import aynWordmark from '@/assets/ayn-logo.png';

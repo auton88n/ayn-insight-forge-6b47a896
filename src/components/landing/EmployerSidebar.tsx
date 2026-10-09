@@ -87,7 +87,7 @@ import {
   Clock, Ban, ShieldAlert, ChevronDown, LifeBuoy,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { AuthModal } from '@/components/auth/AuthModal';
+import { AuthModal } from '@/components/auth/DeferredAuthModal';
 import aynWordmark from '@/assets/ayn-logo.png';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 

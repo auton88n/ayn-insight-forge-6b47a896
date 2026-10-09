@@ -10,7 +10,9 @@ test('public search does not eagerly load account settings or marketing tabs', a
   await expect(page.getByRole('heading', { name: 'Browse real jobs', exact: true })).toBeVisible();
   // Covers the former three-second idle preload, not only first paint.
   await page.waitForTimeout(3500);
-  expect(scripts.filter(url => /\/(HomeTabs|HomeTabPanel|AccountTabs|Settings|SettingsPanel)\.tsx/.test(url))).toEqual([]);
+  // HomeTabPanel is now only a lightweight import registry, deliberately
+  // eager to avoid a registry -> selected-tab network waterfall.
+  expect(scripts.filter(url => /\/(tabs\/\w+|AccountTabs|Settings|SettingsPanel|AuthModal|EmployerLandingSections|LegalConsentGate)\.tsx/.test(url))).toEqual([]);
 });
 
 test.beforeEach(async ({ page }) => {

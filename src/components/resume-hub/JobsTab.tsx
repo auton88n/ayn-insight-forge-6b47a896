@@ -19,7 +19,7 @@
  * pill) — this whole panel was rendering on shadcn's plain black default,
  * the one part of Resume Hub that hadn't been re-skinned.
  */
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -31,7 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Download, X, ArrowLeft, Search } from "lucide-react";
 import { resumeToText, downloadBlob, fileBase } from "@/lib/resumeText";
-import ResumeDiffViewer from "./ResumeDiffViewer";
+const ResumeDiffViewer = lazy(() => import('./ResumeDiffViewer'));
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
@@ -811,10 +811,10 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                       </div>
                     )}
                     {showDiff && primaryResume && (
-                      <ResumeDiffViewer
+                      <Suspense fallback={<p role="status">Loading comparison…</p>}><ResumeDiffViewer
                         original={resumeToText(primaryResume.content)}
                         improved={resumeToText(tailored.content)}
-                      />
+                      /></Suspense>
                     )}
                   </div>
                 )}

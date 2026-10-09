@@ -29,15 +29,16 @@ import {
   ChevronDown,
 } from "lucide-react";
 
-import IntakeWizard from "@/components/employer/IntakeWizard";
-import CompanyProfile from "@/components/employer/CompanyProfile";
+import { lazySection } from '@/components/shared/lazySection';
+const IntakeWizard = lazySection(() => import('@/components/employer/IntakeWizard'));
+const CompanyProfile = lazySection(() => import('@/components/employer/CompanyProfile'));
 import CandidateResultCard from "@/components/employer/CandidateResultCard";
-import CandidateProfile from "@/components/employer/CandidateProfile";
-import AssessmentDialog from "@/components/employer/AssessmentDialog";
-import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
-import MessageThread from "@/components/shared/MessageThread";
-import SettingsPanel from "@/components/shared/SettingsPanel";
-import TicketForm from "@/components/support/TicketForm";
+const CandidateProfile = lazySection(() => import('@/components/employer/CandidateProfile'));
+const AssessmentDialog = lazySection(() => import('@/components/employer/AssessmentDialog'));
+const AssessmentsPanel = lazySection(() => import('@/components/employer/AssessmentsPanel'));
+const MessageThread = lazySection(() => import('@/components/shared/MessageThread'));
+const SettingsPanel = lazySection(() => import('@/components/shared/SettingsPanel'));
+const TicketForm = lazySection(() => import('@/components/support/TicketForm'));
 import { AynLoader } from "@/components/shared/AynLoader";
 import { EmployerSidebar, type EmployerDashTab } from "@/components/landing/EmployerSidebar";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";

@@ -6,7 +6,7 @@
  * and every localized branch resolves to the English one.
  */
 import React, { createContext, useContext, useEffect } from 'react';
-import { translations } from '@/i18n';
+import { en } from '@/i18n/en';
 
 export type Language = 'en' | 'ar' | 'fr';
 export type Direction = 'ltr' | 'rtl';
@@ -22,7 +22,7 @@ const value: LanguageContextType = {
   language: 'en',
   direction: 'ltr',
   setLanguage: () => {},
-  t: (key: string) => translations.en?.[key] || key,
+  t: (key: string) => en[key] || key,
 };
 
 const LanguageContext = createContext<LanguageContextType>(value);

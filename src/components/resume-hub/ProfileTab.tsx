@@ -35,8 +35,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
-import GuidedIntake from "@/components/resume-hub/GuidedIntake";
-import GapProbeDialog from "@/components/resume-hub/GapProbeDialog";
+const GuidedIntake = lazy(() => import('./GuidedIntake'));
+const GapProbeDialog = lazy(() => import('./GapProbeDialog'));
 import { classifyProbableIssue, type ProbeTarget } from "@/lib/gapProbe";
 import { resumeHubApi, type ResumeContent, type TalentPoolStatus, type GuidedIntakeExtraction, type GapProbeResult } from "@/lib/resumeHub";
 import { reindexTalentPool, setPoolOptInCache } from "@/lib/talentPoolSync";
@@ -835,9 +835,11 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
         </AlertDialogContent>
       </AlertDialog>
 
-      <GuidedIntake open={intakeOpen} onOpenChange={setIntakeOpen} onComplete={handleIntakeComplete} />
+      {intakeOpen && <Suspense fallback={<p role="status">Opening resume interview…</p>}>
+        <GuidedIntake open={intakeOpen} onOpenChange={setIntakeOpen} onComplete={handleIntakeComplete} />
+      </Suspense>}
       {probeState && (
-        <GapProbeDialog
+        <Suspense fallback={<p role="status">Opening follow-up…</p>}><GapProbeDialog
           open={!!probeState}
           onOpenChange={(o) => { if (!o) setProbeState(null); }}
           issue={probeState.issue}
@@ -846,7 +848,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
             void applyGapFix(result, probeState.target);
             setProbeState(null);
           }}
-        />
+        /></Suspense>
       )}
 
       {/* ── 1. Your resume ───────────────────────────────────────────────── */}

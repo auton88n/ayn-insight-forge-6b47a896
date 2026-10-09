@@ -1,5 +1,15 @@
 # 2 October 2026: Insights content engine handoff and archive safety
 
+## Frontend feature loading, 9 October 2026
+
+`landing/HomeTabPanel.tsx` is a small eager registry, not the public-tab implementation. The former combined `HomeTabs.tsx` is replaced by ten independent `landing/tabs/*Tab.tsx` modules. `LandingSections.tsx` loads only the chosen public tab, the job browser, or the employer marketing shell (`EmployerLandingSections.tsx`); account tabs and employer sidebar remain deferred. `useRevealContent.ts` observes delayed content as well as initial DOM and guarantees visibility after 900ms, avoiding invisible lazy-loaded sections. Public tab markup, pricing, navigation and actions remain unchanged.
+
+`auth/DeferredAuthModal.tsx` does not load the actual form while initially closed. Once opened it retains the mounted form across closing, preserving its state. All public auth-modal consumers share this boundary. Anonymous Index no longer fetches the legal-document registry: `LegalConsentGate` loads for authenticated users and still gates their protected content. English startup imports only the English translation. Offline status no longer imports the animation library.
+
+Employer intake, company/candidate detail, assessments, messages, settings and support use `shared/lazySection.tsx` with local Suspense fallbacks. Resume intake, gap questions and comparison are independently deferred. `resumeDocs.ts` dynamically loads jsPDF only for PDF work or resume-DOCX font measurement; cover-letter DOCX does not require it. Resume fitting uses the same measurements and thresholds, with asynchronous layout selection.
+
+Rollup now shares modules naturally instead of pulling all UI, icons and motion into broad manual chunks. React, Supabase and query infrastructure retain explicit shared chunks. `scripts/check-bundle.mjs` follows static manifest imports, verifies 21 feature boundaries and sibling-tab isolation, and enforces 750KB raw/235KB gzip startup and 260KB gzip homepage limits. Baseline static startup JS was 1,081,009 bytes / 329,538 gzip; the first measured refactored production build was 713,272 / 217,813 (about 34% less). These are transfer-size measurements, not a promise of a particular page-load duration or faster backend calls. CI checks these budgets and local plus compiled-production browser journeys. Tests block external requests; no real account or payment is created.
+
 ## Saved job removal emails, 9 October 2026
 
 Confirmed runtime cause: VPS `functions/main/index.ts` sets `workerTimeoutMs=60000`. The old article caller allowed three 45-second network attempts, then a whole additional quality-rewrite call, so even one report could overrun it. `timeBudget.ts` now shares a **45-second total generation deadline**, caps each network attempt at 20 seconds, and reserves time for persistence/response. Budget exhaustion returns an explicit per-report failure while preserving the prior report. Quality/grounding checks and the 450-word minimum are not relaxed. `articleTimeBudget.test.ts` tests the cap, remaining time and exhaustion boundary.

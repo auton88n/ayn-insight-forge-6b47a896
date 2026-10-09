@@ -4,7 +4,7 @@ import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { SectionHeading } from '@/components/shared/SectionHeading';
 import { Textarea } from '@/components/ui/textarea';
-import { AuthModal } from '@/components/auth/AuthModal';
+import { AuthModal } from '@/components/auth/DeferredAuthModal';
 import { resumeCheckPublic, type ResumeCheckPublicResult } from '@/lib/resumeHub';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { reviewResumeText } from '@/lib/resumeTextReview';

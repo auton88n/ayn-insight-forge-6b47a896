@@ -5,7 +5,7 @@ import { SeekerSidebar } from '@/components/landing/SeekerSidebar';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { JobsBrowser, unslugifyCity } from '@/components/landing/JobsBrowser';
 import { humanizeCategory } from '@/lib/jobPostingFormat';
-import { AuthModal } from '@/components/auth/AuthModal';
+import { AuthModal } from '@/components/auth/DeferredAuthModal';
 import { Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';

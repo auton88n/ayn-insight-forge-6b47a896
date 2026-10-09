@@ -6,7 +6,7 @@ vi.mock('@/contexts/LanguageContext', () => ({ useLanguage: () => ({ direction: 
 vi.mock('@/components/shared/SEO', () => ({ SEO: ({ canonical }: { canonical: string }) => <span data-testid="canonical">{canonical}</span>, createFAQSchema: () => ({}), organizationSchema: {}, websiteSchema: {}, softwareApplicationSchema: {} }));
 vi.mock('@/components/landing/SeekerSidebar', () => ({ SeekerSidebar: ({ onSelectTab }: { onSelectTab: (tab: string) => void }) => <><button onClick={() => onSelectTab('search')}>Jobs</button><button onClick={() => onSelectTab('pricing')}>Pricing</button></> }));
 vi.mock('@/components/landing/EmployerSidebar', () => ({ EmployerSidebar: () => null }));
-vi.mock('./auth/AuthModal', () => ({ AuthModal: () => null }));
+vi.mock('./auth/DeferredAuthModal', () => ({ AuthModal: () => null }));
 vi.mock('@/components/landing/LandingSections', () => ({ LandingSections: ({ activeTab }: { activeTab: string }) => <div data-testid="tab">{activeTab}</div> }));
 function Location() { const location = useLocation(); const navigate = useNavigate(); return <><span data-testid="location">{location.pathname}{location.hash}</span><button onClick={() => navigate(-1)}>Back</button></>; }
 afterEach(() => { cleanup(); sessionStorage.clear(); });

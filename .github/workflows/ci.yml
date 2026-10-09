@@ -57,12 +57,21 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://ayn-test.invalid
+          VITE_SUPABASE_ANON_KEY: local-browser-fixture
+
+      - name: Startup size and feature-loading boundaries
+        run: node --test tests/bundle-budget.test.mjs && npm run check:bundle
 
       - name: Install browser for local-only smoke tests
         run: npx playwright install --with-deps chromium
 
       - name: Local customer journey smoke tests (no production calls)
         run: npx playwright test -c playwright.local.config.ts
+
+      - name: Compiled production loading smoke tests (no production calls)
+        run: npx playwright test -c playwright.production.config.ts
 
       # High-severity dependency findings block release.
       - name: Dependency vulnerability scan

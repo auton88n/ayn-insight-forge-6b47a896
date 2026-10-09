@@ -1,7 +1,6 @@
 /** Resume fitting estimates Arial layout using Helvetica metrics. Word/LibreOffice
  * perform actual pagination; font substitution and renderer differences may change it.
  * Inspect the downloaded document before submitting it. */
-import { jsPDF } from "jspdf";
 import { Document, Packer, Paragraph, TextRun, AlignmentType, LineRuleType } from "docx";
 import type { ResumeContent } from "@/lib/resumeHub";
 
@@ -132,7 +131,10 @@ export class ResumeOverflowError extends Error {
   }
 }
 
-function measureLayout(blocks: DocBlock[], option: typeof FIT_OPTIONS[number]) {
+async function measureLayout(blocks: DocBlock[], option: typeof FIT_OPTIONS[number]) {
+  // Only resume fitting needs the PDF font ruler. Cover-letter DOCX exports
+  // should not download a PDF renderer (or its optional browser converters).
+  const { jsPDF } = await import('jspdf');
   const ruler = new jsPDF({ unit: "pt", format: "letter" });
   const paragraphs = blocks.map(block => {
     const style = STYLE[block.kind];
@@ -157,7 +159,7 @@ function measureLayout(blocks: DocBlock[], option: typeof FIT_OPTIONS[number]) {
 
 export async function buildResumeDocxBlob(c: ResumeContent): Promise<Blob> {
   const blocks = buildResumeBlocks(c);
-  let layout = FIT_OPTIONS.map(option => measureLayout(blocks, option))
+  const layout = (await Promise.all(FIT_OPTIONS.map(option => measureLayout(blocks, option))))
     .find(candidate => candidate.height <= HEIGHT_BUDGET);
   if (!layout) throw new ResumeOverflowError();
 

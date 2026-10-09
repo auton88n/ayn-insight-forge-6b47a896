@@ -1,5 +1,15 @@
 # Deployment & VPS operations
 
+## Frontend loading release checks, 9 October 2026
+
+Build emits `dist/.vite/manifest.json`; run `npm run check:bundle` after `npm run build`. This gate traverses static imports, not only the entry filename, verifies independent heavy-feature boundaries and enforces public startup/homepage byte budgets. Keep the manifest with the deployment artifact. The warning threshold is restored to 500KB; there are no dependency-range, database, billing, auth-provider or edge-function changes in this split.
+
+CI uses explicit synthetic Supabase public settings for the browser-only build. That build artifact is not the VPS deployment artifact. Run the existing local browser suite and `npx playwright test --config=playwright.production.config.ts` against the freshly built output; the production suite checks desktop/mobile pricing, deferred signup, navigation and refresh without contacting a real backend. Rebuild normally after any temporary source-map investigation; do not deploy diagnostic source maps.
+
+Before release, preserve the currently deployed dist/config artifact and verify the deployed Git revision and manifest budgets afterward. Roll back frontend assets to that exact backup on missing chunks/styles or broken navigation. Do not change user data or OAuth configuration. These checks establish loading boundaries and customer-flow regression coverage, not immunity to API/network latency.
+
+Pre-release artifact: `/root/ayn-loading-backup.ZQLCrU/frontend-before.tgz`, revision `b18a90be`. Local gates passed: frontend typecheck, 199 unit tests, 11 local and three compiled-production browser tests, six SEO server tests, two bundle-graph tests, wiring and production build; npm audit found zero known advisories. Final local startup measured 713,272 raw / 217,821 gzip bytes. Live deployment verification must still check the served assets rather than infer success from these local results.
+
 ## Build-tool security migration, 9 October 2026
 
 Tailwind 3.4.19's braces/globbing chain had no patched compatible release (GHSA-vfj7-8cjw-p6xm). Migrate to Tailwind and `@tailwindcss/postcss` 4.3.3, remove redundant autoprefixer, and remove the unused `@tailwindcss/typography` dependency (never registered in the actual config). This removes the old selector-parser chain as well (GHSA-rj75-hqrm-r3gf), rather than forcing a major transitive override. npm install/audit reports zero known advisories for the resulting tree; this is not a guarantee about all infrastructure or future advisories. `package-lock.json` is authoritative; the stale unused Bun lockfile was removed. CI and VPS installation use npm.

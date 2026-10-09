@@ -13,7 +13,9 @@ import LandingPage from '@/components/LandingPage';
 const EmployerHub = lazy(() => import('@/pages/EmployerHub'));
 import { useFeature } from '@/hooks/useFeatureFlags';
 import { PlatformMaintenanceScreen } from '@/components/shared/MaintenanceNotice';
-import { LegalConsentGate } from '@/components/auth/LegalConsentGate';
+// Consent remains mandatory for authenticated users, but anonymous browsing
+// should not download the legal document registry and consent UI.
+const LegalConsentGate = lazy(() => import('@/components/auth/LegalConsentGate').then(module => ({ default: module.LegalConsentGate })));
 
 
 
