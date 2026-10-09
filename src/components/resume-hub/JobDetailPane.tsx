@@ -9,6 +9,7 @@ import { Building2, ExternalLink, Loader2, MapPin, Plus, ShieldCheck, TrendingUp
 import { type JobPosting } from "@/lib/resumeHub";
 import { CompanyInsightsNote } from "@/components/shared/CompanyInsightsNote";
 import { JobPayComparison } from "@/components/shared/JobPayComparison";
+import { JobApplicationFacts } from '@/components/shared/JobApplicationFacts';
 import { EMPLOYMENT_TYPE_LABELS, SENIORITY_LABELS, humanizeSlug, resolveSalary, companyAvatar, resolveLogoUrl, postedAge, postedDate, JobDescriptionBody, formatLocation, jobAgeNotes, jobFactChips } from "@/lib/jobPostingFormat";
 import { extractCultureSnippet } from "./browseJobsHelpers";
 import { ScorePill } from "./ScorePill";
@@ -57,7 +58,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
         (job.work_mode || job.work_mode_text) && { key: "mode", label: "Work mode", value: humanizeSlug((job.work_mode || job.work_mode_text)!), tone: "trust" as const },
         job.employment_type && { key: "type", label: "Type", value: EMPLOYMENT_TYPE_LABELS[job.employment_type] || humanizeSlug(job.employment_type) },
         // Facts the posting states in its own text (read once, never guessed).
-        ...jobFactChips(job).map((c) => ({
+        ...jobFactChips(job).filter(c => c.key !== 'region' && c.key !== 'deadline').map((c) => ({
           key: c.key, label: c.text, value: c.text, title: c.title, tone: c.tone,
         })),
       ].filter((c): c is NonNullable<typeof c> & object => !!c);
@@ -169,6 +170,7 @@ function JobDetailPaneImpl({ job, score, hasScored, logoFailed, isAdding, active
         )}
 
         <CompanyInsightsNote slug={job.company_slug} company={job.company} className="text-xs" />
+        <JobApplicationFacts job={job} />
         <JobPayComparison jobId={job.id} />
 
         {job.benefits && job.benefits.length > 0 && (

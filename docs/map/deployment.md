@@ -1,5 +1,11 @@
 # Deployment & VPS operations
 
+## Production job QA release, 9 October 2026
+
+Deploy the frontend and `_shared/jobFacts.ts` together (the existing deploy script copies the shared directory used by `job-enrich-worker`). `scripts/audit-job-pay.mjs` is operator-only: set `AYN_PAY_AUDIT_HOST` to the reviewed SSH target, run dry first, inspect `--sample`, then use `--apply` only after review. It reconciles only the six text-pay fields on existing paid-range rows, preserves changed rows in a private temporary recovery JSON and guards description/location/original pay against concurrent changes. It does not reset enrichment timestamps, remote facts or deadlines. Source-format samples must be reviewed before applying: valid hourly prose, parentheses, gross/net wording and slash units have regression coverage. This is a unit-focused release, not a redesign of location/level-specific range selection or OTE versus base-pay classification.
+
+The archive table and delete trigger from `20261005200000_job_postings_archive.sql` already existed on production (6,263 archive records at inspection), but the migration receipt was absent. The original idempotent migration was reapplied transactionally and its receipt recorded; no archive history was dropped/rebuilt. Backup: `/root/ayn-job-qa-backup.L48G1C` (schema, frontend and shared worker). `tests/job-archive-release.sql` passed RLS/grants and actual delete-trigger preservation inside a rolled-back transaction. These changes do not alter the salary-comparison card or its sample-size guard. Local gates: 209 unit tests, 14 local browser tests, three compiled browser tests, six SEO tests, eight collector tests, two bundle tests, frontend typecheck, wiring, production build; npm audit reports zero known advisories.
+
 ## Frontend loading release checks, 9 October 2026
 
 Build emits `dist/.vite/manifest.json`; run `npm run check:bundle` after `npm run build`. This gate traverses static imports, not only the entry filename, verifies independent heavy-feature boundaries and enforces public startup/homepage byte budgets. Keep the manifest with the deployment artifact. The warning threshold is restored to 500KB; there are no dependency-range, database, billing, auth-provider or edge-function changes in this split.

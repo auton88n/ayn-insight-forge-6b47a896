@@ -5,6 +5,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { JobPosting } from '@/lib/resumeHub';
 import { CompanyInsightsNote } from '@/components/shared/CompanyInsightsNote';
+import { JobApplicationFacts } from '@/components/shared/JobApplicationFacts';
 import { JobPayComparison } from '@/components/shared/JobPayComparison';
 import { companyAvatar, resolveLogoUrl, resolveSalary, postedAge, postedDate, safeLike, JobDescriptionBody, employmentTypeLabel, seniorityLabel, humanizeCategory, formatLocation, locationSearchPatterns, jobAgeNotes, jobFactChips } from '@/lib/jobPostingFormat';
 import { Search, ExternalLink, Loader2, MapPin, ArrowLeft, ArrowRight, RefreshCw, Link2 } from 'lucide-react';
@@ -217,7 +218,8 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
         {selectedId && detail.isPending ? <div className="ayn-inline-state" role="status"><AynLoader size="sm" label="Loading the full posting" /></div> : detail.isError ? <div className="ayn-inline-state" role="alert"><h3>This posting could not load</h3><button className="lp-btn lp-btn-ghost" onClick={() => detail.refetch()}>Try again</button></div> : selected ? <article className="lp-browser-detail-card">
           <div className="lp-browser-detail-head">{logo(selected, true)}<div><p className="lp-browser-detail-company">{selected.company}</p><p className="ayn-source-note" title="The last time AYN's feed saw this posting still listed, not its original publish date.">Last seen listed {postedDate(selected.last_seen_at || selected.posted_at)}</p></div></div>
           <h2 ref={headingRef} tabIndex={-1} className="ayn-job-title">{selected.title}</h2>
-          <div className="lp-browser-pill-row">{selected.location && <span><MapPin size={15} />{formatLocation(selected.location)}</span>}{selected.employment_type && <span>{employmentTypeLabel(selected.employment_type)}</span>}{selected.seniority && <span>{seniorityLabel(selected.seniority)}</span>}{resolveSalary(selected) && <span>{resolveSalary(selected)!.text}</span>}{jobFactChips(selected).map((c) => <span key={c.key} title={c.title}>{c.text}</span>)}{jobAgeNotes(selected).map((n) => <span key={n.text} title={n.title}>{n.text}</span>)}</div>
+          <div className="lp-browser-pill-row">{selected.location && <span><MapPin size={15} />{formatLocation(selected.location)}</span>}{selected.employment_type && <span>{employmentTypeLabel(selected.employment_type)}</span>}{selected.seniority && <span>{seniorityLabel(selected.seniority)}</span>}{resolveSalary(selected) && <span>{resolveSalary(selected)!.text}</span>}{jobFactChips(selected).filter(c => c.key !== 'region' && c.key !== 'deadline').map((c) => <span key={c.key} title={c.title}>{c.text}</span>)}{jobAgeNotes(selected).map((n) => <span key={n.text} title={n.title}>{n.text}</span>)}</div>
+          <JobApplicationFacts job={selected} />
           <CompanyInsightsNote slug={selected.company_slug} company={selected.company} className="ayn-source-note" />
           <JobPayComparison jobId={selected.id} />
           {selected.benefits && selected.benefits.length > 0 && <p className="ayn-source-note" title="Standard benefits this posting names in its own text.">Benefits named: {selected.benefits.join(' · ')}</p>}

@@ -36,6 +36,7 @@
  */
 import { useMemo } from "react";
 import type { JobPosting } from "@/lib/resumeHub";
+import { extractSalaryFromText as extractPostingSalary, payPeriodWarning } from '../../supabase/functions/_shared/jobFacts';
 
 export const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   full_time: "Full-time", part_time: "Part-time", contract: "Contract", internship: "Internship",
@@ -54,11 +55,15 @@ export const SENIORITY_LABELS: Record<string, string> = {
 // still reads like a real label, not a database column value.
 /** A posting whose "title" is really a requisition number ("Job Requisition ID: 180984") is not a title.
  * Show what the person can recognise instead of the number. */
-export function displayJobTitle(title: string | null | undefined, company?: string | null): string {
+export function displayJobTitle(title: string | null | undefined, company?: string | null, description?: string | null): string {
   const t = String(title || "").trim();
-  const looksLikeId = !t || /^(job\s*)?(requisition|req)\b[\s#:.-]*(id|no|number)?[\s#:.-]*[\w-]*$/i.test(t) || /^[\d\s_#-]{4,}$/.test(t);
+  const looksLikeId = !t || /^Job from resume check$/i.test(t) || /^(job\s*)?(requisition|req)\b[\s#:.-]*(id|no|number)?[\s#:.-]*[\w-]*(?:\s*[.…]+)?$/i.test(t) || /^[\d\s_#-]{4,}$/.test(t);
   if (!looksLikeId) return t;
-  return company ? `Role at ${company}` : "Untitled role";
+  // Read only an explicit title label, never turn the requisition number,
+  // company boilerplate or a requirements sentence into a guessed role.
+  const labeled = decodeHtmlEntities(description).match(/^(?:job title|position title|role title|position|role)\s*:\s*([^\n]{3,100})$/im)?.[1]?.trim();
+  if (labeled && !/^(?:job\s*)?(?:requisition|req)\b/i.test(labeled)) return labeled;
+  return company ? `Role at ${company}` : "Saved job (title not provided)";
 }
 
 export function humanizeSlug(s: string) {
@@ -187,38 +192,6 @@ function formatSalary(min: number | null | undefined, max: number | null | undef
 // estimates or invents a number; it only reads a real range the employer
 // already wrote themselves, the same "code decides facts, never invents
 // one" rule every other deterministic check in this app already follows.
-const SALARY_RANGE_RE = /\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s?([Kk])?\s?(?:-|–|—|&mdash;|&ndash;|to)\s?\$?\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s?([Kk])?/;
-const HOURLY_CONTEXT_RE = /(per\s*hour|\/\s*hr\b|\/\s*hour|hourly|per\s*hr\b)/i;
-
-function parseSalaryToken(raw: string, kSuffix: string | undefined): { value: number; scaled: boolean } {
-  const value = parseFloat(raw.replace(/,/g, "")) * (kSuffix ? 1000 : 1);
-  return { value, scaled: raw.includes(",") || !!kSuffix };
-}
-
-function extractSalaryFromText(text: string): { min: number; max: number; period: "annual" | "hourly" } | null {
-  const m = text.match(SALARY_RANGE_RE);
-  if (!m || m.index == null) return null;
-  const [, loRaw, loK, hiRaw, hiK] = m;
-  const lo = parseSalaryToken(loRaw, loK);
-  const hi = parseSalaryToken(hiRaw, hiK);
-  if (!(lo.value > 0) || !(hi.value > 0) || hi.value < lo.value || hi.value > 2_000_000) return null;
-  const start = Math.max(0, m.index - 60);
-  const end = Math.min(text.length, m.index + m[0].length + 60);
-  const isHourly = HOURLY_CONTEXT_RE.test(text.slice(start, end));
-  const small = lo.value < 1000 && !lo.scaled && hi.value < 1000 && !hi.scaled;
-  // A small pair with no nearby "per hour"/"hourly" text is ambiguous
-  // (could be years of experience, a headcount, anything) -- rejected
-  // rather than guessed, same "when unsure, leave it out" rule this app
-  // already applies to location scoping and everything else deterministic.
-  if (small && !isHourly) return null;
-  if (small) {
-    if (!(lo.value >= 5 && lo.value <= 500 && hi.value >= 5 && hi.value <= 500)) return null;
-    return { min: lo.value, max: hi.value, period: "hourly" };
-  }
-  if (!(lo.value >= 15_000 && lo.value <= 1_500_000 && hi.value >= 15_000)) return null;
-  return { min: lo.value, max: hi.value, period: "annual" };
-}
-
 /** Structured salary (freehire's own enrichment field) when present,
  * otherwise a real employer-stated range read straight out of the
  * description text. Both are equally real numbers from the same
@@ -226,20 +199,23 @@ function extractSalaryFromText(text: string): { min: number; max: number; period
  * way of finding the same fact, disclosed via fromListingText so a caller
  * can note where it came from if it wants to. */
 export function resolveSalary(job: JobPosting): { text: string; fromListingText: boolean } | null {
+  if (payPeriodWarning(job.description || '')) return null;
   const structured = formatSalary(job.salary_min, job.salary_max, job.salary_currency);
   if (structured) return { text: structured, fromListingText: false };
   // A range read from the posting text on the server (with its currency and pay period worked out).
   if (job.salary_text_min != null && job.salary_text_max != null) {
+    if (job.salary_text_period === 'hour' && job.salary_text_max > 200) return null;
+    if (job.salary_text_period === 'month' && job.salary_text_max > 30_000) return null;
     const fmtN = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
     const suffix = job.salary_text_period === "hour" ? "/hr" : job.salary_text_period === "month" ? "/mo" : "";
     const cur = job.salary_text_currency || "";
     return { text: `${cur ? cur + " " : "$"}${fmtN(job.salary_text_min)} to ${fmtN(job.salary_text_max)}${suffix}`, fromListingText: true };
   }
-  const extracted = extractSalaryFromText(job.description || "");
+  const extracted = extractPostingSalary(job.description || "", job.location);
   if (!extracted) return null;
   const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
-  const suffix = extracted.period === "hourly" ? "/hr" : "";
-  return { text: `USD ${fmt(extracted.min)} to ${fmt(extracted.max)}${suffix}`, fromListingText: true };
+  const suffix = extracted.period === "hour" ? "/hr" : extracted.period === "month" ? "/mo" : "";
+  return { text: `${extracted.currency || '$'} ${fmt(extracted.min)} to ${fmt(extracted.max)}${suffix}`, fromListingText: true };
 }
 
 // v3.171.0 — was a flat pastel fill (bg-blue-100/text-blue-700, etc.), the
@@ -519,6 +495,7 @@ export function parseJobDescription(text: string): JdBlock[] {
 
 export function JobDescriptionBody({ text }: { text: string }) {
   const blocks = useMemo(() => parseJobDescription(text.trim()), [text]);
+  const payWarning = payPeriodWarning(decodeHtmlEntities(text));
   if (!blocks.length) {
     return (
       <p className="text-sm leading-relaxed text-foreground/90">
@@ -528,6 +505,9 @@ export function JobDescriptionBody({ text }: { text: string }) {
   }
   return (
     <div className="space-y-2">
+      {payWarning && <p role="note" className="text-sm rounded-lg border p-3">
+        <strong>Pay period needs confirmation.</strong> The source says “{payWarning}”. AYN has not treated this as verified hourly or annual pay. Confirm the period with the employer; the original wording below is unchanged.
+      </p>}
       {blocks.map((b, i) => {
         if (b.kind === "heading") {
           return (

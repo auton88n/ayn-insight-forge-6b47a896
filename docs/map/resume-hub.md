@@ -1,5 +1,15 @@
 # Resume Hub map (web app + resume-hub backend)
 
+## Production job QA, 9 October 2026
+
+`displayJobTitle` now rejects old checker placeholders and requisition identifiers; it uses an explicitly labeled role in the JD or a neutral company/title-missing fallback. This fixes existing saved cards at display time without rewriting user data. Checker continuation saves the same safe fallback for new manual jobs. `/employers` no longer redirects signed-in seekers into Saved jobs; marketing remains public, while approved/pending employer and legal-consent gates are unchanged.
+
+Frontend `resolveSalary` delegates to `_shared/jobFacts.ts`, the same parser used by `job-enrich-worker`. Units belong to the adjacent amount, not an unrelated nearby bonus. Contradictory/implausible explicit units and unsupported weekly/daily ranges are rejected, not silently relabeled annual. Large unlabeled ranges retain the previous annual inference; this is not exhaustive salary verification. `JobDescriptionBody` flags unusually high hourly source wording as requiring confirmation, preserving the original quotation. It does not claim the General Manager's source typo proves annual pay. `JobPayComparison` framing and cohort guard are unchanged.
+
+Shared `JobApplicationFacts` gives public details, signed-in details and manually pasted Saved job JDs a labeled application-conditions section. Stored deadline/remote facts take priority; manual text uses the existing explicit-evidence extractor. Expired stored deadlines remain visible with an employer-confirmation warning, not an assertion of closure. Missing geography is not worldwide eligibility. Existing small detail chips for these two facts are removed where the full section appears.
+
+The reported Workstream double lines were not reproduced in the live page or current source. A browser regression checks the pay observation and Posting updates each render once before/after refresh; no speculative rendering change was made.
+
 ## Job-data completion, 9 October 2026
 
 Live copy follow-up: `company_hiring_speed` historically aggregates both `closed` and `pruned` archive rows. The company page, shared insight note and server HTML now call this **time in AYN's catalog**, explicitly not employer time-to-hire. Existing RPC names/response keys remain unchanged for compatibility; do not relabel these observations as hiring speed without a genuinely confirmed employer outcome source.

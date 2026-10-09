@@ -35,7 +35,8 @@ const ResumeDiffViewer = lazy(() => import('./ResumeDiffViewer'));
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
-import { companyAvatar, formatLocation, decodeHtmlEntities, displayJobTitle } from "@/lib/jobPostingFormat";
+import { companyAvatar, formatLocation, decodeHtmlEntities, displayJobTitle, JobDescriptionBody } from "@/lib/jobPostingFormat";
+import { JobApplicationFacts } from '@/components/shared/JobApplicationFacts';
 import { savedJobsQueryKey } from "@/lib/queryKeys";
 import { cleanApplyUrl } from "@/lib/applyUrl";
 
@@ -600,7 +601,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                 {companyAvatar(selected.company || "?").initial}
               </div>
               <div className="min-w-0">
-                <h2 className="rh-display text-xl leading-snug">{displayJobTitle(selected.title, selected.company)}</h2>
+                <h2 className="rh-display text-xl leading-snug">{displayJobTitle(selected.title, selected.company, selected.jd_text)}</h2>
                 <p className="text-sm" style={{ color: "var(--rh-muted)" }}>{selected.company} {selected.location && `• ${formatLocation(selected.location)}`}</p>
                 {selected.source_url && (
                   <a
@@ -685,7 +686,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
           <Card className="p-5 rounded-xl lg:sticky lg:top-4 lg:max-h-[calc(100vh_-_8rem)] overflow-y-auto" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
             <h3 className="rh-display text-sm mb-2">Job description</h3>
             {selected.jd_text
-              ? <pre className="text-sm whitespace-pre-wrap font-sans" style={{ color: "var(--rh-muted)" }}>{decodeHtmlEntities(selected.jd_text)}</pre>
+              ? <><JobApplicationFacts job={{ description: selected.jd_text }} /><JobDescriptionBody text={selected.jd_text} /></>
               : <p className="text-sm" style={{ color: "var(--rh-muted)" }}>No description was saved for this job.</p>}
           </Card>
 
@@ -1130,7 +1131,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               >
                 {avatar.initial}
               </div>
-              <p className="rh-display text-[18px] leading-snug mb-1">{displayJobTitle(j.title, j.company)}</p>
+              <p className="rh-display text-[18px] leading-snug mb-1">{displayJobTitle(j.title, j.company, j.jd_text)}</p>
               <p className="text-[13px] mb-3" style={{ color: "var(--rh-muted)" }}>
                 {j.company}{j.location ? ` · ${formatLocation(j.location)}` : ""}
               </p>

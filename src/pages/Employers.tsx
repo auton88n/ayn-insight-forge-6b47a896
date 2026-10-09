@@ -71,10 +71,9 @@ const EmployersAuthedShell = ({ user }: { user: User }) => {
       </LegalConsentGate>
     );
   }
-  // Signed in as a job seeker, landed on the employer marketing page --
-  // their real home is Resume Hub, not another pitch for a role they don't
-  // have.
-  return <Navigate to="/resume-hub" replace />;
+  // Marketing is public for every role. Reading it does not grant employer
+  // access or change the seeker's role; those gates remain above/backend-side.
+  return <LandingPage forcedAudience="employer" />;
 };
 
 export default Employers;

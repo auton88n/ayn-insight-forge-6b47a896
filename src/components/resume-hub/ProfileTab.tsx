@@ -890,7 +890,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
         )}
 
         {primaryResume?.title === 'Resume from your free check' && <p role="status" className="mt-4 text-sm border-l-2 border-primary pl-3">
-          Your checked resume is saved. Download it to review the extraction, then check your profile fields below. Saving this document did not replace your existing profile facts; AYN uses both when writing. When they agree, use Optimize here or open Saved jobs and select “Job from resume check” to tailor it.
+          Your checked resume is saved. Download it to review the extraction, then check your profile fields below. Saving this document did not replace your existing profile facts; AYN uses both when writing. When they agree, use Optimize here or open Saved jobs and select the job you just saved to tailor it.
         </p>}
 
         {resumeHistory.length > 0 && <details className="mt-4 border-t pt-4">

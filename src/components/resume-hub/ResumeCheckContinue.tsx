@@ -5,6 +5,7 @@ import { resumeHubApi } from '@/lib/resumeHub';
 import { createPendingResumeOperation } from '@/lib/pendingResumeOperation';
 import { HOME_TAB_HANDOFF_KEY } from '@/components/landing/homeTabMeta';
 import type { Json } from '@/integrations/supabase/types';
+import { displayJobTitle } from '@/lib/jobPostingFormat';
 
 export function ResumeCheckContinue({ resumeText, jdText, onSignIn }: {
   resumeText: string; jdText: string; onSignIn: () => void;
@@ -41,7 +42,7 @@ export function ResumeCheckContinue({ resumeText, jdText, onSignIn }: {
         // Save the JD first. Both steps are idempotent; a partial failure
         // leaves useful owned data and never deletes the previous resume.
         const { error: jobError } = await supabase.from('jobs').upsert({
-          id, user_id: userId, source: 'manual', title: 'Job from resume check', jd_text: jdText,
+          id, user_id: userId, source: 'manual', title: displayJobTitle(null, null, jdText), jd_text: jdText,
         }, { onConflict: 'id' });
         if (jobError) throw jobError;
         savedJobId = id;
@@ -74,7 +75,7 @@ export function ResumeCheckContinue({ resumeText, jdText, onSignIn }: {
       {busy ? 'Saving your draft…' : userId ? 'Save draft and continue' : 'Create an account or sign in'}
     </button>
     <p className="text-sm mt-3">No charge to save. The free check sends your text for analysis; saving it to your account is a separate choice. Keep this tab open during signup; refreshing clears the draft.</p>
-    <p className="text-sm mt-3">{intent === 'tailor' ? 'After reviewing Profile, open Saved jobs and select “Job from resume check” to tailor it.' : 'After reviewing Profile, use Optimize to improve your base resume.'}</p>
+    <p className="text-sm mt-3">{intent === 'tailor' ? 'After reviewing Profile, open Saved jobs and select the job you just saved to tailor it.' : 'After reviewing Profile, use Optimize to improve your base resume.'}</p>
     {error && <p role="alert" className="text-sm mt-3 text-destructive">{error}</p>}
   </section>;
 }

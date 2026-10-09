@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractApplyBy, extractBenefits, extractJobFacts, extractRemoteRegion, extractSalaryFromText, extractSponsorship, extractWorkMode, extractYearsRequired } from "../../supabase/functions/_shared/jobFacts";
+import { extractApplyBy, extractBenefits, extractJobFacts, extractRemoteRegion, extractSalaryFromText, extractSponsorship, extractWorkMode, extractYearsRequired, payPeriodWarning } from "../../supabase/functions/_shared/jobFacts";
 
 describe("extractYearsRequired", () => {
   it("reads the common phrasings", () => {
@@ -51,6 +51,42 @@ describe("extractSponsorship", () => {
 });
 
 describe("extractSalaryFromText", () => {
+  it('rejects contradictory explicit units instead of converting them to annual', () => {
+    expect(extractSalaryFromText('Salary: $60,000 - $65,000 per hour', 'Austin, TX')).toBeNull();
+    expect(extractSalaryFromText('Salary: $60,000 - $65,000 per month', 'Austin, TX')).toBeNull();
+    expect(extractSalaryFromText('Annual salary $60,000 - $65,000 per hour', 'Austin, TX')).toBeNull();
+    expect(payPeriodWarning('Pay: Up to $65,000.00 per hour')).toBe('$65,000.00 per hour');
+  });
+  it('attaches periods to their own amount rather than adjacent compensation', () => {
+    expect(extractSalaryFromText('Hourly wage between $20- $23', 'Austin, TX')).toMatchObject({ period: 'hour', min: 20, max: 23 });
+    expect(extractSalaryFromText('Hourly Pay Rate: $25.00 - $31.00', 'Austin, TX')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('The starting base hourly rate for this role is $29.00 - $33.00.', 'Austin, TX')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('Salary ($20 - $23) per hour', 'Austin, TX')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('Hourly Pay Range (CA Only)$26—$30 USDWHAT TO EXPECT', 'Austin, TX')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('Salary Hiring Range: $29-34/ hr (~$60 - 70k)', 'Austin, TX')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('ABOUT VALORVIP$17.00 - $23.00 / hourly', 'Austin, TX')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('Base Pay Range (hourly)$28—$39 USD', 'Austin, TX')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('Salary €3,065 to €4,250 gross per month')).toMatchObject({ period: 'month' });
+    expect(extractSalaryFromText('Salary: $27.00-$30.00/per hour')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('Pay $41.00 - $51.00 base per hour')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('Pay Rate (per hour)$14.85—$18.85 USD')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('Pay range $24-27+ per hour')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('In office three days per week with a base compensation range of $85,000–$95,000.')).toMatchObject({ period: 'year' });
+    expect(extractSalaryFromText('Package up to $179,169 per year, including a base pay rate of $48.95 - $69.57 per hour.')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('This is an hourly rate.$45.77—$57.21 USD')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('Salary: $18.54 - 25.75$/HOURLY')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('Pay $25 - $30 per per hour')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('Salary $31/hr - $44/hr')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('Pay $18 - $20 per/hr.')).toMatchObject({ period: 'hour' });
+    expect(extractSalaryFromText('The base salary range for this role is $130,000 - $190,000 (Total OTE: $145,000 - $220,000)')).toMatchObject({ min: 130000, max: 190000 });
+    expect(extractSalaryFromText('Salary $15,000 - $20,000 per year, paid monthly.', 'Austin, TX')?.period).toBe('year');
+    expect(extractSalaryFromText('Base salary $18,000 - $20,000. Monthly performance incentive available.', 'Austin, TX')?.period).toBe('year');
+    expect(extractSalaryFromText('Salary $20,000 - $25,000 per week.', 'Austin, TX')).toBeNull();
+    expect(extractSalaryFromText('Hourly pay: $20.50 - $25.75', 'Austin, TX')?.period).toBe('hour');
+    expect(extractSalaryFromText('Monthly salary: $4,000.00 - $5,000.00', 'Berlin')?.period).toBe('month');
+    expect(payPeriodWarning('Salary $45 - $55 per hour')).toBeNull();
+    expect(payPeriodWarning('Services cost $500 per hour.')).toBeNull();
+  });
   it("reads a yearly range and takes the currency from where the job is", () => {
     const s = extractSalaryFromText("The salary range for this role is $120,000 - $150,000 per year.", "Austin, TX");
     expect(s).toMatchObject({ min: 120000, max: 150000, currency: "USD", period: "year", annual_min: 120000, annual_max: 150000 });

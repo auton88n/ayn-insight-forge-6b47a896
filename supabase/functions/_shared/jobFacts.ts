@@ -87,12 +87,39 @@ export function extractSponsorship(text: string): Sponsorship | null {
 // Pay written out in the posting text. Reads a real range the employer wrote; never estimates one.
 // ---------------------------------------------------------------------------------------------
 const MARK = "(?:US\\$|CA\\$|AU\\$|NZ\\$|C\\$|A\\$|\\$|\u00a3|\u20ac|USD|CAD|AUD|EUR|GBP|AED|CHF)\\s?";
-const NUM = "(\\d{1,3}(?:,\\d{3})+|\\d+(?:\\.\\d+)?)";
-const SALARY_RANGE = new RegExp(`(${MARK})${NUM}\\s?([Kk])?\\s?(?:-|\u2013|\u2014|to)\\s?(?:${MARK})?${NUM}\\s?([Kk])?`, "g");
-const HOURLY = /(?:per\s*hour|\/\s*h(?:ou)?r\b|\bhourly\b|\ban hour\b|\bper\s*hr\b)/i;
-const MONTHLY = /(?:per\s*month|\/\s*month|\bmonthly\b|\ba month\b)/i;
+const NUM = "(\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?|\\d+(?:\\.\\d+)?)";
+const SALARY_RANGE = new RegExp(`(${MARK})${NUM}\\s?([Kk])?\\s?(?:/\\s*(?:hr|hour|year|yr|month|mo)\\s*)?(?:-|\u2013|\u2014|to)\\s?(?:${MARK})?${NUM}\\s?([Kk])?`, "g");
 const NOT_PAY = /\b(?:bonus|sign-?on|signing|stipend|equity|stock|funding|raised|valuation|revenue|market size|budget|reimbursement|allowance|commission)\b/i;
 const PAY_CONTEXT = /\b(?:salary|compensation|pay|base|range|wage|wages|earn|earning|annual)\b/i;
+
+/** Attach a unit to this amount, not an unrelated bonus or second range nearby. */
+export function salaryPeriod(before: string, after: string, lo: number, hi: number): PayPeriod | null {
+  const suffix = /^\s*\+?\s*\)?\s*\$?\s*(?:(?:USD|CAD|AUD|NZD|GBP|EUR|AED|CHF)\s*)?(?:(?:gross|net|base)\s+)?(?:(per[\s/]+(?:per\s+)?(?:year|annum|month|hour|hr|week|day)|a(?:n)?\s+(?:year|month|hour|week|day)|\/\s*(?:per\s+)?(?:year|yr|month|mo|hourly|hour|hr|week|day)|annually|yearly|monthly|hourly))\b/i.exec(after)?.[1];
+  // Bound connective prose to the nearest unit; never cross another amount,
+  // sentence, or unit ("annual salary ... monthly bonus ...").
+  const normalizedBefore = before.replace(/[()]/g, ' ');
+  const prefix = /\b(annual|yearly|monthly|hourly|weekly|daily)\b(?:[\s:,-]+(?!(?:annual|yearly|monthly|hourly|weekly|daily)\b)[a-z-]+){0,10}[\s:,-]*$/i.exec(normalizedBefore)?.[1]
+    || /\b(per\s+(?:year|month|hour|week|day))[\s:,-]*$/i.exec(normalizedBefore)?.[1];
+  const decode = (unit: string | undefined): PayPeriod | 'unsupported' | null => !unit ? null : /hour|hr/i.test(unit) ? 'hour' : /month|mo\b/i.test(unit) ? 'month' : /week|day|daily/i.test(unit) ? 'unsupported' : 'year';
+  const left = decode(prefix), right = decode(suffix);
+  if (left && right && left !== right) return null;
+  const period = right || left || (lo >= 15_000 ? 'year' : null);
+  if (!period || period === 'unsupported') return null;
+  // Contradictory explicit units are rejected, never silently changed to annual.
+  const plausible = period === 'hour' ? lo >= 5 && hi <= 200 : period === 'month' ? lo >= 1_000 && hi <= 30_000 : lo >= 15_000 && hi <= 1_500_000;
+  return plausible ? period : null;
+}
+
+/** A source error, not evidence for a corrected annual salary. Also handles single amounts. */
+export function payPeriodWarning(text: string): string | null {
+  const hourlyAmount = new RegExp(`(${MARK})${NUM}\\s?([Kk])?\\s*(?:(?:-|\u2013|to)\\s*(?:${MARK})?${NUM}\\s?([Kk])?)?\\s*(?:per\\s*(?:hour|hr)|an?\\s+hour|/\\s*(?:hr|hour))\\b`, 'gi');
+  for (const match of text.matchAll(hourlyAmount)) {
+    const lo = Number(match[2].replace(/,/g, '')) * (match[3] ? 1000 : 1);
+    const hi = match[4] ? Number(match[4].replace(/,/g, '')) * (match[5] ? 1000 : 1) : lo;
+    if (Math.max(lo, hi) > 200 && PAY_CONTEXT.test(text.slice(Math.max(0, match.index! - 45), match.index!))) return match[0];
+  }
+  return null;
+}
 
 const MARKER_CURRENCY: Array<[RegExp, string]> = [
   [/^(?:US\$|USD)/i, "USD"], [/^(?:CA\$|C\$|CAD)/i, "CAD"], [/^(?:AU\$|A\$|AUD)/i, "AUD"], [/^NZ\$/i, "NZD"],
@@ -122,16 +149,14 @@ export function extractSalaryFromText(text: string, location?: string | null): T
     const start = Math.max(0, m.index - 80);
     const window = text.slice(start, Math.min(text.length, m.index + whole.length + 80));
     // Words like "bonus" or "raised" only rule a range out when they are in the same sentence as it.
-    const before = text.slice(Math.max(0, m.index - 80), m.index).split(/[.!?\n]/).pop() || "";
+    const rawBefore = text.slice(Math.max(0, m.index - 80), m.index);
+    const before = rawBefore.split(/[.!?\n]/).pop() || "";
     const after = text.slice(m.index + whole.length, m.index + whole.length + 40).split(/[.!?\n]/)[0] || "";
     if (NOT_PAY.test(before + " " + whole + " " + after)) continue;
-    // Period: spoken, or clear from the size of the numbers. A small pair with no period word is ambiguous: skipped.
-    // A monthly figure above 30,000 is not a realistic monthly wage: the word "monthly" nearby is about
-    // something else (a bonus, a fee), and numbers that large are a yearly salary.
-    let period: PayPeriod | null = null;
-    if (HOURLY.test(window) && hi <= 200) period = "hour";
-    else if (MONTHLY.test(window) && hi <= 30_000) period = "month";
-    else if (lo >= 15_000) period = "year";
+    // Some feeds collapse "this is an hourly rate." directly into the range.
+    // Accept only that immediately preceding unit phrase, not any prior sentence.
+    const leadingUnit = before.trim() ? before : rawBefore.match(/\b(?:annual|yearly|monthly|hourly)\s+(?:rate|pay|salary|wage)\.\s*$/i)?.[0]?.replace(/\.\s*$/, '') || before;
+    const period = salaryPeriod(leadingUnit, after, lo, hi);
     if (!period) continue;
     const inRange = period === "year" ? lo >= 15_000 && hi <= 1_500_000
       : period === "hour" ? lo >= 5 && hi <= 200
