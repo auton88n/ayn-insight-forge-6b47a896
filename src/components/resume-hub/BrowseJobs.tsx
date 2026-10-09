@@ -1061,7 +1061,7 @@ export default function BrowseJobs({ userId, onAdded, onOpenProfile }: Props) {
             no wasted blank space reserved beneath it, and a long one
             scroll as one continuous piece up to the same cap Job search
             itself uses, exactly the "movement" being asked to match. */}
-        <Card className="hidden lg:block border-border/60 overflow-y-auto sticky top-5 max-h-[calc(100vh-40px)] p-0 rounded-xl shadow-none hover:shadow-none">
+        <Card className="hidden lg:block border-border/60 overflow-y-auto sticky top-5 max-h-[calc(100vh_-_40px)] p-0 rounded-xl shadow-none hover:shadow-none">
           {selected
             ? detail
             : <p className="p-10 text-sm text-muted-foreground text-center">Pick a job to read the full posting.</p>}

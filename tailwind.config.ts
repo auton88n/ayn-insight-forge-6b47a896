@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import legacyTheme from "./src/styles/tailwindLegacyTheme";
 
 export default {
 	darkMode: ["class"],
@@ -10,6 +11,7 @@ export default {
 	],
 	prefix: "",
 	theme: {
+        ...legacyTheme,
     	container: {
     		center: true,
     		padding: '2rem',

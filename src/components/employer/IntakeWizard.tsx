@@ -211,7 +211,7 @@ function OptionCard({
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className="group relative flex items-center gap-2 rounded-xl border px-4 py-3 text-sm text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="group relative flex items-center gap-2 rounded-xl border px-4 py-3 text-sm text-left transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       style={selected
         ? { background: "var(--lp-gradient-ember)", borderColor: "transparent", color: "#fff", boxShadow: "0 6px 16px -6px hsl(var(--lp-ember) / 0.5)" }
         : { borderColor: "hsl(var(--lp-border-soft))", background: "hsl(var(--lp-surface))" }}

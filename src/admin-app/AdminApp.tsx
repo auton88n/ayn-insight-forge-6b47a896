@@ -56,7 +56,7 @@ function CodeBoxes({ digits, onChange, onSubmit, disabled, error }: {
             if (e.key === 'Enter') onSubmit();
           }}
           disabled={disabled}
-          className={`w-10 h-14 text-center text-xl font-bold bg-white border rounded-xl text-foreground shadow-sm focus:outline-none transition-all disabled:opacity-50 ${
+          className={`w-10 h-14 text-center text-xl font-bold bg-white border rounded-xl text-foreground shadow-sm focus:outline-hidden transition-all disabled:opacity-50 ${
             error ? 'border-destructive/60 bg-destructive/5' : digit ? 'border-[#e85d3a]' : 'border-black/10 focus:border-[#e85d3a]'}`} />
       ))}
     </div>
@@ -316,7 +316,7 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
                   maxLength={1} value={digit} onChange={e => handleChange(i, e.target.value)}
                   onKeyDown={e => handleKey(i, e)}
                   disabled={checking}
-                  className={`w-10 h-14 text-center text-xl font-bold bg-white border rounded-xl text-foreground shadow-sm focus:outline-none transition-all disabled:opacity-50 ${
+                  className={`w-10 h-14 text-center text-xl font-bold bg-white border rounded-xl text-foreground shadow-sm focus:outline-hidden transition-all disabled:opacity-50 ${
                     error ? 'border-destructive/60 bg-destructive/5' : digit ? 'border-[#e85d3a]' : 'border-black/10 focus:border-[#e85d3a]'}`} />
               ))}
             </div>
@@ -364,9 +364,9 @@ function LoginScreen({ onSuccess }: { onSuccess: (s: Session) => void }) {
         </div>
         <form onSubmit={handleLogin} className="space-y-3">
           <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
-            className="w-full bg-white border border-black/10 rounded-xl px-4 py-3 text-foreground shadow-sm placeholder-muted-foreground focus:outline-none focus:border-[#e85d3a] text-sm" required />
+            className="w-full bg-white border border-black/10 rounded-xl px-4 py-3 text-foreground shadow-sm placeholder-muted-foreground focus:outline-hidden focus:border-[#e85d3a] text-sm" required />
           <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
-            className="w-full bg-white border border-black/10 rounded-xl px-4 py-3 text-foreground shadow-sm placeholder-muted-foreground focus:outline-none focus:border-[#e85d3a] text-sm" required />
+            className="w-full bg-white border border-black/10 rounded-xl px-4 py-3 text-foreground shadow-sm placeholder-muted-foreground focus:outline-hidden focus:border-[#e85d3a] text-sm" required />
           {error && <p className="text-destructive text-xs">{error}</p>}
           <button type="submit" disabled={loading}
             className="w-full bg-[#e85d3a] text-white rounded-xl py-3 text-sm font-medium hover:bg-[#e54b24] disabled:opacity-50">

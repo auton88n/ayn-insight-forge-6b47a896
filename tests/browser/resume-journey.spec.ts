@@ -49,7 +49,8 @@ test('home tabs survive refresh and browser Back', async ({ page }) => {
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Everything AYN actually does for you' })).toBeVisible();
   await page.getByRole('button', { name: 'Plans & credits', exact: true }).click();
-  await expect(page).toHaveURL(/#pricing$/);
+  // Pricing now has its own canonical route; Back must still restore Features.
+  await expect(page).toHaveURL(/\/pricing$/);
   await page.goBack();
   await expect(page).toHaveURL(/#features$/);
   await expect(page.getByRole('heading', { name: 'Everything AYN actually does for you' })).toBeVisible();

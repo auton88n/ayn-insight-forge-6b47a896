@@ -682,7 +682,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-          <Card className="p-5 rounded-xl lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)] overflow-y-auto" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
+          <Card className="p-5 rounded-xl lg:sticky lg:top-4 lg:max-h-[calc(100vh_-_8rem)] overflow-y-auto" style={{ borderColor: "var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}>
             <h3 className="rh-display text-sm mb-2">Job description</h3>
             {selected.jd_text
               ? <pre className="text-sm whitespace-pre-wrap font-sans" style={{ color: "var(--rh-muted)" }}>{decodeHtmlEntities(selected.jd_text)}</pre>
