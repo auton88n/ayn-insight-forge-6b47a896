@@ -25,6 +25,7 @@
  * used for .contact-surface/.employer-surface elsewhere in this app.
  */
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import type { Session } from '@supabase/supabase-js';
 import { AynLoader } from '@/components/shared/AynLoader';
@@ -35,7 +36,6 @@ const SettingsPanel = lazy(() => import('@/components/shared/SettingsPanel'));
 const JobsTab = lazy(() => import('@/components/resume-hub/JobsTab'));
 const ProfileTab = lazy(() => import('@/components/resume-hub/ProfileTab'));
 const ProposalsTab = lazy(() => import('@/components/resume-hub/ProposalsTab'));
-const BrowseJobs = lazy(() => import('@/components/resume-hub/BrowseJobs'));
 const AssessmentsTab = lazy(() => import('@/components/resume-hub/AssessmentsTab'));
 const SkillsToLearnTab = lazy(() => import('@/components/resume-hub/SkillsToLearnTab'));
 
@@ -159,6 +159,7 @@ export const ProfileAccountTab = ({ onStartFree }: TabProps) => {
 
 export const SavedJobsAccountTab = ({ onSelectTab, onStartFree }: TabProps) => {
   const { userId } = useAccountAuth();
+  const navigate = useNavigate();
   if (userId === undefined) return <TabFallback />;
   if (!userId) return <SignInPrompt label="Saved jobs" onStartFree={onStartFree} />;
   return (
@@ -169,38 +170,27 @@ export const SavedJobsAccountTab = ({ onSelectTab, onStartFree }: TabProps) => {
           onOpenJob={() => onSelectTab('saved-jobs')}
           onOpenProfile={() => onSelectTab('profile')}
           onCreditsChanged={() => undefined}
-          onBackToBrowse={() => onSelectTab('matched-jobs')}
+          onBackToBrowse={() => {
+            let target = '/#search';
+            try {
+              const stored = sessionStorage.getItem('ayn_jobs_return_url');
+              if (stored && /^\/(?:\?|#|jobs(?:[/?#]|$))/.test(stored) && !stored.startsWith('//')) target = stored;
+            } catch { /* ordinary Jobs fallback */ }
+            navigate(target);
+          }}
         />
       </Suspense>
     </RhScope>
   );
 };
 
-// v3.228.0 -- BrowseJobs.tsx (real match scores against the signed-in
-// user's own resume, unlike the public Job search tab's plain JobsBrowser)
-// was /resume-hub's own sixth tab, easy to lose sight of once that shell
-// went away. Labeled "Job matches," not "Browse jobs" a second time -- Job
-// search already owns that name (see v3.223.0's own fix for exactly this
-// duplication), this is a genuinely different, signed-in-only capability.
-export const MatchedJobsAccountTab = ({ onSelectTab, onStartFree }: TabProps) => {
-  const { userId } = useAccountAuth();
-  if (userId === undefined) return <TabFallback />;
-  if (!userId) return <SignInPrompt label="Job matches" onStartFree={onStartFree} />;
-  return (
-    <RhScope maxWidth={1360}>
-      <Suspense fallback={<TabFallback />}>
-        <BrowseJobs
-          userId={userId}
-          onAdded={(jobId) => {
-            sessionStorage.setItem('ayn_focus_job', jobId);
-            sessionStorage.setItem('ayn_focus_job_from', 'browse');
-            onSelectTab('saved-jobs');
-          }}
-          onOpenProfile={() => onSelectTab('profile')}
-        />
-      </Suspense>
-    </RhScope>
-  );
+// Preserve old bookmarks without keeping a second browsing interface.
+// The unified Jobs page owns resume ranking and URL-persisted filters.
+export const MatchedJobsAccountTab = (_props: TabProps) => {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  params.set('view', 'matches');
+  return <Navigate replace to={{ pathname: '/', search: '?' + params.toString(), hash: '#search' }} />;
 };
 
 export const ProposalsAccountTab = ({ onStartFree }: TabProps) => {

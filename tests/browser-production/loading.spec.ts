@@ -30,7 +30,7 @@ test('compiled search can navigate to Help and restore search with Back', async 
   const scripts: string[] = [];
   page.on('request', request => { if (request.resourceType() === 'script') scripts.push(request.url()); });
   await page.goto('/#search');
-  await expect(page.getByRole('heading', { name: 'Browse real jobs', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).toBeVisible();
   expect(scripts.filter(url => /\/(AccountTabs|EmployerHub|AdminApp|AuthModal|resumeDocs|HelpTab|PricingTab|proxy)-/.test(url))).toEqual([]);
   await page.getByRole('button', { name: 'Reject', exact: true }).click();
   await page.getByRole('button', { name: 'Help', exact: true }).click();
@@ -38,7 +38,7 @@ test('compiled search can navigate to Help and restore search with Back', async 
   await expect(page.locator('.lp-reveal').first()).toHaveCSS('opacity', '1');
   expect(scripts.some(url => /\/HelpTab-/.test(url))).toBe(true);
   await page.goBack();
-  await expect(page.getByRole('heading', { name: 'Browse real jobs', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Browse real jobs', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).toBeVisible();
 });

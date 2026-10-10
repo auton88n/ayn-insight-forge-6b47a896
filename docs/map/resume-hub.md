@@ -1,5 +1,13 @@
 # Resume Hub map (web app + resume-hub backend)
 
+## Unified Jobs browser — 11 October 2026
+
+`JobsBrowser` is the public and signed-in browsing surface. All jobs / My matches share cards, filters, URL state and details; `view=matches` opts into the existing owner-authenticated `job_board_score`. Only signed-in match pages fetch full descriptions for scoring, in 25-row batches, with owner/resume-version keyed caching. Rankings apply to loaded results, not a claimed whole-catalog recommendation or hiring probability. Anonymous matches show a sign-in prompt; missing primary resumes and failed scores have explicit states.
+
+`useJobsAccount` reads owner-scoped saved links and routes save/preparation through the existing jobs table, unique-URL race guard and shared Saved jobs cache invalidation. Preparation opens the existing Saved jobs detail for tailoring/letters; no paid action is automatically triggered. The validated `ayn_jobs_return_url` session handoff returns to the originating filters/posting. Sidebar has one Jobs item. `#matched-jobs` remains a replace-navigation alias to `?view=matches#search`, preserving existing incoming links. Existing billing, backend guards, tables and account erasure are unchanged. The former `BrowseJobs` layout is no longer mounted by navigation.
+
+`JobsDiscoveryTools` defers the existing Explore roles and Trending dialogs and their requests until explicitly opened. Public/all-jobs browsing initializes no score queries. The former swipe presentation is not a second live browser. Regression fixtures exercise ranking, missing resumes, sign-out, duplicate-save races, failed-score retry, and desktop/mobile preparation/return without creating production accounts or triggering paid document actions.
+
 ### Presentation audit corrections — 10 October (local)
 
 Shared job salary presentation discloses unknown units/currency, checks explicit posting-text currency against feed currency, and displays a conflict instead of guessing a replacement. Migration `20261010230000_pay_currency_conflicts.sql` removes implicit USD in `job_pay` and conservatively excludes contradictory or mixed explicit currency-code descriptions from aggregate benchmarks. Source fields are unchanged; the service-only view grants remain unchanged. This is not complete global currency/symbol disambiguation. Salary floors and neutral benchmark framing remain. Display-only company slug casing, internship/co-op labels and the observed Dresden facility identifier are humanized without rewriting catalog data. Saved cards have concise explicit accessible names instead of a full-description button name; empty assessment copy no longer claims a company invited someone without an invitation.

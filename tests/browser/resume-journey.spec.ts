@@ -7,7 +7,7 @@ test('public search does not eagerly load account settings or marketing tabs', a
   });
   await page.route('https://ayn-test.invalid/**', route => route.abort());
   await page.goto('/#search');
-  await expect(page.getByRole('heading', { name: 'Browse real jobs', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).toBeVisible();
   // Covers the former three-second idle preload, not only first paint.
   await page.waitForTimeout(3500);
   // HomeTabPanel is now only a lightweight import registry, deliberately

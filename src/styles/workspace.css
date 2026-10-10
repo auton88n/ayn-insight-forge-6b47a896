@@ -175,6 +175,7 @@
 .lp .ayn-job-browser .lp-browser-card:hover { background: #faf8f3; transform: none; }
 .lp .ayn-job-browser .lp-browser-card.is-active { background: #fff; box-shadow: none; border-left-color: hsl(var(--lp-ember)); }
 .lp .ayn-job-browser .lp-browser-card:focus-visible { outline-offset: -3px; }
+.ayn-jobs-views { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 16px 22px; }
 .lp .ayn-job-browser .lp-browser-card-title { font-size: 15px; line-height: 1.4; white-space: normal; margin-block: 4px; }
 .lp .ayn-job-browser .lp-browser-card-company { font-size: 12px; color: #71655b; }
 .lp .ayn-job-browser .lp-browser-card-meta { display: block; font-size: 12px; color: #71655b; }

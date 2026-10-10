@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react';
 import { AynLoader } from '@/components/shared/AynLoader';
 import { PostingReceiptLine } from '@/components/shared/PostingReceiptLine';
 import { PostingEvidencePanel } from '@/components/shared/PostingEvidence';
@@ -15,8 +15,10 @@ import { JobPayComparison } from '@/components/shared/JobPayComparison';
 import { companyAvatar, resolveLogoUrl, resolveSalary, safeLike, JobDescriptionBody, employmentTypeLabel, seniorityLabel, humanizeCategory, formatLocation, locationSearchPatterns, jobFactChips } from '@/lib/jobPostingFormat';
 import { Search, ExternalLink, Loader2, MapPin, ArrowLeft, ArrowRight, RefreshCw, Link2 } from 'lucide-react';
 import { cleanApplyUrl } from '@/lib/applyUrl';
+import { useJobsAccount } from './useJobsAccount';
 
 const PAGE_SIZE = 25;
+const JobsDiscoveryTools = lazy(() => import('./JobsDiscoveryTools'));
 export const PUBLIC_JOB_SUMMARY_COLUMNS = 'id,source,company,company_slug,company_logo_url,title,location,apply_url,posted_at,employment_type,seniority,salary_min,salary_max,salary_currency,category,work_mode,city,last_seen_at,first_seen_at,closure_status,closure_checked_at,closure_last_open_at,repost_count,years_required,sponsorship,salary_text_min,salary_text_max,salary_text_currency,salary_text_period,work_mode_text,benefits,remote_region,apply_by';
 type JobSummary = Omit<JobPosting, 'description'>;
 // The server puts the first page of jobs, and the first job's full posting, in the
@@ -52,15 +54,17 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
   const navigate = useNavigate();
   // A signed-in visitor must never be shown the sign-up dialog: "Open my
   // workspace" takes them to their Saved jobs instead.
-  const [signedIn, setSignedIn] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [discoveryOpen, setDiscoveryOpen] = useState(false);
   useEffect(() => {
     let live = true;
-    supabase.auth.getSession().then(({ data }) => { if (live) setSignedIn(!!data.session); });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => { if (live) setSignedIn(!!session); });
+    supabase.auth.getSession().then(({ data }) => { if (live) setUserId(data.session?.user.id || null); });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => { if (live) setUserId(session?.user.id || null); });
     return () => { live = false; sub.subscription.unsubscribe(); };
   }, []);
   const location = useLocation();
   const [params] = useSearchParams();
+  const matches = params.get('view') === 'matches';
   // Sept 2026 -- same fix as ProfileTab.tsx, same day, same root cause:
   // "when i click to buttons or pages it takes me to a diffrent page."
   // setParams() (react-router's setSearchParams) does not carry the
@@ -105,12 +109,12 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, []);
-  const useBootstrap = !query && !where && !categorySlug && !city && !minimumPay && !workMode && !days && !employment && !level;
+  const useBootstrap = !matches && !query && !where && !categorySlug && !city && !minimumPay && !workMode && !days && !employment && !level;
   const listings = useInfiniteQuery({
-    queryKey: ['public-job-summaries', query, where, categorySlug, city, minimumPay, payCurrency, workMode, days, employment, level],
+    queryKey: ['public-job-summaries', query, where, categorySlug, city, minimumPay, payCurrency, workMode, days, employment, level, matches && !!userId],
     initialPageParam: 0,
     queryFn: async ({ pageParam, signal }) => {
-      let request = (minimumPay || employment ? supabase.rpc('browse_job_postings', { p_min_annual: minimumPay, p_currency: payCurrency, ...(employment ? { p_employment_type: employment } : {}) }, { count: 'exact' }) : supabase.from('job_postings')).select(PUBLIC_JOB_SUMMARY_COLUMNS, { count: 'exact' })
+      let request = (minimumPay || employment ? supabase.rpc('browse_job_postings', { p_min_annual: minimumPay, p_currency: payCurrency, ...(employment ? { p_employment_type: employment } : {}) }, { count: 'exact' }) : supabase.from('job_postings')).select(PUBLIC_JOB_SUMMARY_COLUMNS + (matches && userId ? ',description,skills' : ''), { count: 'exact' })
         .or('scam_suspected.is.null,scam_suspected.eq.false').order('posted_at', { ascending: false }).order('id', { ascending: true });
       if (categorySlug) request = request.eq('category', categorySlug);
       if (city) request = request.ilike('city', city);
@@ -135,7 +139,11 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
       initialDataUpdatedAt: jobsBootstrap.at,
     } : {}),
   });
-  const jobs = (listings.data?.pages.flatMap(page => page.rows) ?? []).map(tidyPosting);
+  const account = useJobsAccount(userId, matches, listings.data?.pages);
+  const jobs = useMemo(() => {
+    const rows = (listings.data?.pages.flatMap(page => page.rows) ?? []).map(tidyPosting);
+    return matches ? rows.sort((a, b) => (account.scoreMap.get(b.id) ?? -1) - (account.scoreMap.get(a.id) ?? -1)) : rows;
+  }, [listings.data, matches, account.scoreMap]);
   const selectedId = explicitId || (!narrow ? jobs[0]?.id : undefined);
   const detail = useQuery({
     queryKey: ['public-job-detail', selectedId],
@@ -163,6 +171,14 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
   // The parent stores this value for page metadata. A fresh object on every
   // render makes that effect update the parent indefinitely on /jobs/:id.
   const selected = useMemo(() => detail.data ? tidyPosting(detail.data) : detail.data, [detail.data]);
+  const prepareJob = (id: string) => {
+    try {
+      sessionStorage.setItem('ayn_focus_job', id);
+      sessionStorage.setItem('ayn_focus_job_from', 'browse');
+      sessionStorage.setItem('ayn_jobs_return_url', location.pathname + location.search + location.hash);
+    } catch { /* saved row remains available even if session storage is unavailable */ }
+    navigate('/#saved-jobs');
+  };
   const total = listings.data?.pages[0]?.total ?? 0;
   useEffect(() => { onJobsLoaded?.({ total, loading: listings.isPending }); }, [total, listings.isPending, onJobsLoaded]);
   useEffect(() => { onSelectedChange?.(explicitId && selected?.id === explicitId ? selected : null); }, [explicitId, selected, onSelectedChange]);
@@ -207,9 +223,15 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
   return <div className={'lp-browser ayn-job-browser ' + (narrow && explicitId ? 'is-reading-job' : '')}>
     <header className="ayn-search-header">
       {(category || city) && <button className="lp-browser-back" onClick={() => navigate('/jobs')}><ArrowLeft size={15} /> All jobs</button>}
-      {showHeading && <><Heading className="lp-display lp-h2">{category ? category + ' jobs' : city ? 'Jobs in ' + city : 'Browse real jobs'}</Heading><p className="lp-lead">Find a role worth your next application.</p></>}
+      {showHeading && <><Heading className="lp-display lp-h2">{category ? category + ' jobs' : city ? 'Jobs in ' + city : 'Jobs'}</Heading><p className="lp-lead">Find a role worth your next application.</p></>}
       <p className="ayn-source-note">From company career pages. Open a posting to read the requirements before you apply.</p>
     </header>
+    <div className="ayn-jobs-views" role="group" aria-label="Jobs view">
+      <button type="button" className={'lp-btn ' + (!matches ? 'lp-btn-primary' : 'lp-btn-ghost')} aria-pressed={!matches} onClick={() => updateFilter('view', '')}>All jobs</button>
+      <button type="button" className={'lp-btn ' + (matches ? 'lp-btn-primary' : 'lp-btn-ghost')} aria-pressed={matches} onClick={() => updateFilter('view', 'matches')}>My matches</button>
+    </div>
+    {userId && (discoveryOpen ? <Suspense fallback={<p role="status">Opening discovery tools…</p>}><JobsDiscoveryTools key={userId} userId={userId} onPickRole={title => updateFilter('q', title)} onOpenProfile={() => navigate('/#profile')} /></Suspense> : <button className="ayn-text-link" onClick={() => setDiscoveryOpen(true)}>Explore roles and hiring trends</button>)}
+    {matches && (!userId ? <div className="ayn-inline-state"><h3>Your resume makes this personal.</h3><p>Sign in to see how these jobs match your saved resume.</p><button className="lp-btn lp-btn-primary" onClick={onStartFree}>Sign in or create an account</button></div> : account.noResume ? <p className="ayn-source-note">Add a resume to see your matches. <button className="ayn-text-link" onClick={() => navigate('/#profile')}>Open Resume &amp; profile</button></p> : account.scoreError ? <p role="alert">Matches could not load. <button className="ayn-text-link" onClick={account.retryScores}>Retry matches</button></p> : <p className="ayn-source-note" role="status">{account.scoring ? 'Checking resume matches…' : 'Loaded results are ranked by resume match. Load more to compare additional jobs.'} Match percentages are not your chance of being hired.</p>)}
     <form className="ayn-search-toolbar" onSubmit={event => { event.preventDefault(); updateSearch(); }}>
       <label className="ayn-search-input"><span>Role or company</span><div><Search size={18} /><input value={draftQuery} onChange={event => setDraftQuery(event.target.value)} placeholder="Job title, skill or company" /></div></label>
       {!city && <label className="ayn-search-input"><span>Location</span><div><MapPin size={18} /><input value={draftWhere} onChange={event => setDraftWhere(event.target.value)} placeholder="City, country or remote" /></div></label>}
@@ -260,7 +282,7 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
                   action sitting where "Full-time"/"Contract" belongs. An
                   unknown type is now just omitted, not papered over with a
                   confusing fallback label that isn't about employment type. */}
-                  {employmentTypeLabel(job.employment_type) && <span>{employmentTypeLabel(job.employment_type)}</span>}{salary && <span className="ayn-job-salary" title={salary.fromListingText ? "Read directly from this posting's own text." : undefined}>{salary.text}</span>}</div><PostingReceiptLine posting={job} /></div></div>
+                  {employmentTypeLabel(job.employment_type) && <span>{employmentTypeLabel(job.employment_type)}</span>}{salary && <span className="ayn-job-salary" title={salary.fromListingText ? "Read directly from this posting's own text." : undefined}>{salary.text}</span>}{matches && userId && account.scoreMap.has(job.id) && <span>{account.scoreMap.get(job.id) == null ? 'Match unavailable' : `${account.scoreMap.get(job.id)}% resume match`}</span>}</div><PostingReceiptLine posting={job} /></div></div>
         </button>
           );
         })}
@@ -280,8 +302,9 @@ export function JobsBrowser({ routeId, categorySlug, locationSlug, initialQuery 
           {selected.benefits && selected.benefits.length > 0 && <p className="ayn-source-note" title="Standard benefits this posting names in its own text.">Benefits named: {selected.benefits.join(' · ')}</p>}
           <div className="lp-browser-actions"><a href={/^https?:\/\//i.test(selected.apply_url) ? cleanApplyUrl(selected.apply_url) : undefined} target="_blank" rel="noopener noreferrer" className="lp-btn lp-btn-primary">Open application <ExternalLink size={16} /></a><button className="lp-btn lp-btn-ghost" onClick={() => { try { sessionStorage.setItem('ayn_check_jd', selected.description); } catch { /* checker remains usable */ } navigate('/check-resume'); }}>Check my fit</button><button className="lp-btn lp-btn-ghost" onClick={() => { try { void navigator.clipboard.writeText(`${window.location.origin}/jobs/${selected.id}`); } catch { /* clipboard unavailable */ } }}><Link2 size={16} /> Copy link</button></div>
           <p className="ayn-source-note">You apply on the employer’s own site.</p>
+          {userId && <div className="ayn-job-next"><h3>Prepare this application</h3><p>Keep this role, or open its saved workspace to tailor your resume and write a cover letter. Existing credit costs apply to paid tools.</p><div className="lp-browser-actions"><button className="lp-btn lp-btn-ghost" disabled={account.saving} onClick={() => account.saveJob(selected)}>{account.saving ? 'Saving…' : account.savedUrls.has(cleanApplyUrl(selected.apply_url)) ? 'Saved' : 'Save job'}</button><button className="lp-btn lp-btn-primary" disabled={account.saving} onClick={() => account.saveJob(selected, prepareJob)}>Tailor resume &amp; cover letter <ArrowRight size={16} /></button></div></div>}
           <div className="lp-browser-jd"><h3>About this role</h3><JobDescriptionBody text={selected.description} /></div>
-          {onStartFree && <div className="ayn-job-next"><h3>Make this application yours.</h3><p>Use your AYN profile to prepare a resume and cover letter for this role.</p><button className="lp-btn lp-btn-ghost" onClick={() => (signedIn ? navigate('/resume-hub') : onStartFree())}>Open my workspace <ArrowRight size={16} /></button></div>}
+          {!userId && onStartFree && <div className="ayn-job-next"><h3>Make this application yours.</h3><p>Use your AYN profile to prepare a resume and cover letter for this role.</p><button className="lp-btn lp-btn-ghost" onClick={onStartFree}>Open my workspace <ArrowRight size={16} /></button></div>}
         </article> : <div className="lp-browser-detail-empty">{selectedId ? <><p>This posting is no longer in AYN’s live catalog. Choose another role from the results.</p><PostingEvidencePanel jobId={selectedId} /></> : 'Choose a role to read its requirements and prepare your application.'}</div>}
       </div>
     </div>

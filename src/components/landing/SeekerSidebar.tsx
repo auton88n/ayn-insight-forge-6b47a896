@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, FileCheck2, FileText, Briefcase, Target, Inbox, ClipboardCheck, GraduationCap, Settings, Menu, PanelLeftClose, PanelLeftOpen, LogOut, LogIn, ChevronDown, Building2, LifeBuoy, Tag, type LucideIcon } from 'lucide-react';
+import { Search, FileCheck2, FileText, Briefcase, Inbox, ClipboardCheck, GraduationCap, Settings, Menu, PanelLeftClose, PanelLeftOpen, LogOut, LogIn, ChevronDown, Building2, LifeBuoy, Tag, type LucideIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthModal } from '@/components/auth/DeferredAuthModal';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -12,7 +12,6 @@ import type { User } from '@supabase/supabase-js';
 type Props = { activeTab?: HomeTabId; onSelectTab?: (tab: HomeTabId) => void };
 const WORKSPACE: { id: HomeTabId; label: string; icon: LucideIcon }[] = [
   { id: 'profile', label: 'Resume & profile', icon: FileText },
-  { id: 'matched-jobs', label: 'Job matches', icon: Target },
   { id: 'saved-jobs', label: 'Saved jobs', icon: Briefcase },
 ];
 const OPPORTUNITIES: typeof WORKSPACE = [
@@ -64,7 +63,7 @@ export function SeekerSidebar({ activeTab, onSelectTab }: Props) {
     <nav className="lp-sidebar-nav" aria-label={mobile ? 'Mobile navigation' : 'Main navigation'}>
       <div className="lp-sidebar-group">
         <button type="button" className={'lp-sidebar-link ' + ((isActive('search') || location.pathname.startsWith('/jobs')) ? 'is-active' : '')} onClick={() => selectTab('search')} title="Job search" aria-current={isActive('search') || location.pathname.startsWith('/jobs') ? 'page' : undefined}>
-          <Search size={18} className="lp-sidebar-link-icon" /><span className="lp-sidebar-link-label">Job search</span>
+          <Search size={18} className="lp-sidebar-link-icon" /><span className="lp-sidebar-link-label">Jobs</span>
         </button>
         <Link to="/check-resume" className={'lp-sidebar-link ' + (location.pathname === '/check-resume' ? 'is-active' : '')} title="Check my resume" aria-current={location.pathname === '/check-resume' ? 'page' : undefined}><FileCheck2 size={18} className="lp-sidebar-link-icon" /><span className="lp-sidebar-link-label">Check my resume</span></Link>
       </div>

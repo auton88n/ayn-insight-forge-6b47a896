@@ -1,5 +1,11 @@
 # Deployment & VPS operations
 
+## Unified Jobs release — 11 October 2026
+
+Frontend-only: deploy the shared Jobs browser, account hook, deferred discovery tools and matched-jobs alias together through the normal build. No migration, backend action, billing or OAuth change. Preserve prior dist assets for stale tabs. Back up dist/server and record the prior revision before release. Check public /jobs and /#search, signed-in My matches, the old #matched-jobs URL, missing-resume/sign-out states, filtered mobile navigation and save → existing tailoring workspace → return. Match ranking is limited to loaded results; do not market it as global catalog ranking. Rollback restores the previous frontend artifacts; saved rows use the unchanged schema and remain valid.
+
+Recovery backup: `/root/ayn-unified-jobs-backup.LiIL1Y` (`frontend-before.tgz`, prior revision `48ef517d`). Local checks: 282 unit tests, 35 full browser regressions plus the added matching-retry case (six unified-Jobs cases), three compiled-browser checks, frontend types/build/wiring and bundle budgets. Account journeys use isolated fixtures, not real paid requests. Verify live served assets and signed-in matching after deployment rather than treating fixture tests as production proof.
+
 ## Plain-English alert templates, 11 October 2026
 
 Deploy `error-alert-check`, `security-alert-check`, `admin-notifications` and `_shared/adminAlertCopy.ts` together. The three callers import the shared formatter; omitting it breaks alert delivery. This is backend-only, with no database migration or frontend rebuild needed. Back up those function directories and the shared module before a targeted release; restore them together on rollback. Verify module checks, deployed file hashes and unauthenticated refusal without generating fake incidents or sending test mail to real customers. Existing raw logs, recipients, schedules and severity thresholds remain unchanged.
