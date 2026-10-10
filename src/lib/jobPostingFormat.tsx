@@ -490,7 +490,9 @@ export function parseJobDescription(text: string): JdBlock[] {
     // Keep unknown HTML as text; never render a source string as live markup.
     const sourceLine = raw.trim();
     const markdownHeading = sourceLine.match(/^#{1,6}\s+(.+?)(?:\s+#+)?$/)?.[1];
-    const line = markdownHeading || sourceLine;
+    const boldHeading = sourceLine.match(/^(?:\*\*([^*]+)\*\*|__([^_]+)__)$/);
+    const headingCandidate = boldHeading?.[1] || boldHeading?.[2];
+    const line = markdownHeading || (headingCandidate && isJdHeading(headingCandidate) ? headingCandidate : sourceLine);
     if (!line) {
       flushPara();
       flushBullets();
@@ -535,7 +537,7 @@ export function JobDescriptionBody({ text }: { text: string }) {
         if (b.kind === "heading") {
           return (
             <h4 key={i} className="text-sm font-semibold text-foreground mt-4 mb-1 first:mt-0">
-              {b.text}
+              <JobInlineText text={b.text} />
             </h4>
           );
         }
@@ -543,17 +545,25 @@ export function JobDescriptionBody({ text }: { text: string }) {
           return (
             <ul key={i} className="list-disc pl-5 space-y-1 text-sm leading-relaxed text-foreground/90">
               {b.items.map((item, j) => (
-                <li key={j}>{item}</li>
+                <li key={j}><JobInlineText text={item} /></li>
               ))}
             </ul>
           );
         }
         return (
           <p key={i} className="text-sm leading-relaxed text-foreground/90">
-            {b.text}
+            <JobInlineText text={b.text} />
           </p>
         );
       })}
     </div>
   );
+}
+
+/** Narrow source emphasis support, with literal HTML/URLs remaining escaped. */
+function JobInlineText({ text }: { text: string }) {
+  return <>{text.split(/(\*\*[^*\n]+\*\*|__[^_\n]+__)/g).map((part, i) =>
+    /^(\*\*|__)/.test(part) && part.length > 4
+      ? <strong key={i}>{part.slice(2, -2)}</strong> : part
+  )}</>;
 }

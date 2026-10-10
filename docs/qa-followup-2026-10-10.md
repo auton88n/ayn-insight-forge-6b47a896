@@ -1,7 +1,20 @@
 # October 10 QA completion ledger
 
 This is implementation status, not a claim that every requested feature has shipped.
-Baseline production revision: `0c9793d7`. Current search/location changes are local.
+Latest verified production revision: `7eba4537` (GitHub and VPS checked in the preceding review). The original search/location/reading batch below was included in that shared Claude/Codex release; its historical “Local” rows describe the pre-release verification, not current deployment state. New document/record-label changes below are local and not deployed.
+
+## Latest presentation pass
+
+- Replaced Profile's plain-text resume block with a semantic document preview: name, section headings, bold role titles, dates, real bullet lists, projects and ungrouped skills. It uses the same pure block builder as Word exports, without importing DOCX/PDF download libraries.
+- Replaced the cover-letter code block with escaped, spaced paragraphs. Copy/download still use the original body. Reading layouts are not a claim of final Word pagination.
+- Admin overview, candidates, employers, money, marketplace, moderation, account details, support and SEO run status now use readable status/plan/reason labels. Storage keys and control values are unchanged; diagnostic identifiers remain available where needed.
+- Employer candidate seniority uses the existing readable label mapping. Job descriptions support explicit bold source emphasis without treating source HTML as executable markup.
+- Fixed ambiguous IN/CO/DE and other country/state codes being silently turned into US geography without explicit US/ZIP evidence. Unknown geography is retained, not guessed.
+- Verification: 267 unit tests; 27 browser tests including 1280px/390px document/report layouts; final frontend typecheck, production build and bundle budgets passed. The 12 job/presentation browser checks also passed after the source-emphasis adjustment. Existing act/dialog-description/PostCSS warnings remain. A duplicate import caught by typecheck during this pass was removed before final verification.
+- Actual local-browser desktop inspection of the document components used synthetic candidate text. Public route sampling from the prior pass included jobs/company pages, Insights, checker, salary guide, pricing, employers, help, about, contact and legal documents. Browser tests use mocked services and do not prove every live workflow.
+- Current live seeker and admin tabs both show sign-in gates. A prior signed-in Saved detail was inspected, but the complete current authenticated seeker/employer/admin visual pass remains blocked on user sign-in. No account creation, payment, email or personal-record mutation was performed.
+
+The London one-salary article was archived in `7eba4537`, and the company-location aggregate exists in production. This does not close the remaining search-feature work or prove every historical article's wording is correct.
 
 | Item | Status |
 | --- | --- |

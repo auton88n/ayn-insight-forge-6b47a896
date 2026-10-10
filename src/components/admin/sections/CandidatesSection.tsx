@@ -1,4 +1,5 @@
 // v3.20.0 CANDIDATES — talent pool health. Stale index is the silent killer.
+import { recordLabel } from '@/lib/recordLabel';
 import { useState } from 'react';
 import { useAdminCandidates, useMarkCandidatesStale, useAdminJobSeekers } from '@/admin-app/hooks/useAdminQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -131,7 +132,7 @@ function AllJobSeekers() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{r.display_name} <span className="text-muted-foreground font-normal">· {r.email}</span></p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Joined {when(r.signed_up_at)} · last sign-in {when(r.last_sign_in_at)} · {r.plan_key} · {r.credits} credits
+                      Joined {when(r.signed_up_at)} · last sign-in {when(r.last_sign_in_at)} · {recordLabel(r.plan_key)} · {r.credits} credits
                       · {r.has_resume ? 'resume on file' : 'no resume'} · {r.saved_jobs} saved jobs
                     </p>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">

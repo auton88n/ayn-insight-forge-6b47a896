@@ -1,6 +1,21 @@
 import { test, expect } from '@playwright/test';
 
 for (const width of [1280, 390]) {
+  test(`resume and letter reading layouts remain structured at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    const requests: string[] = [];
+    page.on('request', r => requests.push(r.url()));
+    await page.goto('/tests/browser/fixtures/documents.html');
+    const resume = page.getByRole('article', { name: 'Resume preview' });
+    await expect(resume.getByRole('heading', { name: 'EXPERIENCE' })).toBeVisible();
+    await expect(resume.getByRole('listitem')).toHaveCount(2);
+    await expect(resume.getByText('Git', { exact: true })).toBeVisible();
+    await expect(page.getByRole('article', { name: 'Cover letter preview' }).locator('p')).toHaveCount(4);
+    await expect(page.locator('pre')).toHaveCount(0);
+    expect(await resume.getByRole('heading', { name: 'EXPERIENCE' }).evaluate(e => getComputedStyle(e).fontWeight)).toBe('700');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(requests.some(url => /(?:node_modules|deps).*\/(?:docx|jspdf)/i.test(url))).toBe(false);
+  });
   test(`report typography, lists and tables remain readable at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.route('**/*', route => {

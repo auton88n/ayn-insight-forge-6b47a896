@@ -39,6 +39,7 @@ const GuidedIntake = lazy(() => import('./GuidedIntake'));
 const GapProbeDialog = lazy(() => import('./GapProbeDialog'));
 import { classifyProbableIssue, type ProbeTarget } from "@/lib/gapProbe";
 import { resumeHubApi, type ResumeContent, type TalentPoolStatus, type GuidedIntakeExtraction, type GapProbeResult } from "@/lib/resumeHub";
+import { ResumeDocumentPreview } from '@/components/shared/DocumentPreview';
 import { reindexTalentPool, setPoolOptInCache } from "@/lib/talentPoolSync";
 import { downloadBlob, fileBase, resumeToText } from "@/lib/resumeText";
 const ResumeDiffViewer = lazy(() => import('./ResumeDiffViewer'));
@@ -909,8 +910,8 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
 
         {resumeContent && <details open className="mt-4 border-t pt-4 ayn-document-preview">
           <summary className="cursor-pointer text-sm font-medium">Read your current resume</summary>
-          <p className="text-xs text-muted-foreground mt-2">Text preview. Download the Word document to check pagination and final layout.</p>
-          <pre className="mt-3 whitespace-pre-wrap break-words font-sans text-sm leading-relaxed max-h-[32rem] overflow-y-auto p-4 bg-background border rounded-md">{resumeToText(resumeContent)}</pre>
+          <p className="text-xs text-muted-foreground mt-2">Reading preview. Download the Word document to check pagination and final layout.</p>
+          <div className="mt-3 max-h-[32rem] overflow-y-auto" tabIndex={0} role="region" aria-label="Current resume document"><ResumeDocumentPreview content={resumeContent} /></div>
         </details>}
         {resumeContent && resumeHistory.length > 0 && <details className="mt-4 border-t pt-4" onToggle={event => setCompareOpen(event.currentTarget.open)}>
           <summary className="cursor-pointer text-sm font-medium">Compare with your previous version</summary>

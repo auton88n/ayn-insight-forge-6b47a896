@@ -4,7 +4,7 @@
 
 `content-engine/grounding.ts` `applySalaryFloor`: fewer than 10 USD salary-stating postings removes every pay figure from the data given to the model and stored in `source_data`, and a salary report with no usable sample is skipped, not published. Reported pay is labelled as annual USD midpoints. Found because `salary-sales-london` published a "median" from one salary; that article was archived (not deleted) and can be regenerated only once the city has enough pay data.
 
-## Reading presentation, 10 October 2026 (local, not deployed)
+## Reading presentation, 10 October 2026 (deployed in 7eba4537)
 
 Insights and legal Markdown use explicit scoped `.ayn-reading` typography in `src/index.css` rather than the undefined Tailwind `prose` plugin. Paragraphs, heading hierarchy, lists, links, quotes and code are styled; Insights tables use a keyboard-focusable local scrolling wrapper. Legal anchors, version text, contents and print styles remain. Markdown HTML is not enabled, source text and legal wording are unchanged. `tests/browser/presentation.spec.ts` checks desktop/mobile typography, list markers, tables, HTML escaping and legal paragraph spacing. Job search controls retain AYN colors with consistent field spacing and 44px controls. No new dependency, backend writer, credit or consent behavior is added.
 

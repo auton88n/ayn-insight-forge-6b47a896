@@ -1610,3 +1610,16 @@ html { scrollbar-gutter: stable; }
   .legal-table-wrap { overflow: visible; }
   @page { margin: 18mm 16mm; }
 }
+/* Document reading surfaces: preserve content, not code-block presentation. */
+.ayn-document-sheet {
+  background: #fff; color: #241e1a; border: 1px solid #d9d1c9;
+  border-radius: 8px; padding: clamp(1rem, 4vw, 2.5rem);
+  font-size: 0.9375rem; line-height: 1.65; overflow-wrap: anywhere;
+  max-width: 48rem; margin-inline: auto;
+}
+.ayn-document-sheet p { margin: 0 0 0.8rem; }
+.ayn-document-sheet .ayn-document-name { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.5rem; }
+.ayn-document-sheet .ayn-document-heading { font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.06em; margin: 1.5rem 0 0.65rem; padding-bottom: 0.35rem; border-bottom: 1px solid #d9d1c9; }
+.ayn-document-sheet .ayn-document-contact, .ayn-document-sheet .ayn-document-date { color: #655c53; font-size: 0.8125rem; }
+.ayn-document-sheet ul { list-style: disc; padding-left: 1.25rem; margin: 0 0 1rem; }
+.ayn-document-sheet li { padding-left: 0.15rem; margin: 0.35rem 0; }

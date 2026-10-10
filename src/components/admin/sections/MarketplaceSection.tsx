@@ -1,5 +1,6 @@
 // v3.20.0 MARKETPLACE — proposals and assessments, the two things that matter.
 import { useAdminMarketplace } from '@/admin-app/hooks/useAdminQuery';
+import { recordLabel } from '@/lib/recordLabel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SectionHeader, Stat, LoadingBlock, ErrorBlock, EmptyRow, when } from './ui';
@@ -61,7 +62,7 @@ export default function MarketplaceSection() {
                       <p className="text-sm font-medium truncate">{r.job_title || 'Untitled role'}</p>
                       <p className="text-xs text-muted-foreground">{r.company} · {when(r.created_at)}</p>
                     </div>
-                    <Badge variant="secondary" className="shrink-0 text-[10px] uppercase">{r.status}</Badge>
+                    <Badge variant="secondary" className="shrink-0 text-[10px]" title={r.status}>{recordLabel(r.status)}</Badge>
                   </div>
                 ))}
               </div>

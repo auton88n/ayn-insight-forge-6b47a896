@@ -1,5 +1,6 @@
 // v3.20.0 MONEY — real Stripe-backed subscriptions, credits and AI cost.
 import { useAdminMoney } from '@/admin-app/hooks/useAdminQuery';
+import { recordLabel } from '@/lib/recordLabel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SectionHeader, Stat, LoadingBlock, ErrorBlock, EmptyRow, money, when } from './ui';
@@ -49,9 +50,9 @@ export default function MoneySection() {
                   <div key={f.user_id} className="px-5 py-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{f.email}</p>
-                      <p className="text-xs text-muted-foreground">{f.plan_key} · period ends {when(f.current_period_end)}</p>
+                      <p className="text-xs text-muted-foreground" title={f.plan_key}>{recordLabel(f.plan_key)} · period ends {when(f.current_period_end)}</p>
                     </div>
-                    <Badge variant="destructive" className="text-[10px] uppercase shrink-0">{f.status}</Badge>
+                    <Badge variant="destructive" className="text-[10px] shrink-0" title={f.status}>{recordLabel(f.status)}</Badge>
                   </div>
                 ))}
               </div>
@@ -86,7 +87,7 @@ export default function MoneySection() {
                   <div key={l.id} className="px-5 py-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm truncate">{l.email}</p>
-                      <p className="text-xs text-muted-foreground">{l.reason} · {when(l.created_at)}</p>
+                      <p className="text-xs text-muted-foreground" title={l.reason}>{recordLabel(l.reason)} · {when(l.created_at)}</p>
                     </div>
                     <span className={`text-sm font-semibold shrink-0 ${Number(l.delta) < 0 ? 'text-muted-foreground' : 'text-primary'}`}>
                       {Number(l.delta) > 0 ? '+' : ''}{l.delta}

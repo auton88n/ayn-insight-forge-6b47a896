@@ -1,5 +1,6 @@
 // v3.20.0 EMPLOYERS — the approval queue is the only gate into the pool.
 import { useState } from 'react';
+import { recordLabel } from '@/lib/recordLabel';
 import { useAdminEmployers, useEmployerAction } from '@/admin-app/hooks/useAdminQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -98,7 +99,7 @@ export default function EmployersSection() {
               <div className="min-w-0">
                 <div className="font-semibold flex items-center gap-2">
                   {e.company_name || 'Unnamed company'}
-                  <Badge variant="secondary" className="text-[10px] uppercase">{e.status}</Badge>
+                  <Badge variant="secondary" className="text-[10px]" title={e.status}>{recordLabel(e.status)}</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">{e.requester_email}</p>
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -121,8 +122,8 @@ export default function EmployersSection() {
                           ? <span className="text-destructive">Free trial ended {when(e.trial_ends_at)}. Still approved; they have not moved to a paid plan.</span>
                           : `Free trial until ${when(e.trial_ends_at)}`;
                       }
-                      if (e.sub_status === 'active') return `${e.plan_name || e.plan_key}, renews ${when(e.current_period_end)}`;
-                      return `${e.plan_name || e.plan_key}${e.sub_status ? ` (${e.sub_status})` : ''}, period ends ${when(e.current_period_end)}`;
+                      if (e.sub_status === 'active') return `${e.plan_name || recordLabel(e.plan_key)}, renews ${when(e.current_period_end)}`;
+                      return `${e.plan_name || recordLabel(e.plan_key)}${e.sub_status ? ` (${recordLabel(e.sub_status)})` : ''}, period ends ${when(e.current_period_end)}`;
                     })()}
                   </p>
                   <p className="text-muted-foreground">

@@ -1,4 +1,5 @@
 // v3.20.0 OVERVIEW — the one screen that answers "is the product alive".
+import { recordLabel } from '@/lib/recordLabel';
 import { useAdminOverview, useAdminActivationFunnel, useAdminSignupHealth } from '@/admin-app/hooks/useAdminQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -177,7 +178,7 @@ export default function OverviewSection({ onGoto }: { onGoto: (id: string) => vo
             <div className="flex flex-wrap gap-2">
               {(d.employers_by_plan as any[]).map(p => (
                 <Badge key={p.plan_key} variant="secondary" className="text-xs px-3 py-1.5">
-                  {p.plan_key} · {p.n}
+                  {recordLabel(p.plan_key)} · {p.n}
                 </Badge>
               ))}
             </div>

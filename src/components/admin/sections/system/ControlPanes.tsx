@@ -1,6 +1,7 @@
 // v3.23.0 — admin controls that were missing: moderation of what employers send,
 // feature kill switches, and credit adjustments with a read only user snapshot.
 // Every pane calls a real admin-only RPC. Nothing here is decorative.
+import { recordLabel } from '@/lib/recordLabel';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,7 +64,7 @@ export function ModerationPane() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant={p.status === 'pending' ? 'default' : 'secondary'} className="text-[10px] capitalize">{p.status}</Badge>
+                    <Badge variant={p.status === 'pending' ? 'default' : 'secondary'} className="text-[10px] capitalize">{recordLabel(p.status)}</Badge>
                     {p.status === 'pending' && (
                       <Button
                         size="sm"
@@ -100,7 +101,7 @@ export function ModerationPane() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant="secondary" className="text-[10px] capitalize">{a.status}</Badge>
+                  <Badge variant="secondary" className="text-[10px] capitalize">{recordLabel(a.status)}</Badge>
                   {(a.status === 'sent' || a.status === 'started') && (
                     <Button
                       size="sm"
@@ -298,7 +299,7 @@ export function CreditsPane() {
                 <>
                   <Line k="Email" v={snap.email || '—'} />
                   <Line k="Credits" v={String(snap.credits ?? 0)} />
-                  <Line k="Plan" v={snap.subscription?.plan_key ? `${snap.subscription.plan_key} / ${snap.subscription.status}` : 'none'} />
+                  <Line k="Plan" v={snap.subscription?.plan_key ? `${recordLabel(snap.subscription.plan_key)} · ${recordLabel(snap.subscription.status)}` : 'none'} />
                   <Line k="Proposals" v={String(snap.proposals ?? 0)} />
                   <Line k="Assessments" v={String(snap.assessments ?? 0)} />
                   <Line k="Discoverable" v={snap.discoverable ? 'Yes' : 'No'} />

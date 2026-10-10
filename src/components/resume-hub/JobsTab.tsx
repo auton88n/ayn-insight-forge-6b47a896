@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
+import { LetterDocumentPreview } from '@/components/shared/DocumentPreview';
 import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Download, X, ArrowLeft, Search } from "lucide-react";
 import { resumeToText, downloadBlob, fileBase } from "@/lib/resumeText";
 const ResumeDiffViewer = lazy(() => import('./ResumeDiffViewer'));
@@ -885,7 +886,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
                         <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(cover.body); toast({ title: "Copied" }); }}>Copy</Button>
                       </div>
                     </div>
-                    <pre className="text-sm whitespace-pre-wrap font-sans max-h-72 overflow-auto">{cover.body}</pre>
+                    <div className="max-h-96 overflow-auto" tabIndex={0} role="region" aria-label="Cover letter document"><LetterDocumentPreview text={cover.body} /></div>
                   </div>
                 )}
               </Card>

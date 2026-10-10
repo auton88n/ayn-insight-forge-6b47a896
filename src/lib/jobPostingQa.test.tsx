@@ -8,6 +8,15 @@ import { jobCopy } from './jobCopy';
 import { jobAvailability } from './jobAvailability';
 afterEach(cleanup);
 
+it('formats explicit source emphasis without executing HTML or inventing links', () => {
+  const { container } = render(<JobDescriptionBody text={'**Requirements**\n\n- Experience with **Python** and __SQL__.\n\n<script>bad()</script>'} />);
+  expect(screen.getByRole('heading', { name: 'Requirements' })).toBeVisible();
+  expect(container.querySelector('li strong')?.textContent).toBe('Python');
+  expect(container.textContent).not.toContain('**');
+  expect(container.textContent).toContain('<script>bad()</script>');
+  expect(container.querySelector('script')).toBeNull();
+});
+
 it('separates live, removed and unverified saved jobs without assuming manual jobs are live', () => {
   expect(jobAvailability('job_board', 'live')).toBe('live');
   expect(jobAvailability('job_board', 'taken_down')).toBe('gone');

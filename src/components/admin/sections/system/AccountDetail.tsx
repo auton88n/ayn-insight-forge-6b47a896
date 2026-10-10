@@ -2,6 +2,7 @@
 // Read only picture of the person on the left, moderation on the right.
 // Nothing here signs in as anyone, and nothing reads assessment results.
 // v3.29.0 adds per account limit overrides and the erase and purge levers.
+import { recordLabel } from '@/lib/recordLabel';
 import { useEffect, useState } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -152,7 +153,7 @@ export function AccountDetailDialog({
                       if (!w) return <Field label="Status" value="Never queued" />;
                       return (
                         <>
-                          <Field label="Status" value={w.status === 'skipped' ? 'Not sent (account existed before welcome emails)' : w.status} />
+                          <Field label="Status" value={w.status === 'skipped' ? 'Not sent (account existed before welcome emails)' : recordLabel(w.status)} />
                           {w.delivery_status && <Field label="Delivery" value={w.delivery_status} />}
                           {w.sent_at && <Field label="Sent" value={when(w.sent_at)} />}
                           {w.attempts > 0 && <Field label="Attempts" value={w.attempts} />}
@@ -219,7 +220,7 @@ export function AccountDetailDialog({
                     <Field label="Account type" value={d.account_role} />
                     <Field label="Employer status" value={d.employer_status || 'Not an employer'} />
                     <Field label="Company" value={d.company_name || '—'} />
-                    <Field label="Plan" value={`${d.plan_key}${d.sub_status ? ` / ${d.sub_status}` : ''}`} />
+                    <Field label="Plan" value={`${recordLabel(d.plan_key)}${d.sub_status ? ` · ${recordLabel(d.sub_status)}` : ''}`} />
                   </CardContent>
                 </Card>
 

@@ -11,6 +11,7 @@
  * appear in the Sent list, and only after the candidate accepted.
  */
 import { useCallback, useEffect, useState } from "react";
+import { seniorityLabel } from '@/lib/jobPostingFormat';
 import { useNavigate } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -787,7 +788,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 </DialogTitle>
                 <DialogDescription className="flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5" />
-                  {[open.seniority, open.years_experience != null ? `${open.years_experience} years` : "", open.location]
+                  {[seniorityLabel(open.seniority), open.years_experience != null ? `${open.years_experience} years` : "", open.location]
                     .filter(Boolean).join(" · ") || "No location given"}
                 </DialogDescription>
 

@@ -1,5 +1,11 @@
 # Resume Hub map (web app + resume-hub backend)
 
+### Document presentation follow-up — 10 October (local)
+
+Job descriptions render explicitly paired bold Markdown as emphasis and recognize bold known section headings. This is a narrow escaped-text renderer, not a raw HTML or general Markdown interpreter; source URLs never become arbitrary active HTML.
+
+`resumeBlocks.ts` holds the existing pure document block builder formerly private in `resumeDocs.ts`. Word export and the structured screen preview consume the identical blocks, retaining projects, dates, ungrouped skills, licenses-before-education and literal escaped text. No DOCX/PDF library is imported by the preview. `DocumentPreview.tsx` renders resume sections and real bullet lists, and cover letters as escaped paragraphs; the screen explicitly does not claim final pagination. Downloads, billing, saving and original content are unchanged. Admin labels use display-only `recordLabel`; original keys remain in tooltips and API calls. Ambiguous country/state codes (including IN/CO/DE) stay unchanged without explicit US/ZIP context rather than inventing US geography.
+
 ### Search/location follow-up — local until release verification
 
 `src/lib/jobLocation.mjs` is a pure formatter shared by React and server-rendered public HTML, with `.d.mts` declarations. Original source locations are not overwritten. Known country/state spellings, uppercase cities, ZIPs, numeric store identifiers and explicit facility labels are tidied; unknown places and ambiguous CA/WA without US context remain explicit. Location work modes render separately; an "or remote" alternative does not establish a remote-only role. This is not a geocoder or a complete worldwide place database. Title suffix removal still requires an exact normalized location match.

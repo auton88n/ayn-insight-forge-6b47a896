@@ -17,6 +17,9 @@ const states = Object.fromEntries([
   'VA:Virginia','WA:Washington','WV:West Virginia','WI:Wisconsin','WY:Wyoming','DC:District of Columbia',
 ].map(pair => pair.split(':')));
 const modePattern = /\b(remote|hybrid|on[ -]?site)\b/ig;
+// These state abbreviations also identify countries (or non-US regions).
+// Without an explicit US country, ZIP or spelled-out state, retain the code.
+const ambiguousRegions = new Set('AL AR AZ CA CO DE GA ID IL IN KY LA MA MD ME MN MO MS MT NC NE PA SC SD TN VA WA'.split(' '));
 export function locationWorkMode(raw) {
   const modes = [...(raw || '').matchAll(modePattern)].map(m => m[1].toLowerCase().replace(/[ -]/g, ''));
   const unique = [...new Set(modes)];
@@ -46,7 +49,7 @@ function singlePlace(raw) {
   let usRegion = false;
   parts = parts.map((p, i) => {
     const state = states[p.toUpperCase()] || Object.values(states).find(s => s.toLowerCase() === p.toLowerCase());
-    const ambiguousRegion = ['CA', 'WA'].includes(p.toUpperCase());
+    const ambiguousRegion = ambiguousRegions.has(p.toUpperCase());
     if (state && !hasOtherCountry && (hasUS || i > 0) && (!ambiguousRegion || hasUS || hasUSZip || p.length > 2)) { usRegion = true; return state; }
     return countries[p.toLowerCase().replace(/\./g, '')] || placeCase(p);
   });

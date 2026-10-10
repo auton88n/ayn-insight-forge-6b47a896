@@ -1,5 +1,6 @@
 // v3.22.0 — SYSTEM panes, written for AYN as it is now. Every pane reads a real
 // admin RPC. Nothing here is a placeholder.
+import { recordLabel } from '@/lib/recordLabel';
 import { AccountDetailDialog } from './AccountDetail';
 import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -124,7 +125,7 @@ export function AccountsPane() {
             </Cell>
             <Cell><ProviderBadge provider={r.provider} last={r.last_sign_in_method} /></Cell>
             <Cell><WelcomeBadge status={r.welcome_status} delivery={r.welcome_delivery} /></Cell>
-            <Cell mono>{r.plan_key}{r.sub_status ? ` / ${r.sub_status}` : ''}</Cell>
+            <Cell>{recordLabel(r.plan_key)}{r.sub_status ? ` · ${recordLabel(r.sub_status)}` : ''}</Cell>
             <Cell mono>{r.credits}</Cell>
             <Cell>{r.discoverable ? <span className="text-primary font-medium">Yes</span> : <span className="text-muted-foreground">No</span>}</Cell>
             <Cell>{when(r.signed_up_at)}</Cell>
@@ -220,7 +221,7 @@ export function SupportPane() {
               <div>{t.display_name}</div>
               <div className="text-xs text-muted-foreground">{t.email}</div>
             </Cell>
-            <Cell><Badge variant="secondary" className="text-[10px]">{t.status}</Badge></Cell>
+            <Cell><Badge variant="secondary" className="text-[10px]">{recordLabel(t.status)}</Badge></Cell>
             <Cell mono>{t.priority}</Cell>
             <Cell>{when(t.updated_at)}</Cell>
             <Cell mono>{t.reply_count}</Cell>

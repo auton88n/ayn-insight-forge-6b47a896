@@ -3,6 +3,7 @@
 // the Search Console and speed cards are readings stored by
 // scripts/seo-snapshot.py (read only here, with the date they were taken).
 // Everything else is live from the database.
+import { recordLabel } from '@/lib/recordLabel';
 import { useAdminSeo, useSeoAction } from '@/admin-app/hooks/useAdminQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -161,7 +162,7 @@ export default function SeoSection() {
               <div className="flex gap-2 flex-wrap">
                 {runs.map((r) => (
                   <Badge key={r.started_at} variant={r.status === 'succeeded' ? 'secondary' : 'destructive'}>
-                    {when(r.started_at)} · {r.status}
+                    {when(r.started_at)} · {recordLabel(r.status)}
                   </Badge>
                 ))}
               </div>
