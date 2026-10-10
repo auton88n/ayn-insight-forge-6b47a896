@@ -1,7 +1,8 @@
 // v3.159.0 — npm: specifier, see job-board-sync's identical comment.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders as getCorsHeadersFn } from "../_shared/cors.ts";
-import { wrapEmail, heading, para, escapeHtml, sendBrandedEmail } from "../_shared/emailTemplate.ts";
+import { sendBrandedEmail } from "../_shared/emailTemplate.ts";
+import { buildErrorAlertEmail } from "../_shared/adminAlertCopy.ts";
 
 const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
@@ -75,37 +76,7 @@ Deno.serve(async (req) => {
     if (shouldAlert && !cooldownActive && errors.length > 0) {
       const notifyEmail = Deno.env.get("NOTIFICATION_EMAIL");
       if (notifyEmail) {
-        // Dedupe to distinct (endpoint, message) pairs so a single loop
-        // failing on every request doesn't read as 50 unrelated problems.
-        const byKey = new Map<string, { endpoint: string; message: string; count: number; severity: string }>();
-        for (const r of errors) {
-          const key = `${r.endpoint || r.source || "unknown"}::${r.error_message}`;
-          const existing = byKey.get(key);
-          if (existing) existing.count++;
-          else byKey.set(key, {
-            endpoint: r.endpoint || r.source || "unknown",
-            message: r.error_message,
-            count: 1,
-            severity: r.severity,
-          });
-        }
-        const distinct = Array.from(byKey.values()).sort((a, b) => b.count - a.count).slice(0, 10);
-
-        const rowsHtml = distinct.map(d => para(
-          `<strong>${escapeHtml(d.endpoint)}</strong>${d.count > 1 ? ` (${d.count}×)` : ""}: ${escapeHtml(d.message.slice(0, 200))}`,
-          { muted: d.severity !== "critical" },
-        )).join("");
-
-        const subject = criticalCount >= 1
-          ? `AYN alert: ${criticalCount} critical error${criticalCount === 1 ? "" : "s"}`
-          : `AYN alert: ${errorCount} errors in the last check window`;
-
-        const html = wrapEmail(
-          heading("Something needs a look") +
-          para(`${errorCount} error${errorCount === 1 ? "" : "s"} logged since the last check (${new Date(since).toLocaleString()}).`) +
-          rowsHtml,
-          ["The AYN system"],
-        );
+        const { subject, html } = buildErrorAlertEmail(errors);
 
         const sendResult = await sendBrandedEmail(notifyEmail, subject, html);
         await admin.from("email_logs").insert({

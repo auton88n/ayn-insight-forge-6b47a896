@@ -20,7 +20,8 @@
 // This function requires an exact match against the real service-role key,
 // the same hardened pattern error-alert-check already uses.
 import { corsHeaders as getCorsHeadersFn } from "../_shared/cors.ts";
-import { wrapEmail, heading, para, escapeHtml, sendBrandedEmail } from "../_shared/emailTemplate.ts";
+import { sendBrandedEmail } from "../_shared/emailTemplate.ts";
+import { buildSecurityAlertEmail } from "../_shared/adminAlertCopy.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
 const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
@@ -42,8 +43,6 @@ Deno.serve(async (req) => {
       type = "security_alert",
       action = "unknown",
       severity = "high",
-      details = {},
-      ip_address = null,
       created_at = new Date().toISOString(),
     } = body as {
       type?: string; action?: string; severity?: string;
@@ -56,25 +55,7 @@ Deno.serve(async (req) => {
 
     let alerted = false;
     if (notifyEmail) {
-      const isCritical = severity === "critical";
-      const subject = isCritical
-        ? `AYN security alert: ${action}`
-        : `AYN security notice: ${action}`;
-
-      // details is attacker-adjacent data in some cases (it can echo back
-      // fields from a request that triggered the event) -- escape before
-      // it ever reaches the HTML body, the same discipline admin-broadcast
-      // was fixed to use for exactly this reason.
-      const detailsText = escapeHtml(JSON.stringify(details).slice(0, 1000));
-
-      const html = wrapEmail(
-        heading(isCritical ? "Critical security event" : "Security event") +
-        para(`<strong>${escapeHtml(action)}</strong> (${escapeHtml(severity)})`) +
-        para(`Time: ${escapeHtml(new Date(created_at).toLocaleString())}`, { muted: true }) +
-        (ip_address ? para(`IP: ${escapeHtml(ip_address)}`, { muted: true }) : "") +
-        para(`<code style="font-size:12px">${detailsText}</code>`, { muted: true }),
-        ["The AYN system"],
-      );
+      const { subject, html } = buildSecurityAlertEmail([{ action, severity, created_at }]);
 
       const sendResult = await sendBrandedEmail(notifyEmail, subject, html);
       alerted = sendResult.ok;

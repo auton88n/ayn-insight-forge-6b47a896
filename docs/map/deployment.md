@@ -1,5 +1,11 @@
 # Deployment & VPS operations
 
+## Plain-English alert templates, 11 October 2026
+
+Deploy `error-alert-check`, `security-alert-check`, `admin-notifications` and `_shared/adminAlertCopy.ts` together. The three callers import the shared formatter; omitting it breaks alert delivery. This is backend-only, with no database migration or frontend rebuild needed. Back up those function directories and the shared module before a targeted release; restore them together on rollback. Verify module checks, deployed file hashes and unauthenticated refusal without generating fake incidents or sending test mail to real customers. Existing raw logs, recipients, schedules and severity thresholds remain unchanged.
+
+The VPS-only `/root/auto_deploy.sh` omitted `security-alert-check` and `admin-notifications` before this release. Add their existing `index.ts` copy steps alongside `error-alert-check` so later full deployments update all three callers with `_shared`. No credentials or runtime settings need changing.
+
 ## Stale-tab recovery — 10 October (local)
 
 Missing /assets paths return text/plain 404 with no-store, never the SPA shell. If sessionStorage is unavailable, automatic recovery is disabled to avoid a reload loop; the explicit Reload button remains available. CI's existing test:seo gate now includes the bounded asset-retention regression.

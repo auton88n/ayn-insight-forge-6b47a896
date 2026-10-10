@@ -9,7 +9,8 @@
 // same cooldown shape) almost exactly.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders as getCorsHeadersFn } from "../_shared/cors.ts";
-import { wrapEmail, heading, para, escapeHtml, sendBrandedEmail } from "../_shared/emailTemplate.ts";
+import { sendBrandedEmail } from "../_shared/emailTemplate.ts";
+import { buildSecurityAlertEmail } from "../_shared/adminAlertCopy.ts";
 
 const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
@@ -97,25 +98,10 @@ Deno.serve(async (req) => {
     if (shouldAlert && !cooldownActive) {
       const notifyEmail = Deno.env.get("NOTIFICATION_EMAIL");
       if (notifyEmail) {
-        const criticalHtml = critical.slice(0, 5).map((r) => para(
-          `<strong>${escapeHtml(r.action)}</strong>: critical${r.ip_address ? ` from ${escapeHtml(r.ip_address)}` : ""}`,
-        )).join("");
-
-        const burstHtml = bursts.slice(0, 10).sort((a, b) => b.count - a.count).map((b) => para(
-          `<strong>${escapeHtml(b.key)}</strong>: ${b.count} events (${escapeHtml(Array.from(b.actions).join(", "))})`,
-          { muted: b.severity !== "high" && b.severity !== "critical" },
-        )).join("");
-
-        const subject = critical.length > 0
-          ? `AYN security alert: ${critical.length} critical event${critical.length === 1 ? "" : "s"}`
-          : `AYN security alert: a real pattern detected (${bursts.length} source${bursts.length === 1 ? "" : "s"})`;
-
-        const html = wrapEmail(
-          heading("Something needs a look") +
-          (critical.length > 0 ? para(`${critical.length} critical security event${critical.length === 1 ? "" : "s"} since ${new Date(since).toLocaleString()}.`) + criticalHtml : "") +
-          (bursts.length > 0 ? para(`${bursts.length} source${bursts.length === 1 ? "" : "s"} hit ${BURST_THRESHOLD}+ security events in this window:`) + burstHtml : ""),
-          ["The AYN system"],
-        );
+        const burstKeys = new Set(bursts.map(b => b.key));
+        const detected = all.filter(r => r.severity === "critical" ||
+          (!ROUTINE_ACTIONS.has(r.action) && burstKeys.has(r.user_id ? `user:${r.user_id}` : `ip:${r.ip_address}`)));
+        const { subject, html } = buildSecurityAlertEmail(detected, bursts.length > 0);
 
         const sendResult = await sendBrandedEmail(notifyEmail, subject, html);
         await admin.from("email_logs").insert({
