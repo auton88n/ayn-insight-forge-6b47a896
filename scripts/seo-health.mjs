@@ -22,7 +22,9 @@ export function inspectArticle(html, url) {
   }
   if (!/<h1\b[^>]*>[^<]+<\/h1>/i.test(article)) issues.push({ severity: 'warning', code: 'h1_missing', url });
   const words = article.replace(/<script\b[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;|&#\d+;/gi, ' ').split(/\s+/).filter(Boolean).length;
-  if (words < 450) issues.push({ severity: 'warning', code: 'thin_article', url, detail: `${words} visible words` });
+  // Detect near-empty bodies, not enforce artificial 450-word SEO padding.
+  // This warning is a review prompt, not a Google ranking/quality verdict.
+  if (words < 80) issues.push({ severity: 'warning', code: 'thin_article', url, detail: `${words} visible words; review for missing report content` });
   const scripts = [...html.matchAll(/<script\s+type=["']application\/ld\+json["']\s*>([\s\S]*?)<\/script>/gi)];
   const schemas = [];
   for (const script of scripts) {

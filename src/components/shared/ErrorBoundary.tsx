@@ -5,6 +5,12 @@ import { reportClientError } from '@/lib/errorReporting';
 
 const AYN_MARK = '/ayn-mark.svg';
 
+/** One retry per minute, not one retry for the lifetime of a browser tab. */
+export function canRecoverStaleChunk(stored: string | null, now = Date.now()): boolean {
+  const last = Number(stored);
+  return !Number.isFinite(last) || last <= 1 || now - last > 60_000;
+}
+
 // Shared by componentDidCatch and render so the two checks can never drift
 // apart the way they just did (render's copy never got the MIME-type fix).
 export function isStaleChunkError(message: string): boolean {
@@ -76,13 +82,13 @@ export class ErrorBoundary extends Component<Props, State> {
         : 'ayn_auto_reload_stale_chunk';
 
       try {
-        if (!sessionStorage.getItem(key)) {
-          sessionStorage.setItem(key, '1');
+        if (canRecoverStaleChunk(sessionStorage.getItem(key))) {
+          sessionStorage.setItem(key, String(Date.now()));
           window.location.reload();
         }
       } catch {
-        // If sessionStorage is unavailable, still attempt a single reload.
-        window.location.reload();
+        // Without persistent loop protection, leave recovery to the explicit
+        // Reload button rather than repeatedly discarding the user's page.
       }
     }
   }
@@ -120,7 +126,9 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="space-y-1.5">
               <h1 className="text-xl font-bold tracking-tight text-foreground">Oops! AYN hit a snag</h1>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Something unexpected happened, but don't worry, we've got this. Let's get you back on track.
+                {isAutoReloadError
+                  ? 'A newer version of AYN may be available. Reload to load the current page. Unsaved edits may be lost.'
+                  : 'This page could not be displayed. Try again, or reload if the problem continues.'}
               </p>
             </div>
             {isDev && this.state.error && (

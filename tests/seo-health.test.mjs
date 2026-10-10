@@ -9,6 +9,7 @@ const articleHtml = `<!doctype html><html><head><link rel="canonical" href="${ar
 test('extracts sitemap URLs and flags a thin article', () => {
   assert.deepEqual(sitemapUrls(`<urlset><url><loc>${articleUrl}</loc></url></urlset>`), [articleUrl]);
   assert.deepEqual(inspectArticle(articleHtml, articleUrl), []);
+  assert.deepEqual(inspectArticle(articleHtml.replace('Useful evidence. '.repeat(230), 'Concise catalog evidence. '.repeat(40)), articleUrl), []);
   assert.ok(inspectArticle(articleHtml.replace('Useful evidence. '.repeat(230), 'Thin.'), articleUrl).some((issue) => issue.code === 'thin_article'));
 });
 

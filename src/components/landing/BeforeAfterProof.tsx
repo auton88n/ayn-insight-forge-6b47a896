@@ -8,17 +8,17 @@
 import { memo } from 'react';
 
 const BEFORE = [
-  'Responsible for various marketing tasks.',
-  'Worked with different teams on projects.',
-  'Helped improve company processes.',
+  'Responsible for email campaigns to 40,000 subscribers.',
+  'Worked with product and design teams on three launches.',
+  'Helped reduce onboarding time from nine days to four.',
 ];
 
 type Line = { pre: string; mark: string; post: string };
 
 const AFTER: Line[] = [
-  { pre: 'Ran ', mark: 'lifecycle email campaigns', post: ' for 40,000 subscribers.' },
+  { pre: 'Ran ', mark: 'email campaigns', post: ' for 40,000 subscribers.' },
   { pre: 'Partnered with ', mark: 'product and design', post: ' on three launches.' },
-  { pre: 'Cut onboarding time ', mark: 'from nine days to four', post: '.' },
+  { pre: 'Helped reduce onboarding time ', mark: 'from nine days to four', post: '.' },
 ];
 
 export const BeforeAfterProof = memo(() => (
@@ -31,14 +31,14 @@ export const BeforeAfterProof = memo(() => (
 
       <div className="lp-proof lp-reveal">
         <article className="lp-proof-card is-before">
-          <span className="lp-proof-tag">Your resume today</span>
+          <span className="lp-proof-tag">Example original</span>
           <ul>
             {BEFORE.map((l) => <li key={l}>{l}</li>)}
           </ul>
         </article>
 
         <article className="lp-proof-card is-after">
-          <span className="lp-proof-tag is-on">Written for this posting</span>
+          <span className="lp-proof-tag is-on">Example rewrite</span>
           <ul>
             {AFTER.map((l) => (
               <li key={l.mark}>
@@ -50,7 +50,7 @@ export const BeforeAfterProof = memo(() => (
       </div>
 
       <p className="lp-note lp-proof-note">
-        Nothing invented. The same history, reordered and named in the words of the job.
+        Illustrative wording example, not a customer result. Every number and team name above was supplied in the original. Missing evidence should stay a gap.
       </p>
     </div>
   </section>

@@ -2,6 +2,7 @@
 // scoring (resume_diagnose and rewrite's own post-write grading both call
 // this). Pure code movement, zero logic changes.
 import { callAI } from "./ai.ts";
+import { employmentDateNotationIssue, isDateNotationFinding } from "../../_shared/resumeDateQuality.ts";
 
 export const RESUME_SCHEMA = {
   type: "object",
@@ -56,7 +57,7 @@ export const RESUME_SCHEMA = {
 // see the v3.133.0 comment on scoreResumeContent below for which half of it
 // is actually code-computed now. Every deduction is a concrete, checkable
 // fact about the resume, never an impression.
-export const RESUME_QUALITY_VERSION = "quality-2026-09-28";
+export const RESUME_QUALITY_VERSION = "quality-2026-10-10-dates";
 export const ATS_RUBRIC = `Writing-quality assessment, not an employer ATS score or hiring probability. Score out of 100, starting at 100 and subtracting only for what is actually true of this resume:
 - No dedicated skills section: -10
 - First-person pronouns anywhere ("I", "me", "my", "we"): -5, once regardless of how many appear
@@ -144,6 +145,11 @@ export function deterministicDeductions(resume: unknown): { points: number; issu
   const skills = Array.isArray(r.skills) ? (r.skills as unknown[]) : [];
   let points = 0;
   const issues: string[] = [];
+  const dateIssue = employmentDateNotationIssue(resume);
+  if (dateIssue) {
+    points += POINTS.date_format_inconsistent;
+    issues.push(dateIssue);
+  }
   if (!skills.length) {
     points += POINTS.no_skills_section;
     issues.push("There's no dedicated skills section.");
@@ -303,7 +309,7 @@ export async function scoreResumeContent(resume: unknown): Promise<{ ats_score: 
   const r = await callAI({
     temperature: 0.1,
     system: `You judge specific, checkable facts about this resume's writing — you do NOT compute a score, code does that from what you report here. Report only what is actually true, nothing invented.
-- date_format_inconsistent: true only for inconsistent notation at the same known precision. Year-only dates are valid, including alongside month/year dates when months are unknown. Never request invented months or judge whether a date is in the future.
+- Date notation is checked in code. Never report date-format findings. Year-only dates are valid, and Present is valid for ongoing employment. Certification and education years need not use the employment date format.
 - weak_bullet_count: the number of work bullets that neither contain a number/percentage/scale NOR lead with a specific, strong action verb.
 - generic_summary: true only if an existing nonempty summary makes generic claims without specifics. An absent summary is valid and must return false.
 - tense_mismatch: true only if completed employment is described as ongoing. Current roles can correctly mix present tense for ongoing duties and past tense for completed achievements.
@@ -314,13 +320,12 @@ issues: one plain sentence a person would say out loud for EACH true boolean or 
     toolSchema: {
       type: "object",
       properties: {
-        date_format_inconsistent: { type: "boolean" },
         weak_bullet_count: { type: "integer" },
         generic_summary: { type: "boolean" },
         tense_mismatch: { type: "boolean" },
         issues: { type: "array", items: { type: "string" } },
       },
-      required: ["date_format_inconsistent", "weak_bullet_count", "generic_summary", "tense_mismatch", "issues"],
+      required: ["weak_bullet_count", "generic_summary", "tense_mismatch", "issues"],
     },
   });
   const s = r.structured as {
@@ -329,12 +334,11 @@ issues: one plain sentence a person would say out loud for EACH true boolean or 
   } | undefined;
 
   let modelPoints = 0;
-  if (s?.date_format_inconsistent) modelPoints += POINTS.date_format_inconsistent;
   modelPoints += Math.min(Math.max(0, s?.weak_bullet_count ?? 0) * POINTS.weak_bullet, POINTS.weak_bullet_cap);
   if (s?.generic_summary) modelPoints += POINTS.generic_summary;
   if (s?.tense_mismatch) modelPoints += POINTS.tense_mismatch;
 
   const ats_score = Math.max(0, 100 - (det.points + modelPoints));
   const verdict = ats_score >= 85 ? "Strong" : ats_score >= 70 ? "Good" : ats_score >= 50 ? "Fair" : "Poor";
-  return { ats_score, verdict, issues: [...det.issues, ...(s?.issues ?? [])] };
+  return { ats_score, verdict, issues: [...det.issues, ...(s?.issues ?? []).filter(issue => !isDateNotationFinding(issue))] };
 }

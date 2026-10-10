@@ -1,5 +1,13 @@
 # Resume Hub map (web app + resume-hub backend)
 
+### Presentation audit corrections — 10 October (local)
+
+Shared job salary presentation discloses unknown units/currency, checks explicit posting-text currency against feed currency, and displays a conflict instead of guessing a replacement. Migration `20261010230000_pay_currency_conflicts.sql` removes implicit USD in `job_pay` and conservatively excludes contradictory or mixed explicit currency-code descriptions from aggregate benchmarks. Source fields are unchanged; the service-only view grants remain unchanged. This is not complete global currency/symbol disambiguation. Salary floors and neutral benchmark framing remain. Display-only company slug casing, internship/co-op labels and the observed Dresden facility identifier are humanized without rewriting catalog data. Saved cards have concise explicit accessible names instead of a full-description button name; empty assessment copy no longer claims a company invited someone without an invitation.
+
+### Signed-in QA fixes — 10 October (local)
+
+Employment date-format findings now come from `_shared/resumeDateQuality.ts`, not model booleans. Compare only recognized employment dates with known month precision; Present and year-only education/certification dates are valid. Future-start checks remain independent. Unsupported persisted date-format feedback suppresses the obsolete score in Profile and offers the existing free recheck, without rewriting personal records or guessing a corrected score. New model output discards invented date-format findings. Generation/optimization copy explains active versions and retained history; discovery directions name the Preferences & discovery tab. The shared escaped JD parser narrowly repairs recorded glued headings and source block boundaries; stored descriptions remain untouched.
+
 ### Document presentation follow-up — 10 October (local)
 
 Job descriptions render explicitly paired bold Markdown as emphasis and recognize bold known section headings. This is a narrow escaped-text renderer, not a raw HTML or general Markdown interpreter; source URLs never become arbitrary active HTML.

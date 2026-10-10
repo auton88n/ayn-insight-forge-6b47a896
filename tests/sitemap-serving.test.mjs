@@ -21,6 +21,8 @@ test('main sitemap survives a live dist rebuild and logs no request secrets', { 
     await copyFile(path.join(root, 'server.js'), path.join(fixture, 'server.mjs'));
     await mkdir(path.join(fixture, 'src/lib'), { recursive: true });
     await copyFile(path.join(root, 'src/lib/jobLocation.mjs'), path.join(fixture, 'src/lib/jobLocation.mjs'));
+    await mkdir(path.join(fixture, 'supabase/functions/_shared'), { recursive: true });
+    await copyFile(path.join(root, 'supabase/functions/_shared/articlePresentation.mjs'), path.join(fixture, 'supabase/functions/_shared/articlePresentation.mjs'));
     await copyFile(path.join(root, 'index.html'), path.join(fixture, 'dist/index.html'));
     for (const folder of ['dist', 'public']) {
       await copyFile(path.join(root, 'public/sitemap.xml'), path.join(fixture, folder, 'sitemap.xml'));
@@ -42,6 +44,11 @@ test('main sitemap survives a live dist rebuild and logs no request secrets', { 
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     const base = `http://127.0.0.1:${port}`;
+    const missingAsset = await fetch(`${base}/assets/JobsTab-obsolete123.js`);
+    assert.equal(missingAsset.status, 404);
+    assert.match(missingAsset.headers.get('content-type'), /text\/plain/);
+    assert.equal(missingAsset.headers.get('cache-control'), 'no-store');
+    assert.doesNotMatch(await missingAsset.text(), /<html|<!doctype/i);
     for (const route of ['/', '/pricing', '/salary-guide']) {
       const response = await fetch(base + route);
       const html = await response.text();

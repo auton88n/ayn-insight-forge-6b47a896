@@ -448,7 +448,7 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
       <div>
         <h2 className="lp-eyebrow" style={{ marginBottom: 8 }}>Assessments</h2>
         <p className="text-sm leading-relaxed" style={{ color: "var(--rh-muted)" }}>
-          A company asked you a few questions about your own work before deciding on a role.
+          Invitations from employers to answer questions about your experience appear here.
         </p>
       </div>
 

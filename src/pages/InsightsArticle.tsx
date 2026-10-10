@@ -9,6 +9,7 @@ import { LandingFooter } from '@/components/landing/LandingFooter';
 import { Skeleton } from '@/components/ui/skeleton';
 import { humanizeCategory } from '@/lib/jobPostingFormat';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
+import { presentArticle } from '../../supabase/functions/_shared/articlePresentation.mjs';
 
 // v3.X -- client-side render of a single /insights article, the same
 // server.js route already sends as complete, real HTML for a crawler.
@@ -45,7 +46,7 @@ const InsightsArticle = () => {
       .eq('status', 'published')
       .maybeSingle()
       .then(({ data, error: err }) => {
-        setArticle(err ? null : (data as unknown as ArticleRow | null));
+        setArticle(err || !data ? null : presentArticle(data as unknown as ArticleRow));
       });
   }, [slug]);
 

@@ -43,19 +43,19 @@ export const TrustBento = memo(() => {
     <div className="lp-bento is-stat-bento" role="group" aria-label="Why AYN's job listings can be trusted">
       <article className="lp-tile is-stat is-lead lp-span-3">
         <span className="lp-stat-k">3 days</span>
-        <span className="lp-stat-l">is the most a listing stays on AYN after the company takes it down from its own career page</span>
+        <span className="lp-stat-l">freshness window for pruning listings not seen again. A feed sighting does not guarantee a vacancy is open.</span>
       </article>
       <article className="lp-tile is-stat lp-span-3">
         <span className="lp-stat-k">{count}</span>
-        <span className="lp-stat-l">real jobs live right now</span>
+        <span className="lp-stat-l">postings in AYN’s current catalog</span>
       </article>
       <article className="lp-tile is-stat lp-span-2">
         <span className="lp-stat-k">2 hrs</span>
         <span className="lp-stat-l">between refresh cycles</span>
       </article>
       <article className="lp-tile is-stat lp-span-2">
-        <span className="lp-stat-k">Zero</span>
-        <span className="lp-stat-l">invented facts in a tailored resume</span>
+        <span className="lp-stat-k">Review</span>
+        <span className="lp-stat-l">your tailored resume before applying. AYN checks factual changes, but AI can still make mistakes.</span>
       </article>
       <article className="lp-tile is-stat lp-span-2">
         <span className="lp-stat-k">$0</span>

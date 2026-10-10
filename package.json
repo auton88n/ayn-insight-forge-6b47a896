@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/prune-build-assets.mjs",
     "build:dev": "vite build --mode development",
     "check:bundle": "node scripts/check-bundle.mjs",
     "lint": "eslint .",
@@ -14,7 +14,7 @@
     "validate:pdf": "node scripts/validate-pdf.mjs",
     "seo:health": "node scripts/seo-health.mjs",
     "seo:gsc": "node scripts/gsc-performance.mjs",
-    "test:seo": "node --test tests/seo-health.test.mjs tests/gsc-performance.test.mjs tests/sitemap-serving.test.mjs",
+    "test:seo": "node --test tests/seo-health.test.mjs tests/gsc-performance.test.mjs tests/sitemap-serving.test.mjs tests/build-asset-retention.test.mjs",
     "test:unit": "vitest run",
     "test:integration": "vitest run -c vitest.integration.config.ts",
     "test": "npm run test:unit && npm run test:integration"

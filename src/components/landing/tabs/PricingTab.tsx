@@ -34,7 +34,7 @@ import type { TabProps } from "../homeTabMeta";
 const PLANS: { key: string; name: string; cents: number; interval: string; credits: number; line: string; tag?: string }[] = [
   { key: 'seeker_free', name: 'Free', cents: 0, interval: 'month', credits: 6, line: 'Three tailored resumes a month, or six cover letters.' },
   { key: 'seeker_week', name: 'Week pass', cents: 499, interval: 'week', credits: 30, line: 'For the week you are applying hard.' },
-  { key: 'seeker_starter', name: 'Starter', cents: 1200, interval: 'month', credits: 80, line: 'A steady search, around forty tailored resumes.', tag: 'Most chosen' },
+  { key: 'seeker_starter', name: 'Starter', cents: 1200, interval: 'month', credits: 80, line: 'A steady search, around forty tailored resumes.', tag: 'Steady search' },
   { key: 'seeker_pro', name: 'Pro', cents: 2400, interval: 'month', credits: 200, line: 'A full time search with room to spare.' },
 ];
 

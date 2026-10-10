@@ -7,6 +7,7 @@ import { LandingFooter } from '@/components/landing/LandingFooter';
 import { Skeleton } from '@/components/ui/skeleton';
 import { humanizeCategory } from '@/lib/jobPostingFormat';
 import { TrendingUp, DollarSign } from 'lucide-react';
+import { presentArticle } from '../../supabase/functions/_shared/articlePresentation.mjs';
 
 // v3.X -- the client-side half of /insights. The real SEO/AEO work for
 // this page already happened server side (server.js's own /insights
@@ -24,6 +25,7 @@ type ArticleRow = {
   title: string;
   dek: string;
   published_at: string;
+  source_data?: Record<string, unknown> | null;
 };
 
 const Insights = () => {
@@ -33,13 +35,13 @@ const Insights = () => {
   useEffect(() => {
     supabase
       .from('articles')
-      .select('slug,kind,category,city,title,dek,published_at')
+      .select('slug,kind,category,city,title,dek,published_at,source_data')
       .eq('status', 'published')
       .order('published_at', { ascending: false })
       .limit(200)
       .then(({ data, error: err }) => {
         if (err || !data) { setError(true); return; }
-        setRows(data as unknown as ArticleRow[]);
+        setRows((data as unknown as ArticleRow[]).map(presentArticle));
       });
   }, []);
 

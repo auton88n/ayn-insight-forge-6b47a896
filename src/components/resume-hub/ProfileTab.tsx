@@ -23,6 +23,7 @@ import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { poolStatusQueryKey } from "@/lib/queryKeys";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { hasUnsupportedDateFinding } from '../../../supabase/functions/_shared/resumeDateQuality';
 
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -174,7 +175,8 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
     const active = rows.find(r => r.is_primary) ?? rows[0] ?? null;
     setResumeHistory(rows.filter(row => row.id !== active?.id));
     if (active) {
-      setPrimaryResume({ id: active.id, title: active.title, created_at: active.created_at, ats_score: active.ats_score, ats_issues: active.ats_issues });
+      const needsRecheck = hasUnsupportedDateFinding(active.content, active.ats_issues);
+      setPrimaryResume({ id: active.id, title: active.title, created_at: active.created_at, ats_score: needsRecheck ? null : active.ats_score, ats_issues: active.ats_issues });
       setResumeContent((active.content as ResumeContent) ?? null);
     } else {
       setPrimaryResume(null);
@@ -480,7 +482,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       // the merge above is ever persisted and silently revert it.
       await loadResumes();
       queueSave();
-      toast({ title: "Resume saved", description: "AYN filled in what it could read. Check your skills and achievements below." });
+      toast({ title: "Resume saved", description: "AYN filled in what it could read. Review your skills and achievements in Profile facts." });
       // Free, silent — so a score is already sitting there next time this
       // person opens the tab, no extra click needed for a fresh upload.
       if (insertedId) {
@@ -874,7 +876,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
                 size="sm"
                 onClick={() => {
                   if (replaceOpen) { setReplaceOpen(false); return; }
-                  if (confirm("Replace your resume? AYN will read the new file and update the fields below. Your current resume becomes inactive.")) {
+                  if (confirm("Upload a new active resume? AYN will read it and update Profile facts. Your current resume stays in Previous versions.")) {
                     setReplaceOpen(true);
                   }
                 }}
@@ -885,13 +887,13 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Upload a PDF, DOCX, or TXT. AYN reads it once and fills in everything below, so you only
-            correct what it got wrong.
+            Upload a PDF, DOCX, or TXT. AYN reads it once and fills in Profile facts.
+            Review the extracted information and correct anything it got wrong.
           </p>
         )}
 
         {primaryResume?.title === 'Resume from your free check' && <p role="status" className="mt-4 text-sm border-l-2 border-primary pl-3">
-          Your checked resume is saved. Download it to review the extraction, then check your profile fields below. Saving this document did not replace your existing profile facts; AYN uses both when writing. When they agree, use Optimize here or open Saved jobs and select the job you just saved to tailor it.
+          Your checked resume is saved. Review the document, then check Profile facts. Saving this document did not replace your existing profile facts; AYN uses both when writing. When they agree, use Optimize here or open Saved jobs and select the job you just saved to tailor it.
         </p>}
 
         {resumeHistory.length > 0 && <details className="mt-4 border-t pt-4">
@@ -934,8 +936,8 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
           <div className="mt-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
             <p className="text-xs text-muted-foreground max-w-sm">
               {primaryResume
-                ? "AYN can write a fresh resume from your profile below. This replaces your current one."
-                : "AYN has enough to write a real, ATS-formatted resume from your profile below."}
+                ? "AYN can write a fresh resume from your Profile facts. It becomes your active version; your earlier resumes remain available."
+                : "AYN has enough to write a resume from Profile facts, using a clean single-column document layout."}
             </p>
             <Button
               size="sm"
@@ -957,7 +959,9 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
             {primaryResume.ats_score == null ? (
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <p className="text-xs text-muted-foreground">
-                  See how your resume reads: quantified bullets, strong verbs, no thin sections.
+                  {hasUnsupportedDateFinding(resumeContent, primaryResume.ats_issues)
+                    ? 'Your earlier assessment included an unsupported date-format warning. Recheck for free using the corrected rules.'
+                    : 'Check your writing quality: clear contributions, specific verbs and consistent employment dates. Numerical metrics are optional.'}
                 </p>
                 <Button variant="outline" size="sm" onClick={checkResume} disabled={checkingResume}>
                   {checkingResume
@@ -980,7 +984,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm" onClick={checkResume} disabled={checkingResume}>
+                    <Button variant="ghost" size="sm" aria-label="Recheck resume quality for free" onClick={checkResume} disabled={checkingResume}>
                       {checkingResume ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                     </Button>
                     <Button
@@ -1021,8 +1025,8 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
                   </ul>
                 )}
                 <p className="text-[11px]" style={{ color: "var(--rh-faint)" }}>
-                  Optimizing rewrites your resume for clarity and impact and replaces the one above.
-                  Nothing is invented, and you can download the result right after.
+                  Optimizing creates a new active version for clarity and impact. Your earlier resumes remain available.
+                  Review the facts in the draft before using it. You can download the result right after.
                 </p>
               </div>
             )}
@@ -1079,7 +1083,7 @@ export default function ProfileTab({ userId, onCreditsChanged }: { userId: strin
       </Group>
 
       <p className="text-xs text-muted-foreground">
-        This profile is what employers search when "Let employers find me" above is on.
+        Employers can search this profile when you turn on "Let employers find me" in Preferences & discovery.
       </p>
     </div>
   );

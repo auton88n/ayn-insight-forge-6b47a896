@@ -15,7 +15,7 @@ export const FeaturesTab = ({ onStartFree }: TabProps) => (
         <div className="lp-reveal" style={{ marginBottom: 38 }}>
           <p className="lp-eyebrow">Features</p>
           <h2 className="lp-display lp-h2">Everything AYN actually does for you</h2>
-          <p className="lp-lead">One posting in, one real application out. Nothing here is a preview, it is what you get.</p>
+          <p className="lp-lead">Understand the posting, prepare your documents, and apply on the employer’s site.</p>
         </div>
         <div className="lp-bento lp-reveal ayn-feature-directory">
           {SEEKER_TILES.map((tile) => {
@@ -48,7 +48,7 @@ export const FeaturesTab = ({ onStartFree }: TabProps) => (
             Stop sending the same resume into the dark.
           </h2>
           <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
-            Add your background once. Every application after that is written for the job, and every employer searching finds you too.
+            Add your background once. Prepare documents for each job, and choose whether approved employers can find your profile.
           </p>
           <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
             <button type="button" className="lp-btn lp-btn-invert lp-btn-lg" onClick={() => onStartFree?.('job_seeker')}>

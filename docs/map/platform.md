@@ -1,5 +1,15 @@
 # 2 October 2026: Insights content engine handoff and archive safety
 
+## Presentation audit corrections, 10 October 2026 (local, not deployed)
+
+`_shared/articlePresentation.mjs` now supplies one deterministic snapshot report to `content-engine`, browser Insights and `server.js` crawler output. Existing published articles with valid numeric `source_data` use this presentation on read; their stored historic prose is not mutated. No forced 450-word padding, model interpretation, invented FAQs or claim that refreshed `posted_at` is an employer publication date. Pay is formatted as annual USD midpoints with the existing ten-listing floor and catalog/sample limitations. New reports cost zero model tokens. Service-role authentication, bounded article cadence, archive-safe upsert and admin controls remain; no new public writer or permission. The former AI retry/length generator is removed, superseding its historic description below. Historical statistics still require the existing refresh path after pay-view corrections.
+
+Static resume examples are explicitly illustrative and preserve source numbers and contribution scope. Employer assessment copy does not claim verified employment, identity or AI-proof authorship. Both Starter labels are descriptive, not unmeasured popularity claims. Assessment empty states describe invitations neutrally. Fixed light theme no longer wraps router history methods. Browser regressions cover job/company navigation with Back/Forward; the precise cause of the earlier production stale-tab incident remains unproven, so do not label this a confirmed root-cause fix.
+
+Release needs the shared formatter on the server and in the content-engine bundle, migration `20261010230000_pay_currency_conflicts.sql`, then normal report refresh to update historic numeric snapshots. There are no billing, personal-record, consent or account-erasure changes in this batch.
+
+The SEO smoke check warns on near-empty bodies (under 80 words), not an arbitrary 450-word target. This is an operational review prompt, not a ranking or quality guarantee. Concise reports still require canonical, metadata, readable HTML and Article structured data checks.
+
 ## Pay-data floor, 10 October 2026
 
 `content-engine/grounding.ts` `applySalaryFloor`: fewer than 10 USD salary-stating postings removes every pay figure from the data given to the model and stored in `source_data`, and a salary report with no usable sample is skipped, not published. Reported pay is labelled as annual USD midpoints. Found because `salary-sales-london` published a "median" from one salary; that article was archived (not deleted) and can be regenerated only once the city has enough pay data.

@@ -15,6 +15,9 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
+    // Keep previous hashed chunks available to tabs opened before a deploy.
+    // The post-build retention script prunes obsolete assets after seven days.
+    emptyOutDir: false,
     sourcemap: false,
     minify: 'esbuild',
     manifest: true,

@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { marked } from 'marked';
 import { canonicalLocation, normalizeLocationCounts } from './src/lib/jobLocation.mjs';
+import { presentArticle } from './supabase/functions/_shared/articlePresentation.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -114,7 +115,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Vite empties the live-mounted dist folder during deployment. Hold the
+// Retain the sitemap in memory across builds and file-copy windows. Hold the
 // tracked sitemap in memory, as we already do for the SPA shell, rather
 // than allowing a transient missing dist file to fall through to HTML 404.
 const mainSitemap = fs.readFileSync(path.join(__dirname, 'public/sitemap.xml'), 'utf8');
@@ -139,6 +140,12 @@ app.use(express.static(DIST, {
     }
   },
 }));
+
+// Never serve the SPA's HTML shell for a missing JavaScript/CSS asset.
+app.use('/assets', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(404).type('text/plain').send('Asset not available. Reload AYN to use the current version.');
+});
 
 // v3.202.0 — real, individually-crawlable content (~23,000 job postings
 // right now) that no sitemap has ever listed. A static file can't hold
@@ -381,7 +388,7 @@ app.get('/insights/:slug', async (req, res) => {
   }
   try {
     const rows = await fetchJson(`articles?slug=eq.${encodeURIComponent(slug)}&status=eq.published&select=*&limit=1`);
-    const article = rows[0];
+    const article = rows[0] ? presentArticle(rows[0]) : null;
     if (!article) {
       // Archived or unknown articles must not be a crawler-visible soft 404.
       res.status(404).type('html').send(indexHtml);
@@ -408,7 +415,7 @@ app.get('/insights', async (req, res) => {
     return;
   }
   try {
-    const rows = await fetchJson(`articles?status=eq.published&select=slug,title,dek,category,city,published_at&order=published_at.desc&limit=200`);
+    const rows = (await fetchJson(`articles?status=eq.published&select=slug,title,dek,kind,category,city,published_at,source_data&order=published_at.desc&limit=200`)).map(presentArticle);
     const listHtml = rows.map((a) => (
       `<li><a href="/insights/${escapeHtml(a.slug)}">${escapeHtml(a.title)}</a><p>${escapeHtml(a.dek)}</p></li>`
     )).join('');
@@ -687,13 +694,13 @@ const PAGE_META = {
   '/': {
     h1: 'A resume tailored to every job you apply to',
     body: [
-      'AYN finds real jobs on company career pages, never LinkedIn or Indeed, so you never waste an application on a ghost job.',
-      'Score how well you match a job, then get a tailored resume and cover letter built only from your real work history. Nothing is invented.',
+      'AYN catalogs postings from company career pages and shows its latest recorded observations. A sighting is not a guarantee that an employer is interviewing.',
+      'Compare your experience with a job, then draft a tailored resume and cover letter. Review the changes and factual claims before applying.',
     ],
   },
   '/jobs': {
     title: 'Browse real jobs from company career pages | AYN',
-    description: 'Search current jobs sourced straight from company career pages. No ghost listings, no account needed to browse.',
+    description: 'Browse company career-page postings with recorded freshness observations. No account needed to browse.',
     h1: 'Browse real jobs',
     body: [
       'Every listing on AYN comes from a company’s own career page and is removed shortly after it stops being confirmed live.',

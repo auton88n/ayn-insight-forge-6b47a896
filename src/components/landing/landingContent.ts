@@ -60,7 +60,7 @@ export const HEAD_TO_HEAD: Record<Audience, { themLabel: string; rows: { them: s
 // The seeker-side contrast is against high-volume, generic job-search tools.
 export const AI_CONTRAST = [
   'Reads the actual job description, not a keyword list',
-  'Writes from your real experience. Nothing invented, nothing generic',
+  'Drafts from your experience, with changes for you to review',
   'One role at a time, with documents designed for that role',
 ];
 
@@ -118,8 +118,8 @@ export const SEEKER_TILES = [
   {
     span: 'lp-span-3',
     icon: ShieldCheck,
-    title: 'Nothing invented',
-    desc: 'No skill, number or title that is not already yours.',
+    title: 'Your experience first',
+    desc: 'Missing qualifications stay gaps. Review the draft before using it.',
   },
 ];
 
@@ -153,7 +153,7 @@ export const TRUST: Record<Audience, { title: string; lead: string; chips: strin
     chips: [
       'One role at a time',
       'Grounded in the posting',
-      'Nothing invented',
+      'Reviewable changes',
       'Your details stay yours',
     ],
   },
@@ -193,7 +193,7 @@ export const FAQS: Record<Audience, { q: string; a: string }[]> = {
     },
     {
       q: 'Will it invent experience?',
-      a: 'No. Anything missing is shown to you as a gap instead.',
+      a: 'AYN is designed to keep missing qualifications as gaps, not add them as experience. AI can still make mistakes: review dates, numbers and claims before using a draft.',
     },
     {
       q: 'Is it free to try?',

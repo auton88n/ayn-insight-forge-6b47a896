@@ -32,6 +32,9 @@ function placeCase(value) {
   return /^[A-Z]{2}[a-z]{2,}$/.test(value) ? value[0] + value.slice(1).toLowerCase() : value;
 }
 function singlePlace(raw) {
+  // Observed facility token, not a general country-code guess (DE can also
+  // mean Delaware). Preserve other unknown facility strings verbatim.
+  if (/^DE-Dresden\d{4}$/i.test(raw.trim())) return 'Dresden, Germany';
   const hasUSZip = /\b[A-Z]{2}\s*\d{5}(?:-\d{4})?\b/.test(raw);
   let value = raw.replace(/\b(?:or\s+)?(?:remote|hybrid|on[ -]?site)(?:\s+contract)?\b/ig, '')
     .replace(/[()]/g, '').replace(/\s+[-–—]\s+/g, ', ')

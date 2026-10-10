@@ -31,7 +31,7 @@ export function ThemeProvider({
   const [theme, setThemeState] = useState<Theme>(resolveTheme)
 
   useEffect(() => {
-    // Re-resolve on mount (handles SPA navigation after hydration)
+    // Apply the fixed theme once, independently of navigation.
     const resolved = resolveTheme()
     setThemeState(resolved)
 
@@ -44,36 +44,12 @@ export function ThemeProvider({
     document.body.style.backgroundColor = resolved === "light" ? "#ffffff" : "hsl(0 0% 4%)"
   }, [])
 
-  // Listen for SPA route changes (popstate / pushstate)
-  useEffect(() => {
-    const sync = () => {
-      const resolved = resolveTheme()
-      setThemeState(resolved)
-      const root = window.document.documentElement
-      root.classList.remove("light", "dark")
-      root.classList.add(resolved)
-      root.style.backgroundColor = resolved === "light" ? "#ffffff" : "hsl(0 0% 4%)"
-      document.body.style.backgroundColor = resolved === "light" ? "#ffffff" : "hsl(0 0% 4%)"
-    }
-
-    window.addEventListener("popstate", sync)
-
-    // Patch pushState / replaceState so in-app navigation triggers the sync
-    const origPush = history.pushState.bind(history)
-    const origReplace = history.replaceState.bind(history)
-    history.pushState = (...args) => { origPush(...args); sync() }
-    history.replaceState = (...args) => { origReplace(...args); sync() }
-
-    return () => {
-      window.removeEventListener("popstate", sync)
-      history.pushState = origPush
-      history.replaceState = origReplace
-    }
-  }, [])
+  // All routes use the same light theme. Do not wrap the router's history
+  // methods or synchronously update React during a navigation transition.
 
   const value = {
     theme,
-    setTheme: () => null, // toggling disabled — route determines theme
+    setTheme: () => null, // toggling disabled — all routes use light
   }
 
   return (

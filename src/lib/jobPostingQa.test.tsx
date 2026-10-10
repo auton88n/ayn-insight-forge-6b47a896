@@ -8,6 +8,14 @@ import { jobCopy } from './jobCopy';
 import { jobAvailability } from './jobAvailability';
 afterEach(cleanup);
 
+it('repairs recorded glued boundaries without splitting ordinary employer prose', () => {
+  render(<JobDescriptionBody text={'RequirementsEXPERIENCE & ACADEMIC QUALIFICATIONS:\n- Degree required.\n\nThe impact you’ll makeAs a Product Support Engineer, support customers.\n\nWhat you’ll do- Serve customers.'} />);
+  expect(screen.getByRole('heading', { name: 'EXPERIENCE & ACADEMIC QUALIFICATIONS' })).toBeVisible();
+  expect(screen.queryByText(/RequirementsEXPERIENCE/)).toBeNull();
+  expect(screen.getByText('As a Product Support Engineer, support customers.')).toBeVisible();
+  expect(screen.getByText('Serve customers.')).toBeVisible();
+});
+
 it('formats explicit source emphasis without executing HTML or inventing links', () => {
   const { container } = render(<JobDescriptionBody text={'**Requirements**\n\n- Experience with **Python** and __SQL__.\n\n<script>bad()</script>'} />);
   expect(screen.getByRole('heading', { name: 'Requirements' })).toBeVisible();
@@ -96,6 +104,20 @@ it('shares currency and monthly extraction rules with the backend', () => {
   expect(resolveSalary({ description: 'Salary €4,000 - €5,000 per month', location: 'Berlin' } as JobPosting)).toEqual({ text: 'EUR 4k to 5k/mo', fromListingText: true });
 });
 it('shows equal salary endpoints once', () => {
-  expect(resolveSalary({ salary_min: 70304, salary_max: 70304 } as JobPosting)?.text).toBe('USD 70k');
+  expect(resolveSalary({ salary_min: 70304, salary_max: 70304 } as JobPosting)?.text).toBe('Currency not stated 70k · period not stated');
   expect(resolveSalary({ salary_text_min: 35, salary_text_max: 35, salary_text_period: 'hour', salary_text_currency: 'USD' } as JobPosting)?.text).toBe('USD 35/hr');
+});
+
+it('discloses conflicting currencies rather than presenting inferred CAD as USD pay', () => {
+  const job = { salary_min: 195000, salary_max: 205000, salary_currency: 'CAD', description: 'Salary USD 195,000 - 205,000 per year' } as JobPosting;
+  expect(resolveSalary(job)?.text).toBe('Pay currency conflict — see posting');
+  expect(resolveSalary({ ...job, salary_currency: 'USD' })?.text).toBe('USD 195k to 205k/yr');
+  expect(resolveSalary({ salary_max: 65000, salary_currency: 'USD' } as JobPosting)?.text).toBe('USD up to 65k · period not stated');
+});
+
+it('humanizes machine labels without inventing brand words or ambiguous geography', () => {
+  expect(displayCompany('hims-and-hers')).toBe('Hims And Hers');
+  expect(displayCompany('rogerhealthcare')).toBe('Rogerhealthcare');
+  expect(displayCompany(null)).toBe('');
+  expect(formatLocation('DE-Dresden2203')).toBe('Dresden, Germany');
 });

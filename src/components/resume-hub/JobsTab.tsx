@@ -38,7 +38,7 @@ const ResumeDiffViewer = lazy(() => import('./ResumeDiffViewer'));
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
 import { isFeatureDisabled } from "@/lib/featureError";
-import { companyAvatar, formatLocation, decodeHtmlEntities, displayJobTitle, JobDescriptionBody } from "@/lib/jobPostingFormat";
+import { companyAvatar, displayCompany, formatLocation, decodeHtmlEntities, displayJobTitle, JobDescriptionBody } from "@/lib/jobPostingFormat";
 import { JobApplicationFacts } from '@/components/shared/JobApplicationFacts';
 import { savedJobsQueryKey } from "@/lib/queryKeys";
 import { cleanApplyUrl } from "@/lib/applyUrl";
@@ -904,7 +904,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
             <DialogHeader>
               <DialogTitle>Tailor this resume?</DialogTitle>
               <DialogDescription>
-                AYN rewrites your resume's wording for this one job to improve your ATS match. It never invents a number, a skill, or an employer you don't have.
+                AYN adapts your resume's wording to this job using your recorded experience. Review the changes, especially numbers, skills and employers, before applying.
               </DialogDescription>
             </DialogHeader>
             <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-5">
@@ -949,7 +949,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
             <DialogHeader>
               <DialogTitle>Write a cover letter?</DialogTitle>
               <DialogDescription>
-                AYN writes a cover letter for this job using only what is in your resume and profile. It never invents an employer, a number or a skill.
+                AYN drafts a cover letter from your resume and profile. Review the employer, numbers and skills before using it; AI can make mistakes.
               </DialogDescription>
             </DialogHeader>
             <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-5">
@@ -1145,6 +1145,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               key={j.id}
               type="button"
               onClick={() => openJob(j)}
+              aria-label={`Read ${displayJobTitle(j.title, displayCompany(j.company), j.jd_text)}${j.company ? ` at ${displayCompany(j.company)}` : ''}`}
               className="rh-lift w-full rounded-2xl p-5 flex flex-col text-left min-h-[420px]"
               style={{ background: "var(--rh-surface)", border: "1px solid var(--rh-hair)", boxShadow: "var(--rh-shadow-card)" }}
             >
@@ -1156,7 +1157,7 @@ export default function JobsTab({ userId, onOpenProfile, onCreditsChanged, onBac
               </div>
               <p className="rh-display text-[18px] leading-snug mb-1">{displayJobTitle(j.title, j.company, j.jd_text)}</p>
               <p className="text-[13px] mb-3" style={{ color: "var(--rh-muted)" }}>
-                {j.company}{j.location ? ` · ${formatLocation(j.location)}` : ""}
+                {displayCompany(j.company)}{j.location ? ` · ${formatLocation(j.location)}` : ""}
               </p>
               {snippet && (
                 <p className="text-[13px] leading-relaxed line-clamp-6" style={{ color: "var(--rh-muted)" }}>

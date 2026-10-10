@@ -57,9 +57,9 @@ const STRIP: Record<Audience, { label: string; marks: string[] }> = {
 // employer route, rather than each holding its own drifting copy.
 
 const EMPLOYER_AI_CONTRAST = [
-  'Skills labeled proven or inferred, never blended together',
+  'Stated skills and inferred skills labeled separately',
   'Semantic matching on real evidence, not keyword stuffing',
-  'Assessments built from their own claims. A generic AI cannot fake them',
+  'Assessments built from the candidate’s background, with results to review',
 ];
 
 // The employer-side reframe: lead with what changes for them (no agency
@@ -114,7 +114,7 @@ const EMPLOYER_STEPS = [
 // before writing a single number.
 const EMPLOYER_PLANS: { key: string; name: string; cents: number; searches: number; proposals: number; assessments: number; tag?: string }[] = [
   { key: 'employer_trial', name: 'Free month', cents: 0, searches: 25, proposals: 5, assessments: 3 },
-  { key: 'employer_starter', name: 'Starter', cents: 19900, searches: 100, proposals: 10, assessments: 5, tag: 'Most chosen' },
+  { key: 'employer_starter', name: 'Starter', cents: 19900, searches: 100, proposals: 10, assessments: 5, tag: 'Focused hiring' },
   { key: 'employer_growth', name: 'Growth', cents: 49900, searches: 400, proposals: 40, assessments: 25 },
   { key: 'employer_scale', name: 'Scale', cents: 99900, searches: 1200, proposals: 120, assessments: 80 },
 ];
@@ -165,7 +165,7 @@ const HERO: Record<Audience, {
     // its weight here).
     headline: 'Three real people to read.',
     emphasis: 'Not a resume pile.',
-    lead: 'AYN matches your role against candidates who chose to be found. Every one is verified before you see a name.',
+    lead: 'AYN matches your role against candidates who chose to be found. Review their stated experience, inferred skills, and gaps before inviting them to an assessment.',
     cta: 'Request employer access',
     note: 'Every company is reviewed by hand. Contact stays private until the candidate accepts. Employer accounts are currently US and Canada only.',
     art: <CandidateCardMockup />,
@@ -489,7 +489,7 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
               <p className="lp-lead" style={{ maxWidth: 680 }}>
                 A staffing agency takes a cut of the salary just for the introduction. Doing it yourself costs an
                 afternoon buried in resumes that all start to blur together. AYN skips both: describe the role once,
-                and read three people worth an actual conversation, evidence already checked.
+                and review matching profiles with their stated experience and gaps side by side.
               </p>
               <div className="lp-chips" style={{ marginTop: 22 }}>
                 {EASY_HIRING_CHIPS.map((c) => (
@@ -508,12 +508,12 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
           <section className="lp-section" style={{ paddingBlockStart: 0 }}>
             <div className="lp-shell lp-reveal">
               <p className="lp-eyebrow">The AI, and what it actually checks</p>
-              <h2 className="lp-display lp-h2">Real AI, built to find out <em>who actually did the work.</em></h2>
+              <h2 className="lp-display lp-h2">Review the background. <em>Ask better questions.</em></h2>
               <p className="lp-lead" style={{ maxWidth: 680 }}>
                 Anyone can generate a polished, tailored-sounding resume in seconds now, so a resume alone proves
-                less than it used to. AYN's AI reads real evidence instead: it separates what a candidate has
-                proven from what it only inferred, ranks fit on that evidence, and builds a short verification
-                assessment from their own specific claims, the kind of thing a generic AI cannot fake its way through.
+                less than it used to. AYN separates what a candidate stated in their profile from what the system
+                inferred, ranks fit on that information, and builds a short
+                assessment from their own specific claims. Assessments provide another signal to review; they do not prove identity, authorship, or every claim on a resume.
               </p>
               <div className="lp-chips" style={{ marginTop: 22 }}>
                 {EMPLOYER_AI_CONTRAST.map((c) => (
@@ -566,7 +566,7 @@ export const LandingSections = memo(({ onStartFree, forcedAudience, activeTab = 
                 </div>
                 <div>
                   <p className="lp-eyebrow">Verification assessments</p>
-                  <h2 className="lp-display lp-h2">Find out who actually did the work</h2>
+                  <h2 className="lp-display lp-h2">Explore the experience behind the resume</h2>
                   <p className="lp-lead">
                     Send a short assessment built from their own background and your role.
                   </p>

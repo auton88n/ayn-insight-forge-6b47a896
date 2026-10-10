@@ -38,10 +38,13 @@ import { useMemo } from "react";
 import { canonicalLocation, locationWorkMode } from './jobLocation.mjs';
 export { relevantPostingSkills } from '../../supabase/functions/_shared/jobSkills';
 
-export function displayCompany(raw: string): string {
-  let value = raw.trim();
+export function displayCompany(raw: string | null | undefined): string {
+  let value = String(raw || '').trim();
   while (value.endsWith(')') && (value.match(/\)/g)?.length || 0) > (value.match(/\(/g)?.length || 0)) value = value.slice(0, -1).trim();
-  return value;
+  // Display-only casing, not a claim about a company's legal identity.
+  return /^[a-z0-9]+(?:[-_][a-z0-9]+)+$/.test(value)
+    ? value.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    : /^[a-z][a-z0-9]+$/.test(value) ? value[0].toUpperCase() + value.slice(1) : value;
 }
 
 /** Presentation only: never overwrite employer text in the catalog. Strip a
@@ -62,6 +65,7 @@ export const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   full_time: "Full-time", part_time: "Part-time", contract: "Contract", internship: "Internship",
   employee_full_time: "Full-time", full_time_salary: "Full-time", full_time_hybrid: "Full-time",
   intern: "Internship", contractor: "Contract", contract_salary: "Contract",
+  internship_co_op: "Internship / co-op", co_op: "Co-op",
 };
 export const SENIORITY_LABELS: Record<string, string> = {
   junior: "Junior", mid: "Mid", middle: "Mid", senior: "Senior", staff: "Staff", lead: "Lead",
@@ -106,6 +110,7 @@ export function humanizeSlug(s: string) {
  * never `job.employment_type` directly, which can be an unmapped slug. */
 export function employmentTypeLabel(value: string | null | undefined): string | null {
   if (!value) return null;
+  if (/^internship[_ -]?co[_ -]?op$/i.test(value)) return 'Internship / co-op';
   return EMPLOYMENT_TYPE_LABELS[value] || humanizeSlug(value);
 }
 
@@ -175,10 +180,10 @@ export function locationSearchPatterns(place: string): string[] {
 
 function formatSalary(min: number | null | undefined, max: number | null | undefined, currency: string | null | undefined) {
   if (min == null && max == null) return null;
-  const cur = currency || "USD";
+  const cur = currency || "Currency not stated";
   const fmt = (n: number) => n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
   if (min != null && max != null) return min === max ? `${cur} ${fmt(min)}` : `${cur} ${fmt(min)} to ${fmt(max)}`;
-  return `${cur} ${fmt((min ?? max)!)}+`;
+  return min != null ? `${cur} ${fmt(min)}+` : `${cur} up to ${fmt(max!)}`;
 }
 
 // v3.170.0 — asked directly to look into salary coverage after the earlier
@@ -216,24 +221,35 @@ function formatSalary(min: number | null | undefined, max: number | null | undef
  * can note where it came from if it wants to. */
 export function resolveSalary(job: JobPosting): { text: string; fromListingText: boolean } | null {
   if (payPeriodWarning(job.description || '')) return null;
+  // No location inference for conflict detection: only a currency attached to
+  // the employer's written pay range can contradict a structured currency.
+  const explicit = extractPostingSalary(job.description || '');
+  const recordedCurrency = (job.salary_min != null || job.salary_max != null) ? job.salary_currency : job.salary_text_currency;
+  if (explicit?.currency && recordedCurrency && explicit.currency !== recordedCurrency.toUpperCase()) {
+    return { text: 'Pay currency conflict — see posting', fromListingText: true };
+  }
   const structured = formatSalary(job.salary_min, job.salary_max, job.salary_currency);
-  if (structured) return { text: structured, fromListingText: false };
+  if (structured) {
+    const period = explicit && explicit.min === job.salary_min && explicit.max === job.salary_max ? explicit.period
+      : job.salary_text_min === job.salary_min && job.salary_text_max === job.salary_max ? job.salary_text_period : null;
+    return { text: `${structured}${period === 'hour' ? '/hr' : period === 'month' ? '/mo' : period === 'year' ? '/yr' : ' · period not stated'}`, fromListingText: false };
+  }
   // A range read from the posting text on the server (with its currency and pay period worked out).
   if (job.salary_text_min != null && job.salary_text_max != null) {
     if (job.salary_text_period === 'hour' && job.salary_text_max > 200) return null;
     if (job.salary_text_period === 'month' && job.salary_text_max > 30_000) return null;
     const fmtN = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
-    const suffix = job.salary_text_period === "hour" ? "/hr" : job.salary_text_period === "month" ? "/mo" : "";
+    const suffix = job.salary_text_period === "hour" ? "/hr" : job.salary_text_period === "month" ? "/mo" : job.salary_text_period === 'year' ? '/yr' : ' · period not stated';
     const cur = job.salary_text_currency || "";
     const range = job.salary_text_min === job.salary_text_max ? fmtN(job.salary_text_min) : `${fmtN(job.salary_text_min)} to ${fmtN(job.salary_text_max)}`;
-    return { text: `${cur ? cur + " " : "$"}${range}${suffix}`, fromListingText: true };
+    return { text: `${cur || 'Currency not stated'} ${range}${suffix}`, fromListingText: true };
   }
   const extracted = extractPostingSalary(job.description || "", job.location);
   if (!extracted) return null;
   const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
-  const suffix = extracted.period === "hour" ? "/hr" : extracted.period === "month" ? "/mo" : "";
+  const suffix = extracted.period === "hour" ? "/hr" : extracted.period === "month" ? "/mo" : "/yr";
   const range = extracted.min === extracted.max ? fmt(extracted.min) : `${fmt(extracted.min)} to ${fmt(extracted.max)}`;
-  return { text: `${extracted.currency || '$'} ${range}${suffix}`, fromListingText: true };
+  return { text: `${extracted.currency || 'Currency not stated'} ${range}${suffix}`, fromListingText: true };
 }
 
 // v3.171.0 — was a flat pastel fill (bg-blue-100/text-blue-700, etc.), the
@@ -381,13 +397,14 @@ const JD_HEADER_KEYWORDS = new Set([
   "nice to have", "preferred qualifications", "must have", "minimum qualifications",
   "equal opportunity", "eeo statement", "how to apply", "the role", "the team",
   "key responsibilities", "essential functions", "physical requirements",
+  "the impact you'll make", "who we're looking for",
 ]);
 
 function isJdHeading(line: string): boolean {
   const trimmed = line.trim();
   if (trimmed.length < 3 || trimmed.length > 70) return false;
   if (/[.;,]$/.test(trimmed)) return false; // a real sentence ends in punctuation, a header doesn't
-  const bare = trimmed.replace(/:$/, "").trim().toLowerCase();
+  const bare = trimmed.replace(/:$/, "").trim().toLowerCase().replace(/[’‘]/g, "'");
   if (JD_HEADER_KEYWORDS.has(bare)) return true;
   if (trimmed.endsWith(":") && trimmed.length <= 50 && !/[.!?]/.test(trimmed)) return true;
   const hasLower = /[a-z]/.test(trimmed);
@@ -473,7 +490,13 @@ export function decodeHtmlEntities(s: string | null | undefined): string {
 }
 
 export function parseJobDescription(text: string): JdBlock[] {
-  const lines = collapseBulletGaps(decodeHtmlEntities(text).replace(/\r\n/g, "\n").split("\n"));
+  // Narrow repairs for recorded source block-boundary loss, not general camel-case splitting.
+  const normalized = decodeHtmlEntities(text).replace(/\r\n/g, "\n")
+    .replace(/^Requirements(?=EXPERIENCE\s*&\s*ACADEMIC QUALIFICATIONS\b)/gim, 'Requirements\n')
+    .replace(/^(The impact you[’']ll make)(?=As\s)/gim, '$1\n')
+    .replace(/^(What you[’']ll do|Who we[’']re looking for|Preferred qualifications)(?=-\s)/gim, '$1\n')
+    .replace(/\bUSD(?=In select roles\b)/g, 'USD\n\n');
+  const lines = collapseBulletGaps(normalized.split("\n"));
   const blocks: JdBlock[] = [];
   let paraBuf: string[] = [];
   let bulletBuf: string[] = [];

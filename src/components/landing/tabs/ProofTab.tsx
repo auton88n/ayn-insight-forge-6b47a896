@@ -10,8 +10,8 @@ export const ProofTab = () => (
     <section className="lp-section" style={{ paddingBlockEnd: 0 }}>
       <div className="lp-shell lp-reveal">
         <p className="lp-eyebrow">Proof</p>
-        <h2 className="lp-display lp-h2">A real resume, rewritten for one job</h2>
-        <p className="lp-lead">Not a demo. The same difference every real tailoring run makes.</p>
+        <h2 className="lp-display lp-h2">How clearer resume wording works</h2>
+        <p className="lp-lead">An illustrative example, not a customer result. The facts stay the same; the wording becomes more specific.</p>
       </div>
     </section>
     <BeforeAfterProof />

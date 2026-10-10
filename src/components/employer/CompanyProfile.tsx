@@ -209,7 +209,7 @@ export default function CompanyProfile({
           onBlur={blurSave("about")}
         />
         <p className="text-[11px] text-muted-foreground">
-          AYN uses this when it drafts a proposal. It never invents facts about your company.
+          AYN uses this when it drafts a proposal. Review company facts before sending; AI can make mistakes.
         </p>
       </div>
     </div>

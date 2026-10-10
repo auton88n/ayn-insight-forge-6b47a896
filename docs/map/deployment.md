@@ -1,5 +1,11 @@
 # Deployment & VPS operations
 
+## Stale-tab recovery — 10 October (local)
+
+Missing /assets paths return text/plain 404 with no-store, never the SPA shell. If sessionStorage is unavailable, automatic recovery is disabled to avoid a reload loop; the explicit Reload button remains available. CI's existing test:seo gate now includes the bounded asset-retention regression.
+
+Vite no longer empties dist before building. `npm run build` then runs `scripts/prune-build-assets.mjs`: current manifest assets are always retained, and obsolete regular hash-named files in dist/assets are retained for seven days by modification time. Do not use an external dist deletion/rsync --delete step: that defeats retention for already-open tabs. This is bounded compatibility, not an atomic deployment or an indefinite old-client guarantee. ErrorBoundary's single-reload guard is now a 60-second cooldown rather than a permanent session flag; explicit recovery copy warns about unsaved edits. Deploy the resume-hub/lib scoring changes and shared resumeDateQuality module with the frontend. No migrations or personal-data backfill; historical invalid Profile assessments offer a free recheck rather than silently altering stored scores.
+
 ## Search/location follow-up, 10 October 2026
 
 `20261010030000_company_location_summary.sql` was applied live before the app push (schema backup: `/root/ayn-pre-location-summary-schema.sql`). `tests/company-location-summary.sql` ends in `rollback` and MUST be piped inside `BEGIN;` — run bare it commits 46 fixture postings (this happened once and was cleaned by slug prefix `ayn-location-fixture-`). Back up public schema, server.js and dist first. The pure `src/lib/jobLocation.mjs` must exist in the frontend's `/app` checkout for server.js (the VPS mounts `/root/ayn-repo` there). Old code ignores the additive RPC, so rollback restores app code without deleting observations or source strings. No new personal tables, email workers, credentials or environment variables.
